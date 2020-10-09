@@ -37,7 +37,7 @@ impl<T> Hash for Id<T> {
 impl<T> Debug for Id<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         let of_type = std::any::type_name::<T>().split("::").last().unwrap();
-        write!(f, "<{}:{}>", of_type, self.id)
+        write!(f, "[Id<{}>: {}]", of_type, self.id)
     }
 }
 

@@ -10,9 +10,8 @@ edition = "2018"
 # ]
 
 [dependencies]
-dotrix_assets = { path = "crates/dotrix_assets", version = "0.1.0" }
 dotrix_core = { path = "crates/dotrix_core", version = "0.1.0" }
 
 [[example]]
-name = "cube"
-path = "examples/cube/cube.rs"
+name = "assets"
+path = "examples/assets.rs"

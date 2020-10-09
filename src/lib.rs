@@ -1,1 +1,1 @@
-pub use dotrix_assets as assets;
+pub use dotrix_core::*;

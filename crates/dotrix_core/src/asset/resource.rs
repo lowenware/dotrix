@@ -22,5 +22,13 @@ impl Resource {
             data: None,
         }
     }
+
+    pub fn path(&self) -> &String {
+        &self.path
+    }
+
+    pub fn name(&self) -> &String {
+        &self.name
+    }
 }
 
