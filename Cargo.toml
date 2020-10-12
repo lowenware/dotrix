@@ -12,6 +12,7 @@ edition = "2018"
 [dependencies]
 dotrix_core = { path = "crates/dotrix_core", version = "0.1.0" }
 
+
 [[example]]
 name = "assets"
 path = "examples/assets.rs"

@@ -6,4 +6,13 @@ edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# [features]
+
 [dependencies]
+wgpu = "0.6"
+winit = "0.23.0"
+futures = { version = "0.3", default-features = false, features = ["std"] }
+wgpu-subscriber = "0.1.0"
+
+[dev-dependencies]
+futures = { version = "0.3", default-features = false, features = ["std", "executor"] }

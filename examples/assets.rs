@@ -1,3 +1,7 @@
+use dotrix::{
+    Dotrix,
+    window::Window,
+};
 use dotrix::asset;
 
 fn main() {
@@ -18,4 +22,7 @@ fn main() {
     let res = assets.get::<asset::Resource>(id).unwrap();
     println!("resource {:?} -> {:?}", res.path(), res.name());
 
+    Dotrix::init()
+        .window(Window {})
+        .run();
 }
