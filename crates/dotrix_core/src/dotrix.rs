@@ -1,7 +1,7 @@
 use std::vec::Vec;
 use crate::{
     window::Window,
-    world::World,
+//    world::World,
 };
 use winit::{
     event::{ Event, WindowEvent, },
@@ -13,8 +13,8 @@ use winit::{
 /// and start routines
 pub struct Dotrix {
     window: Option<Window>,
-    systems: Vec<Box<dyn System>>,
-    world: World,
+    // systems: Vec<Box<dyn System>>,
+    // world: World,
 }
 
 impl Dotrix {
@@ -22,8 +22,8 @@ impl Dotrix {
     pub fn init() -> Self {
         Self {
             window: None,
-            systems: Vec::new(),
-            world: World::new(),
+            // systems: Vec::new(),
+            // world: World::new(),
         }
     }
 
@@ -33,11 +33,11 @@ impl Dotrix {
         self
     }
 
-    /// Register a system
-    pub fn system(&mut self, system: Box<dyn System>) -> &mut Self {
-        self.systems.push(system);
-        self
-    }
+    // Register a system
+    // pub fn system(&mut self, system: Box<dyn System>) -> &mut Self {
+    //     self.systems.push(system);
+    //    self
+    // }
 
     /// Run the application
     pub fn run(&mut self) {
@@ -50,12 +50,7 @@ impl Dotrix {
     }
 }
 
-/// Trait for ECS systems
-pub trait System {
-    fn startup(&mut self, world: &mut World);
 
-    fn run_cycle(&mut self, world: &mut World);
-}
 
 /// Application run cycle
 async fn run(event_loop: EventLoop<()>, window: winit::window::Window, dotrix: &mut Dotrix) {
@@ -86,8 +81,8 @@ async fn run(event_loop: EventLoop<()>, window: winit::window::Window, dotrix: &
         .expect("Failed to create device");
 
     // Load the shaders from disk
-    let vs_module = device.create_shader_module(wgpu::include_spirv!("../../../examples/shader.vert.spv"));
-    let fs_module = device.create_shader_module(wgpu::include_spirv!("../../../examples/shader.frag.spv"));
+    let vs_module = device.create_shader_module(wgpu::include_spirv!("../shader.vert.spv"));
+    let fs_module = device.create_shader_module(wgpu::include_spirv!("../shader.frag.spv"));
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: None,
@@ -154,6 +149,9 @@ async fn run(event_loop: EventLoop<()>, window: winit::window::Window, dotrix: &
                 swap_chain = device.create_swap_chain(&surface, &sc_desc);
             }
             Event::RedrawRequested(_) => {
+                // TODO: call 
+                // * all systems run cycle
+                // * world.render() here
                 let frame = swap_chain
                     .get_current_frame()
                     .expect("Failed to acquire next swap chain texture")

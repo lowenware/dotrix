@@ -3,6 +3,8 @@ name = "dotrix"
 version = "0.1.0"
 authors = ["Elias Kartashov <elias@lowenware.com>"]
 edition = "2018"
+description = "name reservation"
+license = "MIT"
 
 # [features]
 # default = [
@@ -16,3 +18,7 @@ dotrix_core = { path = "crates/dotrix_core", version = "0.1.0" }
 [[example]]
 name = "assets"
 path = "examples/assets.rs"
+
+[[example]]
+name = "ecs"
+path = "examples/ecs.rs"
