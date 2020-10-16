@@ -1,9 +1,10 @@
 use std::{
-    any::{Any, TypeId},
+    any::TypeId,
     collections::HashMap,
     vec::Vec,
 };
 
+use crate::{count, recursive};
 
 /// Entity structure has only id field and represent an agregation of components
 pub struct Entity(u64);
@@ -33,7 +34,7 @@ pub struct World {
     /// Entities container grouped by archetypes
     containers: Vec<Container>,
     /// Entities index for quicker access
-    index: Vec<EntityIndex>,
+//    index: Vec<EntityIndex>,
     /// Spawn counter for Entity ID generation
     counter: u64,
 }
@@ -46,17 +47,17 @@ struct Container {
 }
 
 /// EntityIndex contains offsets of entities in world.archetypes and archetype.entities
-struct EntityIndex {
-    entity: Entity,
-    archetype_offset: usize,
-    entity_offset: usize,
-}
+// struct EntityIndex {
+//    entity: Entity,
+//    archetype_offset: usize,
+//    entity_offset: usize,
+//}
 
 impl World {
     pub fn new() -> Self {
         Self {
             containers: Vec::new(),
-            index: Vec::new(),
+//            index: Vec::new(),
             counter: 1,
         }
     }
@@ -66,7 +67,7 @@ impl World {
         T: Archetype,
         I: IntoIterator<Item = T>
     {
-        let mut container = if
+        let container = if
             let Some(container) = self.containers
                 .iter_mut()
                 .find(|c| c.is_for::<T>())
@@ -123,11 +124,7 @@ pub trait Archetype {
     fn is_for(hashmap: &HashMap<ComponentId, Vec<Box<dyn Component>>>) -> bool;
 }
 
-macro_rules! count {
-    () => (0usize);
-    ( $x:tt, $($xs:tt)* ) => (1usize + count!($($xs)*));
-}
-
+#[macro_export]
 macro_rules! impl_tuple_archetype {
     ($($comp: ident),*) => {
         impl<$($comp),*> Archetype for ($($comp,)*)
@@ -136,12 +133,12 @@ macro_rules! impl_tuple_archetype {
                 $comp: Component,
             )*
         {
-
             #[allow(non_snake_case)]
+            #[allow(unused_variables)]
             fn store(self, hashmap: &mut HashMap<ComponentId, Vec<Box<dyn Component>>>) {
                 let ($($comp,)*) = self;
                 $(
-                    if let Some(mut vector) = hashmap.get_mut(&TypeId::of::<$comp>()) {
+                    if let Some(vector) = hashmap.get_mut(&TypeId::of::<$comp>()) {
                         vector.push(Box::new($comp));
                     } else {
                         panic!("ECS storage is corrupted");
@@ -149,6 +146,7 @@ macro_rules! impl_tuple_archetype {
                 )*
             }
 
+            #[allow(unused_variables)]
             fn map(hashmap: &mut HashMap<ComponentId, Vec<Box<dyn Component>>>) {
                 $(
                     hashmap.insert(TypeId::of::<$comp>(), Vec::new());
@@ -177,15 +175,15 @@ impl Container {
     */
 }
 
-impl EntityIndex {
-    pub fn new(entity: Entity, archetype_offset: usize, entity_offset: usize) -> Self {
-        Self {
-            entity,
-            archetype_offset,
-            entity_offset,
-        }
-    }
-}
+// impl EntityIndex {
+//    pub fn new(entity: Entity, archetype_offset: usize, entity_offset: usize) -> Self {
+//        Self {
+//            entity,
+//            archetype_offset,
+//            entity_offset,
+//        }
+//    }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -208,24 +206,6 @@ mod tests {
     }
 }
 
-/// Recursive macro treating arguments as a progression
-///
-/// Expansion of recursive!(macro, A, B, C) is equivalent to the expansion of sequence
-/// macro!()
-/// macro!(A)
-/// macro!(A, B)
-/// macro!(A, B, C)
-#[macro_export]
-macro_rules! recursive {
-    ($macro: ident, $args: ident) => {
-        $macro!{$args}
-        $macro!{}
-    };
-    ($macro: ident, $first: ident, $($rest: ident),*) => {
-        $macro!{$first, $($rest),*}
-        recursive!{$macro, $($rest),*}
-    };
-}
 
 // Implement traits for 16 archetypes
 recursive!(impl_tuple_archetype, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);

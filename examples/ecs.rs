@@ -11,9 +11,8 @@ struct Damage {}
 
 
 use dotrix::{
-    ecs::{World}
+    ecs::World,
 };
-use dotrix::asset;
 
 fn main() {
     let mut world = World::new();
