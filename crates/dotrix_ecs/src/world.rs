@@ -1,6 +1,7 @@
 use std::{
     any::TypeId,
     vec::Vec,
+    marker::PhantomData
 };
 
 use crate::{
@@ -10,7 +11,7 @@ use crate::{
     recursive,
 };
 
-/// World implements a storage for Systems, Entities and their Components and quering functionality
+/// World implements a container for Systems, Entities and their Components and quering functionality
 pub struct World {
     /// Entities container grouped by archetypes
     content: Vec<Container>,
@@ -33,19 +34,19 @@ impl World {
         T: Archetype + Pattern,
         I: IntoIterator<Item = T>
     {
-        let storage = if let Some(storage) = self.content
+        let container = if let Some(container) = self.content
             .iter_mut()
             .find(|s| T::matches(s) && s.len() == T::len())
         {
-           storage
+           container
         } else {
-            let storage = Container::new::<T>();
-            self.content.push(storage);
+            let container = Container::new::<T>();
+            self.content.push(container);
             self.content.last_mut().unwrap()
         };
 
         for entity in iter {
-            entity.store(storage);
+            entity.store(container);
             self.counter += 1;
         }
     }
@@ -53,11 +54,11 @@ impl World {
     /// Query stored components in the World
     pub fn query<'w, Q>(&'w self) -> impl Iterator<Item = <<Q as Query>::Iter as Iterator>::Item> + 'w
     where
-        Q: Query<'w> + Pattern,
+        Q: Query<'w>,
     {
         let iter = self.content.iter()
-            .filter(|&storage| Q::matches(storage))
-            .map(|storage| Q::select(&storage))
+            .filter(|&container| Q::matches(container))
+            .map(|container| Q::select(&container))
             .flatten();
 
         Matches {
@@ -68,21 +69,22 @@ impl World {
 
 /// Trait definition of Entities with the same set of components
 pub trait Archetype {
-    fn store(self, storage: &mut Container);
-    fn map(storage: &mut Container);
+    fn store(self, container: &mut Container);
+    fn map(container: &mut Container);
 }
 
 /// Trait definition of components set
 pub trait Pattern {
     fn len() -> usize;
-    fn matches(storage: &Container) -> bool;
+    fn matches(container: &Container) -> bool;
 }
 
 /// Trait definition of a Query
 pub trait Query<'w> {
     type Iter: Iterator + 'w;
 
-    fn select(storage: &'w Container) -> Self::Iter;
+    fn select(container: &'w Container) -> Self::Iter;
+    fn matches(container: &'w Container) -> bool;
 }
 
 /// Iterator or Query result
@@ -108,7 +110,42 @@ where
 /// Iterator converting a tuple of iterators into the Iterator of a tuple
 pub struct Zipper<'w, T> {
     tuple: T,
-    _m: std::marker::PhantomData<&'w ()>,
+    _phantom: PhantomData<&'w ()>,
+}
+
+/// Trait defenition of Selector to control mutability of borrows
+pub trait Selector<'w> {
+    type Iter: Iterator;
+    type Component: Component;
+
+    fn borrow(container: &'w Container) -> Self::Iter;
+    fn matches(container: &'w Container) -> bool {
+        container.has(TypeId::of::<Self::Component>())
+    }
+}
+
+impl<'w, C> Selector<'w> for &'_ C
+where
+    C: Component,
+{
+    type Iter = std::slice::Iter<'w, C>;
+    type Component = C;
+
+    fn borrow(container: &'w Container) -> Self::Iter {
+        container.get::<C>().unwrap().iter()
+    }
+}
+
+impl<'w, C> Selector<'w> for &'_ mut C
+where
+    C: Component,
+{
+    type Iter = std::slice::IterMut<'w, C>;
+    type Component = C;
+
+    fn borrow(container: &'w Container) -> Self::Iter {
+        container.get_mut::<C>().unwrap().iter_mut()
+    }
 }
 
 /// Macros implementing all necessary archetyoes, patterns, querries and iterators for different
@@ -123,15 +160,15 @@ macro_rules! impl_tuples {
             )*
         {
             #[allow(non_snake_case)]
-            fn store(self, storage: &mut Container) {
+            fn store(self, container: &mut Container) {
                 let ($($i,)*) = self;
                 $(
-                    storage.push::<$i>($i);
+                    container.push::<$i>($i);
                 )*
             }
-            fn map(storage: &mut Container) {
+            fn map(container: &mut Container) {
                 $(
-                    storage.init::<$i>();
+                    container.init::<$i>();
                 )*
             }
         }
@@ -144,26 +181,34 @@ macro_rules! impl_tuples {
                 count!($($i,)*)
             }
 
-            fn matches(storage: &Container) -> bool {
-                $(storage.has(TypeId::of::<$i>()))&&*
+            fn matches(container: &Container) -> bool {
+                $(container.has(TypeId::of::<$i>()))&&*
             }
         }
 
         impl<'w, $($i),*> Query<'w> for ($($i,)*)
         where
-            $($i: Component + 'w,)*
+            $($i: Selector<'w> + 'w,)*
         {
-            type Iter = Zipper<'w, ($(std::slice::Iter<'w, $i>,)*)>;
+            type Iter = Zipper<'w, ($($i::Iter,)*)>;
+            // type Iter = Zipper<'w, ($(std::slice::Iter<'w, $i>,)*)>;
 
-            fn select(storage: &'w Container) -> Self::Iter {
+            fn select(container: &'w Container) -> Self::Iter {
                 Zipper {
-                    tuple: ($(storage.get::<$i>().unwrap().into_iter(),)*),
-                    _m: std::marker::PhantomData,
+                    tuple: ($({$i::borrow(container)},)*),
+                    // tuple: ($(container.get::<$i::Component>().unwrap().into_iter(),)*),
+                    _phantom: PhantomData,
                 }
+            }
+
+            fn matches(container: &'w Container) -> bool
+            {
+                $(
+                    $i::matches(container)
+                )&&*
             }
         }
 
-        /// $i is Iterator
         #[allow(non_snake_case)]
         impl<'w, $($i),*> Iterator for Zipper<'w, ($($i,)*)>
         where
@@ -176,8 +221,9 @@ macro_rules! impl_tuples {
                 $(
                     let $i = match $i.next() {
                         None => return None,
-                        Some(item) => item
+                        Some(item) => item,
                     };
+
                 )*
                 Some(($($i,)*))
             }
@@ -185,5 +231,5 @@ macro_rules! impl_tuples {
     }
 }
 
-recursive!(impl_tuples, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);
+recursive!(impl_tuples, A, B, C, D); //, E, F, G, H, I, J, K, L, M, N, O, P);
 

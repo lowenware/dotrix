@@ -1,3 +1,4 @@
+
 mod container;
 mod ecs;
 mod world;
@@ -56,14 +57,15 @@ mod tests {
     fn spawn_and_query() {
         let world = spawn();
 
-        let mut iter = world.query::<(Armor, Damage)>();
+        let mut iter = world.query::<(&Armor, &Damage)>();
 
         let item = iter.next();
         assert_eq!(item.is_some(), true);
 
-        let item = item.unwrap();
-        assert_eq!(item.0.0, 100); // Armor(100)
-        assert_eq!(item.1.0, 300); // Damage(300)
+        if let Some ((armor, damage)) = item {
+            assert_eq!(armor.0, 100); // Armor(100)
+            assert_eq!(damage.0, 300); // Damage(300)
+        }
 
         let item = iter.next();
         assert_eq!(item.is_some(), true);
@@ -74,5 +76,23 @@ mod tests {
 
         let item = iter.next();
         assert_eq!(item.is_some(), false);
+    }
+
+    #[test]
+    fn spawn_and_modify() {
+        let world = spawn();
+        {
+            let iter = world.query::<(&mut Speed,)>();
+            for (speed,) in iter {
+                speed.0 = 123;
+            }
+        }
+        {
+            let iter = world.query::<(&Speed,)>();
+            for (speed,) in iter {
+                println!("speed is {}", speed.0);
+                assert_eq!(speed.0, 123);
+            }
+        }
     }
 }
