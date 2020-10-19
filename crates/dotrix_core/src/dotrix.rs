@@ -1,7 +1,11 @@
 use crate::{
     window::Window,
-//    world::World,
 };
+
+use dotrix_ecs::{
+    System, World
+};
+
 use winit::{
     event::{ Event, WindowEvent, },
     event_loop::{ ControlFlow, EventLoop},
@@ -12,8 +16,9 @@ use winit::{
 /// and start routines
 pub struct Dotrix {
     window: Option<Window>,
-    // systems: Vec<Box<dyn System>>,
-    // world: World,
+    /// Systems container
+    systems: Vec<Box<dyn System>>,
+    world: World,
 }
 
 impl Dotrix {
@@ -21,8 +26,8 @@ impl Dotrix {
     pub fn init() -> Self {
         Self {
             window: None,
-            // systems: Vec::new(),
-            // world: World::new(),
+            systems: Vec::new(),
+            world: World::new(),
         }
     }
 
@@ -32,12 +37,6 @@ impl Dotrix {
         self
     }
 
-    // Register a system
-    // pub fn system(&mut self, system: Box<dyn System>) -> &mut Self {
-    //     self.systems.push(system);
-    //    self
-    // }
-
     /// Run the application
     pub fn run(&mut self) {
         let event_loop = EventLoop::new();
@@ -46,6 +45,28 @@ impl Dotrix {
         wgpu_subscriber::initialize_default_subscriber(None);
 
         futures::executor::block_on(run(event_loop, window, self));
+    }
+
+    /// Register a system
+    pub fn add_system<T>(&mut self, system: T)
+    where
+        T: System
+    {
+        self.systems.push(Box::<T>::new(system));
+    }
+
+    /// start systems
+    fn start_systems(&mut self) {
+        for system in self.systems.iter_mut() {
+            system.as_mut().start(&mut self.world);
+        }
+    }
+
+    /// run systems
+    fn run_systems(&mut self) {
+        for system in self.systems.iter_mut() {
+            system.as_mut().run(&mut self.world);
+        }
     }
 }
 

@@ -7,6 +7,4 @@ license = "MIT"
 description = "Entity Component System implementation for Dotrix game engine"
 keywords = ["ecs", "dotrix"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]

@@ -3,10 +3,8 @@ name = "dotrix_core"
 version = "0.1.0"
 authors = ["Elias Kartashov <elias@lowenware.com>"]
 edition = "2018"
-description = "Crate name reservation"
+description = "Dotrix game engine core crate"
 license = "MIT"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 # [features]
 
