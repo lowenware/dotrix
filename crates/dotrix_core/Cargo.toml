@@ -9,11 +9,13 @@ license = "MIT"
 # [features]
 
 [dependencies]
-dotrix_ecs = { path = "../dotrix_ecs", version = "0.1.0" }
-wgpu = "0.6"
-winit = "0.23.0"
 futures = { version = "0.3", default-features = false, features = ["std"] }
+dotrix_ecs = { path = "../dotrix_ecs", version = "0.1.0" }
+strum = "0.19"
+strum_macros = "0.19"
+wgpu = "0.6"
 wgpu-subscriber = "0.1.0"
+winit = "0.23.0"
 
 [dev-dependencies]
 futures = { version = "0.3", default-features = false, features = ["std", "executor"] }

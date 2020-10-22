@@ -1,4 +1,5 @@
 use crate::{
+    input,
     window::Window,
 };
 
@@ -145,6 +146,9 @@ async fn run(event_loop: EventLoop<()>, window: winit::window::Window, dotrix: &
 
     let mut swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
+    let mut input_manager = input::InputManager::new();
+    input_manager.register_default_keymaps();
+
     event_loop.run(move |event, _, control_flow| {
         // Have the closure take ownership of the resources.
         // `event_loop.run` never returns, therefore we must do this to ensure
@@ -158,6 +162,9 @@ async fn run(event_loop: EventLoop<()>, window: winit::window::Window, dotrix: &
         );
 
         *control_flow = ControlFlow::Poll;
+
+        input_manager.update(); // TODO: can winit event loop runs more than once per frame?
+
         match event {
             Event::WindowEvent {
                 event: WindowEvent::Resized(size),
@@ -200,6 +207,18 @@ async fn run(event_loop: EventLoop<()>, window: winit::window::Window, dotrix: &
                 event: WindowEvent::CloseRequested,
                 ..
             } => *control_flow = ControlFlow::Exit,
+            Event::WindowEvent {
+                event: WindowEvent::KeyboardInput{device_id, input, is_synthetic},
+                ..
+            } => input_manager.handle_keyboard_event(device_id, input, is_synthetic),
+            Event::WindowEvent {
+                event: WindowEvent::MouseInput{device_id, state, button, modifiers},
+                ..
+            } => input_manager.handle_mouse_event(device_id, state, button),
+            Event::WindowEvent {
+                event: WindowEvent::MouseWheel{device_id, delta, phase, modifiers},
+                ..
+            } => input_manager.handle_mouse_wheel_event(device_id, delta, phase),
             _ => {}
         }
     });
