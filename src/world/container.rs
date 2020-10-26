@@ -3,10 +3,8 @@ use std::{
     collections::HashMap,
 };
 
-use crate::{
-    ecs::Component,
-    world::Archetype,
-};
+use super::world::Archetype;
+use crate::ecs::Component;
 
 pub struct Container {
     components: HashMap<TypeId, Box<dyn Any>>,
@@ -89,7 +87,7 @@ impl Container {
 mod tests {
     struct Item1(u32);
     struct Item2(u32);
-    use crate::container::Container;
+    use crate::world::container::Container;
     #[test]
     fn mutability() {
         let mut c = Container::new::<(Item1, Item2)>();

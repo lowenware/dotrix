@@ -1,41 +1,54 @@
+<<<<<<< HEAD:crates/dotrix_core/src/dotrix.rs
 use crate::{
     input,
     window::Window,
-};
-
-use dotrix_ecs::{
-    System, World
+=======
+use std::{
+    any::TypeId,
+    collections::HashMap,
+>>>>>>> Add ECS and merge crates into one:src/application.rs
 };
 
 use winit::{
-    event::{ Event, WindowEvent, },
-    event_loop::{ ControlFlow, EventLoop},
-    window::WindowBuilder,
+    event::{ Event, WindowEvent },
+    event_loop::{ ControlFlow, EventLoop },
+    window::{ Window, WindowBuilder }
 };
 
-/// The core structure of the Engine which methods allow to initialize systems and controllers
-/// and start routines
-pub struct Dotrix {
-    window: Option<Window>,
-    /// Systems container
-    systems: Vec<Box<dyn System>>,
-    world: World,
+use crate::{
+    ecs::{System},
+    systems::Systems,
+};
+
+pub struct Application {
+    name: &'static str,
+    systems: Systems,
+    services: HashMap<std::any::TypeId, Box<dyn std::any::Any>>,
 }
 
-impl Dotrix {
-    /// Initialize the core structure
-    pub fn init() -> Self {
+pub trait Service: Send + Sync + 'static {}
+impl<T: Send + Sync + 'static> Service for T {}
+
+impl Application {
+    pub fn new(name: &'static str) -> Self {
         Self {
-            window: None,
-            systems: Vec::new(),
-            world: World::new(),
+            name,
+            systems: Systems::new(),
+            services: HashMap::new(),
         }
     }
 
-    /// Initialize application window
-    pub fn window(&mut self, window: Window) -> &mut Self {
-        self.window = Some(window);
-        self
+    pub fn add_system(&mut self, system: System) {
+        self.systems.add(system);
+    }
+
+    pub fn add_service<T: Service>(&mut self, service: T) {
+        self.services.insert(TypeId::of::<T>(), Box::new(service));
+    }
+
+    pub fn service<T: Service>(&mut self) -> &mut T
+    {
+        self.services.get_mut(&TypeId::of::<T>()).unwrap().downcast_mut::<T>().unwrap()
     }
 
     /// Run the application
@@ -47,34 +60,22 @@ impl Dotrix {
 
         futures::executor::block_on(run(event_loop, window, self));
     }
-
-    /// Register a system
-    pub fn add_system<T>(&mut self, system: T)
-    where
-        T: System
-    {
-        self.systems.push(Box::<T>::new(system));
-    }
-
-    /// start systems
-    fn start_systems(&mut self) {
-        for system in self.systems.iter_mut() {
-            system.as_mut().start(&mut self.world);
-        }
-    }
-
-    /// run systems
-    fn run_systems(&mut self) {
-        for system in self.systems.iter_mut() {
-            system.as_mut().run(&mut self.world);
-        }
-    }
 }
 
 
 
+/*
+trait Accessor {
+    type Item;
+    fn clone(&self) -> Self::Item;
+}
+
+impl Accessor for 
+*/
+
+
 /// Application run cycle
-async fn run(event_loop: EventLoop<()>, window: winit::window::Window, dotrix: &mut Dotrix) {
+async fn run(event_loop: EventLoop<()>, window: Window, app: &mut Application) {
     let swapchain_format = wgpu::TextureFormat::Bgra8UnormSrgb;
     let size = window.inner_size();
     let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
@@ -102,8 +103,8 @@ async fn run(event_loop: EventLoop<()>, window: winit::window::Window, dotrix: &
         .expect("Failed to create device");
 
     // Load the shaders from disk
-    let vs_module = device.create_shader_module(wgpu::include_spirv!("../shader.vert.spv"));
-    let fs_module = device.create_shader_module(wgpu::include_spirv!("../shader.frag.spv"));
+    let vs_module = device.create_shader_module(wgpu::include_spirv!("shader.vert.spv"));
+    let fs_module = device.create_shader_module(wgpu::include_spirv!("shader.frag.spv"));
 
     let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: None,
@@ -225,4 +226,9 @@ async fn run(event_loop: EventLoop<()>, window: winit::window::Window, dotrix: &
             _ => {}
         }
     });
+<<<<<<< HEAD:crates/dotrix_core/src/dotrix.rs
 }
+=======
+}
+
+>>>>>>> Add ECS and merge crates into one:src/application.rs

@@ -4,12 +4,27 @@ use std::{
     marker::PhantomData
 };
 
-use crate::{
+use super::{
     container::Container,
+};
+
+use crate::{
     count,
     ecs::Component,
     recursive,
 };
+
+pub struct Context {
+    pub name: *mut String,
+}
+
+impl Context {
+    pub fn cast(&mut self) -> &mut String {
+        unsafe {
+            &mut *self.name
+        }
+    }
+}
 
 /// World implements a container for Systems, Entities and their Components and quering functionality
 pub struct World {
@@ -17,7 +32,12 @@ pub struct World {
     content: Vec<Container>,
     /// Spawn counter for Entity ID generation
     counter: u64,
+    name: String,
 }
+
+// TODO: find a way how to get rid of it, maybe use some other constructor
+unsafe impl Send for World {}
+unsafe impl Sync for World {}
 
 impl World {
     /// Create new empty World instance
@@ -25,6 +45,7 @@ impl World {
         Self {
             content: Vec::new(),
             counter: 0,
+            name: String::from("MyWorld")
         }
     }
 
@@ -66,8 +87,59 @@ impl World {
         }
     }
 
+    pub fn counter(&self) -> u64 {
+        self.counter
+    }
 
+    /*
+    pub fn get<T>(&mut self) -> &T
+    where Self: Fetcher<T> {
+        self.fetch()
+    }
+    */
+
+    pub fn context(&mut self) -> Context {
+        Context {
+            name: (&mut self.name) as *mut String,
+        }
+    }
 }
+
+/*
+pub trait Fetcher<T> {
+    fn fetch(&mut self) -> &T;
+}
+
+impl Fetcher<Context> for World {
+    fn fetch(&mut self) -> &Context {
+        &self.context
+    }
+}
+*/
+
+/*
+pub trait Selector<'w> {
+    type Iter: Iterator;
+    type Component: Component;
+
+    fn borrow(container: &'w Container) -> Self::Iter;
+    fn matches(container: &'w Container) -> bool {
+        container.has(TypeId::of::<Self::Component>())
+    }
+}
+
+impl<'w, C> Selector<'w> for &'_ C
+where
+    C: Component,
+{
+    type Iter = std::slice::Iter<'w, C>;
+    type Component = C;
+
+    fn borrow(container: &'w Container) -> Self::Iter {
+        container.get::<C>().unwrap().iter()
+    }
+}
+*/
 
 /// Trait definition of Entities with the same set of components
 pub trait Archetype {
