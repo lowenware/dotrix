@@ -147,7 +147,10 @@ async fn run(event_loop: EventLoop<()>, window: winit::window::Window, dotrix: &
     let mut swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
     let mut input_manager = input::InputManager::new();
-    input_manager.register_default_keymaps();
+    let input_config = input::InputConfig::default();
+    input_manager.initialize(&input_config);
+
+    println!("{}", serde_json::to_string_pretty(&input_manager.create_config()).unwrap());
 
     event_loop.run(move |event, _, control_flow| {
         // Have the closure take ownership of the resources.
@@ -176,7 +179,7 @@ async fn run(event_loop: EventLoop<()>, window: winit::window::Window, dotrix: &
                 swap_chain = device.create_swap_chain(&surface, &sc_desc);
             }
             Event::RedrawRequested(_) => {
-                // TODO: call 
+                // TODO: call
                 // * all systems run cycle
                 // * world.render() here
                 let frame = swap_chain

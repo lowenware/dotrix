@@ -1,18 +1,19 @@
-use super::Action;
+use super::{Action, Binding, InputConfig};
+use serde::*;
 use std::{collections::HashMap};
 use strum::IntoEnumIterator;
-use winit::{event::{DeviceId, ElementState, KeyboardInput, MouseButton, MouseScrollDelta, TouchPhase}};
+use winit::{event::{DeviceId, ElementState, KeyboardInput, MouseButton, MouseScrollDelta, TouchPhase, VirtualKeyCode}};
 
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-/// Key or button
-pub enum KeyTrigger{
-    Key{scancode: u32},
-    MouseButton{button: MouseButton},
+/// Information about KeyboardKey or MouseButton
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, Serialize, Deserialize)]
+pub enum Button {
+    Key(VirtualKeyCode), // TODO: add support for Key{scancode: u32}?
+    Mouse(MouseButton),
     None,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-enum KeyState {
+pub enum ButtonState {
     None,
     Pressed,
     Hold,
@@ -21,10 +22,8 @@ enum KeyState {
 
 /// Manager for input
 pub struct InputManager {
-    /// Mapped keys
-    input_map: HashMap<KeyTrigger, Action>,
-    /// Current state of actions
-    key_states: HashMap<Action, KeyState>,
+    btn_map: HashMap<Button, Action>,
+    btn_states: HashMap<Action, ButtonState>,
     /// Mouse Scrolling, value should be between -1 and 1 (but should be smaller on higher, depends on OS and device)
     scroll_delta: f32,
 }
@@ -32,47 +31,69 @@ pub struct InputManager {
 impl InputManager {
     pub fn new() -> Self {
         Self {
-            input_map: HashMap::new(),
-            key_states: HashMap::new(),
+            btn_map: HashMap::new(),
+            btn_states: HashMap::new(),
             scroll_delta: 0.0,
         }
     }
 
-    /// Initialization
-    pub fn register_default_keymaps(&mut self) {
-        // Set key maps and states to default values
-        for key_action in Action::iter() {
-            self.input_map.insert(KeyTrigger::None, key_action);
-            self.key_states.insert(key_action, KeyState::None);
+    /// Load bindings from config
+    pub fn initialize(&mut self, config: &InputConfig) {
+        // Unregister all
+        for action in Action::iter() {
+            self.btn_map.insert(Button::None, action);
+            self.btn_states.insert(action, ButtonState::None);
         }
 
-        // Map some keys on keyboard
-        self.input_map.insert(KeyTrigger::Key{scancode: 57}, Action::Jump); // Space
-        self.input_map.insert(KeyTrigger::Key{scancode: 17}, Action::MoveForward); // W
-        self.input_map.insert(KeyTrigger::Key{scancode: 31}, Action::MoveBackward); // S
-        self.input_map.insert(KeyTrigger::Key{scancode: 30}, Action::MoveLeft); // A
-        self.input_map.insert(KeyTrigger::Key{scancode: 32}, Action::MoveRight); // D
+        // Register bindings from config
+        for action_binding in config.bindings.iter() {
+            let action = action_binding.0;
+            let binding = action_binding.1;
 
-         // Map some keys on mouse
-        self.input_map.insert(KeyTrigger::MouseButton{button: MouseButton::Left}, Action::Shoot); // LMB
-        self.input_map.insert(KeyTrigger::MouseButton{button: MouseButton::Other(1)}, Action::Ability1); // If someone has additional buttons on mouse
-        self.input_map.insert(KeyTrigger::MouseButton{button: MouseButton::Other(2)}, Action::Ability2);
+            match binding.primary {
+                Button::None => {},
+                _ => {self.btn_map.insert(binding.primary, *action);},
+            }
+
+            match binding.secondary {
+                Button::None => {},
+                _ => {self.btn_map.insert(binding.secondary, *action);},
+            }
+        }
+    }
+
+    pub fn create_config(&mut self) -> InputConfig {
+        let mut bindings: HashMap<Action, Binding> = HashMap::new();
+        for button_action in self.btn_map.iter() {
+            let button = button_action.0;
+            let action = button_action.1;
+
+            if bindings.contains_key(action) {
+                bindings.insert(*action, Binding{primary: bindings[action].primary, secondary: *button});
+            } else {
+                bindings.insert(*action, Binding{primary: *button, secondary: Button::None});
+            }
+        }
+
+        return InputConfig {
+            bindings
+        }
     }
 
     /// Return true when button is pressed
-    pub fn get_button_down(&self, key: Action) -> bool {
-        return self.key_states.get(&key).unwrap() == &KeyState::Pressed;
+    pub fn get_button_down(&self, action: Action) -> bool {
+        return self.btn_states.get(&action).unwrap() == &ButtonState::Pressed;
     }
 
     /// Return true when button is released
-    pub fn get_button_up(&self, key: Action) -> bool {
-        return self.key_states.get(&key).unwrap() == &KeyState::Released;
+    pub fn get_button_up(&self, action: Action) -> bool {
+        return self.btn_states.get(&action).unwrap() == &ButtonState::Released;
     }
 
     /// Return true button is pressed or hold
-    pub fn get_button(&self, key: Action) -> bool {
-        let state = self.key_states.get(&key).unwrap();
-        return state == &KeyState::Pressed || state == &KeyState::Hold;
+    pub fn get_button(&self, action: Action) -> bool {
+        let state = self.btn_states.get(&action).unwrap();
+        return state == &ButtonState::Pressed || state == &ButtonState::Hold;
     }
 
     /// Returns mouse scroll delta. Value should be between -1 and 0 (but should be smaller on higher, depends on OS and device)
@@ -82,10 +103,10 @@ impl InputManager {
 
     /// Update must run before winit event loop
     pub fn update(&mut self) {
-        for state in self.key_states.iter_mut() {
+        for state in self.btn_states.iter_mut() {
             match state.1 {
-                KeyState::Released => {*state.1 = KeyState::None},
-                KeyState::Pressed => {println!("Hold {:?} - updates every frame", &state.0); *state.1 = KeyState::Hold},
+                ButtonState::Released => {*state.1 = ButtonState::None},
+                ButtonState::Pressed => {println!("Hold {:?} - updates every frame", &state.0); *state.1 = ButtonState::Hold},
                 _ => {}
             }
         }
@@ -95,7 +116,7 @@ impl InputManager {
 
     /// Handle mouse event from winit
     pub fn handle_mouse_event(&mut self, _device_id: DeviceId, state: ElementState, button: MouseButton) {
-        if !self.handle_key_trigger(KeyTrigger::MouseButton{button}, state){
+        if !self.handle_key_trigger(Button::Mouse(button), state){
             println!("{0:?} unmapped {1:?}", state, button);
         }
     }
@@ -103,36 +124,39 @@ impl InputManager {
     /// Handle mouse wheel event from winit
     pub fn handle_mouse_wheel_event(&mut self, _device_id: DeviceId, delta: MouseScrollDelta, _phase: TouchPhase) {
         match delta {
-            MouseScrollDelta::LineDelta(x, y) => {self.scroll_delta = y; println!("scroll {:?}", y)}, // TODO: clamp between -1 and 1?
+            MouseScrollDelta::LineDelta(_x, y) => {self.scroll_delta = y; println!("scroll {:?}", y)}, // TODO: clamp between -1 and 1?
             _ => {println!("unmapped {:?}", delta)}
         }
     }
 
     /// Handle keyboard event from winit
     pub fn handle_keyboard_event(&mut self, _device_id: DeviceId, input: KeyboardInput, _is_synthetic: bool) {
-        if !self.handle_key_trigger(KeyTrigger::Key{scancode: input.scancode}, input.state) {
-            println!("{0:?} unmapped {1:?} {2:?}", input.state, input.scancode, input.virtual_keycode);
+        if input.virtual_keycode.is_some() {
+            if self.handle_key_trigger(Button::Key(input.virtual_keycode.unwrap()), input.state) {
+                return;
+            }
         }
 
+        println!("{0:?} unmapped {1:?} {2:?}", input.state, input.scancode, input.virtual_keycode);
     }
 
-    pub fn handle_key_trigger(&mut self, key: KeyTrigger, state: ElementState) -> bool {
-        if self.input_map.contains_key(&key) {
-            let action = self.input_map[&key];
+    fn handle_key_trigger(&mut self, key: Button, state: ElementState) -> bool {
+        if self.btn_map.contains_key(&key) {
+            let action = self.btn_map[&key];
 
             match state {
                 ElementState::Pressed => {
-                    match self.key_states[&action] {
-                        KeyState::None => {
+                    match self.btn_states[&action] {
+                        ButtonState::None => {
                             println!("Press {:?}", &action);
-                            self.key_states.insert(action, KeyState::Pressed);
+                            self.btn_states.insert(action, ButtonState::Pressed);
                         },
                         _ => {}
                     }
                 }
                 ElementState::Released => {
                     println!("Release {:?}", &action);
-                    self.key_states.insert(action, KeyState::Released);
+                    self.btn_states.insert(action, ButtonState::Released);
                 }
             }
             return true;

@@ -2,19 +2,21 @@ use dotrix::{Dotrix, window::Window};
 
 fn main() {
     /*
-    // look into crates\dotrix_core\src\input\input.rs
-
+    * Add new Input action
+    * 1) Register action in 'crates\dotrix_core\src\input\manager.rs'
+    * 2) (optional) Bind action to key 'crates\dotrix_core\src\input\config.rs'
+    * Done
+    *
+    *
     // Example of use:
-
-    let jump = input.get_button_down(InputAction::Jump);
-    let shoot = input.get_button(InputAction::Jump);
-    let zoom = input.get_scroll();
-
+    let jump = input_manager.get_button_down(input::Action::Jump);
+    let forward = input_manager.get_button(input::Action::MoveForward);
+    let zoom = input_manager.get_scroll();
     if jump {
         println!("character jumped");
     }
-    if shoot {
-        println!("shooting every frame")
+    if forward {
+        println!("moving forward");
     }
     if zoom > 0.0{
         println!("zoom-in");
@@ -22,6 +24,7 @@ fn main() {
     if zoom < 0.0 {
         println!("zoom-out");
     }
+
     */
 
     Dotrix::init()
