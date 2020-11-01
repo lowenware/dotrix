@@ -1,4 +1,4 @@
-use dotrix::{Dotrix, window::Window};
+use dotrix::{Dotrix};
 
 fn main() {
     /*
@@ -27,7 +27,6 @@ fn main() {
 
     */
 
-    Dotrix::init()
-        .window(Window {})
+    Dotrix::application("Input Example")
         .run();
 }
