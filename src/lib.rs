@@ -2,42 +2,47 @@ mod application;
 mod asset;
 mod ecs;
 mod input;
-mod systems;
+mod renderer;
+mod scheduler;
+mod services;
 mod world;
 mod window;
 
-pub use application::{ Application, Service };
+pub use application::{ Application };
 pub use asset::*;
-pub use input::*;
 pub use ecs::{Entity, Component, System};
+pub use input::*;
+pub use renderer::Renderer;
+pub use services::Service;
 pub use world::World;
 pub use window::{Window};
 
 pub struct Dotrix {
-    app: Application,
+    app: Option<Application>,
 }
 
 impl Dotrix {
     pub fn application(name: &'static str) -> Self {
         Self {
-            app: Application::new(name),
+            app: Some(Application::new(name)),
         }
     }
 
     pub fn with_system(&mut self, system: System) -> &mut Self {
-        self.app.add_system(system);
+        self.app.as_mut().unwrap().add_system(system);
         self
     }
 
     pub fn with_service<T: Service>(&mut self, service: T) -> &mut Self
     {
-        self.app.add_service(service);
+        self.app.as_mut().unwrap().add_service(service);
         self
     }
 
     /// Run the application
     pub fn run(&mut self) {
-        self.app.run();
+        let app = self.app.take().unwrap();
+        app.run();
     }
 }
 

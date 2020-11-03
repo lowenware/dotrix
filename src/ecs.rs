@@ -1,7 +1,7 @@
 use core::ops::{Deref, DerefMut};
 
 use crate::{
-    application::{Application, Service},
+    services::{Services, Service},
 };
 
 /// Entity structure has only id field and represent an agregation of components
@@ -60,7 +60,7 @@ impl SystemOption<RunLevel> for System {
 
 struct SystemData<Run, Ctx> 
 where
-    Run: FnMut(&mut Ctx, &mut Application) + Send + Sync,
+    Run: FnMut(&mut Ctx, &mut Services) + Send + Sync,
 {
     name: &'static str,
     run: Run,
@@ -69,19 +69,19 @@ where
 
 pub trait Systemized: Send + Sync {
     fn name(&mut self) -> &'static str;
-    fn run(&mut self, app: &mut Application);
+    fn run(&mut self, app: &mut Services);
 }
 
 impl<Run, Ctx> Systemized for SystemData<Run, Ctx>
 where
-    Run: FnMut(&mut Ctx, &mut Application) + Send + Sync,
+    Run: FnMut(&mut Ctx, &mut Services) + Send + Sync,
     Ctx: SystemContext,
 {
     fn name(&mut self) -> &'static str {
         self.name
     }
 
-    fn run(&mut self, app: &mut Application) {
+    fn run(&mut self, app: &mut Services) {
         (self.run)(&mut self.ctx, app);
     }
 }
@@ -229,9 +229,12 @@ where
     }
 }
 
+unsafe impl<T: Service> Send for Const<T> {}
+unsafe impl<T: Service> Sync for Const<T> {}
+
 pub trait Accessor: Send + Sync {
     type Item: Service;
-    fn fetch(app: &mut Application) -> Self;
+    fn fetch(app: &mut Services) -> Self;
 }
 
 impl<T> Accessor for Mut<T>
@@ -239,10 +242,23 @@ where
     T: Service,
 {
     type Item = T;
-    fn fetch(app: &mut Application) -> Self {
-        let service: &mut T = app.service::<T>();
+    fn fetch(service: &mut Services) -> Self {
+        let service: &mut T = service.get_mut::<T>();
         Mut {
             value: service as *mut T
+        }
+    }
+}
+
+impl<T> Accessor for Const<T>
+where
+    T: Service,
+{
+    type Item = T;
+    fn fetch(service: &mut Services) -> Self {
+        let service: &T = service.get::<T>();
+        Const {
+            value: service as *const T
         }
     }
 }
@@ -250,13 +266,13 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        application::{Application},
+        services::Services,
         ecs::{
             Context,
             System,
             Mut,
         },
-        world::{ World },
+        world::World,
     };
 
     struct MyComponent(u64);
@@ -267,11 +283,11 @@ mod tests {
 
     #[test]
     fn world_system() {
-        let mut app = Application::new("Test App");
-        app.add_service(World::new());
+        let mut services = Services::new();
+        services.add(World::new());
         let mut s = System::from(my_system);
-        s.data.run(&mut app);
-        assert_eq!(app.service::<World>().counter(), 1);
+        s.data.run(&mut services);
+        assert_eq!(services.get::<World>().counter(), 1);
     }
 
     #[derive(Default)]
@@ -287,11 +303,11 @@ mod tests {
 
     #[test]
     fn custom_system() {
-        let mut app = Application::new("Test App");
-        app.add_service(MyService { data: 123 });
+        let mut services = Services::new();
+        services.add(MyService { data: 123 });
         let mut s = System::from(my_system_with_context);
-        s.data.run(&mut app);
-        assert_eq!(app.service::<MyService>().data, 0);
+        s.data.run(&mut services);
+        assert_eq!(services.get::<MyService>().data, 0);
     }
 
 }

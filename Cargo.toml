@@ -27,9 +27,9 @@ winit = { version = "0.23.0", features = ["serde"] }
 [dev-dependencies]
 futures = { version = "0.3", default-features = false, features = ["std", "executor"] }
 
-#[[example]]
-#name = "assets"
-#path = "examples/assets.rs"
+[[example]]
+name = "demo"
+path = "examples/demo/demo.rs"
 
 #[[example]]
 #name = "ecs"
