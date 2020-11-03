@@ -1,15 +1,15 @@
 use crate::{
-    application::Application,
+    services::Services,
     ecs::{RunLevel, System, Systemized},
 };
 
-pub struct Systems {
+pub struct Scheduler {
     render: Vec<Box<dyn Systemized>>,
     standard: Vec<Box<dyn Systemized>>,
     startup: Vec<Box<dyn Systemized>>,
 }
 
-impl Systems {
+impl Scheduler {
     pub fn new() -> Self {
         Self {
             render: Vec::new(),
@@ -27,21 +27,25 @@ impl Systems {
         };
     }
 
-    pub fn run_render(&mut self, app: &mut Application) {
+    pub fn render(&mut self) -> &mut Vec<Box<dyn Systemized>> {
+        &mut self.render
+    }
+
+    pub fn run_render(&mut self, services: &mut Services) {
         for system in &mut self.render {
-            system.run(app);
+            system.run(services);
         }
     }
 
-    pub fn run_standard(&mut self, app: &mut Application) {
+    pub fn run_standard(&mut self, services: &mut Services) {
         for system in &mut self.standard {
-            system.run(app);
+            system.run(services);
         }
     }
 
-    pub fn run_startup(&mut self, app: &mut Application) {
+    pub fn run_startup(&mut self, services: &mut Services) {
         for system in &mut self.startup {
-            system.run(app);
+            system.run(services);
         }
     }
 }
