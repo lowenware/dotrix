@@ -27,10 +27,6 @@ impl Scheduler {
         };
     }
 
-    pub fn render(&mut self) -> &mut Vec<Box<dyn Systemized>> {
-        &mut self.render
-    }
-
     pub fn run_render(&mut self, services: &mut Services) {
         for system in &mut self.render {
             system.run(services);

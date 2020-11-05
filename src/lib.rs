@@ -1,21 +1,21 @@
 mod application;
-mod asset;
+mod assets;
+mod camera;
 mod ecs;
 mod input;
 mod renderer;
 mod scheduler;
 mod services;
 mod world;
-mod window;
 
 pub use application::{ Application };
-pub use asset::*;
-pub use ecs::{Entity, Component, System};
-pub use input::*;
-pub use renderer::Renderer;
+pub use assets::{ Assets, Texture, Mesh };
+pub use camera::Camera;
+pub use ecs::{ Entity, Const, Component, Mut, RunLevel, System };
+pub use input::*; // TODO: expand
+pub use renderer::{ Light, Renderer, StaticModel, static_renderer };
 pub use services::Service;
 pub use world::World;
-pub use window::{Window};
 
 pub struct Dotrix {
     app: Option<Application>,

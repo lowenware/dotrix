@@ -75,25 +75,25 @@ impl InputManager {
             }
         }
 
-        return InputConfig {
+        InputConfig {
             bindings
         }
     }
 
     /// Return true when button is pressed
     pub fn get_button_down(&self, action: Action) -> bool {
-        return self.btn_states.get(&action).unwrap() == &ButtonState::Pressed;
+        self.btn_states.get(&action).unwrap() == &ButtonState::Pressed
     }
 
     /// Return true when button is released
     pub fn get_button_up(&self, action: Action) -> bool {
-        return self.btn_states.get(&action).unwrap() == &ButtonState::Released;
+        self.btn_states.get(&action).unwrap() == &ButtonState::Released
     }
 
     /// Return true button is pressed or hold
     pub fn get_button(&self, action: Action) -> bool {
         let state = self.btn_states.get(&action).unwrap();
-        return state == &ButtonState::Pressed || state == &ButtonState::Hold;
+        state == &ButtonState::Pressed || state == &ButtonState::Hold
     }
 
     /// Returns mouse scroll delta. Value should be between -1 and 0 (but should be smaller on higher, depends on OS and device)
@@ -131,10 +131,9 @@ impl InputManager {
 
     /// Handle keyboard event from winit
     pub fn handle_keyboard_event(&mut self, _device_id: DeviceId, input: KeyboardInput, _is_synthetic: bool) {
-        if input.virtual_keycode.is_some() {
-            if self.handle_key_trigger(Button::Key(input.virtual_keycode.unwrap()), input.state) {
-                return;
-            }
+        if input.virtual_keycode.is_some()
+            && self.handle_key_trigger(Button::Key(input.virtual_keycode.unwrap()), input.state) {
+            return;
         }
 
         println!("{0:?} unmapped {1:?} {2:?}", input.state, input.scancode, input.virtual_keycode);
@@ -146,12 +145,9 @@ impl InputManager {
 
             match state {
                 ElementState::Pressed => {
-                    match self.btn_states[&action] {
-                        ButtonState::None => {
-                            println!("Press {:?}", &action);
-                            self.btn_states.insert(action, ButtonState::Pressed);
-                        },
-                        _ => {}
+                    if let ButtonState::None = self.btn_states[&action] {
+                        println!("Press {:?}", &action);
+                        self.btn_states.insert(action, ButtonState::Pressed);
                     }
                 }
                 ElementState::Released => {
@@ -161,6 +157,12 @@ impl InputManager {
             }
             return true;
         }
-        return false;
+        false
+    }
+}
+
+impl Default for InputManager {
+    fn default() -> Self {
+        Self::new()
     }
 }

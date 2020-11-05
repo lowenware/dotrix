@@ -1,5 +1,5 @@
 use std::{
-    any::TypeId,
+    any::{type_name, TypeId},
     collections::HashMap,
 };
 
@@ -24,12 +24,26 @@ impl Services {
 
     pub fn get<T: Service>(&self) -> &T
     {
-        self.storage.get(&TypeId::of::<T>()).unwrap().downcast_ref::<T>().unwrap()
+        let srv = self.storage.get(&TypeId::of::<T>());
+        if srv.is_none() {
+            panic!("Service {} is not registered", type_name::<T>())
+        }
+        srv.unwrap().downcast_ref::<T>().unwrap()
     }
 
     pub fn get_mut<T: Service>(&mut self) -> &mut T
     {
-        self.storage.get_mut(&TypeId::of::<T>()).unwrap().downcast_mut::<T>().unwrap()
+        let srv = self.storage.get_mut(&TypeId::of::<T>());
+        if srv.is_none() {
+            panic!("Service {} is not registered", type_name::<T>())
+        }
+        srv.unwrap().downcast_mut::<T>().unwrap()
     }
 
+}
+
+impl Default for Services {
+    fn default() -> Self {
+        Self::new()
+    }
 }

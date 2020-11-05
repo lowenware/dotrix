@@ -171,6 +171,6 @@ impl InputConfig {
             },
         );
 
-        return Self { bindings };
+        Self { bindings }
     }
 }

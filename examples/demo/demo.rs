@@ -1,32 +1,51 @@
-use dotrix::{Dotrix};
+use dotrix::{
+    Assets,
+    Camera,
+    Dotrix,
+    Light,
+    Mesh,
+    Mut,
+    RunLevel,
+    static_renderer,
+    StaticModel,
+    System,
+    Texture,
+    World,
+};
 
 fn main() {
-    /*
-    * Add new Input action
-    * 1) Register action in 'crates\dotrix_core\src\input\manager.rs'
-    * 2) (optional) Bind action to key 'crates\dotrix_core\src\input\config.rs'
-    * Done
-    *
-    *
-    // Example of use:
-    let jump = input_manager.get_button_down(input::Action::Jump);
-    let forward = input_manager.get_button(input::Action::MoveForward);
-    let zoom = input_manager.get_scroll();
-    if jump {
-        println!("character jumped");
-    }
-    if forward {
-        println!("moving forward");
-    }
-    if zoom > 0.0{
-        println!("zoom-in");
-    }
-    if zoom < 0.0 {
-        println!("zoom-out");
-    }
-
-    */
 
     Dotrix::application("Input Example")
+        .with_system(System::from(static_renderer).with(RunLevel::Render))
+        .with_system(System::from(startup).with(RunLevel::Startup))
+        .with_system(System::from(fly_around))
+        .with_service(Assets::new())
+        .with_service(Camera::new(10.0, 3.14 / 2.0, 4.0))
+        .with_service(World::new())
         .run();
+
+}
+
+fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
+    assets.import("assets/crate.png", "crate");
+
+    let texture = assets.find::<Texture>("crate");
+    let cube1 = assets.register::<Mesh>(Mesh::cube(), String::from("cube1"));
+    let cube2 = assets.register::<Mesh>(Mesh::cube2(), String::from("cube2"));
+
+    world.spawn(vec![
+        (StaticModel::new(cube2, texture),),
+        (StaticModel::new(cube1, texture),),
+    ]);
+
+    world.spawn(Some((Light::white([10.0, 2.0, 4.0]),)));
+}
+
+fn fly_around(mut camera: Mut<Camera>) {
+    let target = cgmath::Point3::new(0.0, 0.0, 0.0);
+    let distance = camera.distance();
+    let angle = camera.angle() + 0.002;
+    let height = camera.height();
+
+    camera.set(target, distance, angle, height);
 }

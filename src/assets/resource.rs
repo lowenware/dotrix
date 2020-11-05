@@ -1,16 +1,18 @@
+/*
+ * TODO: Implement resources state control
 use std::vec::Vec;
-
 pub enum State {
     Busy,
     Ready,
     Fail,
 }
+*/
 
 pub struct Resource {
     name: String,
     path: String,
-    state: State,
-    data: Option<Vec<u8>>,
+//    state: State,
+//    data: Option<Vec<u8>>,
 }
 
 impl Resource {
@@ -18,8 +20,8 @@ impl Resource {
         Self {
             name,
             path,
-            state: State::Busy,
-            data: None,
+//            state: State::Busy,
+//            data: None,
         }
     }
 

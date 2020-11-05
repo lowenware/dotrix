@@ -43,7 +43,7 @@ impl System {
         self
     }
 
-    pub fn tuple(mut self) -> (Box<dyn Systemized>, RunLevel) {
+    pub fn tuple(self) -> (Box<dyn Systemized>, RunLevel) {
         (self.data, self.run_level)
     }
 }
