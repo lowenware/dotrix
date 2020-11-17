@@ -53,7 +53,7 @@ impl Renderer {
             .expect("Failed to create device");
 
         let sc_desc = wgpu::SwapChainDescriptor {
-        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+        usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
             // TODO: Allow srgb unconditionally
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             width: size.width,
@@ -152,7 +152,7 @@ impl Renderer {
             format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsage::SAMPLED
 //                | wgpu::TextureUsage::COPY_DST
-                | wgpu::TextureUsage::RENDER_ATTACHMENT,
+                | wgpu::TextureUsage::OUTPUT_ATTACHMENT,
         });
 
         draw_depth_buffer.create_view(&wgpu::TextureViewDescriptor::default())

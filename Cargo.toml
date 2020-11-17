@@ -23,7 +23,7 @@ serde_json = "1.0"
 shaderc = "0.7"
 strum = "0.19"
 strum_macros = "0.19"
-wgpu = { git = "https://github.com/gfx-rs/wgpu-rs", branch = "master" }
+wgpu = "0.6"
 wgpu-subscriber = "0.1.0"
 winit = { version = "0.23.0", features = ["serde"] }
 bytemuck = { version = "1.4", features = ["derive"] }
