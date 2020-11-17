@@ -3,7 +3,7 @@ use std::{
     collections::HashMap,
 };
 
-use super::world::Archetype;
+use super::Archetype;
 use crate::ecs::Component;
 
 pub struct Container {
@@ -20,13 +20,17 @@ impl Container {
     }
 
     pub fn push<T: Component>(&mut self, component: T) {
+        if let Some(v) = self.components.get_mut(&TypeId::of::<T>()) {
+            v.downcast_mut::<Vec<T>>().unwrap().push(component)
+        }
+        /* TODO: remove this:
         self.components
             .get_mut(&TypeId::of::<T>())
             .map(|v| {
                 v.downcast_mut::<Vec<T>>()
                     .unwrap()
                     .push(component)
-            });
+            });*/
     }
 
     pub fn init<T: Component>(&mut self) {
