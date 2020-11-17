@@ -338,7 +338,7 @@ pub fn static_renderer(
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
-                            resource: ctx.uniform_buffer.as_ref().unwrap().as_entire_binding(),
+                            resource: wgpu::BindingResource::Buffer(ctx.uniform_buffer.as_ref().unwrap().slice(..)),
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,
@@ -350,7 +350,7 @@ pub fn static_renderer(
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,
-                            resource: ctx.lights_buffer.as_ref().unwrap().as_entire_binding(),
+                            resource: wgpu::BindingResource::Buffer(ctx.lights_buffer.as_ref().unwrap().slice(..)),
                         },
                         /* wgpu::BindGroupEntry {
                             binding: 3,
