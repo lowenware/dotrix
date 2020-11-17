@@ -236,7 +236,7 @@ pub fn static_renderer(
     let query = world.query::<(&mut Light,)>();
     let mut lights = LightUniform::default();
     for (light,) in query {
-        lights.push(light.clone());
+        lights.push(*light);
     }
 
     if ctx.lights_buffer.is_none() {
@@ -351,10 +351,6 @@ pub fn static_renderer(
                             binding: 3,
                             resource: wgpu::BindingResource::Buffer(ctx.lights_buffer.as_ref().unwrap().slice(..)),
                         },
-                        /* wgpu::BindGroupEntry {
-                            binding: 3,
-                            resource: wgpu::BindingResource::TextureView(ctx.depth_buffer.as_ref().unwrap()),
-                        }, */
                     ],
                     label: None,
                 });
@@ -372,13 +368,16 @@ pub fn static_renderer(
                 });
                 model.vertices_buffer = Some(vertex_buf);
 
-                let index_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Index Buffer"),
-                    contents: bytemuck::cast_slice(&mesh.indices),
-                    usage: wgpu::BufferUsage::INDEX,
-                });
-                model.indices_buffer = Some(index_buf);
-                model.indices_count = mesh.indices.len();
+                if let Some(indices) = mesh.indices.as_ref() {
+                    let index_buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some("Index Buffer"),
+                        // TODO: research possibilities of u32 indices
+                        contents: bytemuck::cast_slice(&indices.iter().map(|i| *i as u16).collect::<Vec<u16>>()),
+                        usage: wgpu::BufferUsage::INDEX,
+                    });
+                    model.indices_buffer = Some(index_buf);
+                    model.indices_count = indices.len();
+                }
             }
         }
 
@@ -407,11 +406,16 @@ pub fn static_renderer(
                 rpass.push_debug_group("Prepare data for draw.");
                 rpass.set_pipeline(ctx.pipeline.as_ref().unwrap());
                 rpass.set_bind_group(0, bind_group, &[]);
-                rpass.set_index_buffer(model.indices_buffer.as_ref().unwrap().slice(..));
                 rpass.set_vertex_buffer(0, vertices_buffer.slice(..));
                 rpass.pop_debug_group();
-                rpass.insert_debug_marker("Draw!");
-                rpass.draw_indexed(0..model.indices_count as u32, 0, 0..1);
+                if let Some(indices_buffer) = model.indices_buffer.as_ref() {
+                    rpass.insert_debug_marker("draw indexed");
+                    rpass.set_index_buffer(indices_buffer.slice(..));
+                    rpass.draw_indexed(0..model.indices_count as u32, 0, 0..1);
+                } else {
+                    rpass.insert_debug_marker("draw");
+                    rpass.draw(0..1728, 0..1);
+                }
             }
         }
     }

@@ -19,79 +19,23 @@ numerical ID. Each entitiy agregates constant number of components.
 4. **Services** are Rust objects available through systems, providing some key
 features or access to global resources, like Assets, Input or Render management.
 
-## Example
-To compile and run demo, execute following command:
+## Getting started
+
+The best place to start is to review examples distributed with the engine. All examples are grouped
+under [examples/](examples/) folder. Later when API becomes more or less stable we will prepare a
+Book for a quick start.
+
+## Demo Example
+![Demo Example](./examples/demo/demo.png)
 
 ```
 cargo run --release --example demo
 ```
 
-## Getting started
+## GLTF Import Example
 
-Dotrix provides transparent API and application builder named after the engine itself, to build and run your
-application. The following code is a copy of `demo` example.
-
-```
-use dotrix::{
-    Dotrix,
-    assets::{ Mesh, Texture },
-    components::{ Light, StaticModel },
-    ecs::{ Mut, RunLevel, System },
-    services::{ Assets, Camera, World },
-    systems::{ static_renderer },
-};
-
-fn main() {
-
-    Dotrix::application("Input Example")
-        .with_system(System::from(static_renderer).with(RunLevel::Render))
-        .with_system(System::from(startup).with(RunLevel::Startup))
-        .with_system(System::from(fly_around))
-        .with_service(Assets::new())
-        .with_service(Camera::new(10.0, 3.14 / 2.0, 4.0))
-        .with_service(World::new())
-        .run();
-
-}
-
-fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
-    assets.import("assets/crate.png", "crate");
-
-    let texture = assets.find::<Texture>("crate");
-    let cube1 = assets.register::<Mesh>(Mesh::cube(), String::from("cube1"));
-    let cube2 = assets.register::<Mesh>(Mesh::cube2(), String::from("cube2"));
-
-    world.spawn(vec![
-        (StaticModel::new(cube2, texture),),
-        (StaticModel::new(cube1, texture),),
-    ]);
-
-    world.spawn(Some((Light::white([10.0, 2.0, 4.0]),)));
-}
-
-fn fly_around(mut camera: Mut<Camera>) {
-    let target = cgmath::Point3::new(0.0, 0.0, 0.0);
-    let distance = camera.distance();
-    let angle = camera.angle() + 0.002;
-    let height = camera.height();
-
-    camera.set(target, distance, angle, height);
-}
-```
-
-## Systems with context
-
-It is possible to define a context for the system. Context is a data structure, only available for
-that system. Context has one requirement: `Default` trait has to be implemented.
+![GLTF Import Example](./examples/gltf/gltf.png)
 
 ```
-
-#[derive(Default)]
-struct Control {
-    is_jump: boolean;
-}
-
-fn control_system(mut ctx: Context<Control>, input: Const<Input>) {
-  ctx.is_jump = input.get_button(Action::Jump);
-}
+cargo run --release --example gltf
 ```

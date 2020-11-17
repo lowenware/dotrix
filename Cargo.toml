@@ -1,6 +1,6 @@
 [package]
 name = "dotrix"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
   "Elias Kartashov <elias@lowenware.com>",
   "Štěpán Wünsch <sw@lowenware.com>",
@@ -9,15 +9,14 @@ edition = "2018"
 description = "3D Game Engine"
 license = "MIT"
 
-# [features]
-# default = [
-#     "my_feature",
-# ]
-
 [dependencies]
+base64 = "0.13.0"
+bytemuck = { version = "1.4", features = ["derive"] }
 cgmath = "0.17"
 futures = { version = "0.3", default-features = false, features = ["std"] }
-png = "0.11"
+gltf = { version = "0.15.2", features = ["extras", "names"] }
+log = "0.4"
+image = "0.23"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 shaderc = "0.7"
@@ -26,7 +25,6 @@ strum_macros = "0.19"
 wgpu = "0.6"
 wgpu-subscriber = "0.1.0"
 winit = { version = "0.23.0", features = ["serde"] }
-bytemuck = { version = "1.4", features = ["derive"] }
 
 [dev-dependencies]
 futures = { version = "0.3", default-features = false, features = ["std", "executor"] }
@@ -35,6 +33,6 @@ futures = { version = "0.3", default-features = false, features = ["std", "execu
 name = "demo"
 path = "examples/demo/demo.rs"
 
-#[[example]]
-#name = "ecs"
-#path = "examples/ecs.rs"
+[[example]]
+name = "gltf"
+path = "examples/gltf/gltf.rs"

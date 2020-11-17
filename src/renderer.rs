@@ -136,10 +136,9 @@ impl Renderer {
     }
 
     fn create_depth_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
-        // Depth buffer
         let buffer_extent = wgpu::Extent3d {
-            width: width,
-            height: height,
+            width,
+            height,
             depth: 1,
         };
 
@@ -151,7 +150,7 @@ impl Renderer {
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsage::SAMPLED
-//                | wgpu::TextureUsage::COPY_DST
+                | wgpu::TextureUsage::COPY_DST
                 | wgpu::TextureUsage::OUTPUT_ATTACHMENT,
         });
 

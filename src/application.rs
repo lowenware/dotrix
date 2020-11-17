@@ -88,9 +88,9 @@ fn run(
 
     scheduler.run_startup(&mut services);
 
-    let mut input_manager = InputManager::new();
+    services.add(InputManager::new());
     let input_config = InputConfig::default();
-    input_manager.initialize(&input_config);
+    services.get_mut::<InputManager>().initialize(&input_config);
 
     // println!("{}", serde_json::to_string_pretty(&input_manager.create_config()).unwrap());
 
@@ -99,7 +99,7 @@ fn run(
         // *control_flow = ControlFlow::Poll;
         *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(10));
 
-        input_manager.update(); // TODO: can winit event loop runs more than once per frame?
+        services.get_mut::<InputManager>().update(); // TODO: can winit event loop runs more than once per frame?
 
         scheduler.run_standard(&mut services);
         services.get_mut::<Assets>().fetch();
@@ -132,15 +132,15 @@ fn run(
             Event::WindowEvent {
                 event: WindowEvent::KeyboardInput{device_id, input, is_synthetic},
                 ..
-            } => input_manager.handle_keyboard_event(device_id, input, is_synthetic),
+            } => services.get_mut::<InputManager>().handle_keyboard_event(device_id, input, is_synthetic),
             Event::WindowEvent {
                 event: WindowEvent::MouseInput{device_id, state, button, ..},
                 ..
-            } => input_manager.handle_mouse_event(device_id, state, button),
+            } => services.get_mut::<InputManager>().handle_mouse_event(device_id, state, button),
             Event::WindowEvent {
                 event: WindowEvent::MouseWheel{device_id, delta, phase, ..},
                 ..
-            } => input_manager.handle_mouse_wheel_event(device_id, delta, phase),
+            } => services.get_mut::<InputManager>().handle_mouse_wheel_event(device_id, delta, phase),
             _ => {}
         }
     });
