@@ -18,51 +18,70 @@ numerical ID. Each entitiy agregates constant number of components.
 4. **Services** are Rust objects available through systems, providing some key
 features or access to global resources, like Assets, Input or Render management.
 
-## Getting started
-
-Dotrix provides an application builder named after the engine itself, to build and run your
-application.
+## Example
+To compile and run demo, execute following command:
 
 ```
-// THE EXAMPLE ONLY DEMONSTRATES HOW THINGS ARE SUPPOSED TO BE. THE RENDERER IS NOT IMPLEMENTED YET
+cargo run --release --example demo
+```
 
+## Getting started
+
+Dotrix provides transparent API and application builder named after the engine itself, to build and run your
+application. The following code is a copy of `demo` example.
+
+```
 use dotrix::{
-  Dotrix,
-  ecs::{ System, RunLevel },
-  renderer::{static_renderer, static_renderer_startup}
+    Dotrix,
+    assets::{ Mesh, Texture },
+    components::{ Light, StaticModel },
+    ecs::{ Mut, RunLevel, System },
+    services::{ Assets, Camera, World },
+    systems::{ static_renderer },
 };
 
 fn main() {
-    Dotrix::application("My Application")
-        .with_system(System::from(static_renderer_startup).with(RunLevel::startup))
-        .with_system(System::from(static_renderer).with(RunLevel::render))
-        .with_system(System::from(my_system))
+
+    Dotrix::application("Input Example")
+        .with_system(System::from(static_renderer).with(RunLevel::Render))
+        .with_system(System::from(startup).with(RunLevel::Startup))
+        .with_system(System::from(fly_around))
+        .with_service(Assets::new())
+        .with_service(Camera::new(10.0, 3.14 / 2.0, 4.0))
+        .with_service(World::new())
         .run();
 
-    struct Armor(u32);
-    struct Health(u32);
-    struct Damage(u32);
+}
 
-    fn my_system(mut world: Mut<World>) {
-        // bulk spawning of entities with the same Archetype (faster that spawning in cycle) 
-        let bulk = (0..9).map(|_| (Armor(35), Health(5000), Damage(350)));
-        world.spawn(bulk);
+fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
+    assets.import("assets/crate.png", "crate");
 
-        // spawn single entity
-        world.spawn(Some((Damage(600), Armor(10))));
+    let texture = assets.find::<Texture>("crate");
+    let cube1 = assets.register::<Mesh>(Mesh::cube(), String::from("cube1"));
+    let cube2 = assets.register::<Mesh>(Mesh::cube2(), String::from("cube2"));
 
-        
-        let iter = world.query::<(&mut Health,)>();
-        for (hp,) in iter {
-            hp.0 -= 1;
-        }
-    }
+    world.spawn(vec![
+        (StaticModel::new(cube2, texture),),
+        (StaticModel::new(cube1, texture),),
+    ]);
+
+    world.spawn(Some((Light::white([10.0, 2.0, 4.0]),)));
+}
+
+fn fly_around(mut camera: Mut<Camera>) {
+    let target = cgmath::Point3::new(0.0, 0.0, 0.0);
+    let distance = camera.distance();
+    let angle = camera.angle() + 0.002;
+    let height = camera.height();
+
+    camera.set(target, distance, angle, height);
+}
 ```
 
 ## Systems with context
 
-It is possible to define a context for the system. Context is a data structure, available only for
-the system. Context has one requirement: `Default` trait has to be implemented.
+It is possible to define a context for the system. Context is a data structure, only available for
+that system. Context has one requirement: `Default` trait has to be implemented.
 
 ```
 
