@@ -1,7 +1,8 @@
 use core::ops::{Deref, DerefMut};
 
-use crate::{
-    services::{Services, Service},
+use crate::application::{
+    services::Services,
+    Service
 };
 
 /// Entity structure has only id field and represent an agregation of components
@@ -266,7 +267,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        services::Services,
+        application::services::Services,
         ecs::{
             Context,
             System,
