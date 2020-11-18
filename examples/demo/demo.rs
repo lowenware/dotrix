@@ -1,16 +1,10 @@
 use dotrix::{
-    Assets,
-    Camera,
     Dotrix,
-    Light,
-    Mesh,
-    Mut,
-    RunLevel,
-    static_renderer,
-    StaticModel,
-    System,
-    Texture,
-    World,
+    assets::{ Mesh, Texture },
+    components::{ Light, StaticModel },
+    ecs::{ Mut, RunLevel, System },
+    services::{ Assets, Camera, World },
+    systems::{ static_renderer },
 };
 
 fn main() {

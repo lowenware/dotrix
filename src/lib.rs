@@ -1,21 +1,42 @@
 mod application;
-mod assets;
+pub mod assets;
 mod camera;
-mod ecs;
+pub mod ecs;
 mod input;
 mod renderer;
 mod scheduler;
-mod services;
 mod world;
 
-pub use application::{ Application };
-pub use assets::{ Assets, Texture, Mesh };
-pub use camera::Camera;
-pub use ecs::{ Entity, Const, Component, Mut, RunLevel, System };
+pub use application::{ Application, Service };
 pub use input::*; // TODO: expand
-pub use renderer::{ Light, Renderer, StaticModel, static_renderer };
-pub use services::Service;
-pub use world::World;
+
+pub mod components {
+    pub use crate::{
+        renderer::{
+            Light,
+            StaticModel,
+        },
+    };
+}
+
+pub mod services {
+    pub use crate::{
+        assets::Assets,
+        camera::Camera,
+        renderer::Renderer,
+        world::World,
+    };
+}
+
+pub mod systems {
+    pub use crate::{
+        renderer::{
+            static_renderer,
+        }
+    };
+}
+
+use ecs::System;
 
 pub struct Dotrix {
     app: Option<Application>,

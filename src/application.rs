@@ -1,3 +1,5 @@
+pub mod services;
+
 use std::{
     time::{Duration, Instant},
 };
@@ -14,8 +16,9 @@ use crate::{
     input::{InputConfig, InputManager},
     renderer::Renderer,
     scheduler::Scheduler,
-    services::{Services, Service},
 };
+
+use services::Services;
 
 pub struct Application {
     name: &'static str,
@@ -55,6 +58,9 @@ impl Application {
         run(event_loop, window, self);
     }
 }
+
+pub trait Service: Send + Sync + 'static {}
+impl<T: Send + Sync + 'static> Service for T {}
 
 /// Application run cycle
 fn run(

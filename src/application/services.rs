@@ -3,12 +3,13 @@ use std::{
     collections::HashMap,
 };
 
+use super::Service;
+
 pub struct Services {
     storage: HashMap<TypeId, Box<dyn std::any::Any>>,
 }
 
-pub trait Service: Send + Sync + 'static {}
-impl<T: Send + Sync + 'static> Service for T {}
+
 
 impl Services {
 

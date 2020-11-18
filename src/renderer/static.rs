@@ -2,11 +2,10 @@ use std::mem;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::{ Assets, Id, Texture, Mesh, Vertex },
-    camera::Camera,
+    assets::{ Id, Texture, Mesh, Vertex },
     ecs::{ Const, Mut, Context },
     renderer::{ Light, LightUniform, Renderer },
-    World
+    services::{ Assets, Camera, World },
 };
 
 const VERTEXT_SHADER: &str = include_str!("shaders/static.vert.glsl");
