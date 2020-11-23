@@ -1,17 +1,23 @@
+mod animation;
 mod id;
 mod loader;
+mod load_gltf;
 mod mesh;
+mod skin;
 mod resource;
 mod texture;
 
 pub use id::*;
 pub use loader::*;
+pub use animation::Animation;
 pub use mesh::*;
+pub use skin::Skin;
 pub use resource::*;
 pub use texture::*;
 
 use std::{
     collections::HashMap,
+    path::PathBuf,
     sync::{Arc, mpsc, Mutex},
     vec::Vec,
 };
@@ -21,8 +27,10 @@ const THREADS_COUNT: usize = 4;
 pub struct Assets {
     registry: HashMap<String, RawId>,
     resources: HashMap<Id<Resource>, Resource>,
+    animations: HashMap<Id<Animation>, Animation>,
     textures: HashMap<Id<Texture>, Texture>,
     meshes: HashMap<Id<Mesh>, Mesh>,
+    skins: HashMap<Id<Skin>, Skin>,
     loaders: Vec<Loader>,
     sender: mpsc::Sender<Request>,
     receiver: mpsc::Receiver<Response>,
@@ -47,8 +55,10 @@ impl Assets {
         Self {
             registry: HashMap::new(),
             resources: HashMap::new(),
+            animations: HashMap::new(),
             textures: HashMap::new(),
             meshes: HashMap::new(),
+            skins: HashMap::new(),
             loaders,
             sender,
             receiver,
@@ -59,25 +69,23 @@ impl Assets {
     /// imports an asset file to the container
     pub fn import(&mut self, path: &str, name: &str) -> Id<Resource> {
         let resource = Resource::new(name.to_string(), path.to_string());
-        let id = self.register::<Resource>(resource, name.to_string());
+        let id = self.store::<Resource>(resource, name);
         // TODO: start loading in separate thread
-        let task = Task { path: path.to_string(), name: name.to_string() };
+        let task = Task { path: PathBuf::from(path), name: name.to_string() };
         self.sender.send(Request::Import(task)).unwrap();
         id
     }
 
-    /// Registers new asset in the system under user defined name
-    pub fn register<T>(&mut self, asset: T, name: String) -> Id<T>
+    /// stores new asset in the system under user defined name
+    pub fn store<T>(&mut self, asset: T, name: &str) -> Id<T>
     where Self: AssetMapGetter<T> {
-        let raw_id = self.next_id();
-        let id = Id::new(raw_id);
-        self.registry.insert(name, raw_id);
+        let id = self.register(name);
         self.map_mut().insert(id, asset);
         id
     }
 
-    /// Finds an asset Id by its name
-    pub fn find<T>(&mut self, name: &str) -> Id<T>
+    /// Registers user defined name for an asset
+    pub fn register<T>(&mut self, name: &str) -> Id<T>
     where Self: AssetMapGetter<T> {
         let raw_id = self.next_id();
         Id::new(*self.registry.entry(name.to_string()).or_insert(raw_id))
@@ -99,13 +107,25 @@ impl Assets {
     pub fn fetch(&mut self) {
         while let Ok(response) = self.receiver.try_recv() {
             match response {
-                Response::Texture(texture) => {
-                    let id = self.find::<Texture>(texture.name.as_str());
-                    self.map_mut().insert(id, texture.asset);
+                Response::Animation(animation) => {
+                    self.store(animation.asset, &animation.name);
+                    //let id = self.find::<Animation>(animation.name.as_str());
+                    //self.map_mut().insert(id, animation.asset);
                 },
                 Response::Mesh(mesh) => {
-                    let id = self.find::<Mesh>(mesh.name.as_str());
-                    self.map_mut().insert(id, mesh.asset);
+                    self.store(mesh.asset, &mesh.name);
+                    //let id = self.find::<Mesh>(mesh.name.as_str());
+                    //self.map_mut().insert(id, mesh.asset);
+                },
+                Response::Skin(skin) => {
+                    self.store(skin.asset, &skin.name);
+                    //let id = self.find::<Skin>(skin.name.as_str());
+                    //self.map_mut().insert(id, skin.asset);
+                },
+                Response::Texture(texture) => {
+                    self.store(texture.asset, &texture.name);
+                    //let id = self.find::<Texture>(texture.name.as_str());
+                    //self.map_mut().insert(id, texture.asset);
                 },
             };
         }
@@ -117,6 +137,16 @@ pub trait AssetMapGetter<T> {
     fn map_mut(&mut self) -> &mut HashMap<Id<T>, T>;
 }
 
+impl AssetMapGetter<Animation> for Assets {
+    fn map(&self) -> &HashMap<Id<Animation>, Animation> {
+        &self.animations
+    }
+
+    fn map_mut(&mut self) -> &mut HashMap<Id<Animation>, Animation> {
+        &mut self.animations
+    }
+}
+
 impl AssetMapGetter<Texture> for Assets {
     fn map(&self) -> &HashMap<Id<Texture>, Texture> {
         &self.textures
@@ -124,7 +154,6 @@ impl AssetMapGetter<Texture> for Assets {
 
     fn map_mut(&mut self) -> &mut HashMap<Id<Texture>, Texture> {
         &mut self.textures
-        // &mut self.storage.lock().unwrap().textures
     }
 }
 
@@ -135,6 +164,16 @@ impl AssetMapGetter<Mesh> for Assets {
 
     fn map_mut(&mut self) -> &mut HashMap<Id<Mesh>, Mesh> {
         &mut self.meshes
+    }
+}
+
+impl AssetMapGetter<Skin> for Assets {
+    fn map(&self) -> &HashMap<Id<Skin>, Skin> {
+        &self.skins
+    }
+
+    fn map_mut(&mut self) -> &mut HashMap<Id<Skin>, Skin> {
+        &mut self.skins
     }
 }
 

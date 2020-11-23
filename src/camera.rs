@@ -62,6 +62,6 @@ impl Camera {
 
 impl Default for Camera {
     fn default() -> Self {
-        Self::new(5.0, 3.14 / 2.0, 3.0)
+        Self::new(5.0, std::f32::consts::PI / 2.0, 3.0)
     }
 }

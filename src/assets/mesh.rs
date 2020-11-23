@@ -23,10 +23,45 @@ impl Vertex {
 
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
-    pub indices: Vec<u16>,
+    pub indices: Option<Vec<u32>>,
+    pub joints: Option<Vec<[u16; 4]>>,
+    pub weights: Option<Vec<[f32; 4]>>,
 }
 
 impl Mesh {
+    pub fn new(
+        positions: Vec<[f32; 3]>,
+        normals: Option<Vec<[f32; 3]>>,
+        texture: Option<Vec<[f32; 2]>>,
+        indices: Option<Vec<u32>>,
+        joints: Option<Vec<[u16; 4]>>,
+        weights: Option<Vec<[f32; 4]>>,
+    ) -> Self {
+        let mut vertices: Vec<Vertex> = positions
+            .iter()
+            .map(|p| Vertex::new(*p, [0.0, 0.0, 0.0], [0.0, 0.0]))
+            .collect();
+
+        if let Some(normals) = normals {
+            for (v, n) in vertices.iter_mut().zip(normals.iter()) {
+                v.normal = *n;
+            }
+        }
+
+        if let Some(texture) = texture {
+            for (v, t) in vertices.iter_mut().zip(texture.iter()) {
+                v.texture = *t;
+            }
+        }
+
+        Self {
+            vertices,
+            indices,
+            joints,
+            weights,
+        }
+    }
+
     pub fn cube() -> Self {
         Self {
             vertices: vec!(
@@ -62,14 +97,17 @@ impl Mesh {
                 Vertex::new([1.0, 0.0, -1.0], [0.0, -1.0, 0.0], [0.0, 1.0]),
             ),
 
-            indices: vec!(
+            indices: Some(vec!(
                 0, 1, 2, 2, 3, 0,
                 4, 5, 6, 6, 7, 4,
                 8, 9, 10, 10, 11, 8,
                 12, 13, 14, 14, 15, 12,
                 16, 17, 18, 18, 19, 16,
                 20, 21, 22, 22, 23, 20,
-            ),
+            )),
+
+            joints: None,
+            weights: None,
         }
     }
 
@@ -108,14 +146,17 @@ impl Mesh {
                 Vertex::new([-2.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 1.0]),
             ),
 
-            indices: vec!(
+            indices: Some(vec!(
                 0, 1, 2, 2, 3, 0,
                 4, 5, 6, 6, 7, 4,
                 8, 9, 10, 10, 11, 8,
                 12, 13, 14, 14, 15, 12,
                 16, 17, 18, 18, 19, 16,
                 20, 21, 22, 22, 23, 20,
-            ),
+            )),
+
+            joints: None,
+            weights: None,
         }
     }
 }
