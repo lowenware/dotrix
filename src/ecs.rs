@@ -243,8 +243,8 @@ where
     T: Service,
 {
     type Item = T;
-    fn fetch(service: &mut Services) -> Self {
-        let service: &mut T = service.get_mut::<T>();
+    fn fetch(services: &mut Services) -> Self {
+        let service: &mut T = services.get_mut::<T>().expect("Service does not exist");
         Mut {
             value: service as *mut T
         }
@@ -257,7 +257,7 @@ where
 {
     type Item = T;
     fn fetch(service: &mut Services) -> Self {
-        let service: &T = service.get::<T>();
+        let service: &T = service.get::<T>().expect("Service does not exist");
         Const {
             value: service as *const T
         }
@@ -288,7 +288,7 @@ mod tests {
         services.add(World::new());
         let mut s = System::from(my_system);
         s.data.run(&mut services);
-        assert_eq!(services.get::<World>().counter(), 1);
+        assert_eq!(services.get::<World>().unwrap().counter(), 1);
     }
 
     #[derive(Default)]
@@ -308,7 +308,7 @@ mod tests {
         services.add(MyService { data: 123 });
         let mut s = System::from(my_system_with_context);
         s.data.run(&mut services);
-        assert_eq!(services.get::<MyService>().data, 0);
+        assert_eq!(services.get::<MyService>().unwrap().data, 0);
     }
 
 }

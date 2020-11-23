@@ -4,14 +4,13 @@ pub mod assets;
 mod camera;
 mod frame;
 pub mod ecs;
-mod input;
+pub mod input;
 mod renderer;
 mod scheduler;
 mod skybox;
 mod world;
 
 pub use application::{ Application, Service };
-pub use input::*; // TODO: expand
 
 pub mod components {
     pub use crate::{
@@ -29,6 +28,7 @@ pub mod services {
     pub use crate::{
         assets::Assets,
         camera::Camera,
+        input::Input,
         frame::Frame,
         renderer::Renderer,
         world::World,

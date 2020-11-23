@@ -14,7 +14,7 @@ use crate::{
     assets::Assets,
     ecs::{System},
     frame::{Frame},
-    input::{InputConfig, InputManager},
+    input::Input,
     renderer::Renderer,
     scheduler::Scheduler,
 };
@@ -46,7 +46,7 @@ impl Application {
 
     pub fn service<T: Service>(&mut self) -> &mut T
     {
-        self.services.get_mut::<T>()
+        self.services.get_mut::<T>().expect("Application services does not exist")
     }
 
     /// Run the application
@@ -69,7 +69,7 @@ fn run(
     window: Window,
     Application {
         name,
-        mut scheduler, 
+        mut scheduler,
         mut services,
     }: Application
 ) {
@@ -90,20 +90,24 @@ fn run(
     scheduler.run_startup(&mut services);
 
     services.add(Frame::new());
-    services.add(InputManager::new());
-    let input_config = InputConfig::default();
-    services.get_mut::<InputManager>().initialize(&input_config);
 
-    // println!("{}", serde_json::to_string_pretty(&input_manager.create_config()).unwrap());
+    if let Some(input) = services.get_mut::<Input>() {
+        let size = window.inner_size();
+        input.set_window_size(size.width as f32, size.height as f32);
+    }
 
     event_loop.run(move |event, _, control_flow| {
         // TODO: other possibilities?
         // *control_flow = ControlFlow::Poll;
         *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(10));
 
-        services.get_mut::<InputManager>().update(); // TODO: can winit event loop runs more than once per frame?
+        if let Some(input) = services.get_mut::<Input>() {
+            input.on_event(&event);
+        }
 
-        services.get_mut::<Assets>().fetch();
+        if let Some(assets) = services.get_mut::<Assets>() {
+            assets.fetch();
+        }
 
         match event {
             Event::MainEventsCleared => {
@@ -118,33 +122,30 @@ fn run(
                 event: WindowEvent::Resized(size),
                 ..
             } => {
+                if let Some(input) = services.get_mut::<Input>() {
+                    input.set_window_size(size.width as f32, size.height as f32);
+                }
                 // Recreate the swap chain with the new size
-                services.get_mut::<Renderer>().resize(size.width, size.height);
-            }
-            Event::RedrawRequested(_) => {
-
-                services.get_mut::<Frame>().next();
-                scheduler.run_standard(&mut services);
-                services.get_mut::<Renderer>().next_frame();
-                scheduler.run_render(&mut services);
-                services.get_mut::<Renderer>().finalize();
+                services.get_mut::<Renderer>().unwrap().resize(size.width, size.height);
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => *control_flow = ControlFlow::Exit,
-            Event::WindowEvent {
-                event: WindowEvent::KeyboardInput{device_id, input, is_synthetic},
-                ..
-            } => services.get_mut::<InputManager>().handle_keyboard_event(device_id, input, is_synthetic),
-            Event::WindowEvent {
-                event: WindowEvent::MouseInput{device_id, state, button, ..},
-                ..
-            } => services.get_mut::<InputManager>().handle_mouse_event(device_id, state, button),
-            Event::WindowEvent {
-                event: WindowEvent::MouseWheel{device_id, delta, phase, ..},
-                ..
-            } => services.get_mut::<InputManager>().handle_mouse_wheel_event(device_id, delta, phase),
+            } => {
+                *control_flow = ControlFlow::Exit;
+            },
+            Event::RedrawRequested(_) => {
+
+                services.get_mut::<Frame>().unwrap().next();
+                scheduler.run_standard(&mut services);
+                services.get_mut::<Renderer>().unwrap().next_frame();
+                scheduler.run_render(&mut services);
+                services.get_mut::<Renderer>().unwrap().finalize();
+
+                if let Some(input) = services.get_mut::<Input>() {
+                    input.reset();
+                }
+            }
             _ => {}
         }
     });
