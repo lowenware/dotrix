@@ -1,6 +1,8 @@
 mod light;
+mod skeletal;
 mod r#static;
 
+pub use skeletal::*;
 pub use r#static::*;
 pub use light::{Light, LightUniform};
 

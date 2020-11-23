@@ -1,6 +1,8 @@
 mod application;
+pub mod animation;
 pub mod assets;
 mod camera;
+mod frame;
 pub mod ecs;
 mod input;
 mod renderer;
@@ -12,9 +14,11 @@ pub use input::*; // TODO: expand
 
 pub mod components {
     pub use crate::{
+        animation::Animator,
         renderer::{
             Light,
             StaticModel,
+            SkeletalModel,
         },
     };
 }
@@ -23,6 +27,7 @@ pub mod services {
     pub use crate::{
         assets::Assets,
         camera::Camera,
+        frame::Frame,
         renderer::Renderer,
         world::World,
     };
@@ -31,8 +36,10 @@ pub mod services {
 pub mod systems {
     pub use crate::{
         renderer::{
+            skeletal_renderer,
             static_renderer,
-        }
+        },
+        animation::skeletal_animation,
     };
 }
 

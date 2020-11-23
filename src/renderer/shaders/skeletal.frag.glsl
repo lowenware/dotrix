@@ -1,6 +1,7 @@
 #version 450
 
 const int MAX_LIGHTS = 10;
+const int MIN_LIGHTS = 0;
 
 struct Light {
     vec4 position;
@@ -20,7 +21,7 @@ layout(set = 0, binding = 3) uniform Lights {
 };
 
 void main() {
-    vec4 result_color = texture(sampler2D(t_Color, s_Color), v_TexCoord);
+    vec4 result_color =  texture(sampler2D(t_Color, s_Color), v_TexCoord);
 
     vec3 normal = normalize(v_Normal);
     float ambient = 0.1;
