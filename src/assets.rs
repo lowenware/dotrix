@@ -1,5 +1,6 @@
 mod animation;
 mod id;
+mod transform;
 mod loader;
 mod load_gltf;
 mod mesh;
@@ -11,7 +12,7 @@ pub use id::*;
 pub use loader::*;
 pub use animation::Animation;
 pub use mesh::*;
-pub use skin::Skin;
+pub use skin::{Skin, SkinTransform}; // TODO: consider moving of SkinTransform to some shared place
 pub use resource::*;
 pub use texture::*;
 
@@ -91,10 +92,21 @@ impl Assets {
         Id::new(*self.registry.entry(name.to_string()).or_insert(raw_id))
     }
 
+    pub fn find<T>(&self, name: &str) -> Option<Id<T>>
+    where Self: AssetMapGetter<T> {
+        self.registry.get(&name.to_string()).map(|id| Id::new(*id))
+    }
+
     /// Gets an asset by the handle
     pub fn get<T>(&self, handle: Id<T>) -> Option<&T>
     where Self: AssetMapGetter<T> {
         self.map().get(&handle)
+    }
+
+    /// Gets an asset by the handle
+    pub fn get_mut<T>(&mut self, handle: Id<T>) -> Option<&mut T>
+    where Self: AssetMapGetter<T> {
+        self.map_mut().get_mut(&handle)
     }
 
     /// Returns an Id for an asset and increments the internal generator

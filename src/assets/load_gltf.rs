@@ -1,6 +1,6 @@
 use std::{
     path::PathBuf,
-    sync::{ Arc, mpsc, Mutex },
+    sync::{Arc, mpsc, Mutex},
 };
 
 use gltf::{
@@ -12,10 +12,11 @@ use gltf::{
 use log::info;
 
 use super::{
-    animation::{Animation, JointTransforms},
+    animation::{Animation, Interpolation},
+    loader::{Asset, ImportError, Response, load_image},
     mesh::Mesh,
-    skin::Skin,
-    loader::{ Asset, ImportError, Response, load_image },
+    skin::{Skin, JointId, Joint, JointIndex},
+    transform::Transform,
 };
 
 pub fn load_gltf(
@@ -30,7 +31,7 @@ pub fn load_gltf(
 
     for scene in gltf.scenes() {
         for node in scene.nodes() {
-            load_node(sender, &name, &node, &buffers)?;
+            load_node(sender, &name, &node, None, &buffers)?;
         }
     }
 
@@ -69,15 +70,52 @@ fn load_buffers(gltf: &Gltf, path: &PathBuf) -> Result<Vec<Vec<u8>>, ImportError
     Ok(buffers)
 }
 
+fn load_joints(
+    joints: &mut Vec<Joint>,
+    node: &gltf::Node,
+    parent_id: Option<JointId>,
+) {
+    let local_transform = Transform::from(node.transform());
+    let id = node.index();
+    joints.push(Joint::new(
+        id,
+        parent_id,
+        node.name().map(String::from),
+        local_transform,
+    ));
+
+    for child in node.children() {
+        load_joints(joints, &child, Some(id));
+    }
+}
+
 fn load_node(
     sender: &Arc<Mutex<mpsc::Sender<Response>>>,
     name: &str,
     node: &gltf::Node,
+    root: Option<&gltf::Node>,
     buffers: &[Vec<u8>],
 ) -> Result <(), ImportError> {
 
-    // TODO: decide on if we need transformation as a separate asset?
-    // let transform = node.transform();
+    if let Some(skin) = node.skin() {
+        let reader = skin.reader(|buffer| Some(&buffers[buffer.index()]));
+        let inverse_bind_matrices = reader
+            .read_inverse_bind_matrices()
+            .map(|v| v.map(cgmath::Matrix4::<f32>::from).collect());
+
+        let asset_name = [name, "skin"].join("::");
+        let index = skin.joints().map(|j| JointIndex { id: j.index(), inverse_bind_matrix: None}).collect::<Vec<_>>();
+        let mut joints: Vec<Joint> = Vec::new();
+        load_joints(&mut joints, skin.skeleton().as_ref().or(root).unwrap(), None);
+
+        info!("importing skin as `{}`", asset_name);
+        sender.lock().unwrap().send(Response::Skin(
+            Asset {
+                name: asset_name,
+                asset: Skin::new(joints, index, inverse_bind_matrices),
+            }
+        )).unwrap();
+    }
 
     if let Some(mesh) = node.mesh() {
         for primitive in mesh.primitives() {
@@ -89,23 +127,7 @@ fn load_node(
         }
     }
 
-    if let Some(skin) = node.skin() {
-        let reader = skin.reader(|buffer| Some(&buffers[buffer.index()]));
-        if let Some(inverse_bind_matrices) = reader.read_inverse_bind_matrices() {
-            let inverse_bind_matrices: Vec<cgmath::Matrix4<f32>> = inverse_bind_matrices.map(
-                cgmath::Matrix4::<f32>::from
-            ).collect();
-
-            let asset_name = [name, "skin"].join("::");
-            sender.lock().unwrap().send(Response::Skin(
-                Asset {
-                    name: asset_name,
-                    asset: Skin::new(inverse_bind_matrices)
-                }
-            )).unwrap();
-        }
-    }
-
+    let root = root.or(Some(node));
     for child in node.children() {
         let child_name = if let Some(child_name) = child.name() {
             [name, child_name].join("::")
@@ -113,7 +135,8 @@ fn load_node(
             format!("{}.node[{}]", name, child.index())
         };
 
-        load_node(sender, &child_name, &child, buffers)?;
+
+        load_node(sender, &child_name, &child, root, buffers)?;
     }
 
     Ok(())
@@ -137,8 +160,8 @@ fn load_mesh(
     let normals = reader.read_normals().map(|n| n.collect::<Vec<[f32; 3]>>());
     let texture = reader.read_tex_coords(0).map(|t| t.into_f32().collect());
     let indices = reader.read_indices().map(|i| i.into_u32().collect::<Vec<u32>>());
-    let joints = reader.read_joints(0).map(|v| v.into_u16().collect::<Vec<[u16; 4]>>());
-    let weights = reader.read_weights(0).map(|v| v.into_f32().collect::<Vec<[f32; 4]>>());
+    let weights = reader.read_weights(0).map(|w| w.into_f32().collect::<Vec<[f32; 4]>>());
+    let joints = reader.read_joints(0)       .map(|j| j.into_u16().collect::<Vec<[u16; 4]>>());
 
     let name = [name, "mesh"].join("::");
 
@@ -208,62 +231,49 @@ fn load_texture(
 fn load_animation(
     sender: &Arc<Mutex<mpsc::Sender<Response>>>,
     name: &str,
-    animation: &gltf::Animation,
+    gltf_animation: &gltf::Animation,
     buffers: &[Vec<u8>],
 ) -> Result <(), ImportError> {
-    let name = if let Some(animation_name) = animation.name() {
+    let name = if let Some(animation_name) = gltf_animation.name() {
         [name, animation_name].join("::")
     } else {
-        format!("{}.animation[{}]", name, animation.index())
+        format!("{}.animation[{}]", name, gltf_animation.index())
     };
 
     info!("importing animation as `{}`", name);
-    // println!("importing animation as `{}`", name);
 
-    // Vec is used here instead of the HashMap, because we should keep the order of keyframes
-    let mut joint_transforms: Vec<(usize, JointTransforms)> = Vec::new();
-    let mut keyframes: Option<Vec<f32>> = None;
-    for channel in animation.channels() {
-        // println!("  Channel: {}", channel.target().node().name().unwrap());
-        let node_index = channel.target().node().index();
+    let mut animation = Animation::new();
+
+    for channel in gltf_animation.channels() {
+
+        let sampler = channel.sampler();
+        let interpolation = Interpolation::from(sampler.interpolation());
+        let index = channel.target().node().index();
         let reader = channel.reader(|buffer| Some(&buffers[buffer.index()]));
         let outputs = reader.read_outputs();
+        let timestamps = reader.read_inputs().unwrap().collect::<Vec<f32>>();
 
-        if keyframes.is_none() {
-            keyframes = Some(reader.read_inputs().unwrap().collect::<Vec<f32>>());
-        }
-
-        let mut transforms = joint_transforms.iter_mut().find(|(n, _)| n == &node_index);
-        if transforms.is_none() {
-            joint_transforms.push((node_index, JointTransforms::default()));
-            transforms = joint_transforms.last_mut();
-        }
-        if let Some((_, transform)) = transforms {
-            match outputs.unwrap() {
-                ReadOutputs::Translations(output) => transform.translations = Some(
-                    output.map(cgmath::Vector3::<f32>::from).collect()
-                ),
-                ReadOutputs::Rotations(output) => transform.rotations = Some(
-                    output.into_f32().map(cgmath::Quaternion::<f32>::from).collect()
-                ),
-                ReadOutputs::Scales(output) => transform.scales = Some(
-                    output.map(cgmath::Vector3::<f32>::from).collect()
-                ),
-                ReadOutputs::MorphTargetWeights(ref _weights) => {},
-            };
-        }
+        match outputs.unwrap() {
+            ReadOutputs::Translations(output) => animation.add_translation_channel(
+                index, interpolation, timestamps, output.map(cgmath::Vector3::<f32>::from).collect(),
+            ),
+            ReadOutputs::Rotations(output) => animation.add_rotation_channel(
+                index, interpolation, timestamps, output.into_f32()
+                    .map(|q| cgmath::Quaternion::<f32>::new(q[3], q[0], q[1], q[2])).collect()
+            ),
+            ReadOutputs::Scales(output) => animation.add_scale_channel(
+                index, interpolation, timestamps, output.map(cgmath::Vector3::<f32>::from).collect()
+            ),
+            ReadOutputs::MorphTargetWeights(ref _weights) => (),
+        };
     }
 
-    if let Some(keyframes) = keyframes {
-        let joint_transforms = joint_transforms.into_iter().map(|(_, t)| t).collect();
-
-        sender.lock().unwrap().send(Response::Animation(
-            Asset {
-                name,
-                asset: Animation::new(keyframes, joint_transforms),
-            }
-        )).unwrap();
-    }
+    sender.lock().unwrap().send(Response::Animation(
+        Asset {
+            name,
+            asset: animation,
+        }
+    )).unwrap();
 
     Ok(())
 }

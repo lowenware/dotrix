@@ -14,7 +14,7 @@ base64 = "0.13.0"
 bytemuck = { version = "1.4", features = ["derive"] }
 cgmath = "0.17"
 futures = { version = "0.3", default-features = false, features = ["std"] }
-gltf = { version = "0.15.2", features = ["extras", "names"] }
+gltf = { version = "0.15", features = ["extras", "names"] }
 log = "0.4"
 image = "0.23"
 serde = { version = "1.0", features = ["derive"] }
@@ -36,3 +36,11 @@ path = "examples/demo/demo.rs"
 [[example]]
 name = "gltf"
 path = "examples/gltf/gltf.rs"
+
+[[example]]
+name = "female"
+path = "examples/animation/female.rs"
+
+[[example]]
+name = "fox"
+path = "examples/animation/fox.rs"

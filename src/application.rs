@@ -13,6 +13,7 @@ use winit::{
 use crate::{
     assets::Assets,
     ecs::{System},
+    frame::{Frame},
     input::{InputConfig, InputManager},
     renderer::Renderer,
     scheduler::Scheduler,
@@ -88,6 +89,7 @@ fn run(
 
     scheduler.run_startup(&mut services);
 
+    services.add(Frame::new());
     services.add(InputManager::new());
     let input_config = InputConfig::default();
     services.get_mut::<InputManager>().initialize(&input_config);
@@ -101,12 +103,11 @@ fn run(
 
         services.get_mut::<InputManager>().update(); // TODO: can winit event loop runs more than once per frame?
 
-        scheduler.run_standard(&mut services);
         services.get_mut::<Assets>().fetch();
 
         match event {
             Event::MainEventsCleared => {
-                if last_update_inst.elapsed() > Duration::from_millis(20) {
+                if last_update_inst.elapsed() > Duration::from_millis(5) {
                     window.request_redraw();
                     last_update_inst = Instant::now();
                 }
@@ -121,6 +122,9 @@ fn run(
                 services.get_mut::<Renderer>().resize(size.width, size.height);
             }
             Event::RedrawRequested(_) => {
+
+                services.get_mut::<Frame>().next();
+                scheduler.run_standard(&mut services);
                 services.get_mut::<Renderer>().next_frame();
                 scheduler.run_render(&mut services);
                 services.get_mut::<Renderer>().finalize();
