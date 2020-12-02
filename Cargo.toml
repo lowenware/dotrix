@@ -1,6 +1,6 @@
 [package]
 name = "dotrix"
-version = "0.1.1"
+version = "0.1.2"
 authors = [
   "Elias Kartashov <elias@lowenware.com>",
   "Štěpán Wünsch <sw@lowenware.com>",
@@ -22,7 +22,8 @@ serde_json = "1.0"
 shaderc = "0.7"
 strum = "0.19"
 strum_macros = "0.19"
-wgpu = "0.6"
+# wgpu = "0.6"
+wgpu = { git = "https://github.com/gfx-rs/wgpu-rs", branch = "master", features = ["trace"] }
 wgpu-subscriber = "0.1.0"
 winit = { version = "0.23.0", features = ["serde"] }
 

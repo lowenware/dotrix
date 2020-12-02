@@ -45,17 +45,18 @@ impl Renderer {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
+                    label: None,
                     features: wgpu::Features::empty(),
                     limits: wgpu::Limits::default(),
                     shader_validation: true,
                 },
-                None,
+                Some(&std::path::Path::new("./wgpu-trace/")),
             )
             .await
             .expect("Failed to create device");
 
         let sc_desc = wgpu::SwapChainDescriptor {
-        usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
             // TODO: Allow srgb unconditionally
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             width: size.width,
@@ -153,7 +154,7 @@ impl Renderer {
             format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsage::SAMPLED
                 | wgpu::TextureUsage::COPY_DST
-                | wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+                | wgpu::TextureUsage::RENDER_ATTACHMENT,
         });
 
         draw_depth_buffer.create_view(&wgpu::TextureViewDescriptor::default())

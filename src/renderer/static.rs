@@ -89,8 +89,9 @@ pub fn static_renderer(
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStage::VERTEX,
-                    ty: wgpu::BindingType::UniformBuffer {
-                        dynamic: false,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
                         min_binding_size: wgpu::BufferSize::new(64),
                     },
                     count: None,
@@ -98,25 +99,26 @@ pub fn static_renderer(
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::SampledTexture {
+                    ty: wgpu::BindingType::Texture {
                         multisampled: false,
-                        component_type: wgpu::TextureComponentType::Float,
-                        dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
                     visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler { comparison: false },
+                    ty: wgpu::BindingType::Sampler { comparison: false, filtering: true, },
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::UniformBuffer {
-                        dynamic: false,
-                        min_binding_size: wgpu::BufferSize::new(32),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(64 * 10),
                     },
                     count: None,
                 },
@@ -337,7 +339,7 @@ pub fn static_renderer(
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
-                            resource: wgpu::BindingResource::Buffer(ctx.uniform_buffer.as_ref().unwrap().slice(..)),
+                            resource: ctx.uniform_buffer.as_ref().unwrap().as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,
@@ -349,7 +351,7 @@ pub fn static_renderer(
                         },
                         wgpu::BindGroupEntry {
                             binding: 3,
-                            resource: wgpu::BindingResource::Buffer(ctx.lights_buffer.as_ref().unwrap().slice(..)),
+                            resource: ctx.lights_buffer.as_ref().unwrap().as_entire_binding(),
                         },
                     ],
                     label: None,
