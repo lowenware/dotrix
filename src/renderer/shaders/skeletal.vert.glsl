@@ -1,6 +1,6 @@
 #version 450
 
-const int MAX_JOINTS = 64;
+const int MAX_JOINTS = 32;
 
 layout(location = 0) in vec3 a_Position;
 layout(location = 1) in vec3 a_Normal;

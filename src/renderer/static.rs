@@ -168,7 +168,7 @@ pub fn static_renderer(
         });
 
         let vertex_state = wgpu::VertexStateDescriptor {
-            index_format: wgpu::IndexFormat::Uint16,
+            index_format: Some(wgpu::IndexFormat::Uint16),
             vertex_buffers: &[wgpu::VertexBufferDescriptor {
                 stride: vertex_size as wgpu::BufferAddress,
                 step_mode: wgpu::InputStepMode::Vertex,
@@ -412,7 +412,7 @@ pub fn static_renderer(
                 rpass.pop_debug_group();
                 if let Some(indices_buffer) = model.indices_buffer.as_ref() {
                     rpass.insert_debug_marker("draw indexed");
-                    rpass.set_index_buffer(indices_buffer.slice(..));
+                    rpass.set_index_buffer(indices_buffer.slice(..), wgpu::IndexFormat::Uint16);
                     rpass.draw_indexed(0..model.indices_count as u32, 0, 0..1);
                 } else {
                     rpass.insert_debug_marker("draw");

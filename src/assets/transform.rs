@@ -18,14 +18,14 @@ impl Transform {
     pub fn matrix(&self) -> Matrix4<f32> {
         use cgmath::SquareMatrix;
         let t = self.translate
-            .map(|t| Matrix4::from_translation(t))
-            .unwrap_or(Matrix4::identity());
+            .map(Matrix4::from_translation)
+            .unwrap_or_else(Matrix4::identity);
         let r = self.rotate
-            .map(|r| Matrix4::from(r))
-            .unwrap_or(Matrix4::identity());
+            .map(Matrix4::from)
+            .unwrap_or_else(Matrix4::identity);
         let s = self.scale
             .map(|s| Matrix4::from_nonuniform_scale(s.x, s.y, s.z))
-            .unwrap_or(Matrix4::identity());
+            .unwrap_or_else(Matrix4::identity);
         t * r * s
     }
 
@@ -73,3 +73,8 @@ impl From<gltf::scene::Transform> for Transform {
     }
 }
 
+impl Default for Transform {
+    fn default() -> Self {
+        Self::new()
+    }
+}

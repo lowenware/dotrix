@@ -37,20 +37,16 @@ impl Frame {
         }
         self.current = Some(now);
 
-        loop {
-            if let Some(counter_start) = self.counter_start {
-                if now - counter_start > Duration::from_secs(1) {
-                    let fps = self.counter;
-                    self.fps = Some(fps);
-                    self.counter = 0;
-                    info!("FPS: {}", fps);
-                    self.counter_start = Some(now);
-                } else {
-                    break;
-                }
+        if let Some(counter_start) = self.counter_start {
+            if now - counter_start > Duration::from_secs(1) {
+                let fps = self.counter;
+                self.fps = Some(fps);
+                self.counter = 0;
+                info!("FPS: {}", fps);
+                self.counter_start = Some(now);
             }
+        } else {
             self.counter_start = Some(now);
-            break;
         }
 
         self.counter += 1;

@@ -6,6 +6,7 @@ use std::{
 
 pub type RawId = u64;
 
+#[derive(Default)]
 pub struct Id<T> {
     pub id: RawId,
     phantom: PhantomData<T>
