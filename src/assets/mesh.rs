@@ -33,7 +33,7 @@ impl Mesh {
         positions: Vec<[f32; 3]>,
         normals: Option<Vec<[f32; 3]>>,
         texture: Option<Vec<[f32; 2]>>,
-        indices: Option<Vec<u32>>,
+        mut indices: Option<Vec<u32>>,
         joints: Option<Vec<[u16; 4]>>,
         weights: Option<Vec<[f32; 4]>>,
     ) -> Self {
@@ -52,6 +52,10 @@ impl Mesh {
             for (v, t) in vertices.iter_mut().zip(texture.iter()) {
                 v.texture = *t;
             }
+        }
+
+        if indices.is_none() {
+            indices = Some((0..positions.len()).map(|i| i as u32).collect::<Vec<u32>>());
         }
 
         Self {

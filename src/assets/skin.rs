@@ -85,9 +85,8 @@ impl Skin {
         model_transform: &cgmath::Matrix4<f32>,
         local_transforms: Option<HashMap<JointId, Transform>>,
     ) {
-        skin_transform.joints.clear();
 
-        for joint in self.joints.iter() {
+        for (i, joint) in self.joints.iter().enumerate() {
             let parent_transform = joint.parent_id
                 .map(|parent_id| skin_transform.joints[self.index(parent_id)].global_transform)
                 .or(Some(*model_transform))
@@ -98,21 +97,26 @@ impl Skin {
                 .map(|l| l.get(&joint.id))
                 .unwrap_or(None);
 
-            skin_transform.joints.push(
-                joint.transform(
-                    &parent_transform,
-                    local_transform
-                )
-            );
+            skin_transform.joints[i] = joint.transform(&parent_transform, local_transform);
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct JointTransform {
     id: JointId,
     /// global joint transformation
     global_transform: cgmath::Matrix4<f32>,
+}
+
+impl Default for JointTransform {
+    fn default() -> Self {
+        use cgmath::SquareMatrix;
+        Self {
+            id: 0,
+            global_transform: cgmath::Matrix4::<f32>::identity(),
+        }
+    }
 }
 
 pub struct SkinTransform {
@@ -123,12 +127,13 @@ pub struct SkinTransform {
 impl SkinTransform {
     pub fn new() -> Self {
         Self {
-            joints: Vec::new(),
+            joints: vec![JointTransform::default(); 32], // 32 -> MAX_JOINTS
         }
     }
 
-    pub fn matrices(&self, index: &Vec<JointIndex>) -> Vec<[[f32; 4]; 4]> {
-        index.iter().map(|i| {
+    pub fn matrices(&self, index: &[JointIndex]) -> Vec<[[f32; 4]; 4]> {
+        use cgmath::SquareMatrix;
+        let mut result = index.iter().map(|i| {
             let joint_transform = self.joints.iter().find(|j| j.id == i.id).unwrap();
             let global_transform = &joint_transform.global_transform;
             let inverse_bind_matrix = i.inverse_bind_matrix;
@@ -137,6 +142,17 @@ impl SkinTransform {
                 .map(|ibmx| global_transform * ibmx)
                 .unwrap_or(*global_transform)
                 .into()
-        }).collect::<Vec<_>>()
+        }).collect::<Vec<_>>();
+
+        while result.len() < 32 {
+            result.push(cgmath::Matrix4::<f32>::identity().into());
+        }
+        result
+    }
+}
+
+impl Default for SkinTransform {
+    fn default() -> Self {
+        Self::new()
     }
 }

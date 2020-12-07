@@ -191,7 +191,7 @@ impl Animation {
         self.scale_channels.push(Channel::from(joint_id, interpolation, timestamps, scales));
     }
 
-    fn update_duration(&mut self, timestamps: &Vec<f32>) {
+    fn update_duration(&mut self, timestamps: &[f32]) {
         let max_timestamp = timestamps.last().copied().unwrap_or(0.0);
         let duration = Duration::from_secs_f32(max_timestamp);
         if duration > self.duration {
@@ -231,3 +231,8 @@ impl Animation {
     }
 }
 
+impl Default for Animation {
+    fn default() -> Self {
+        Self::new()
+    }
+}

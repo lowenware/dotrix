@@ -7,6 +7,7 @@ pub mod ecs;
 mod input;
 mod renderer;
 mod scheduler;
+mod skybox;
 mod world;
 
 pub use application::{ Application, Service };
@@ -20,6 +21,7 @@ pub mod components {
             StaticModel,
             SkeletalModel,
         },
+        skybox::SkyBox,
     };
 }
 
@@ -38,6 +40,7 @@ pub mod systems {
         renderer::{
             skeletal_renderer,
             static_renderer,
+            skybox_renderer,
         },
         animation::skeletal_animation,
     };

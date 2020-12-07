@@ -1,9 +1,11 @@
 mod light;
 mod skeletal;
+pub mod skybox;
 mod r#static;
 
 pub use skeletal::*;
 pub use r#static::*;
+pub use skybox::*;
 pub use light::{Light, LightUniform};
 
 use winit::window::Window;
@@ -45,17 +47,18 @@ impl Renderer {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
+                    label: None,
                     features: wgpu::Features::empty(),
                     limits: wgpu::Limits::default(),
                     shader_validation: true,
                 },
-                None,
+                Some(&std::path::Path::new("./wgpu-trace/")),
             )
             .await
             .expect("Failed to create device");
 
         let sc_desc = wgpu::SwapChainDescriptor {
-        usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
             // TODO: Allow srgb unconditionally
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             width: size.width,
@@ -65,7 +68,7 @@ impl Renderer {
 
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
         let aspect_ratio = sc_desc.width as f32 / sc_desc.height as f32;
-        let projection = cgmath::perspective(cgmath::Deg(45f32), aspect_ratio, 1.0, 400.0);
+        let projection = Self::frustum(aspect_ratio);
         let depth_buffer = Self::create_depth_buffer(&device, sc_desc.width, sc_desc.height);
 
         Self {
@@ -102,7 +105,7 @@ impl Renderer {
         self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
 
         let aspect_ratio = width as f32 / height as f32;
-        let projection = cgmath::perspective(cgmath::Deg(45f32), aspect_ratio, 1.0, 400.0);
+        let projection = Self::frustum(aspect_ratio);
         self.projection = OPENGL_TO_WGPU_MATRIX * projection;
         self.depth_buffer = Self::create_depth_buffer(&self.device, width, height);
     }
@@ -153,9 +156,17 @@ impl Renderer {
             format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsage::SAMPLED
                 | wgpu::TextureUsage::COPY_DST
-                | wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+                | wgpu::TextureUsage::RENDER_ATTACHMENT,
         });
 
         draw_depth_buffer.create_view(&wgpu::TextureViewDescriptor::default())
+    }
+
+    fn frustum(aspect_ratio: f32) -> cgmath::Matrix4<f32> {
+        let fov = cgmath::Deg(70f32);
+        let near_plane = 0.1;
+        let far_plane = 1000.0;
+
+        cgmath::perspective(fov, aspect_ratio, near_plane, far_plane)
     }
 }
