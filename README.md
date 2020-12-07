@@ -39,3 +39,24 @@ cargo run --release --example demo
 ```
 cargo run --release --example gltf
 ```
+
+## Skeletal Animation
+
+```
+cargo run --release --example female
+```
+
+```
+cargo run --release --example fox
+```
+
+## SkyBox
+
+```
+cargo run --release --example skybox
+```
+
+## Shaders Compilation
+
+To compile shaders you may need a recent version of `shaderc` library which can be built using
+cargo or obtained as a part of the [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)
