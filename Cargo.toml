@@ -16,7 +16,7 @@ default = []
 base64 = "0.13.0"
 bytemuck = { version = "1.4", features = ["derive"] }
 cgmath = "0.17"
-futures = { version = "0.3", default-features = false, features = ["std"] }
+futures = { version = "0.3", default-features = false, features = ["std", "executor"] }
 gltf = { version = "0.15", features = ["extras", "names"] }
 log = "0.4"
 image = "0.23"
@@ -30,7 +30,7 @@ winit = { version = "0.23.0", features = ["serde"] }
 shaderc = { version = "0.7", optional = true }
 
 [dev-dependencies]
-futures = { version = "0.3", default-features = false, features = ["std", "executor"] }
+dotrix_ui = { version = "0.1", path = "crates/dotrix_ui" }
 
 [[example]]
 name = "demo"

@@ -1,0 +1,13 @@
+[package]
+name = "dotrix_ui"
+version = "0.1.0"
+authors = [
+  "Elias Kartashov <elias@lowenware.com>",
+  "Štěpán Wünsch <sw@lowenware.com>",
+]
+edition = "2018"
+description = "UI crate for Dotrix 3D Engine"
+license = "MIT"
+
+[dependencies]
+dotrix = { path = "../../", version = "0.1" }
