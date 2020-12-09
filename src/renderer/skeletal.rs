@@ -8,9 +8,6 @@ use crate::{
     services::{Assets, Camera, World},
 };
 
-const VERTEXT_SHADER: &str = include_str!("shaders/skeletal.vert.glsl");
-const FRAGMENT_SHADER: &str = include_str!("shaders/skeletal.frag.glsl");
-
 /// Static Renderer component
 pub struct SkeletalModel {
     pub mesh: Id<Mesh>,
@@ -152,26 +149,35 @@ pub fn skeletal_renderer(
         ctx.bind_group_layout = Some(bind_group_layout);
 
         // shaders
-        let mut compiler = shaderc::Compiler::new().unwrap();
-        let vs_spirv = compiler.compile_into_spirv(
-            VERTEXT_SHADER,
-            shaderc::ShaderKind::Vertex,
-            "shader.vert",
-            "main",
-            None
-        ).unwrap();
-        let fs_spirv = compiler.compile_into_spirv(
-            FRAGMENT_SHADER,
-            shaderc::ShaderKind::Fragment,
-            "shader.frag",
-            "main",
-            None
-        ).unwrap();
+        #[cfg(shaderc)]
+        let (vs_module, fs_module) = {
+            let mut compiler = shaderc::Compiler::new().unwrap();
+            let vs_spirv = compiler.compile_into_spirv(
+                "shaders/skeletal.vert.glsl",
+                shaderc::ShaderKind::Vertex,
+                "shader.vert",
+                "main",
+                None
+            ).unwrap();
+            let fs_spirv = compiler.compile_into_spirv(
+                "shaders/skeletal.frag.glsl",
+                shaderc::ShaderKind::Fragment,
+                "shader.frag",
+                "main",
+                None
+            ).unwrap();
 
-        let vs_module = device.create_shader_module(
-            wgpu::util::make_spirv(&vs_spirv.as_binary_u8()));
-        let fs_module = device.create_shader_module(
-            wgpu::util::make_spirv(&fs_spirv.as_binary_u8()));
+            (
+                device.create_shader_module(wgpu::util::make_spirv(&vs_spirv.as_binary_u8())),
+                device.create_shader_module(wgpu::util::make_spirv(&fs_spirv.as_binary_u8())),
+            )
+        };
+
+        #[cfg(not(shaderc))]
+        let (vs_module, fs_module) = (
+            device.create_shader_module(wgpu::include_spirv!("shaders/skeletal.vert.spv")),
+            device.create_shader_module(wgpu::include_spirv!("shaders/skeletal.frag.spv")),
+        );
 
         // pipeline
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
