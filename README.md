@@ -58,5 +58,26 @@ cargo run --release --example skybox
 
 ## Shaders Compilation
 
-To compile shaders you may need a recent version of `shaderc` library which can be built using
-cargo or obtained as a part of the [Vulkan SDK](https://www.lunarg.com/vulkan-sdk/)
+Dotrix is distributed with both sources and precompiled to SPIR-V shaders. So until you make a
+change in a shader's code, you won't need to compile it. We are looking forward integration with
+[naga](https://github.com/gfx-rs/naga), but until it is not ready, there are two possibilities of
+how to deal with shaders.
+
+### Using glslang
+
+You can compile GLSL shaders into SPIR-V using
+[glslang](https://github.com/KhronosGroup/glslang/releases/tag/master-tot). This is the way how we
+compile them for releases.
+
+### Using shaderc
+
+You can also compile shaders at a runtime, which is very helpful during development using
+optional `shaderc` feature. To make it working, you will need a recent version of `shaderc`
+library which can be built using cargo or obtained as a part of the
+[Vulkan SDK](https://www.lunarg.com/vulkan-sdk/).
+
+Once you have it, don't forget to enable the feature during compilation:
+
+```
+cargo run --release --features shaders --example demo
+```
