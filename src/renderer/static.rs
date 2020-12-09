@@ -118,7 +118,7 @@ pub fn static_renderer(
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(64 * 10),
+                        min_binding_size: None,
                     },
                     count: None,
                 },
