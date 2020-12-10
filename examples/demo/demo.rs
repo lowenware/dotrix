@@ -2,7 +2,7 @@ use cgmath::Vector2;
 use dotrix::{
     Dotrix,
     assets::{ Mesh, Texture },
-    components::{ Light, StaticModel },
+    components::{ Light, StaticModel, Transform },
     ecs::{ Mut, Const, RunLevel, System },
     services::{ Assets, Camera, Input, Frame, World },
     systems::{ static_renderer },
@@ -26,15 +26,21 @@ fn main() {
 }
 
 fn startup(mut world: Mut<World>, mut assets: Mut<Assets>, mut input: Mut<Input>) {
+    use cgmath::Rotation3;
     assets.import("assets/crate.png", "crate");
 
     let texture = assets.register::<Texture>("crate");
     let cube1 = assets.store::<Mesh>(Mesh::cube(), "cube1");
-    let cube2 = assets.store::<Mesh>(Mesh::cube2(), "cube2");
+    let cube2 = assets.store::<Mesh>(Mesh::cube(), "cube2");
+    let transform = Transform {
+        scale: Some(cgmath::Vector3::<f32>::new(2.0, 0.5, 0.8)),
+        translate: Some(cgmath::Vector3::<f32>::new(3.5, 0.0, 1.0)),
+        rotate: Some(cgmath::Quaternion::from_angle_y(cgmath::Rad(std::f32::consts::PI / 4.0))),
+    };
 
     world.spawn(vec![
-        (StaticModel::new(cube2, texture),),
-        (StaticModel::new(cube1, texture),),
+        (StaticModel::new(cube1, texture, transform),),
+        (StaticModel::new(cube2, texture, Transform::default()),),
     ]);
 
     world.spawn(Some((Light::white([10.0, 5.0, 4.0]),)));

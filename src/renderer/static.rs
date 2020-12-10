@@ -2,7 +2,7 @@ use std::mem;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::{ Id, Texture, Mesh, Vertex },
+    assets::{ Id, Texture, Transform, Mesh, Vertex },
     ecs::{ Const, Mut, Context },
     renderer::{ Light, LightUniform, Renderer },
     services::{ Assets, Camera, World },
@@ -12,24 +12,25 @@ use crate::{
 pub struct StaticModel {
     mesh: Id<Mesh>,
     texture: Id<Texture>,
-    // transform: cgmath::Matrix4<f32>,
+    transform: Transform,
     vertices_buffer: Option<wgpu::Buffer>,
     indices_buffer: Option<wgpu::Buffer>,
     bind_group: Option<wgpu::BindGroup>,
+    pvm_buffer: Option<wgpu::Buffer>,
     indices_count: usize,
 }
 
 impl StaticModel {
-    pub const fn new(mesh: Id<Mesh>, texture: Id<Texture>) -> Self {
-        // use cgmath::SquareMatrix;
+    pub const fn new(mesh: Id<Mesh>, texture: Id<Texture>, transform: Transform) -> Self {
         Self {
             mesh,
             texture,
+            transform,
             vertices_buffer: None,
             indices_buffer: None,
             bind_group: None,
+            pvm_buffer: None,
             indices_count: 0,
-            // transform: cgmath::Matrix4::identity(),
         }
     }
 }
@@ -39,7 +40,6 @@ pub struct StaticRenderer {
     bind_group_layout: Option<wgpu::BindGroupLayout>,
     pipeline: Option<wgpu::RenderPipeline>,
     lights_buffer: Option<wgpu::Buffer>,
-    uniform_buffer: Option<wgpu::Buffer>, // Projection + View + Transfromation
 }
 
 /// Static Renderer system
@@ -58,27 +58,6 @@ pub fn static_renderer(
 
     let vertex_size = mem::size_of::<Vertex>();
 
-    // PVM (Projection * View * Model) matrix unfiorm
-    // TODO: There will be 3 matrices:
-    // 1. projection: can be changed on window resize
-    // 2. view: can be chaged by interactions with camera
-    // 3. transform: model related, can be changed by various systems
-    // Each matrix should be available in shaders through uniform variables and their buffers
-    // must be updated on change (transform matrix will be updated inside of the ECS query
-    // loop
-    let mx_total = renderer.projection() * camera.view();
-    let mx_ref: &[f32; 16] = mx_total.as_ref();
-    if ctx.uniform_buffer.is_none() {
-        ctx.uniform_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Uniform Buffer"),
-            contents: bytemuck::cast_slice(mx_ref),
-            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
-        }));
-    } else {
-        let queue = renderer.queue();
-        queue.write_buffer(ctx.uniform_buffer.as_ref().unwrap(), 0, bytemuck::cast_slice(mx_ref));
-    }
-
     if ctx.pipeline.is_none() {
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
@@ -89,7 +68,7 @@ pub fn static_renderer(
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(64),
+                        min_binding_size: None,
                     },
                     count: None,
                 },
@@ -119,17 +98,6 @@ pub fn static_renderer(
                     },
                     count: None,
                 },
-                // Depth texture
-                /* wgpu::BindGroupLayoutEntry {
-                    binding: 3,
-                    visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::SampledTexture {
-                        multisampled: false,
-                        component_type: wgpu::TextureComponentType::Float,
-                        dimension: wgpu::TextureViewDimension::D2,
-                    },
-                    count: None,
-                },*/
             ],
         });
 
@@ -294,6 +262,21 @@ pub fn static_renderer(
     }
 
     for (model,) in query {
+        // TODO: make this calculation called once per cycle
+        let mut pvm = [0f32; 16 * 2];
+        pvm[..16].copy_from_slice(AsRef::<[f32; 16]>::as_ref(&(renderer.projection() * camera.view())));
+        let transform = model.transform.matrix();
+        pvm[16..].copy_from_slice(AsRef::<[f32; 16]>::as_ref(&transform));
+
+        if let Some(pvm_buffer) = model.pvm_buffer.as_ref() {
+            queue.write_buffer(pvm_buffer, 0, bytemuck::cast_slice(&pvm));
+        } else {
+            model.pvm_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("PVM Buffer"),
+                contents: bytemuck::cast_slice(&pvm),
+                usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+            }));
+        }
 
         if model.bind_group.is_none() {
             if let Some(texture_asset) = assets.get::<Texture>(model.texture) {
@@ -345,7 +328,7 @@ pub fn static_renderer(
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
-                            resource: ctx.uniform_buffer.as_ref().unwrap().as_entire_binding(),
+                            resource: model.pvm_buffer.as_ref().unwrap().as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,

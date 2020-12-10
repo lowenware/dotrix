@@ -2,7 +2,7 @@ use std::mem;
 use wgpu::util::DeviceExt;
 
 use crate::{
-    assets::{Id, Texture, Mesh, Skin, SkinTransform, Vertex},
+    assets::{Id, Texture, Transform, Mesh, Skin, SkinTransform, Vertex},
     ecs::{Const, Mut, Context},
     renderer::{Light, LightUniform, Renderer},
     services::{Assets, Camera, World},
@@ -13,13 +13,14 @@ pub struct SkeletalModel {
     pub mesh: Id<Mesh>,
     pub texture: Id<Texture>,
     pub skin: Id<Skin>,
-    // transform: cgmath::Matrix4<f32>,
+    pub transform: Transform,
     pub skin_transform: SkinTransform,
     vertices_buffer: Option<wgpu::Buffer>,
     indices_buffer: Option<wgpu::Buffer>,
     joints_buffer: Option<wgpu::Buffer>,
     weights_buffer: Option<wgpu::Buffer>,
     bind_group: Option<wgpu::BindGroup>,
+    pvm_buffer: Option<wgpu::Buffer>,
     indices_count: usize,
 }
 
@@ -28,18 +29,20 @@ impl SkeletalModel {
         mesh: Id<Mesh>,
         texture: Id<Texture>,
         skin: Id<Skin>,
+        transform: Transform,
     ) -> Self {
-        // use cgmath::SquareMatrix;
         Self {
             mesh,
             texture,
             skin,
+            transform,
             skin_transform: SkinTransform::new(),
             vertices_buffer: None,
             indices_buffer: None,
             joints_buffer: None,
             weights_buffer: None,
             bind_group: None,
+            pvm_buffer: None,
             indices_count: 0,
         }
     }
@@ -51,7 +54,6 @@ pub struct StaticRenderer {
     pipeline: Option<wgpu::RenderPipeline>,
     lights_buffer: Option<wgpu::Buffer>,
     joints_buffer: Option<wgpu::Buffer>,
-    uniform_buffer: Option<wgpu::Buffer>, // Projection + View + Transfromation
 }
 
 /// Skeletal Renderer system
@@ -71,27 +73,6 @@ pub fn skeletal_renderer(
     let vertex_size = mem::size_of::<Vertex>();
     let joints_size = mem::size_of::<[u16; 4]>();
     let weights_size = mem::size_of::<[f32; 4]>();
-
-    // PVM (Projection * View * Model) matrix unfiorm
-    // TODO: There will be 3 matrices:
-    // 1. projection: can be changed on window resize
-    // 2. view: can be chaged by interactions with camera
-    // 3. transform: model related, can be changed by various systems
-    // Each matrix should be available in shaders through uniform variables and their buffers
-    // must be updated on change (transform matrix will be updated inside of the ECS query
-    // loop
-    let mx_total = renderer.projection() * camera.view();
-    let mx_ref: &[f32; 16] = mx_total.as_ref();
-    if ctx.uniform_buffer.is_none() {
-        ctx.uniform_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Uniform Buffer"),
-            contents: bytemuck::cast_slice(mx_ref),
-            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
-        }));
-    } else {
-        let queue = renderer.queue();
-        queue.write_buffer(ctx.uniform_buffer.as_ref().unwrap(), 0, bytemuck::cast_slice(mx_ref));
-    }
 
     if ctx.pipeline.is_none() {
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -329,6 +310,22 @@ pub fn skeletal_renderer(
     }
 
     for (model,) in query {
+        // TODO: make this calculation called once per cycle
+        let mut pvm = [0f32; 16 * 2];
+        pvm[..16].copy_from_slice(AsRef::<[f32; 16]>::as_ref(&(renderer.projection() * camera.view())));
+        let transform = model.transform.matrix();
+        pvm[16..].copy_from_slice(AsRef::<[f32; 16]>::as_ref(&transform));
+
+        if let Some(pvm_buffer) = model.pvm_buffer.as_ref() {
+            queue.write_buffer(pvm_buffer, 0, bytemuck::cast_slice(&pvm));
+        } else {
+            model.pvm_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("PVM Buffer"),
+                contents: bytemuck::cast_slice(&pvm),
+                usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+            }));
+        }
+
         let mesh_asset = assets.get::<Mesh>(model.mesh);
 
         // calculate animation transformations
@@ -402,7 +399,7 @@ pub fn skeletal_renderer(
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
-                            resource: ctx.uniform_buffer.as_ref().unwrap().as_entire_binding(),
+                            resource: model.pvm_buffer.as_ref().unwrap().as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,

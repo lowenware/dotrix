@@ -14,6 +14,7 @@ pub use application::{ Application, Service };
 
 pub mod components {
     pub use crate::{
+        assets::Transform,
         animation::Animator,
         renderer::{
             Light,
