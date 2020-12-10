@@ -79,5 +79,5 @@ library which can be built using cargo or obtained as a part of the
 Once you have it, don't forget to enable the feature during compilation:
 
 ```
-cargo run --release --features shaders --example demo
+cargo run --release --features shaderc --example demo
 ```
