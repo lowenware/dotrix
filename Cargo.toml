@@ -22,7 +22,7 @@ log = "0.4"
 image = "0.23"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-wgpu = { git = "https://github.com/gfx-rs/wgpu-rs", rev = "f276e2cb082583cad74fd6ded084f6941030bcf2", features = ["trace"] }
+wgpu = { git = "https://github.com/gfx-rs/wgpu-rs", rev = "2ef725065e68164cced1551c7a2540523eb0ca77", features = ["trace"] }
 wgpu-subscriber = "0.1.0"
 winit = { version = "0.23.0", features = ["serde"] }
 
