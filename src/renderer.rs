@@ -100,14 +100,16 @@ impl Renderer {
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.sc_desc.width = width;
-        self.sc_desc.height = height;
-        self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
+        if width > 0 && height > 0 {
+            self.sc_desc.width = width;
+            self.sc_desc.height = height;
+            self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
 
-        let aspect_ratio = width as f32 / height as f32;
-        let projection = Self::frustum(aspect_ratio);
-        self.projection = OPENGL_TO_WGPU_MATRIX * projection;
-        self.depth_buffer = Self::create_depth_buffer(&self.device, width, height);
+            let aspect_ratio = width as f32 / height as f32;
+            let projection = Self::frustum(aspect_ratio);
+            self.projection = OPENGL_TO_WGPU_MATRIX * projection;
+            self.depth_buffer = Self::create_depth_buffer(&self.device, width, height);
+        }
     }
 
     pub fn frame(&self) -> Option<&wgpu::SwapChainFrame> {
