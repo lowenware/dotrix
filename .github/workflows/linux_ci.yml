@@ -1,4 +1,4 @@
-name: Rust
+name: Linux CI
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
     - name: Install egl
       run: sudo apt update; sudo apt install libegl1-mesa-dev 
 
-    - name: Build (Default features)
+    - name: Build
       run: cargo build --verbose
 
     - name: Run tests
