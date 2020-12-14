@@ -168,15 +168,15 @@ pub fn skeletal_renderer(
             ).unwrap();
 
             (
-                device.create_shader_module(wgpu::util::make_spirv(&vs_spirv.as_binary_u8())),
-                device.create_shader_module(wgpu::util::make_spirv(&fs_spirv.as_binary_u8())),
+                device.create_shader_module(&wgpu::util::make_spirv(&vs_spirv.as_binary_u8())),
+                device.create_shader_module(&wgpu::util::make_spirv(&fs_spirv.as_binary_u8())),
             )
         };
 
         #[cfg(not(shaderc))]
         let (vs_module, fs_module) = (
-            device.create_shader_module(wgpu::include_spirv!("shaders/skeletal.vert.spv")),
-            device.create_shader_module(wgpu::include_spirv!("shaders/skeletal.frag.spv")),
+            device.create_shader_module(&wgpu::include_spirv!("shaders/skeletal.vert.spv")),
+            device.create_shader_module(&wgpu::include_spirv!("shaders/skeletal.frag.spv")),
         );
 
         // pipeline
