@@ -42,8 +42,6 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     world.spawn(vec![
         (SkyBox { primary_texture, ..Default::default() },),
     ]);
-
-    world.spawn(Some((Light::white([10.0, 5.0, 4.0]),)));
 }
 
 fn fly_around(frame: Const<Frame>, mut camera: Mut<Camera>) {

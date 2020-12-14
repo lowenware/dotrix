@@ -12,7 +12,8 @@ layout(location = 1) out vec3 v_Normal;
 layout(location = 2) out vec2 v_TexCoord;
 
 layout(set = 0, binding = 0) uniform Locals {
-    mat4 u_Transform;
+    mat4 u_ProjView;
+    mat4 u_Model;
 };
 
 layout(set = 0, binding = 4) uniform JointMatrices {
@@ -30,5 +31,5 @@ void main() {
     // TODO: multiply by model transform matrix
     v_Normal = a_Normal;
     v_Position = a_Position;
-    gl_Position = u_Transform * skinMatrix * vec4(v_Position, 1.0);
+    gl_Position = u_ProjView * u_Model * skinMatrix * vec4(v_Position, 1.0);
 }

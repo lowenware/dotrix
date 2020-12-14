@@ -8,7 +8,7 @@
 
 use dotrix::{
     Dotrix,
-    assets::{Animation, Mesh, Skin, Texture},
+    assets::{Animation, Mesh, Skin, Texture, Transform},
     components::{Animator, Light, SkeletalModel},
     ecs::{Mut, RunLevel, System},
     services::{Assets, Camera, World},
@@ -39,7 +39,7 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     assets.import("assets/Fox.gltf", "fox");
 
     world.spawn(Some(
-        (SkeletalModel::new(mesh, texture, skin), Animator::looped(moves)),
+        (SkeletalModel::new(mesh, texture, skin, Transform::default()), Animator::looped(moves)),
     ));
 
     world.spawn(Some((Light::white([200.0, 50.0, 200.0]),)));

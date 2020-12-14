@@ -15,6 +15,7 @@ pub use mesh::*;
 pub use skin::{Skin, SkinTransform}; // TODO: consider moving of SkinTransform to some shared place
 pub use resource::*;
 pub use texture::*;
+pub use transform::Transform;
 
 use std::{
     collections::HashMap,

@@ -8,13 +8,14 @@ layout(location = 1) out vec3 v_Normal;
 layout(location = 2) out vec2 v_TexCoord;
 
 layout(set = 0, binding = 0) uniform Locals {
-    mat4 u_Transform;
+    mat4 u_ProjView;
+    mat4 u_Model;
 };
 
 void main() {
     v_TexCoord = a_TexCoord;
     // TODO: multiply by model transform matrix
     v_Normal = a_Normal;
-    v_Position = a_Position;
-    gl_Position = u_Transform * vec4(v_Position, 1.0);
+    v_Position = (u_Model * vec4(a_Position, 1.0)).xyz;
+    gl_Position = u_ProjView * vec4(v_Position, 1.0);
 }

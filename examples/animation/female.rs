@@ -1,6 +1,6 @@
 use dotrix::{
     Dotrix,
-    assets::{Animation, Mesh, Skin, Texture},
+    assets::{Animation, Mesh, Skin, Transform, Texture},
     components::{Animator, Light, SkeletalModel},
     ecs::{Const, Mut, RunLevel, System},
     services::{Assets, Camera, Frame, World},
@@ -31,7 +31,7 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     assets.import("assets/gray.png", "gray");
 
     world.spawn(Some(
-        (SkeletalModel::new(mesh, texture, skin), Animator::looped(moves)),
+        (SkeletalModel::new(mesh, texture, skin, Transform::default()), Animator::looped(moves)),
     ));
 
     world.spawn(Some((Light::white([200.0, 100.0, 200.0]),)));
