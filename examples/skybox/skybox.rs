@@ -4,13 +4,13 @@ use dotrix::{
     components::SkyBox,
     ecs::{Mut, Const, RunLevel, System},
     services::{Assets, Camera, Frame, World},
-    systems::{skybox_renderer},
+    systems::world_renderer,
 };
 
 fn main() {
 
     Dotrix::application("SkyBox Example")
-        .with_system(System::from(skybox_renderer).with(RunLevel::Render))
+        .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_system(System::from(startup).with(RunLevel::Startup))
         .with_system(System::from(fly_around))
         .with_service(Assets::new())
@@ -32,12 +32,12 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
 
     // The skybox cubemap was downloaded from https://opengameart.org/content/elyvisions-skyboxes
     // These files were licensed as CC-BY 3.0 Unported on 2012/11/7
-    assets.import("assets/skybox/skybox_right.png", "skybox_right");
-    assets.import("assets/skybox/skybox_left.png", "skybox_left");
-    assets.import("assets/skybox/skybox_top.png", "skybox_top");
-    assets.import("assets/skybox/skybox_bottom.png", "skybox_bottom");
-    assets.import("assets/skybox/skybox_front.png", "skybox_front");
-    assets.import("assets/skybox/skybox_back.png", "skybox_back");
+    assets.import("assets/skybox/skybox_right.png");
+    assets.import("assets/skybox/skybox_left.png");
+    assets.import("assets/skybox/skybox_top.png");
+    assets.import("assets/skybox/skybox_bottom.png");
+    assets.import("assets/skybox/skybox_front.png");
+    assets.import("assets/skybox/skybox_back.png");
 
     world.spawn(vec![
         (SkyBox { primary_texture, ..Default::default() },),

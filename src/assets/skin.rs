@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use super::transform::Transform;
+use crate::math::{ Transform, TransformBuilder };
 
 pub type JointId = usize;
 
@@ -30,7 +30,7 @@ impl Joint {
     fn transform(
         &self,
         parent_transform: &cgmath::Matrix4<f32>,
-        local_transform: Option<&Transform>,
+        local_transform: Option<&TransformBuilder>,
     ) -> JointTransform {
         let local_transform = local_transform
             .map(|l| self.local_bind_transform.merge(l))
@@ -50,6 +50,7 @@ pub struct JointIndex {
     pub inverse_bind_matrix: Option<cgmath::Matrix4<f32>>,
 }
 
+#[derive(Default)]
 pub struct Skin {
     /// Joints
     pub joints: Vec<Joint>, // the order does matter
@@ -81,9 +82,9 @@ impl Skin {
 
     pub fn transform(
         &self,
-        skin_transform: &mut SkinTransform,
+        skin_transform: &mut Pose,
         model_transform: &cgmath::Matrix4<f32>,
-        local_transforms: Option<HashMap<JointId, Transform>>,
+        local_transforms: Option<HashMap<JointId, TransformBuilder>>,
     ) {
 
         for (i, joint) in self.joints.iter().enumerate() {
@@ -119,16 +120,33 @@ impl Default for JointTransform {
     }
 }
 
-pub struct SkinTransform {
+pub struct Pose {
     /// Joints
     pub joints: Vec<JointTransform>, // the order does matter
+    pub buffer: wgpu::Buffer,
 }
 
-impl SkinTransform {
-    pub fn new() -> Self {
+impl Pose {
+    pub fn new(device: &wgpu::Device) -> Self {
+        use cgmath::SquareMatrix;
+        use wgpu::util::DeviceExt;
+        let joints_matrices: [[[f32; 4]; 4]; 32] = [cgmath::Matrix4::<f32>::identity().into(); 32];
+        let buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Pose Buffer"),
+                contents: bytemuck::cast_slice(&joints_matrices),
+                usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+            }
+        );
         Self {
             joints: vec![JointTransform::default(); 32], // 32 -> MAX_JOINTS
+            buffer,
         }
+    }
+
+    pub fn load(&self, index: &[JointIndex], queue: &wgpu::Queue) {
+        let joints_matrices = self.matrices(index);
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(joints_matrices.as_slice()));
     }
 
     pub fn matrices(&self, index: &[JointIndex]) -> Vec<[[f32; 4]; 4]> {
@@ -151,8 +169,3 @@ impl SkinTransform {
     }
 }
 
-impl Default for SkinTransform {
-    fn default() -> Self {
-        Self::new()
-    }
-}

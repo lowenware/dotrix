@@ -11,12 +11,13 @@ use gltf::{
 
 use log::info;
 
+use crate::math::Transform;
+
 use super::{
     animation::{Animation, Interpolation},
     loader::{Asset, ImportError, Response, load_image},
     mesh::Mesh,
     skin::{Skin, JointId, Joint, JointIndex},
-    transform::Transform,
 };
 
 pub fn load_gltf(
@@ -112,7 +113,7 @@ fn load_node(
         sender.lock().unwrap().send(Response::Skin(
             Asset {
                 name: asset_name,
-                asset: Skin::new(joints, index, inverse_bind_matrices),
+                asset: Box::new(Skin::new(joints, index, inverse_bind_matrices)),
             }
         )).unwrap();
     }
@@ -158,26 +159,31 @@ fn load_mesh(
 
     let positions = reader.read_positions().map(|p| p.collect::<Vec<[f32; 3]>>());
     let normals = reader.read_normals().map(|n| n.collect::<Vec<[f32; 3]>>());
-    let texture = reader.read_tex_coords(0).map(|t| t.into_f32().collect());
+    let uvs = reader.read_tex_coords(0).map(|t| t.into_f32().collect());
     let indices = reader.read_indices().map(|i| i.into_u32().collect::<Vec<u32>>());
     let weights = reader.read_weights(0).map(|w| w.into_f32().collect::<Vec<[f32; 4]>>());
-    let joints = reader.read_joints(0)       .map(|j| j.into_u16().collect::<Vec<[u16; 4]>>());
+    let joints = reader.read_joints(0).map(|j| j.into_u16().collect::<Vec<[u16; 4]>>());
 
     let name = [name, "mesh"].join("::");
 
     info!("importing mesh as `{}`", name);
 
+    let mut mesh = Mesh {
+        positions: positions.expect("Mesh should has some vertices"),
+        normals,
+        uvs,
+        indices,
+        joints,
+        weights,
+        ..Default::default()
+    };
+
+    mesh.calculate();
+
     sender.lock().unwrap().send(Response::Mesh(
         Asset {
             name,
-            asset: Mesh::new(
-                positions.unwrap(),
-                normals,
-                texture,
-                indices,
-                joints,
-                weights,
-            )
+            asset: Box::new(mesh),
         }
     )).unwrap();
 
@@ -271,7 +277,7 @@ fn load_animation(
     sender.lock().unwrap().send(Response::Animation(
         Asset {
             name,
-            asset: animation,
+            asset: Box::new(animation),
         }
     )).unwrap();
 

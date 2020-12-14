@@ -8,19 +8,20 @@
 
 use dotrix::{
     Dotrix,
-    assets::{Animation, Mesh, Skin, Texture, Transform},
-    components::{Animator, Light, SkeletalModel},
-    ecs::{Mut, RunLevel, System},
-    services::{Assets, Camera, World},
-    systems::{skeletal_renderer, skeletal_animation},
+    assets::{ Animation, Mesh, Skin, Texture },
+    components::{ Animator, Light, Model },
+    ecs::{ Mut, RunLevel, System },
+    math::Transform,
+    services::{ Assets, Camera, World },
+    systems::{ world_renderer, skeletal_animation },
 };
 
 fn main() {
 
     Dotrix::application("Fox Skeletal Animation Example")
-        .with_system(System::from(skeletal_renderer).with(RunLevel::Render))
         .with_system(System::from(startup).with(RunLevel::Startup))
         .with_system(System::from(skeletal_animation))
+        .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_service(Assets::new())
         .with_service(Camera::new(200.0, std::f32::consts::PI / 4.0, 100.0))
         .with_service(World::new())
@@ -32,15 +33,56 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     let texture = assets.register::<Texture>("Fox::fox::texture");
     let mesh = assets.register::<Mesh>("Fox::fox::mesh");
     let skin = assets.register::<Skin>("Fox::fox::skin");
-    let moves = assets.register::<Animation>("Fox::Walk");
-    // let moves = assets.register::<Animation>("Fox::Run");
-    // let moves = assets.register::<Animation>("Fox::Survey");
+    let walk = assets.register::<Animation>("Fox::Walk");
+    let run = assets.register::<Animation>("Fox::Run");
+    let survey = assets.register::<Animation>("Fox::Survey");
+    let trans1 = Transform {
+        translate: cgmath::Vector3::new(-50.0, 0.0, 0.0),
+        scale: cgmath::Vector3::new(0.8, 0.8, 0.8),
+        ..Default::default()
+    };
+    let trans2 = Transform {
+        scale: cgmath::Vector3::new(0.8, 0.8, 0.8),
+        ..Default::default()
+    };
+    let trans3 = Transform {
+        translate: cgmath::Vector3::new(50.0, 0.0, 0.0),
+        scale: cgmath::Vector3::new(0.8, 0.8, 0.8),
+        ..Default::default()
+    };
 
-    assets.import("assets/Fox.gltf", "fox");
+    assets.import("assets/Fox.gltf");
 
-    world.spawn(Some(
-        (SkeletalModel::new(mesh, texture, skin, Transform::default()), Animator::looped(moves)),
-    ));
+    world.spawn(vec![
+        (
+            Model {
+                mesh,
+                texture,
+                skin,
+                transform: trans1,
+                ..Default::default()
+            },
+            Animator::looped(walk)
+        ), (
+            Model {
+                mesh,
+                texture,
+                skin,
+                transform: trans2,
+                ..Default::default()
+            },
+            Animator::looped(survey)
+        ), (
+            Model {
+                mesh,
+                texture,
+                skin,
+                transform: trans3,
+                ..Default::default()
+            },
+            Animator::looped(run)
+        )
+    ]);
 
     world.spawn(Some((Light::white([200.0, 50.0, 200.0]),)));
 }

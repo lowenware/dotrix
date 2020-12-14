@@ -32,6 +32,14 @@ impl Camera {
         &self.view
     }
 
+    pub fn view_static(&self) -> cgmath::Matrix4<f32> {
+        let mut view_static: cgmath::Matrix4<f32> = self.view;
+        view_static.w.x = 0.0;
+        view_static.w.y = 0.0;
+        view_static.w.z = 0.0;
+        view_static
+    }
+
     pub fn set(&mut self, target: cgmath::Point3<f32>, distance: f32, angle: f32, height: f32) {
         self.distance = distance;
         self.angle = angle;

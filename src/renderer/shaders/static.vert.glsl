@@ -7,8 +7,11 @@ layout(location = 0) out vec3 v_Position;
 layout(location = 1) out vec3 v_Normal;
 layout(location = 2) out vec2 v_TexCoord;
 
-layout(set = 0, binding = 0) uniform Locals {
+layout(set = 0, binding = 0) uniform Renderer {
     mat4 u_ProjView;
+};
+
+layout(set = 0, binding = 1) uniform Model {
     mat4 u_Model;
 };
 

@@ -1,11 +1,12 @@
 use cgmath::Vector2;
 use dotrix::{
     Dotrix,
-    assets::{ Mesh, Texture },
-    components::{ Light, StaticModel, Transform },
+    assets::{ Animation, Mesh, Texture, Skin },
+    components::{ Animator, Light, Model, SkyBox },
     ecs::{ Mut, Const, RunLevel, System },
+    math::Transform,
     services::{ Assets, Camera, Input, Frame, World },
-    systems::{ static_renderer },
+    systems::{ world_renderer, skeletal_animation },
     input::{ ActionMapper, Button, KeyCode, Mapper, MouseButton },
 };
 
@@ -14,10 +15,11 @@ fn main() {
     let mapper: Mapper<Action> = Mapper::new();
 
     Dotrix::application("Demo Example")
-        .with_system(System::from(static_renderer).with(RunLevel::Render))
+        .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_system(System::from(startup).with(RunLevel::Startup))
         .with_system(System::from(camera_control))
         .with_system(System::from(mappings_to_stdout))
+        .with_system(System::from(skeletal_animation))
         .with_service(Assets::new())
         .with_service(Camera::new(10.0, std::f32::consts::PI / 2.0, 4.0))
         .with_service(World::new())
@@ -26,24 +28,65 @@ fn main() {
 }
 
 fn startup(mut world: Mut<World>, mut assets: Mut<Assets>, mut input: Mut<Input>) {
-    use cgmath::Rotation3;
-    assets.import("assets/crate.png", "crate");
+    assets.import("assets/crate.png");
 
     let texture = assets.register::<Texture>("crate");
     let cube1 = assets.store::<Mesh>(Mesh::cube(), "cube1");
     let cube2 = assets.store::<Mesh>(Mesh::cube(), "cube2");
-    let transform = Transform {
-        scale: Some(cgmath::Vector3::<f32>::new(2.0, 0.5, 0.8)),
-        translate: Some(cgmath::Vector3::<f32>::new(3.5, 0.0, 1.0)),
-        rotate: Some(cgmath::Quaternion::from_angle_y(cgmath::Rad(std::f32::consts::PI / 4.0))),
+    let transform1 = Transform {
+        scale: cgmath::Vector3::<f32>::new(0.5, 0.5, 0.5),
+        ..Default::default()
+    };
+    let transform2 = Transform {
+        translate: cgmath::Vector3::<f32>::new(0.0, 1.5, 0.0),
+        ..Default::default()
     };
 
     world.spawn(vec![
-        (StaticModel::new(cube1, texture, transform),),
-        (StaticModel::new(cube2, texture, Transform::default()),),
+        (Model { mesh: cube1, texture, transform: transform1, ..Default::default() },),
+        (Model { mesh: cube2, texture, transform: transform2, ..Default::default() },),
     ]);
 
     world.spawn(Some((Light::white([10.0, 5.0, 4.0]),)));
+
+    let primary_texture = [
+        assets.register::<Texture>("skybox_right"),
+        assets.register::<Texture>("skybox_left"),
+        assets.register::<Texture>("skybox_top"),
+        assets.register::<Texture>("skybox_bottom"),
+        assets.register::<Texture>("skybox_back"),
+        assets.register::<Texture>("skybox_front"),
+    ];
+
+    // The skybox cubemap was downloaded from https://opengameart.org/content/elyvisions-skyboxes
+    // These files were licensed as CC-BY 3.0 Unported on 2012/11/7
+    assets.import("assets/skybox/skybox_right.png");
+    assets.import("assets/skybox/skybox_left.png");
+    assets.import("assets/skybox/skybox_top.png");
+    assets.import("assets/skybox/skybox_bottom.png");
+    assets.import("assets/skybox/skybox_front.png");
+    assets.import("assets/skybox/skybox_back.png");
+
+    world.spawn(vec![
+        (SkyBox { primary_texture, ..Default::default() },),
+    ]);
+
+    let mesh = assets.register::<Mesh>("Female::Cube::mesh");
+    let skin = assets.register::<Skin>("Female::Cube::skin");
+    let moves = assets.register::<Animation>("Female::run");
+    let texture = assets.register::<Texture>("gray");
+
+    assets.import("assets/Female.gltf");
+    assets.import("assets/gray.png");
+
+    let transform = Transform {
+        scale: cgmath::Vector3::new(0.9, 0.9, 0.9),
+        translate: cgmath::Vector3::new(1.5, 0.0, -0.5),
+        ..Default::default()
+    };
+    world.spawn(Some(
+        (Model { mesh, texture, skin, transform, ..Default::default() }, Animator::looped(moves)),
+    ));
 
     // Populate input mappings
     input.mapper_mut::<Mapper<Action>>()

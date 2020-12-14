@@ -22,7 +22,7 @@ pub struct Task {
 
 pub struct Asset<T> {
     pub name: String,
-    pub asset: T,
+    pub asset: Box<T>,
 }
 
 pub enum Request {
@@ -128,12 +128,13 @@ pub fn load_image(
  
     let texture = Asset {
         name,
-        asset: Texture {
+        asset: Box::new(Texture {
             width,
             height,
             depth: 1,
             data: image.into_vec(),
-        }
+            ..Default::default()
+        })
     };
     sender.lock().unwrap().send(Response::Texture(texture)).unwrap();
     Ok(())

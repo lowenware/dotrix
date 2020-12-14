@@ -1,6 +1,5 @@
 mod animation;
 mod id;
-mod transform;
 mod loader;
 mod load_gltf;
 mod mesh;
@@ -12,14 +11,12 @@ pub use id::*;
 pub use loader::*;
 pub use animation::Animation;
 pub use mesh::*;
-pub use skin::{Skin, SkinTransform}; // TODO: consider moving of SkinTransform to some shared place
+pub use skin::{Skin, Pose}; // TODO: consider moving of Pose to some shared place
 pub use resource::*;
 pub use texture::*;
-pub use transform::Transform;
 
 use std::{
     collections::HashMap,
-    path::PathBuf,
     sync::{Arc, mpsc, Mutex},
     vec::Vec,
 };
@@ -69,11 +66,13 @@ impl Assets {
     }
 
     /// imports an asset file to the container
-    pub fn import(&mut self, path: &str, name: &str) -> Id<Resource> {
-        let resource = Resource::new(name.to_string(), path.to_string());
+    pub fn import(&mut self, path_str: &str) -> Id<Resource> {
+        let path = std::path::Path::new(path_str);
+        let name = path.file_stem().map(|n| n.to_str().unwrap()).unwrap();
+        let resource = Resource::new(name.to_string(), path_str.to_string());
         let id = self.store::<Resource>(resource, name);
         // TODO: start loading in separate thread
-        let task = Task { path: PathBuf::from(path), name: name.to_string() };
+        let task = Task { path: path.to_path_buf(), name: name.to_string() };
         self.sender.send(Request::Import(task)).unwrap();
         id
     }
@@ -121,22 +120,22 @@ impl Assets {
         while let Ok(response) = self.receiver.try_recv() {
             match response {
                 Response::Animation(animation) => {
-                    self.store(animation.asset, &animation.name);
+                    self.store(*animation.asset, &animation.name);
                     //let id = self.find::<Animation>(animation.name.as_str());
                     //self.map_mut().insert(id, animation.asset);
                 },
                 Response::Mesh(mesh) => {
-                    self.store(mesh.asset, &mesh.name);
+                    self.store(*mesh.asset, &mesh.name);
                     //let id = self.find::<Mesh>(mesh.name.as_str());
                     //self.map_mut().insert(id, mesh.asset);
                 },
                 Response::Skin(skin) => {
-                    self.store(skin.asset, &skin.name);
+                    self.store(*skin.asset, &skin.name);
                     //let id = self.find::<Skin>(skin.name.as_str());
                     //self.map_mut().insert(id, skin.asset);
                 },
                 Response::Texture(texture) => {
-                    self.store(texture.asset, &texture.name);
+                    self.store(*texture.asset, &texture.name);
                     //let id = self.find::<Texture>(texture.name.as_str());
                     //self.map_mut().insert(id, texture.asset);
                 },
