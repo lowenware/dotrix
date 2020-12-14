@@ -8,7 +8,7 @@
 
 use dotrix::{
     Dotrix,
-    assets::{ Mesh, Texture },
+    assets::{ Mesh, Texture, Transform },
     components::{ Light, StaticModel },
     ecs::{ Const, Mut, RunLevel, System },
     services::{ Assets, Camera, Frame, World },
@@ -38,7 +38,7 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     assets.import("assets/crate.png", "crate");
 
     world.spawn(Some(
-        (StaticModel::new(mesh, texture),),
+        (StaticModel::new(mesh, texture, Transform::default()),),
     ));
 
     world.spawn(Some((Light::white([200.0, 100.0, 200.0]),)));

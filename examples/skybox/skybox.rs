@@ -1,7 +1,7 @@
 use dotrix::{
     Dotrix,
     assets::{Texture},
-    components::{Light, SkyBox},
+    components::SkyBox,
     ecs::{Mut, Const, RunLevel, System},
     services::{Assets, Camera, Frame, World},
     systems::{skybox_renderer},

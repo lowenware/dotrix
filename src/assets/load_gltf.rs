@@ -57,8 +57,8 @@ fn load_buffers(gltf: &Gltf, path: &PathBuf) -> Result<Vec<Vec<u8>>, ImportError
             },
             Source::Uri(uri) => {
                 buffers.push(
-                    if uri.starts_with(URI_BASE64) {
-                        base64::decode(&uri[URI_BASE64.len()..])?
+                    if let Some(stripped) = uri.strip_prefix(URI_BASE64) {
+                        base64::decode(stripped)?
                     } else {
                         std::fs::read(path.parent().unwrap().join(uri))?
                     }
