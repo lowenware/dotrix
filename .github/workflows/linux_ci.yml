@@ -16,9 +16,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+
+    - name: Install egl
+      run: sudo apt update; sudo apt install libegl1-mesa-dev 
+
     - name: Build (Default features)
       run: cargo build --verbose
-    - name: Build (All features)
-      run: cargo build --verbose --features shaderc
+
     - name: Run tests
       run: cargo test --verbose
+
+    - name: Run clippy
+      run: cargo clippy --all-targets --all-features
