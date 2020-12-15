@@ -51,3 +51,7 @@ path = "examples/gltf/gltf.rs"
 [[example]]
 name = "skybox"
 path = "examples/skybox/skybox.rs"
+
+[[example]]
+name = "ui"
+path = "examples/ui/ui.rs"

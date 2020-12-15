@@ -10,4 +10,6 @@ description = "UI crate for Dotrix 3D Engine"
 license = "MIT"
 
 [dependencies]
+bytemuck = { version = "1.4", features = ["derive"] }
 dotrix = { path = "../../", version = "0.1" }
+wgpu = { git = "https://github.com/gfx-rs/wgpu-rs", rev = "2ef725065e68164cced1551c7a2540523eb0ca77", features = ["trace"] }
