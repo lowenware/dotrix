@@ -33,8 +33,8 @@ pub struct Input {
     mapper: Box<dyn std::any::Any + Send + Sync>,
     states: HashMap<Button, State>,
     mouse_scroll_delta: f32,
-    mouse_position: Vector2<f32>,
-    last_mouse_position: Vector2<f32>,
+    mouse_position: Option<Vector2<f32>>,
+    last_mouse_position: Option<Vector2<f32>>,
     window_size: Vector2<f32>, // TODO: move to other struct or service
 }
 
@@ -44,8 +44,8 @@ impl Input {
             mapper,
             states: HashMap::new(),
             mouse_scroll_delta: 0.0,
-            mouse_position: Vector2::new(0.0, 0.0),
-            last_mouse_position: Vector2::new(0.0, 0.0),
+            mouse_position: None,
+            last_mouse_position: None,
             window_size: Vector2::new(0.0, 0.0),
         }
     }
@@ -121,27 +121,36 @@ impl Input {
 
     /// Current mouse position in pixel coordinates. The top-left of the window is at (0, 0).
     pub fn mouse_position(&self) -> Vector2<f32> {
-        self.mouse_position
+        self.mouse_position.unwrap_or_else(|| Vector2::new(0.0, 0.0))
     }
 
     /// Difference of the mouse position from the last frame in pixel coordinates. The top-left of
     /// the window is at (0, 0).
     pub fn mouse_delta(&self) -> Vector2<f32> {
-        self.mouse_position - self.last_mouse_position
+        self.last_mouse_position
+            .map(|p| self.mouse_position.unwrap() - p)
+            .unwrap_or_else(|| Vector2::new(0.0, 0.0))
     }
 
     /// Normalized mouse position. The top-left of the window is at (0, 0), bottom-right at (1, 1).
     pub fn mouse_position_normalized(&self) -> Vector2<f32> {
-        Vector2::new(
-            clamp(self.mouse_position.x / self.window_size.x, 0.0, 1.0),
-            clamp(self.mouse_position.y / self.window_size.y, 0.0, 1.0),
-        )
+        let (x, y) = self.mouse_position
+            .as_ref()
+            .map(|p| (
+                    clamp(p.x / self.window_size.x, 0.0, 1.0), 
+                    clamp(p.y / self.window_size.y, 0.0, 1.0),
+            ))
+            .unwrap_or((0.0, 0.0));
+
+        Vector2::new(x, y)
     }
 
     /// This method should be called in application.rs after render, so States from events will be
     /// properly updated.
     pub fn reset(&mut self) {
-        self.last_mouse_position = self.mouse_position;
+        if let Some(mouse_position) = self.mouse_position.as_ref() {
+            self.last_mouse_position = Some(*mouse_position);
+        }
         self.mouse_scroll_delta = 0.0;
 
         self.states.retain(|_btn, state| match state {
@@ -184,10 +193,10 @@ impl Input {
 
     /// Handle cursor moved event from winit.
     fn on_cursor_moved_event(&mut self, position: &winit::dpi::PhysicalPosition<f64>) {
-        self.mouse_position = Vector2 {
+        self.mouse_position = Some(Vector2 {
             x: position.x as f32,
             y: position.y as f32,
-        };
+        });
     }
 
     /// Handle keyboard event from winit.

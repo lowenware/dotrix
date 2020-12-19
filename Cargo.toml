@@ -4,6 +4,7 @@ version = "0.1.4"
 authors = [
   "Elias Kartashov <elias@lowenware.com>",
   "Štěpán Wünsch <sw@lowenware.com>",
+  "Nikita Zemtsov <z-nik@ya.ru>",
 ]
 edition = "2018"
 description = "3D Game Engine"
@@ -37,16 +38,8 @@ name = "demo"
 path = "examples/demo/demo.rs"
 
 [[example]]
-name = "female"
-path = "examples/animation/female.rs"
-
-[[example]]
 name = "fox"
 path = "examples/animation/fox.rs"
-
-[[example]]
-name = "gltf"
-path = "examples/gltf/gltf.rs"
 
 [[example]]
 name = "skybox"
