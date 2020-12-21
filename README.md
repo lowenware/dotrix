@@ -32,19 +32,7 @@ Book for a quick start.
 cargo run --release --example demo
 ```
 
-## GLTF Import Example
-
-![GLTF Import Example](./examples/gltf/gltf.png)
-
-```
-cargo run --release --example gltf
-```
-
 ## Skeletal Animation
-
-```
-cargo run --release --example female
-```
 
 ```
 cargo run --release --example fox

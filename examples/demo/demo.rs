@@ -1,12 +1,11 @@
-use cgmath::Vector2;
 use dotrix::{
     Dotrix,
     assets::{ Animation, Mesh, Texture, Skin },
     components::{ Animator, Light, Model, SkyBox },
     ecs::{ Mut, Const, RunLevel, System },
     math::Transform,
-    services::{ Assets, Camera, Input, Frame, World },
-    systems::{ world_renderer, skeletal_animation },
+    services::{ Assets, Camera, Input, World },
+    systems::{ camera_control, skeletal_animation, world_renderer },
     input::{ ActionMapper, Button, KeyCode, Mapper, MouseButton },
 };
 
@@ -18,10 +17,10 @@ fn main() {
         .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_system(System::from(startup).with(RunLevel::Startup))
         .with_system(System::from(camera_control))
-        .with_system(System::from(mappings_to_stdout))
         .with_system(System::from(skeletal_animation))
+        .with_system(System::from(mappings_to_stdout))
         .with_service(Assets::new())
-        .with_service(Camera::new(10.0, std::f32::consts::PI / 2.0, 4.0))
+        .with_service(Camera::default())
         .with_service(World::new())
         .with_service(Input::new(Box::new(mapper)))
         .run();
@@ -99,29 +98,6 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>, mut input: Mut<Input>
         ]);
 }
 
-fn camera_control(mut camera: Mut<Camera>, input: Const<Input>, frame: Const<Frame>) {
-    let zoom_speed = 15.0;
-    let rotation_speed_x = 0.2;
-    let rotation_speed_y = 0.6;
-
-    let zoom = -input.mouse_scroll() * zoom_speed * frame.delta().as_secs_f32();
-    let rotation: Vector2<f32> = if input.is_action_hold(Action::Rotate) {
-        Vector2::new(
-            input.mouse_delta().x * rotation_speed_x * frame.delta().as_secs_f32(),
-            input.mouse_delta().y * rotation_speed_y * frame.delta().as_secs_f32(),
-        )
-    } else {
-        Vector2::new(0.0, 0.0)
-    };
-
-    let target = cgmath::Point3::new(0.0, 0.0, 0.0);
-    let distance = camera.distance() + zoom;
-    let angle = camera.angle() + rotation.x;
-    let height = camera.height() + rotation.y;
-
-    camera.set(target, distance, angle, height);
-}
-
 fn mappings_to_stdout(input: Const<Input>) {
     // Mouse Scroll
     let scroll = input.mouse_scroll();
@@ -151,7 +127,6 @@ fn mappings_to_stdout(input: Const<Input>) {
         println!("Casted spell 2!");
     }
 }
-
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 /// All bindable actions

@@ -1,21 +1,30 @@
 use dotrix::{
     Dotrix,
-    assets::{Texture},
+    assets::Texture,
     components::SkyBox,
-    ecs::{Mut, Const, RunLevel, System},
-    services::{Assets, Camera, Frame, World},
-    systems::world_renderer,
+    ecs::{ Mut, RunLevel, System },
+    input::{ ActionMapper, Button, Mapper },
+    services::{ Assets, Camera, Input, World },
+    systems::{ camera_control, world_renderer },
 };
 
 fn main() {
+    let mapper: Mapper<Action> = Mapper::new();
 
     Dotrix::application("SkyBox Example")
         .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_system(System::from(startup).with(RunLevel::Startup))
-        .with_system(System::from(fly_around))
+        .with_system(System::from(camera_control))
         .with_service(Assets::new())
-        .with_service(Camera::new(2.6, std::f32::consts::PI / 2.0, 0.5))
+        .with_service(
+            Camera {
+                distance: 1.0,
+                xz_angle: 0.0,
+                ..Default::default()
+            }
+        )
         .with_service(World::new())
+        .with_service(Input::new(Box::new(mapper)))
         .run();
 
 }
@@ -44,13 +53,13 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     ]);
 }
 
-fn fly_around(frame: Const<Frame>, mut camera: Mut<Camera>) {
-    let speed = std::f32::consts::PI / 8.0;
-    let target = cgmath::Point3::new(0.0, 0.6, 0.0);
-    let distance = camera.distance();
-    let angle = camera.angle() + speed * frame.delta().as_secs_f32();
-    let height = camera.height();
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+/// All bindable actions
+struct Action;
 
-    camera.set(target, distance, angle, height);
+impl ActionMapper<Action> for Input {
+    fn action_mapped(&self, action: Action) -> Option<&Button> {
+        let mapper = self.mapper::<Mapper<Action>>();
+        mapper.get_button(action)
+    }
 }
-

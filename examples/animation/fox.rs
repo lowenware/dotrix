@@ -13,7 +13,7 @@ use dotrix::{
     ecs::{ Mut, RunLevel, System },
     math::Transform,
     services::{ Assets, Camera, World },
-    systems::{ world_renderer, skeletal_animation },
+    systems::{ skeletal_animation, world_renderer },
 };
 
 fn main() {
@@ -23,7 +23,12 @@ fn main() {
         .with_system(System::from(skeletal_animation))
         .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_service(Assets::new())
-        .with_service(Camera::new(200.0, std::f32::consts::PI / 4.0, 100.0))
+        .with_service(Camera {
+            distance: 200.0,
+            y_angle: 1.57,
+            xz_angle: 0.2,
+            ..Default::default()
+        })
         .with_service(World::new())
         .run();
 

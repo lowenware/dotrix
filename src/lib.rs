@@ -41,6 +41,7 @@ pub mod systems {
             world_renderer,
         },
         animation::skeletal_animation,
+        camera::camera_control,
     };
 }
 
