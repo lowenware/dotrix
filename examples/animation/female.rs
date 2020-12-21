@@ -1,16 +1,17 @@
 use dotrix::{
     Dotrix,
-    assets::{Animation, Mesh, Skin, Transform, Texture},
-    components::{Animator, Light, SkeletalModel},
+    assets::{Animation, Mesh, Skin, Texture},
+    components::{Animator, Light, Model},
     ecs::{Const, Mut, RunLevel, System},
+    math::Transform,
     services::{Assets, Camera, Frame, World},
-    systems::{skeletal_renderer, skeletal_animation},
+    systems::{world_renderer, skeletal_animation},
 };
 
 fn main() {
 
     Dotrix::application("Female Skeletal Animation Example")
-        .with_system(System::from(skeletal_renderer).with(RunLevel::Render))
+        .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_system(System::from(startup).with(RunLevel::Startup))
         .with_system(System::from(fly_around))
         .with_system(System::from(skeletal_animation))
@@ -27,11 +28,15 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     let moves = assets.register::<Animation>("Female::run");
     let texture = assets.register::<Texture>("gray");
 
-    assets.import("assets/Female.gltf", "female");
-    assets.import("assets/gray.png", "gray");
+    assets.import("assets/Female.gltf");
+    assets.import("assets/gray.png");
 
+    let transform = Transform {
+        scale: cgmath::Vector3::new(1.2, 1.2, 1.2),
+        ..Default::default()
+    };
     world.spawn(Some(
-        (SkeletalModel::new(mesh, texture, skin, Transform::default()), Animator::looped(moves)),
+        (Model { mesh, texture, skin, transform, ..Default::default() }, Animator::looped(moves)),
     ));
 
     world.spawn(Some((Light::white([200.0, 100.0, 200.0]),)));

@@ -2,7 +2,7 @@ use std::time::{Duration};
 
 use crate::{
     assets::{Animation, Id},
-    components::SkeletalModel,
+    components::Model,
     ecs::{Const},
     services::{Assets, Frame, World},
 };
@@ -99,24 +99,21 @@ impl Animator {
 }
 
 pub fn skeletal_animation(frame: Const<Frame>, world: Const<World>, assets: Const<Assets>) {
-    use cgmath::SquareMatrix;
-    for (model, animator) in world.query::<(&mut SkeletalModel, &mut Animator)>() {
-        // TODO: global transformation
-        let global_transform = cgmath::Matrix4::<f32>::identity();
+    for (model, animator) in world.query::<(&mut Model, &mut Animator)>() {
+        let global_transform = model.transform.matrix();
         if let Some(skin) = assets.get(model.skin) {
 
             let mut local_transforms = None;
 
             if let Some(animation) = assets.get::<Animation>(animator.animation) {
                 if let Some(duration) = animator.update(frame.delta(), animation.duration()) {
-                    // local_transforms = Some(animation.sample(0.0));
                     local_transforms = Some(animation.sample(duration.as_secs_f32()));
                 }
             }
 
-            // println!("local transforms: {} \n {:?}\n\n", local_transforms.as_ref().map(|m| m.len()).unwrap_or(0), local_transforms);
-
-            skin.transform(&mut model.skin_transform, &global_transform, local_transforms);
+            if let Some(pose) = model.pose.as_mut() {
+                skin.transform(pose, &global_transform, local_transforms);
+            }
         }
     }
 }

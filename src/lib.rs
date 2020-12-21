@@ -2,26 +2,25 @@ mod application;
 pub mod animation;
 pub mod assets;
 mod camera;
-mod frame;
 pub mod ecs;
+mod frame;
 pub mod input;
+pub mod math;
 mod renderer;
 mod scheduler;
-mod skybox;
+// mod skybox;
 mod world;
 
 pub use application::{ Application, Service };
 
 pub mod components {
     pub use crate::{
-        assets::Transform,
         animation::Animator,
         renderer::{
             Light,
-            StaticModel,
-            SkeletalModel,
+            Model,
+            SkyBox,
         },
-        skybox::SkyBox,
     };
 }
 
@@ -39,9 +38,7 @@ pub mod services {
 pub mod systems {
     pub use crate::{
         renderer::{
-            skeletal_renderer,
-            static_renderer,
-            skybox_renderer,
+            world_renderer,
         },
         animation::skeletal_animation,
     };

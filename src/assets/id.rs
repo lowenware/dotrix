@@ -6,7 +6,6 @@ use std::{
 
 pub type RawId = u64;
 
-#[derive(Default)]
 pub struct Id<T> {
     pub id: RawId,
     phantom: PhantomData<T>
@@ -18,6 +17,10 @@ impl<T> Id<T> {
             id,
             phantom: PhantomData,
         }
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.id == 0
     }
 }
 
@@ -52,3 +55,9 @@ impl<T> Clone for Id<T> {
 }
 
 impl<T> Copy for Id<T> {}
+
+impl<T> Default for Id<T> {
+    fn default() -> Self {
+        Self::new(0)
+    }
+}
