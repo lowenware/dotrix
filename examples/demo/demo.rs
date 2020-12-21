@@ -128,7 +128,6 @@ fn mappings_to_stdout(input: Const<Input>) {
     }
 }
 
-
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 /// All bindable actions
 enum Action {

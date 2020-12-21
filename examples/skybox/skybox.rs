@@ -3,19 +3,28 @@ use dotrix::{
     assets::Texture,
     components::SkyBox,
     ecs::{ Mut, RunLevel, System },
-    services::{ Assets, Camera, World },
-    systems::{ camera_control, world_renderer }
+    input::{ ActionMapper, Button, Mapper },
+    services::{ Assets, Camera, Input, World },
+    systems::{ camera_control, world_renderer },
 };
 
 fn main() {
+    let mapper: Mapper<Action> = Mapper::new();
 
     Dotrix::application("SkyBox Example")
         .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_system(System::from(startup).with(RunLevel::Startup))
         .with_system(System::from(camera_control))
         .with_service(Assets::new())
-        .with_service(Camera::new())
+        .with_service(
+            Camera {
+                distance: 1.0,
+                xz_angle: 0.0,
+                ..Default::default()
+            }
+        )
         .with_service(World::new())
+        .with_service(Input::new(Box::new(mapper)))
         .run();
 
 }
@@ -44,3 +53,13 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     ]);
 }
 
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+/// All bindable actions
+struct Action;
+
+impl ActionMapper<Action> for Input {
+    fn action_mapped(&self, action: Action) -> Option<&Button> {
+        let mapper = self.mapper::<Mapper<Action>>();
+        mapper.get_button(action)
+    }
+}
