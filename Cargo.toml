@@ -1,6 +1,6 @@
 [package]
 name = "dotrix"
-version = "0.1.4"
+version = "0.2.0"
 authors = [
   "Elias Kartashov <elias@lowenware.com>",
   "Štěpán Wünsch <sw@lowenware.com>",
@@ -11,27 +11,28 @@ description = "3D Game Engine"
 license = "MIT"
 
 [features]
-default = []
+default = ["ui"]
+ui = ["dotrix_ui"]
 
-[dependencies]
-base64 = "0.13.0"
-bytemuck = { version = "1.4", features = ["derive"] }
-cgmath = "0.17"
-futures = { version = "0.3", default-features = false, features = ["std"] }
-gltf = { version = "0.15", features = ["extras", "names"] }
-log = "0.4"
-image = "0.23"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-wgpu = { git = "https://github.com/gfx-rs/wgpu-rs", rev = "2ef725065e68164cced1551c7a2540523eb0ca77", features = ["trace"] }
-wgpu-subscriber = "0.1.0"
-winit = { version = "0.23.0", features = ["serde"] }
+[workspace]
+members = [
+  "dotrix_core",
+  "dotrix_ui",
+]
 
-# Optional dependenciew
-shaderc = { version = "0.7", optional = true }
+[dependencies.dotrix_core]
+version = "0.2"
+path = "./dotrix_core"
 
-[dev-dependencies]
-futures = { version = "0.3", default-features = false, features = ["std", "executor"] }
+# Optional dependencies
+
+[dependencies.dotrix_ui]
+version = "0.2"
+path = "./dotrix_ui"
+optional = true
+
+[dev-dependencies.cgmath]
+version = "0.17"
 
 [[example]]
 name = "demo"
@@ -44,3 +45,7 @@ path = "examples/animation/fox.rs"
 [[example]]
 name = "skybox"
 path = "examples/skybox/skybox.rs"
+
+[[example]]
+name = "ui"
+path = "examples/ui/ui.rs"

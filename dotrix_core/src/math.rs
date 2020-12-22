@@ -33,6 +33,7 @@ impl TransformBuilder {
     }
 }
 
+#[derive(Debug)]
 pub struct Transform {
     pub translate: Vector3<f32>,
     pub rotate: Quaternion<f32>,

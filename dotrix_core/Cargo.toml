@@ -1,0 +1,64 @@
+[package]
+name = "dotrix_core"
+version = "0.2.0"
+authors = [
+  "Elias Kartashov <elias@lowenware.com>",
+  "Štěpán Wünsch <sw@lowenware.com>",
+  "Nikita Zemtsov <z-nik@ya.ru>",
+]
+edition = "2018"
+description = "Dotrix 3D game engine core"
+license = "MIT"
+
+[features]
+default = []
+
+[dependencies.base64]
+version = "0.13.0"
+
+[dependencies.bytemuck]
+version = "1.4"
+features = ["derive"]
+
+[dependencies.cgmath]
+version = "0.17"
+
+[dependencies.futures]
+version = "0.3"
+default-features = false
+features = ["std", "executor"]
+
+[dependencies.gltf]
+version = "0.15"
+features = ["extras", "names"]
+
+[dependencies.log]
+version = "0.4"
+
+[dependencies.image]
+version = "0.23"
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
+
+[dependencies.serde_json]
+version = "1.0"
+
+[dependencies.wgpu]
+git = "https://github.com/gfx-rs/wgpu-rs"
+rev = "2ef725065e68164cced1551c7a2540523eb0ca77"
+features = ["trace"]
+
+[dependencies.wgpu-subscriber]
+version = "0.1.0"
+
+[dependencies.winit]
+version = "0.23.0"
+features = ["serde"]
+
+# Optional dependencies
+[dependencies.shaderc]
+version = "0.7"
+optional = true
+
