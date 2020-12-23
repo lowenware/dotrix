@@ -1,7 +1,7 @@
 
 GLSLANG = glslangValidator
 
-OUTPUT = $(patsubst %.glsl,%.spv,$(wildcard src/renderer/shaders/*.glsl))
+OUTPUT = $(patsubst %.glsl,%.spv,$(wildcard dotrix_core/src/renderer/shaders/*.glsl))
 
 all: $(OUTPUT)
 

@@ -1,4 +1,4 @@
-use bytemuck::{Pod, Zeroable};
+use bytemuck::{ Pod, Zeroable };
 use wgpu::util::DeviceExt;
 
 #[derive(Default)]

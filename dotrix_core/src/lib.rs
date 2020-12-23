@@ -18,6 +18,7 @@ pub mod components {
         renderer::{
             Light,
             Model,
+            Widget,
             SkyBox,
         },
     };
@@ -29,7 +30,7 @@ pub mod services {
         camera::Camera,
         input::Input,
         frame::Frame,
-        renderer::Renderer,
+        renderer::{ Overlay, Renderer },
         world::World,
     };
 }

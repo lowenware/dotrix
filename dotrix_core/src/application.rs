@@ -12,10 +12,13 @@ use winit::{
 
 use crate::{
     assets::Assets,
-    ecs::{System},
-    frame::{Frame},
+    ecs::System,
+    frame::Frame,
     input::Input,
-    renderer::Renderer,
+    renderer::{
+        Overlay,
+        Renderer,
+    },
     scheduler::Scheduler,
 };
 
@@ -76,8 +79,10 @@ fn run(
     println!("Starting {}", name);
 
     let renderer = futures::executor::block_on(Renderer::new(&window));
+    let overlay = Overlay::default();
 
     // let mut swap_chain = renderer.swap_chain();
+    services.add(overlay);
     services.add(renderer);
 
     let (mut pool, _spawner) = {

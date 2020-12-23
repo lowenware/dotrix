@@ -1,10 +1,13 @@
 use crate::assets::{ StaticModelVertex, SkinnedModelVertex, VertexAttributes };
 
-use super::bind_group_layout::{
-    uniform_entry,
-    texture2d_entry,
-    texture3d_entry,
-    sampler_entry,
+use super::{
+    bind_group_layout::{
+        uniform_entry,
+        texture2d_entry,
+        texture3d_entry,
+        sampler_entry,
+    },
+    overlay::OverlayVertex,
 };
 
 pub struct Pipeline {
@@ -379,6 +382,119 @@ impl Pipeline {
                 alpha_to_coverage_enabled: false,
             }
         );
+
+        Pipeline {
+            bind_group_layout,
+            wgpu_pipeline,
+        }
+    }
+}
+
+
+/// Pipeline for overlays
+impl Pipeline {
+
+    pub fn default_for_overlay(
+        device: &wgpu::Device,
+        sc_desc: &wgpu::SwapChainDescriptor,
+    ) -> Pipeline {
+        // TODO: custom shaders for the model to be handled here
+
+        let shaders = (
+            create_shader_module!(device, "overlay", vert),
+            create_shader_module!(device, "overlay", frag),
+        );
+
+        Self::new_for_overlay(device, sc_desc, shaders)
+    }
+
+    pub fn new_for_overlay(
+        device: &wgpu::Device,
+        sc_desc: &wgpu::SwapChainDescriptor,
+        (vs_module, fs_module): (wgpu::ShaderModule, wgpu::ShaderModule),
+    ) -> Self {
+
+        let bind_group_layout = device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                label: None,
+                entries: &[
+                    // transform matrix
+                    uniform_entry(0),
+                    // texture
+                    texture2d_entry(1),
+                    // sampler
+                    sampler_entry(2),
+                ],
+            }
+        );
+
+        let pipeline_layout = device.create_pipeline_layout(
+            &wgpu::PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &[&bind_group_layout],
+                push_constant_ranges: &[],
+            }
+        );
+
+        let vertex_state = wgpu::VertexStateDescriptor {
+            index_format: None,
+            vertex_buffers: &[wgpu::VertexBufferDescriptor {
+                stride: OverlayVertex::size(),
+                step_mode: wgpu::InputStepMode::Vertex,
+                attributes: &[
+                    // position
+                    wgpu::VertexAttributeDescriptor {
+                        format: wgpu::VertexFormat::Float2,
+                        offset: 0,
+                        shader_location: 0,
+                    },
+                    // texture coordinates
+                    wgpu::VertexAttributeDescriptor {
+                        format: wgpu::VertexFormat::Float2,
+                        offset: 4 * 2,
+                        shader_location: 1,
+                    },
+                ],
+            }],
+        };
+
+        let wgpu_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Overlay pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex_stage: wgpu::ProgrammableStageDescriptor {
+                module: &vs_module,
+                entry_point: "main",
+            },
+            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+                module: &fs_module,
+                entry_point: "main",
+            }),
+            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: wgpu::CullMode::Back,
+                ..Default::default()
+            }),
+            primitive_topology: wgpu::PrimitiveTopology::TriangleStrip,
+            color_states: &[wgpu::ColorStateDescriptor {
+                format: sc_desc.format,
+                color_blend: wgpu::BlendDescriptor {
+                    src_factor: wgpu::BlendFactor::SrcAlpha,
+                    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                    ..Default::default()
+                },
+                alpha_blend: wgpu::BlendDescriptor {
+                    src_factor: wgpu::BlendFactor::One,
+                    dst_factor: wgpu::BlendFactor::One,
+                    ..Default::default()
+                },
+                write_mask: wgpu::ColorWrite::ALL,
+            }],
+            depth_stencil_state: None,
+            vertex_state,
+            sample_count: 1,
+            sample_mask: !0,
+            alpha_to_coverage_enabled: false,
+        });
 
         Pipeline {
             bind_group_layout,

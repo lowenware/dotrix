@@ -1,10 +1,10 @@
 use dotrix::{
     Dotrix,
     assets::{ Animation, Mesh, Texture, Skin },
-    components::{ Animator, Light, Model, SkyBox },
+    components::{ Animator, Light, Model, SkyBox, Widget },
     ecs::{ Mut, Const, RunLevel, System },
     math::Transform,
-    services::{ Assets, Camera, Input, World },
+    services::{ Assets, Camera, Input, Overlay, World },
     systems::{ camera_control, skeletal_animation, world_renderer },
     input::{ ActionMapper, Button, KeyCode, Mapper, MouseButton },
 };
@@ -26,7 +26,12 @@ fn main() {
         .run();
 }
 
-fn startup(mut world: Mut<World>, mut assets: Mut<Assets>, mut input: Mut<Input>) {
+fn startup(
+    mut world: Mut<World>,
+    mut assets: Mut<Assets>,
+    mut input: Mut<Input>,
+    mut overlay: Mut<Overlay>
+) {
     assets.import("assets/crate.png");
 
     let texture = assets.register::<Texture>("crate");
@@ -96,6 +101,15 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>, mut input: Mut<Input>
             (Action::Spell1, Button::Key(KeyCode::Key1)),
             (Action::Spell2, Button::Mouse(MouseButton::Other(1))),
         ]);
+
+    let texture = assets.register::<Texture>("lowenware");
+    assets.import("assets/lowenware.png");
+    overlay.widgets.push(Widget {
+        texture,
+        scale: cgmath::Vector2::new(0.1, 0.1),
+        translate: cgmath::Vector2::new(0.7, 0.7),
+        ..Default::default()
+    });
 }
 
 fn mappings_to_stdout(input: Const<Input>) {

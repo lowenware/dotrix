@@ -3,8 +3,10 @@ mod light;
 pub mod pipeline;
 pub mod skybox;
 mod model;
+mod overlay;
 
 pub use model::*;
+pub use overlay::*;
 pub use skybox::*;
 pub use light::{Light, LightUniform};
 
@@ -119,6 +121,11 @@ impl Renderer {
         self.add_pipeline(pipeline)
     }
 
+    pub fn add_overlay_pipeline(&mut self) -> Id<Pipeline> {
+        let pipeline = Pipeline::default_for_overlay(&self.device, &self.sc_desc);
+        self.add_pipeline(pipeline)
+    }
+
     pub fn device(&self) -> &wgpu::Device {
         &self.device
     }
@@ -213,6 +220,7 @@ pub struct Pipelines {
     skybox: Id<Pipeline>,
     static_model: Id<Pipeline>,
     skinned_model: Id<Pipeline>,
+    overlay: Id<Pipeline>,
 }
 
 #[derive(Default)]
@@ -227,6 +235,7 @@ pub fn world_renderer(
     mut ctx: Context<WorldRenderer>,
     mut renderer: Mut<Renderer>,
     mut assets: Mut<Assets>,
+    mut overlay: Mut<Overlay>,
     camera: Const<Camera>,
     world: Const<World>
 ) {
@@ -234,11 +243,13 @@ pub fn world_renderer(
         let skybox = renderer.add_skybox_pipeline();
         let static_model = renderer.add_static_model_pipeline();
         let skinned_model = renderer.add_skinned_model_pipeline();
+        let overlay = renderer.add_overlay_pipeline();
         ctx.pipelines = Some(
             Pipelines {
                 skybox,
                 static_model,
                 skinned_model,
+                overlay,
             }
         );
     }
@@ -343,11 +354,11 @@ pub fn world_renderer(
     let query = world.query::<(&mut Model,)>();
     for (model,) in query {
         if model.pipeline.is_null() {
-            let piplines = ctx.pipelines.as_ref().unwrap();
+            let pipelines = ctx.pipelines.as_ref().unwrap();
             model.pipeline = if !model.skin.is_null() {
-                piplines.skinned_model
+                pipelines.skinned_model
             } else {
-                piplines.static_model
+                pipelines.static_model
             };
         }
         let pipeline = renderer.pipeline(model.pipeline);
@@ -356,6 +367,15 @@ pub fn world_renderer(
 
         model.load(&renderer, &mut assets, pipeline, sampler, proj_view_buffer, lights_buffer);
         model.draw(&assets, &mut encoder, pipeline, frame, depth_buffer);
+    }
+
+    for widget in &mut overlay.widgets {
+        if widget.pipeline.is_null() {
+            widget.pipeline = ctx.pipelines.as_ref().unwrap().overlay;
+        }
+        let pipeline = renderer.pipeline(widget.pipeline);
+        widget.load(&renderer, &mut assets, pipeline, sampler);
+        widget.draw(&mut encoder, pipeline, frame);
     }
 
     // submit rendering
