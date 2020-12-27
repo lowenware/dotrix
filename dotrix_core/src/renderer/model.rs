@@ -1,10 +1,10 @@
 use crate::{
     assets::{ Id, Mesh, Skin, Pose, Texture },
     services::{ Assets, Renderer },
-    math::Transform,
 };
 
 use super::pipeline::Pipeline;
+use super::transform::Transform;
 
 pub struct Buffers {
     bind_group: wgpu::BindGroup,

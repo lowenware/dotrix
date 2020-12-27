@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use crate::math::{ Transform, TransformBuilder };
+use super::super::renderer::transform::{ Transform, TransformBuilder };
+use dotrix_math::{Mat4, SquareMatrix};
 
 pub type JointId = usize;
 
@@ -29,7 +30,7 @@ impl Joint {
 
     fn transform(
         &self,
-        parent_transform: &cgmath::Matrix4<f32>,
+        parent_transform: &Mat4,
         local_transform: Option<&TransformBuilder>,
     ) -> JointTransform {
         let local_transform = local_transform
@@ -47,7 +48,7 @@ impl Joint {
 
 pub struct JointIndex {
     pub id: JointId,
-    pub inverse_bind_matrix: Option<cgmath::Matrix4<f32>>,
+    pub inverse_bind_matrix: Option<Mat4>,
 }
 
 #[derive(Default)]
@@ -61,7 +62,7 @@ impl Skin {
     pub fn new(
         joints: Vec<Joint>,
         mut index: Vec<JointIndex>,
-        inverse_bind_matrices: Option<Vec<cgmath::Matrix4<f32>>>,
+        inverse_bind_matrices: Option<Vec<Mat4>>,
     ) -> Self {
 
         if let Some(inverse_bind_matrices) = inverse_bind_matrices {
@@ -83,7 +84,7 @@ impl Skin {
     pub fn transform(
         &self,
         skin_transform: &mut Pose,
-        model_transform: &cgmath::Matrix4<f32>,
+        model_transform: &Mat4,
         local_transforms: Option<HashMap<JointId, TransformBuilder>>,
     ) {
 
@@ -107,15 +108,15 @@ impl Skin {
 pub struct JointTransform {
     id: JointId,
     /// global joint transformation
-    global_transform: cgmath::Matrix4<f32>,
+    global_transform: Mat4,
 }
 
 impl Default for JointTransform {
     fn default() -> Self {
-        use cgmath::SquareMatrix;
+        
         Self {
             id: 0,
-            global_transform: cgmath::Matrix4::<f32>::identity(),
+            global_transform: Mat4::identity(),
         }
     }
 }
@@ -128,9 +129,8 @@ pub struct Pose {
 
 impl Pose {
     pub fn new(device: &wgpu::Device) -> Self {
-        use cgmath::SquareMatrix;
         use wgpu::util::DeviceExt;
-        let joints_matrices: [[[f32; 4]; 4]; 32] = [cgmath::Matrix4::<f32>::identity().into(); 32];
+        let joints_matrices: [[[f32; 4]; 4]; 32] = [Mat4::identity().into(); 32];
         let buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Pose Buffer"),
@@ -150,7 +150,6 @@ impl Pose {
     }
 
     pub fn matrices(&self, index: &[JointIndex]) -> Vec<[[f32; 4]; 4]> {
-        use cgmath::SquareMatrix;
         let mut result = index.iter().map(|i| {
             let joint_transform = self.joints.iter().find(|j| j.id == i.id).unwrap();
             let global_transform = &joint_transform.global_transform;
@@ -163,7 +162,7 @@ impl Pose {
         }).collect::<Vec<_>>();
 
         while result.len() < 32 {
-            result.push(cgmath::Matrix4::<f32>::identity().into());
+            result.push(Mat4::identity().into());
         }
         result
     }

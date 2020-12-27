@@ -11,7 +11,8 @@ use gltf::{
 
 use log::info;
 
-use crate::math::Transform;
+use super::super::renderer::transform::Transform;
+use dotrix_math::{Mat4, Vec3, Quat};
 
 use super::{
     animation::{Animation, Interpolation},
@@ -102,7 +103,7 @@ fn load_node(
         let reader = skin.reader(|buffer| Some(&buffers[buffer.index()]));
         let inverse_bind_matrices = reader
             .read_inverse_bind_matrices()
-            .map(|v| v.map(cgmath::Matrix4::<f32>::from).collect());
+            .map(|v| v.map(Mat4::from).collect());
 
         let asset_name = [name, "skin"].join("::");
         let index = skin.joints().map(|j| JointIndex { id: j.index(), inverse_bind_matrix: None}).collect::<Vec<_>>();
@@ -261,14 +262,14 @@ fn load_animation(
 
         match outputs.unwrap() {
             ReadOutputs::Translations(output) => animation.add_translation_channel(
-                index, interpolation, timestamps, output.map(cgmath::Vector3::<f32>::from).collect(),
+                index, interpolation, timestamps, output.map(Vec3::from).collect(),
             ),
             ReadOutputs::Rotations(output) => animation.add_rotation_channel(
                 index, interpolation, timestamps, output.into_f32()
-                    .map(|q| cgmath::Quaternion::<f32>::new(q[3], q[0], q[1], q[2])).collect()
+                    .map(|q| Quat::new(q[3], q[0], q[1], q[2])).collect()
             ),
             ReadOutputs::Scales(output) => animation.add_scale_channel(
-                index, interpolation, timestamps, output.map(cgmath::Vector3::<f32>::from).collect()
+                index, interpolation, timestamps, output.map(Vec3::from).collect()
             ),
             ReadOutputs::MorphTargetWeights(ref _weights) => (),
         };

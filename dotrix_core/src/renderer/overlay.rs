@@ -1,8 +1,6 @@
 use bytemuck::{ Pod, Zeroable };
-use cgmath::{
-    Vector2,
-    Vector3,
-};
+use dotrix_math::{Vec2, Vec3};
+
 use crate::{
     assets::{
         Id,
@@ -13,9 +11,9 @@ use crate::{
         Assets,
         Renderer,
     },
-    math::Transform,
 };
 use super::pipeline::Pipeline;
+use super::transform::Transform;
 
 #[derive(Default)]
 pub struct Overlay {
@@ -41,8 +39,8 @@ pub struct Widget {
     pub uvs: Vec<[f32; 2]>,
     pub texture: Id<Texture>,
     pub pipeline: Id<Pipeline>,
-    pub translate: Vector2<f32>,
-    pub scale: Vector2<f32>,
+    pub translate: Vec2,
+    pub scale: Vec2,
     pub buffers: Option<Buffers>,
 }
 
@@ -92,8 +90,8 @@ impl Widget {
         let queue = renderer.queue();
 
         let transform_matrix = (Transform {
-            translate: Vector3::new(self.translate.x, self.translate.y, 0.0),
-            scale: Vector3::new(self.scale.x, self.scale.y, 1.0),
+            translate: Vec3::new(self.translate.x, self.translate.y, 0.0),
+            scale: Vec3::new(self.scale.x, self.scale.y, 1.0),
             ..Default::default()
         }).matrix();
         let transform = AsRef::<[f32; 16]>::as_ref(&transform_matrix);
@@ -189,8 +187,8 @@ impl Default for Widget {
             uvs: vec![[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]],
             texture: Id::default(),
             pipeline: Id::default(),
-            translate: Vector2::new(0.0, 0.0),
-            scale: Vector2::new(1.0, 1.0),
+            translate: Vec2::new(0.0, 0.0),
+            scale: Vec2::new(1.0, 1.0),
             buffers: None,
         }
     }

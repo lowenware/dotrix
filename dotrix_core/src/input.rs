@@ -1,4 +1,4 @@
-use cgmath::{Vector2, num_traits::clamp};
+use dotrix_math::{Vec2, clamp};
 use std::collections::HashMap;
 
 use winit::event::{
@@ -33,9 +33,9 @@ pub struct Input {
     mapper: Box<dyn std::any::Any + Send + Sync>,
     states: HashMap<Button, State>,
     mouse_scroll_delta: f32,
-    mouse_position: Option<Vector2<f32>>,
-    last_mouse_position: Option<Vector2<f32>>,
-    window_size: Vector2<f32>, // TODO: move to other struct or service
+    mouse_position: Option<Vec2>,
+    last_mouse_position: Option<Vec2>,
+    window_size: Vec2, // TODO: move to other struct or service
 }
 
 impl Input {
@@ -46,7 +46,7 @@ impl Input {
             mouse_scroll_delta: 0.0,
             mouse_position: None,
             last_mouse_position: None,
-            window_size: Vector2::new(0.0, 0.0),
+            window_size: Vec2::new(0.0, 0.0),
         }
     }
 
@@ -110,7 +110,7 @@ impl Input {
 
     /// Set window size
     pub fn set_window_size(&mut self, width: f32, height: f32) {
-        self.window_size = Vector2::new(width, height);
+        self.window_size = Vec2::new(width, height);
     }
 
     /// Mouse scroll delta. Value should can be positive (up) or negative (down), usually -1 and 1
@@ -120,20 +120,20 @@ impl Input {
     }
 
     /// Current mouse position in pixel coordinates. The top-left of the window is at (0, 0).
-    pub fn mouse_position(&self) -> Vector2<f32> {
-        self.mouse_position.unwrap_or_else(|| Vector2::new(0.0, 0.0))
+    pub fn mouse_position(&self) -> Vec2 {
+        self.mouse_position.unwrap_or_else(|| Vec2::new(0.0, 0.0))
     }
 
     /// Difference of the mouse position from the last frame in pixel coordinates. The top-left of
     /// the window is at (0, 0).
-    pub fn mouse_delta(&self) -> Vector2<f32> {
+    pub fn mouse_delta(&self) -> Vec2 {
         self.last_mouse_position
             .map(|p| self.mouse_position.unwrap() - p)
-            .unwrap_or_else(|| Vector2::new(0.0, 0.0))
+            .unwrap_or_else(|| Vec2::new(0.0, 0.0))
     }
 
     /// Normalized mouse position. The top-left of the window is at (0, 0), bottom-right at (1, 1).
-    pub fn mouse_position_normalized(&self) -> Vector2<f32> {
+    pub fn mouse_position_normalized(&self) -> Vec2 {
         let (x, y) = self.mouse_position
             .as_ref()
             .map(|p| (
@@ -142,7 +142,7 @@ impl Input {
             ))
             .unwrap_or((0.0, 0.0));
 
-        Vector2::new(x, y)
+        Vec2::new(x, y)
     }
 
     /// This method should be called in application.rs after render, so States from events will be
@@ -186,14 +186,14 @@ impl Input {
             Event::WindowEvent {
                 event: WindowEvent::Resized(size),
                 ..
-            } => self.window_size = Vector2::new(size.width as f32, size.height as f32),
+            } => self.window_size = Vec2::new(size.width as f32, size.height as f32),
             _ => {}
         }
     }
 
     /// Handle cursor moved event from winit.
     fn on_cursor_moved_event(&mut self, position: &winit::dpi::PhysicalPosition<f64>) {
-        self.mouse_position = Some(Vector2 {
+        self.mouse_position = Some(Vec2 {
             x: position.x as f32,
             y: position.y as f32,
         });

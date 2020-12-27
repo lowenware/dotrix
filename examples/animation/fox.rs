@@ -11,9 +11,10 @@ use dotrix::{
     assets::{ Animation, Mesh, Skin, Texture },
     components::{ Animator, Light, Model },
     ecs::{ Mut, RunLevel, System },
-    math::Transform,
+    renderer::transform::Transform,
     services::{ Assets, Camera, World },
     systems::{ skeletal_animation, world_renderer },
+    math::{ Vec3 },
 };
 
 fn main() {
@@ -42,17 +43,17 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     let run = assets.register::<Animation>("Fox::Run");
     let survey = assets.register::<Animation>("Fox::Survey");
     let trans1 = Transform {
-        translate: cgmath::Vector3::new(-100.0, 0.0, 0.0),
-        scale: cgmath::Vector3::new(0.8, 0.8, 0.8),
+        translate: Vec3::new(-100.0, 0.0, 0.0),
+        scale: Vec3::new(0.8, 0.8, 0.8),
         ..Default::default()
     };
     let trans2 = Transform {
-        scale: cgmath::Vector3::new(0.8, 0.8, 0.8),
+        scale: Vec3::new(0.8, 0.8, 0.8),
         ..Default::default()
     };
     let trans3 = Transform {
-        translate: cgmath::Vector3::new(100.0, 0.0, 0.0),
-        scale: cgmath::Vector3::new(0.8, 0.8, 0.8),
+        translate: Vec3::new(100.0, 0.0, 0.0),
+        scale: Vec3::new(0.8, 0.8, 0.8),
         ..Default::default()
     };
 

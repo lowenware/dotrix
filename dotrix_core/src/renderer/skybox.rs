@@ -4,6 +4,7 @@ use crate::{
 };
 
 use super::pipeline::Pipeline;
+use dotrix_math::Mat4;
 
 pub struct Buffers {
     pub bind_group: wgpu::BindGroup,
@@ -42,7 +43,7 @@ impl SkyBox {
         queue: &wgpu::Queue,
         pipeline: &Pipeline,
         sampler_3d: &wgpu::Sampler,
-        proj_view_matrix: &cgmath::Matrix4<f32>,
+        proj_view_matrix: &Mat4,
     ) {
         use wgpu::util::DeviceExt;
 

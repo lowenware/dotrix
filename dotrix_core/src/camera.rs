@@ -3,7 +3,7 @@ use crate::{
     services::{ Input, Frame },
 };
 
-use cgmath::{ Matrix4, Point3, Vector3 };
+use dotrix_math::{Mat4, Point3, Vec3};
 use std::f32::consts::PI;
 
 const ROTATE_SPEED: f32 = PI / 10.0;
@@ -13,8 +13,8 @@ pub struct Camera {
     pub distance: f32,
     pub y_angle: f32,
     pub xz_angle: f32,
-    pub target: Point3<f32>,
-    pub view: Option<cgmath::Matrix4<f32>>,
+    pub target: Point3,
+    pub view: Option<Mat4>,
 }
 
 impl Camera {
@@ -33,7 +33,7 @@ impl Camera {
         }
     }
 
-    pub fn view(&self) -> Matrix4<f32> {
+    pub fn view(&self) -> Mat4 {
         self.view
             .as_ref()
             .copied()
@@ -42,7 +42,7 @@ impl Camera {
             })
     }
 
-    pub fn view_static(&self) -> Matrix4<f32> {
+    pub fn view_static(&self) -> Mat4 {
         let mut view_static = self.view();
         view_static.w.x = 0.0;
         view_static.w.y = 0.0;
@@ -54,12 +54,12 @@ impl Camera {
         self.view = Some(Self::matrix(self.target, self.distance, self.y_angle, self.xz_angle));
     }
 
-    fn matrix(target: Point3<f32>, distance: f32, y_angle: f32, xz_angle: f32) -> Matrix4<f32> {
+    fn matrix(target: Point3, distance: f32, y_angle: f32, xz_angle: f32) -> Mat4 {
         let dy = distance * xz_angle.sin();
         let dxz = distance * xz_angle.cos();
         let dx = dxz * y_angle.cos();
         let dz = dxz * y_angle.sin();
-        let position = cgmath::Point3::new(target.x + dx, target.y + dy, target.z + dz);
+        let position = Point3::new(target.x + dx, target.y + dy, target.z + dz);
 
         let (position, target) = if distance > 0.0 {
             (position, target)
@@ -67,7 +67,7 @@ impl Camera {
             (target, position)
         };
 
-        cgmath::Matrix4::look_at(position, target, Vector3::unit_y())
+        Mat4::look_at(position, target, Vec3::unit_y())
     }
 }
 
