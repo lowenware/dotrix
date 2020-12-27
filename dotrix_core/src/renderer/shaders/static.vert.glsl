@@ -17,8 +17,7 @@ layout(set = 0, binding = 1) uniform Model {
 
 void main() {
     v_TexCoord = a_TexCoord;
-    // TODO: multiply by model transform matrix
-    v_Normal = a_Normal;
+    v_Normal = normalize(mat3(u_Model) * a_Normal);
     v_Position = (u_Model * vec4(a_Position, 1.0)).xyz;
     gl_Position = u_ProjView * vec4(v_Position, 1.0);
 }

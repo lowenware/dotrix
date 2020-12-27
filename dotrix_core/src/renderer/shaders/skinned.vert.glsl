@@ -31,8 +31,7 @@ void main() {
       a_Weights.w * u_JointMatrix[int(a_Joints.w)];
 
     v_TexCoord = a_TexCoord;
-    // TODO: multiply by model transform matrix
-    v_Normal = a_Normal;
+    v_Normal = normalize(mat3(u_Model) * mat3(skinMatrix) * a_Normal);
     v_Position = a_Position;
     gl_Position = u_ProjView * u_Model * skinMatrix * vec4(v_Position, 1.0);
 }
