@@ -7,8 +7,9 @@ use super::{
         texture3d_entry,
         sampler_entry,
     },
-    overlay::OverlayVertex,
 };
+
+use crate::overlay::WidgetVertex;
 
 pub struct Pipeline {
     pub bind_group_layout: wgpu::BindGroupLayout,
@@ -439,7 +440,7 @@ impl Pipeline {
         let vertex_state = wgpu::VertexStateDescriptor {
             index_format: None,
             vertex_buffers: &[wgpu::VertexBufferDescriptor {
-                stride: OverlayVertex::size(),
+                stride: WidgetVertex::size(),
                 step_mode: wgpu::InputStepMode::Vertex,
                 attributes: &[
                     // position
@@ -453,6 +454,12 @@ impl Pipeline {
                         format: wgpu::VertexFormat::Float2,
                         offset: 4 * 2,
                         shader_location: 1,
+                    },
+                    // color
+                    wgpu::VertexAttributeDescriptor {
+                        format: wgpu::VertexFormat::Float4,
+                        offset: 4 * 4,
+                        shader_location: 2,
                     },
                 ],
             }],
@@ -469,21 +476,22 @@ impl Pipeline {
                 module: &fs_module,
                 entry_point: "main",
             }),
-            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+            rasterization_state: Some(wgpu::RasterizationStateDescriptor::default()),
+            /*rasterization_state: Some(wgpu::RasterizationStateDescriptor {
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: wgpu::CullMode::Back,
                 ..Default::default()
-            }),
-            primitive_topology: wgpu::PrimitiveTopology::TriangleStrip,
+            }),*/
+            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
             color_states: &[wgpu::ColorStateDescriptor {
                 format: sc_desc.format,
                 color_blend: wgpu::BlendDescriptor {
-                    src_factor: wgpu::BlendFactor::SrcAlpha,
+                    src_factor: wgpu::BlendFactor::One,
                     dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
                     ..Default::default()
                 },
                 alpha_blend: wgpu::BlendDescriptor {
-                    src_factor: wgpu::BlendFactor::One,
+                    src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
                     dst_factor: wgpu::BlendFactor::One,
                     ..Default::default()
                 },

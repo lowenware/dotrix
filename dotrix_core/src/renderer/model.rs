@@ -69,8 +69,8 @@ impl Model {
     ) {
         use wgpu::util::DeviceExt;
 
-        let device = renderer.device();
-        let queue = renderer.queue();
+        let device = &renderer.device;
+        let queue = &renderer.queue;
 
         let transform_matrix = self.transform.matrix();
         let model_transform = AsRef::<[f32; 16]>::as_ref(&transform_matrix);
@@ -162,6 +162,7 @@ impl Model {
                 .expect("Static model mesh must have initialized buffers at this stage");
 
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: &frame.view,
                     resolve_target: None,

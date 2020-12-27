@@ -1,5 +1,4 @@
 use bytemuck::{ Pod, Zeroable };
-use dotrix_math::{Vec2, Vec3};
 
 use crate::{
     assets::{
@@ -7,57 +6,33 @@ use crate::{
         Texture,
         VertexAttributes,
     },
+    renderer::pipeline::Pipeline,
     services::{
         Assets,
         Renderer,
     },
 };
-use super::pipeline::Pipeline;
-use super::transform::Transform;
 
-#[derive(Default)]
-pub struct Overlay {
-    pub widgets: Vec<Widget>,
-}
-
-impl Overlay {
-    pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
-    }
+pub struct Widget {
+    pub vertices: Vec<WidgetVertex>,
+    pub indices: Option<Vec<u32>>,
+    pub texture: Id<Texture>,
+    pub pipeline: Id<Pipeline>,
+    pub buffers: Option<Buffers>,
+    pub clip_min_x: u32,
+    pub clip_min_y: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 pub struct Buffers {
     pub bind_group: wgpu::BindGroup,
     pub vertices_buffer: wgpu::Buffer,
-    pub transform: wgpu::Buffer,
-}
-
-pub struct Widget {
-    pub positions: Vec<[f32; 2]>,
-    pub uvs: Vec<[f32; 2]>,
-    pub texture: Id<Texture>,
-    pub pipeline: Id<Pipeline>,
-    pub translate: Vec2,
-    pub scale: Vec2,
-    pub buffers: Option<Buffers>,
+    pub indices_buffer: Option<wgpu::Buffer>,
+    pub screen_size: wgpu::Buffer,
 }
 
 impl Widget {
-    pub fn vertices(&self) -> Result<Vec<OverlayVertex>, ()> {
-        if self.positions.len() == self.uvs.len() {
-            let result = self.positions
-                .iter()
-                .zip(self.uvs.iter())
-                .map(|(&position, &uv)| OverlayVertex { position, uv })
-                .collect::<Vec<_>>();
-            Ok(result)
-        } else {
-            Err(())
-        }
-    }
-
     /// Returns loaded assets if they are all ready
     fn get_texture<'a>(
         &self,
@@ -86,33 +61,42 @@ impl Widget {
     ) {
         use wgpu::util::DeviceExt;
 
-        let device = renderer.device();
-        let queue = renderer.queue();
+        let device = &renderer.device;
+        let queue = &renderer.queue;
 
-        let transform_matrix = (Transform {
-            translate: Vec3::new(self.translate.x, self.translate.y, 0.0),
-            scale: Vec3::new(self.scale.x, self.scale.y, 1.0),
-            ..Default::default()
-        }).matrix();
-        let transform = AsRef::<[f32; 16]>::as_ref(&transform_matrix);
+        let screen_size = renderer.window.inner_size();
+        let scale_factor = renderer.window.scale_factor() as f32;
+        let screen_size = [
+            screen_size.width as f32 / scale_factor,
+            screen_size.height as f32 / scale_factor
+        ];
 
         if let Some(buffers) = self.buffers.as_ref() {
-            queue.write_buffer(&buffers.transform, 0, bytemuck::cast_slice(transform));
+            queue.write_buffer(&buffers.screen_size, 0, bytemuck::cast_slice(&screen_size));
         } else {
             self.buffers = if let Ok(texture) = self.get_texture(assets, device, queue) {
 
-                let vertices = self.vertices().expect("Overlay needs vertices data");
                 let vertices_buffer = device.create_buffer_init(
                     &wgpu::util::BufferInitDescriptor {
                         label: Some("Overlay Vertex Buffer"),
-                        contents: bytemuck::cast_slice(&vertices),
+                        contents: bytemuck::cast_slice(&self.vertices),
                         usage: wgpu::BufferUsage::VERTEX,
                     }
                 );
 
-                let transform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Overlay Transform"),
-                    contents: bytemuck::cast_slice(transform),
+                let indices_buffer = self.indices.as_ref().map(|indices| {
+                    device.create_buffer_init(
+                        &wgpu::util::BufferInitDescriptor {
+                            label: Some("Overlay Indices Buffer"),
+                            contents: bytemuck::cast_slice(indices),
+                            usage: wgpu::BufferUsage::INDEX,
+                        }
+                    )
+                });
+
+                let screen_size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("Overlay screen_size"),
+                    contents: bytemuck::cast_slice(&screen_size),
                     usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
                 });
 
@@ -121,7 +105,7 @@ impl Widget {
                     entries: &[
                         wgpu::BindGroupEntry {
                             binding: 0,
-                            resource: transform.as_entire_binding(),
+                            resource: screen_size.as_entire_binding(),
                         },
                         wgpu::BindGroupEntry {
                             binding: 1,
@@ -139,7 +123,8 @@ impl Widget {
                     Buffers {
                         bind_group,
                         vertices_buffer,
-                        transform,
+                        indices_buffer,
+                        screen_size,
                     }
                 )
             } else {
@@ -157,6 +142,7 @@ impl Widget {
         if let Some(buffers) = self.buffers.as_ref() {
 
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: &frame.view,
                     resolve_target: None,
@@ -170,12 +156,20 @@ impl Widget {
 
             rpass.push_debug_group("Prepare to draw an Overlay");
             rpass.set_pipeline(&pipeline.wgpu_pipeline);
+            rpass.set_scissor_rect(self.clip_min_x, self.clip_min_y, self.width, self.height);
             rpass.set_bind_group(0, &buffers.bind_group, &[]);
             rpass.set_vertex_buffer(0, buffers.vertices_buffer.slice(..));
             rpass.pop_debug_group();
 
-            rpass.insert_debug_marker("Draw a model");
-            rpass.draw(0..self.positions.len() as u32, 0..1);
+            if let Some(indices_buffer) = buffers.indices_buffer.as_ref() {
+                let indices_count = self.indices.as_ref().unwrap().len() as u32;
+                rpass.insert_debug_marker("Draw indexed model");
+                rpass.set_index_buffer(indices_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                rpass.draw_indexed(0..indices_count, 0, 0..1);
+            } else {
+                rpass.insert_debug_marker("Draw an overlay");
+                rpass.draw(0..self.vertices.len() as u32, 0..1);
+            }
         }
     }
 }
@@ -183,24 +177,27 @@ impl Widget {
 impl Default for Widget {
     fn default() -> Self {
         Widget {
-            positions: vec![[-1.0, 1.0], [-1.0, -1.0], [1.0, 1.0], [1.0, -1.0]],
-            uvs: vec![[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]],
+            vertices: Vec::new(),
+            indices: None,
             texture: Id::default(),
             pipeline: Id::default(),
-            translate: Vec2::new(0.0, 0.0),
-            scale: Vec2::new(1.0, 1.0),
             buffers: None,
+            clip_min_x: 0,
+            clip_min_y: 0,
+            width: 640,
+            height: 480,
         }
     }
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
-pub struct OverlayVertex {
+#[derive(Clone, Copy, Debug)]
+pub struct WidgetVertex {
     pub position: [f32; 2],
     pub uv: [f32; 2],
+    pub color: [f32; 4],
 }
 
-unsafe impl Pod for OverlayVertex {}
-unsafe impl Zeroable for OverlayVertex {}
-impl VertexAttributes for OverlayVertex {}
+unsafe impl Pod for WidgetVertex {}
+unsafe impl Zeroable for WidgetVertex {}
+impl VertexAttributes for WidgetVertex {}

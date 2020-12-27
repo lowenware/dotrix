@@ -3,15 +3,16 @@ use std::collections::HashMap;
 
 use winit::event::{
     ElementState,
-    Event,
     KeyboardInput,
     MouseScrollDelta,
     WindowEvent,
 };
 
-pub type KeyCode = winit::event::VirtualKeyCode;
-
-pub type MouseButton = winit::event::MouseButton;
+pub use winit::event::{
+    ModifiersState as Modifiers,
+    MouseButton,
+    VirtualKeyCode as KeyCode,
+};
 
 /// Information about KeyboardKey or MouseButton.
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, )] // TODO: add support for serialization
@@ -28,6 +29,20 @@ pub enum State {
     Deactivated,
 }
 
+pub enum Event {
+    Copy,
+    Cut,
+    Key(KeyEvent),
+    Text(String),
+}
+
+#[derive(Debug)]
+pub struct KeyEvent {
+    pub key_code: KeyCode,
+    pub pressed: bool,
+    pub modifiers: Modifiers,
+}
+
 /// Input Service
 pub struct Input {
     mapper: Box<dyn std::any::Any + Send + Sync>,
@@ -36,6 +51,8 @@ pub struct Input {
     mouse_position: Option<Vec2>,
     last_mouse_position: Option<Vec2>,
     window_size: Vec2, // TODO: move to other struct or service
+    pub events: Vec<Event>,
+    pub modifiers: Modifiers,
 }
 
 impl Input {
@@ -47,6 +64,8 @@ impl Input {
             mouse_position: None,
             last_mouse_position: None,
             window_size: Vec2::new(0.0, 0.0),
+            events: Vec::with_capacity(8),
+            modifiers: Modifiers::empty()
         }
     }
 
@@ -64,6 +83,10 @@ impl Input {
         None
     }
 
+    /// Returns the status of the raw input
+    pub fn button_state(&self, button: Button) -> Option<State> {
+        self.states.get(&button).copied()
+    }
 
     /// Checks if mapped action button is pressed.
     pub fn is_action_activated<T>(&self, action: T) -> bool
@@ -98,7 +121,7 @@ impl Input {
             .unwrap_or(false)
     }
 
-    /// Get input amapper reference
+    /// Get input mapper reference
     pub fn mapper<T: 'static + Send + Sync>(&self) -> &T {
         self.mapper.downcast_ref::<T>().unwrap()
     }
@@ -120,8 +143,8 @@ impl Input {
     }
 
     /// Current mouse position in pixel coordinates. The top-left of the window is at (0, 0).
-    pub fn mouse_position(&self) -> Vec2 {
-        self.mouse_position.unwrap_or_else(|| Vec2::new(0.0, 0.0))
+    pub fn mouse_position(&self) -> Option<&Vec2> {
+        self.mouse_position.as_ref()
     }
 
     /// Difference of the mouse position from the last frame in pixel coordinates. The top-left of
@@ -161,33 +184,34 @@ impl Input {
             State::Deactivated => false,
             _ => true,
         });
+
+        self.events.clear();
     }
 
     /// This method should be called in application.rs in event_loop, so systems will get actual
     /// Input data.
     pub fn on_event(&mut self, event: &winit::event::Event<'_, ()>) {
-        match event {
-            Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
-                ..
-            } => self.on_keyboard_event(input),
-            Event::WindowEvent {
-                event: WindowEvent::MouseInput { state, button, .. },
-                ..
-            } => self.on_mouse_click_event(*state, *button),
-            Event::WindowEvent {
-                event: WindowEvent::CursorMoved { position, .. },
-                ..
-            } => self.on_cursor_moved_event(position),
-            Event::WindowEvent {
-                event: WindowEvent::MouseWheel { delta, .. },
-                ..
-            } => self.on_mouse_wheel_event(&delta),
-            Event::WindowEvent {
-                event: WindowEvent::Resized(size),
-                ..
-            } => self.window_size = Vec2::new(size.width as f32, size.height as f32),
-            _ => {}
+        if let winit::event::Event::WindowEvent { event, .. } = event {
+            match event {
+                WindowEvent::KeyboardInput { input, .. } => self.on_keyboard_event(input),
+                WindowEvent::MouseInput { state, button, .. } =>
+                    self.on_mouse_click_event(*state, *button),
+                WindowEvent::CursorMoved { position, .. } => self.on_cursor_moved_event(position),
+                WindowEvent::MouseWheel { delta, .. } => self.on_mouse_wheel_event(&delta),
+                WindowEvent::Resized(size) =>
+                    self.window_size = Vec2::new(size.width as f32, size.height as f32),
+                WindowEvent::ModifiersChanged(input) => self.modifiers = *input,
+                WindowEvent::ReceivedCharacter(chr) => {
+                    if is_printable(*chr) && !self.modifiers.ctrl() && !self.modifiers.logo() {
+                        if let Some(Event::Text(text)) = self.events.last_mut() {
+                            text.push(*chr);
+                        } else {
+                            self.events.push(Event::Text(chr.to_string()));
+                        }
+                    }
+                }
+                _ => {},
+            }
         }
     }
 
@@ -202,6 +226,11 @@ impl Input {
     /// Handle keyboard event from winit.
     fn on_keyboard_event(&mut self, input: &KeyboardInput) {
         if let Some(key_code) = input.virtual_keycode {
+            self.events.push(Event::Key(KeyEvent {
+                key_code,
+                modifiers: self.modifiers,
+                pressed: input.state == ElementState::Pressed,
+            }));
             self.on_button_state(Button::Key(key_code), input.state);
         }
     }
@@ -296,4 +325,13 @@ impl<T: Copy + Eq + std::hash::Hash> Default for Mapper<T> {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[inline]
+fn is_printable(chr: char) -> bool {
+    let is_in_private_use_area = ('\u{e000}'..='\u{f8ff}').contains(&chr)
+        || ('\u{f0000}'..='\u{ffffd}').contains(&chr)
+        || ('\u{100000}'..='\u{10fffd}').contains(&chr);
+
+    !is_in_private_use_area && !chr.is_ascii_control()
 }

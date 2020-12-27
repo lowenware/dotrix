@@ -2,12 +2,12 @@ use dotrix::{
     Dotrix,
     assets::{ Mesh },
     ecs::{ Const, Mut, RunLevel, System },
-    components::{ Animator, Light, Model, SkyBox, Widget },
-    services::{ Assets, Camera, Frame, Input, Overlay, World },
+    components::{ Animator, Light, Model, SkyBox },
+    services::{ Assets, Camera, Frame, Input, World },
     systems::{ camera_control, skeletal_animation, world_renderer },
     renderer::transform::Transform,
     input::{ ActionMapper, Button, KeyCode, Mapper },
-    math::{ Point3, Quat, Rotation3, Vec2, Vec3, Rad },
+    math::{ Point3, Quat, Rotation3, Vec3, Rad },
 };
 
 use std::f32::consts::PI;
@@ -38,6 +38,8 @@ fn main() {
             distance: 5.0,
             ..Default::default()
         })
+        // Frame measurement service
+        .with_service(Frame::new())
         // Input service uses Mapper to bind Actions to buttons
         .with_service(Input::new(Box::new(Mapper::<Action>::new())))
         // World service implements storage for game entities and query mechanism
@@ -51,13 +53,11 @@ fn startup(
     mut world: Mut<World>,
     mut assets: Mut<Assets>,
     mut input: Mut<Input>,
-    mut overlay: Mut<Overlay>,
 ) {
     init_skybox(&mut world, &mut assets);
     init_terrain(&mut world, &mut assets);
     init_light(&mut world);
     init_player(&mut world, &mut assets, &mut input);
-    init_overlay(&mut assets, &mut overlay);
 }
 
 fn init_skybox(
@@ -269,22 +269,6 @@ fn player_control(
             camera.set_view();
         }
     }
-}
-
-fn init_overlay(
-    assets: &mut Assets,
-    overlay: &mut Overlay,
-) {
-    // import overlay texture
-    assets.import("examples/demo/lowenware.png");
-    let texture = assets.register("lowenware");
-    // add overlay widget
-    overlay.widgets.push(Widget {
-        texture,
-        scale: Vec2::new(0.09, 0.12),
-        translate: Vec2::new(0.7, 0.7),
-        ..Default::default()
-    });
 }
 
 /// Enumeration of actions provided by the game

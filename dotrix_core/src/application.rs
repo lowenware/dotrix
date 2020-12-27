@@ -1,7 +1,7 @@
 pub mod services;
 
 use std::{
-    time::{Duration, Instant},
+    time::{ Duration, Instant },
 };
 
 use winit::{
@@ -15,10 +15,7 @@ use crate::{
     ecs::System,
     frame::Frame,
     input::Input,
-    renderer::{
-        Overlay,
-        Renderer,
-    },
+    renderer::Renderer,
     scheduler::Scheduler,
 };
 
@@ -28,6 +25,8 @@ pub struct Application {
     name: &'static str,
     scheduler: Scheduler,
     services: Services,
+    clear_color: [f64; 4],
+    fullscreen: bool,
 }
 
 impl Application {
@@ -36,7 +35,14 @@ impl Application {
             name,
             scheduler: Scheduler::new(),
             services: Services::new(),
+            clear_color: [0.1, 0.2, 0.3, 1.0],
+            fullscreen: false,
         }
+    }
+
+    pub fn set_display(&mut self, clear_color: [f64; 4], fullscreen: bool) {
+        self.clear_color = clear_color;
+        self.fullscreen = fullscreen;
     }
 
     pub fn add_system(&mut self, system: System) {
@@ -55,7 +61,9 @@ impl Application {
     /// Run the application
     pub fn run(self) {
         let event_loop = EventLoop::new();
-        let window = WindowBuilder::new().build(&event_loop).unwrap();
+        let window = WindowBuilder::new()
+            .with_title(self.name)
+            .build(&event_loop).unwrap();
 
         wgpu_subscriber::initialize_default_subscriber(None);
 
@@ -71,19 +79,14 @@ fn run(
     event_loop: EventLoop<()>,
     window: Window,
     Application {
-        name,
+        clear_color,
         mut scheduler,
         mut services,
+        ..
     }: Application
 ) {
-    println!("Starting {}", name);
-
-    let renderer = futures::executor::block_on(Renderer::new(&window));
-    let overlay = Overlay::default();
-
-    // let mut swap_chain = renderer.swap_chain();
-    services.add(overlay);
-    services.add(renderer);
+    // initalize WGPU and surface
+    let (device, queue, surface) = futures::executor::block_on(init_surface(&window));
 
     let (mut pool, _spawner) = {
         let local_pool = futures::executor::LocalPool::new();
@@ -92,14 +95,9 @@ fn run(
     };
     let mut last_update_inst = Instant::now();
 
+    services.add(Renderer::new(device, queue, surface, window, clear_color));
+
     scheduler.run_startup(&mut services);
-
-    services.add(Frame::new());
-
-    if let Some(input) = services.get_mut::<Input>() {
-        let size = window.inner_size();
-        input.set_window_size(size.width as f32, size.height as f32);
-    }
 
     event_loop.run(move |event, _, control_flow| {
         // TODO: other possibilities?
@@ -117,21 +115,21 @@ fn run(
         match event {
             Event::MainEventsCleared => {
                 if last_update_inst.elapsed() > Duration::from_millis(5) {
-                    window.request_redraw();
+                    if let Some(renderer) = services.get_mut::<Renderer>() {
+                        renderer.window.request_redraw();
+                    }
                     last_update_inst = Instant::now();
                 }
-
                 pool.run_until_stalled();
             }
             Event::WindowEvent {
                 event: WindowEvent::Resized(size),
                 ..
             } => {
-                if let Some(input) = services.get_mut::<Input>() {
-                    input.set_window_size(size.width as f32, size.height as f32);
-                }
                 // Recreate the swap chain with the new size
-                services.get_mut::<Renderer>().unwrap().resize(size.width, size.height);
+                if let Some(renderer) = services.get_mut::<Renderer>() {
+                    renderer.resize(size.width, size.height)
+                }
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -140,13 +138,17 @@ fn run(
                 *control_flow = ControlFlow::Exit;
             },
             Event::RedrawRequested(_) => {
-
-                services.get_mut::<Frame>().unwrap().next();
+                if let Some(frame) = services.get_mut::<Frame>() {
+                    frame.next();
+                }
                 scheduler.run_standard(&mut services);
-                services.get_mut::<Renderer>().unwrap().next_frame();
+                if let Some(renderer) = services.get_mut::<Renderer>() {
+                    renderer.next_frame();
+                }
                 scheduler.run_render(&mut services);
-                services.get_mut::<Renderer>().unwrap().finalize();
-
+                if let Some(renderer) = services.get_mut::<Renderer>() {
+                    renderer.finalize();
+                }
                 if let Some(input) = services.get_mut::<Input>() {
                     input.reset();
                 }
@@ -156,3 +158,37 @@ fn run(
     });
 }
 
+
+async fn init_surface(
+    window: &winit::window::Window
+) -> (
+    wgpu::Device,
+    wgpu::Queue,
+    wgpu::Surface,
+) {
+    let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
+    let surface = unsafe { instance.create_surface(window) };
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::default(),
+            // Request an adapter which can render to our surface
+            compatible_surface: Some(&surface),
+        })
+        .await
+        .expect("Failed to find an appropiate adapter");
+
+    // Create the logical device and command queue
+    let (device, queue) = adapter
+        .request_device(
+            &wgpu::DeviceDescriptor {
+                label: None,
+                features: wgpu::Features::empty(),
+                limits: wgpu::Limits::default(),
+            },
+            None, // Some(&std::path::Path::new("./wgpu-trace/")),
+        )
+        .await
+        .expect("Failed to create device");
+
+    ( device, queue, surface )
+}

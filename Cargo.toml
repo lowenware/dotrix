@@ -10,13 +10,26 @@ edition = "2018"
 description = "3D Game Engine"
 license = "MIT"
 
+[lib]
+name = "dotrix"
+path = "src/lib.rs"
+
+[[bin]]
+name = "editor"
+path = "editor/main.rs"
+
 [features]
-default = ["ui"]
+default = [ "egui", "terrain", "ui" ]
+
+egui = ["dotrix_egui"]
+terrain = ["dotrix_terrain"]
 ui = ["dotrix_ui"]
 
 [workspace]
 members = [
   "dotrix_core",
+  "dotrix_egui",
+  "dotrix_terrain",
   "dotrix_ui",
 ]
 
@@ -24,16 +37,35 @@ members = [
 version = "0.2"
 path = "./dotrix_core"
 
+[dependencies.dotrix_math]
+version = "0.2.0"
+path = "./dotrix_math"
+
 # Optional dependencies
+
+[dependencies.dotrix_egui]
+version = "0.2"
+path = "./dotrix_egui"
+optional = true
 
 [dependencies.dotrix_ui]
 version = "0.2"
 path = "./dotrix_ui"
 optional = true
 
-[dependencies.dotrix_math]
+[dependencies.dotrix_terrain]
 version = "0.2"
-path = "./dotrix_math"
+path = "./dotrix_terrain"
+optional = true
+
+[dev-dependencies.rand]
+version = "0.8"
+
+[dev-dependencies.rayon]
+version = "1.5"
+
+[dependencies.noise]
+version = "0.7"
 
 [[example]]
 name = "demo"

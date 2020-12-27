@@ -4,7 +4,7 @@ use dotrix::{
     components::SkyBox,
     ecs::{ Mut, RunLevel, System },
     input::{ ActionMapper, Button, Mapper },
-    services::{ Assets, Camera, Input, World },
+    services::{ Assets, Camera, Frame, Input, World },
     systems::{ camera_control, world_renderer },
 };
 
@@ -16,6 +16,7 @@ fn main() {
         .with_system(System::from(startup).with(RunLevel::Startup))
         .with_system(System::from(camera_control))
         .with_service(Assets::new())
+        .with_service(Frame::new())
         .with_service(
             Camera {
                 distance: 1.0,

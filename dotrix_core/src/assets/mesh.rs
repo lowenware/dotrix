@@ -1,6 +1,6 @@
 use bytemuck::{ Pod, Zeroable };
 use wgpu::util::DeviceExt;
-use dotrix_math::{Vec3, InnerSpace};
+use dotrix_math::{ Vec3, InnerSpace, VectorSpace };
 
 #[derive(Default)]
 pub struct Mesh {
@@ -18,10 +18,10 @@ impl Mesh {
 
     /// converts a mesh into a vector of vertices data, packed for static shadering:
     /// positions, normals, uvs
-    pub fn as_static(&self) -> Result<Vec<StaticModelVertex>, ()> {
+    pub fn as_static(&self) -> Option<Vec<StaticModelVertex>> {
         if let Some(normals) = self.normals.as_ref() {
             if let Some(uvs) = self.uvs.as_ref() {
-                return Ok(
+                return Some(
                     self.positions
                         .iter()
                         .zip(normals.iter().zip(uvs.iter()))
@@ -36,18 +36,18 @@ impl Mesh {
                 );
             }
         }
-        Err(())
+        None
     }
 
     /// converts a mesh into a vector of vertices data, packed for skinned shadering:
     /// positions, normals, uvs, weights, 
-    pub fn as_skinned(&self) -> Result<Vec<SkinnedModelVertex>, ()> {
+    pub fn as_skinned(&self) -> Option<Vec<SkinnedModelVertex>> {
         if let Some(normals) = self.normals.as_ref() {
             if let Some(uvs) = self.uvs.as_ref() {
                 if let Some(all_weights) = self.weights.as_ref() {
                     if let Some(all_joints) = self.joints.as_ref() {
                         let weights_joints = all_weights.iter().zip(all_joints.iter());
-                        return Ok(
+                        return Some(
                             self.positions
                                 .iter()
                                 .zip(normals.iter().zip(uvs.iter().zip(weights_joints)))
@@ -66,7 +66,7 @@ impl Mesh {
                 }
             }
         }
-        Err(())
+        None
     }
 
     pub fn is_skinned(&self) -> bool {
@@ -180,7 +180,7 @@ impl Mesh {
 
     pub fn calculate(&mut self) {
         if self.normals.is_none() {
-            let mut normals = vec![[0.0; 3]; self.positions.len()];
+            let mut normals = vec![[99.9; 3]; self.positions.len()];
             let faces = self.indices
                 .as_ref()
                 .map(|i| i.len())
@@ -199,9 +199,10 @@ impl Mesh {
                 let v1 = Vec3::from(self.positions[i1]);
                 let v2 = Vec3::from(self.positions[i2]);
                 let n = (v1 - v0).cross(v2 - v1).normalize();
-                normals[i0] = n.into();
-                normals[i1] = n.into();
-                normals[i2] = n.into();
+                // println!("normal: {:?}, {:?}, {:?} -> {:?}", v0, v1, v2, n);
+                normals[i0] = if normals[i0][0] > 9.0 { n.into() } else { n.lerp(normals[i0].into(), 0.5).into() };
+                normals[i1] = if normals[i1][0] > 9.0 { n.into() } else { n.lerp(normals[i1].into(), 0.5).into() };
+                normals[i2] = if normals[i2][0] > 9.0 { n.into() } else { n.lerp(normals[i2].into(), 0.5).into() };
             }
             self.normals = Some(normals);
         }

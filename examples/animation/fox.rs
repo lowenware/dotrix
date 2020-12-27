@@ -12,7 +12,7 @@ use dotrix::{
     components::{ Animator, Light, Model },
     ecs::{ Mut, RunLevel, System },
     renderer::transform::Transform,
-    services::{ Assets, Camera, World },
+    services::{ Assets, Camera, Frame, World },
     systems::{ skeletal_animation, world_renderer },
     math::{ Vec3 },
 };
@@ -24,6 +24,7 @@ fn main() {
         .with_system(System::from(skeletal_animation))
         .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_service(Assets::new())
+        .with_service(Frame::new())
         .with_service(Camera {
             distance: 200.0,
             y_angle: 1.57,
