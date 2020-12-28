@@ -42,7 +42,7 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     let run = assets.register::<Animation>("Fox::Run");
     let survey = assets.register::<Animation>("Fox::Survey");
     let trans1 = Transform {
-        translate: cgmath::Vector3::new(-50.0, 0.0, 0.0),
+        translate: cgmath::Vector3::new(-100.0, 0.0, 0.0),
         scale: cgmath::Vector3::new(0.8, 0.8, 0.8),
         ..Default::default()
     };
@@ -51,12 +51,12 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
         ..Default::default()
     };
     let trans3 = Transform {
-        translate: cgmath::Vector3::new(50.0, 0.0, 0.0),
+        translate: cgmath::Vector3::new(100.0, 0.0, 0.0),
         scale: cgmath::Vector3::new(0.8, 0.8, 0.8),
         ..Default::default()
     };
 
-    assets.import("assets/Fox.gltf");
+    assets.import("examples/animation/Fox.gltf");
 
     world.spawn(vec![
         (

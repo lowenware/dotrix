@@ -41,12 +41,12 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
 
     // The skybox cubemap was downloaded from https://opengameart.org/content/elyvisions-skyboxes
     // These files were licensed as CC-BY 3.0 Unported on 2012/11/7
-    assets.import("assets/skybox/skybox_right.png");
-    assets.import("assets/skybox/skybox_left.png");
-    assets.import("assets/skybox/skybox_top.png");
-    assets.import("assets/skybox/skybox_bottom.png");
-    assets.import("assets/skybox/skybox_front.png");
-    assets.import("assets/skybox/skybox_back.png");
+    assets.import("examples/skybox/skybox_right.png");
+    assets.import("examples/skybox/skybox_left.png");
+    assets.import("examples/skybox/skybox_top.png");
+    assets.import("examples/skybox/skybox_bottom.png");
+    assets.import("examples/skybox/skybox_front.png");
+    assets.import("examples/skybox/skybox_back.png");
 
     world.spawn(vec![
         (SkyBox { primary_texture, ..Default::default() },),

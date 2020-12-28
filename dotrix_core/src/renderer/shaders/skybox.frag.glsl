@@ -7,5 +7,6 @@ layout(set = 0, binding = 1) uniform textureCube t_CubeMap;
 layout(set = 0, binding = 2) uniform sampler s_CubeMap;
 
 void main() {
-    o_Target = texture(samplerCube(t_CubeMap, s_CubeMap), v_Position);
+    vec3 uv = vec3(-v_Position.x, v_Position.yz);
+    o_Target = texture(samplerCube(t_CubeMap, s_CubeMap), uv);
 }
