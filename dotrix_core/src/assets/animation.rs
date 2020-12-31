@@ -4,7 +4,8 @@ use super::{
     skin::JointId,
 };
 
-use crate::math::{ TransformBuilder, slerp };
+use super::super::renderer::transform::{ TransformBuilder };
+use dotrix_math::{slerp, Vec3, Quat, VectorSpace};
 
 #[derive(Debug)]
 pub enum Interpolation {
@@ -27,14 +28,13 @@ trait Interpolate: Copy {
     fn linear(self, target: Self, value: f32) -> Self;
 }
 
-impl Interpolate for cgmath::Vector3<f32> {
+impl Interpolate for Vec3{
     fn linear(self, target: Self, value: f32) -> Self {
-        use cgmath::VectorSpace;
         self.lerp(target, value)
     }
 }
 
-impl Interpolate for cgmath::Quaternion<f32> {
+impl Interpolate for Quat {
     fn linear(self, target: Self, value: f32) -> Self {
         slerp(self, target, value)
     }
@@ -101,9 +101,9 @@ impl<T: Interpolate + Copy + Clone> Channel<T> {
 
 pub struct Animation {
     duration: Duration,
-    translation_channels: Vec<Channel<cgmath::Vector3<f32>>>,
-    rotation_channels: Vec<Channel<cgmath::Quaternion<f32>>>,
-    scale_channels: Vec<Channel<cgmath::Vector3<f32>>>,
+    translation_channels: Vec<Channel<Vec3>>,
+    rotation_channels: Vec<Channel<Quat>>,
+    scale_channels: Vec<Channel<Vec3>>,
 }
 
 impl Animation {
@@ -125,7 +125,7 @@ impl Animation {
         joint_id: JointId,
         interpolation: Interpolation,
         timestamps: Vec<f32>,
-        translations: Vec<cgmath::Vector3<f32>>,
+        translations: Vec<Vec3>,
     ) {
         self.update_duration(&timestamps);
         self.translation_channels.push(Channel::from(joint_id, interpolation, timestamps, translations));
@@ -136,7 +136,7 @@ impl Animation {
         joint_id: JointId,
         interpolation: Interpolation,
         timestamps: Vec<f32>,
-        rotations: Vec<cgmath::Quaternion<f32>>,
+        rotations: Vec<Quat>,
     ) {
         self.update_duration(&timestamps);
         self.rotation_channels.push(Channel::from(joint_id, interpolation, timestamps, rotations));
@@ -147,7 +147,7 @@ impl Animation {
         joint_id: JointId,
         interpolation: Interpolation,
         timestamps: Vec<f32>,
-        scales: Vec<cgmath::Vector3<f32>>,
+        scales: Vec<Vec3>,
     ) {
         self.update_duration(&timestamps);
         self.scale_channels.push(Channel::from(joint_id, interpolation, timestamps, scales));

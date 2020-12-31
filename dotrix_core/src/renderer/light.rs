@@ -1,3 +1,4 @@
+use dotrix_math::Vec4;
 
 const MAX_LIGHTS: usize = 10;
 
@@ -5,15 +6,15 @@ const MAX_LIGHTS: usize = 10;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Light {
-    pub position: cgmath::Vector4<f32>,
-    pub color: cgmath::Vector4<f32>,
+    pub position: Vec4,
+    pub color: Vec4,
 }
 
 impl Light {
     pub fn white(position: [f32; 3]) -> Self {
         Self {
-            position: cgmath::Vector4::new(position[0], position[1], position[2], 1.0),
-            color: cgmath::Vector4::new(1.0, 1.0, 1.0, 1.0),
+            position: Vec4::new(position[0], position[1], position[2], 1.0),
+            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
         }
     }
 }

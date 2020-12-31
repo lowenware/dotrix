@@ -5,7 +5,6 @@ mod camera;
 pub mod ecs;
 mod frame;
 pub mod input;
-pub mod math;
 pub mod renderer;
 mod scheduler;
 mod world;

@@ -5,11 +5,10 @@ use dotrix::{
     components::{ Animator, Light, Model, SkyBox, Widget },
     services::{ Assets, Camera, Frame, Input, Overlay, World },
     systems::{ camera_control, skeletal_animation, world_renderer },
-    math::Transform,
+    renderer::transform::Transform,
     input::{ ActionMapper, Button, KeyCode, Mapper },
+    math::{ Point3, Quat, Rotation3, Vec2, Vec3, Rad },
 };
-
-use cgmath::{ Point3, Quaternion, Rotation3, Vector2, Vector3, Rad };
 
 use std::f32::consts::PI;
 
@@ -148,7 +147,7 @@ fn init_terrain(
     // half of its size by X and Z axis
     let shift = (size / 2) as f32;
     let transform = Transform {
-        translate: Vector3::new(-shift, 0.0, -shift),
+        translate: Vec3::new(-shift, 0.0, -shift),
         ..Default::default()
     };
 
@@ -176,8 +175,8 @@ fn init_player(
 
     // shrink player's character model
     let transform = Transform {
-        scale: Vector3::new(0.5, 0.5, 0.5),
-        translate: Vector3::new(0.0, 0.1, 0.0),
+        scale: Vec3::new(0.5, 0.5, 0.5),
+        translate: Vec3::new(0.0, 0.1, 0.0),
         ..Default::default()
     };
 
@@ -241,7 +240,7 @@ fn player_control(
         // get camera angle around Y axis
         let y_angle = camera.y_angle;
         // rotate model to the right direction
-        model.transform.rotate = Quaternion::from_angle_y(Rad(-(PI / 2.0 + y_angle)));
+        model.transform.rotate = Quat::from_angle_y(Rad(-(PI / 2.0 + y_angle)));
         if distance > 0.00001 {
             // calculate X and Z deltas if player is moving
             let dx = distance * y_angle.cos();
@@ -282,8 +281,8 @@ fn init_overlay(
     // add overlay widget
     overlay.widgets.push(Widget {
         texture,
-        scale: Vector2::new(0.09, 0.12),
-        translate: Vector2::new(0.7, 0.7),
+        scale: Vec2::new(0.09, 0.12),
+        translate: Vec2::new(0.7, 0.7),
         ..Default::default()
     });
 }

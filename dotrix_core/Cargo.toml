@@ -20,8 +20,9 @@ version = "0.13.0"
 version = "1.4"
 features = ["derive"]
 
-[dependencies.cgmath]
-version = "0.17"
+[dependencies.dotrix_math]
+version = "0.2.0"
+path = "../dotrix_math"
 
 [dependencies.futures]
 version = "0.3"

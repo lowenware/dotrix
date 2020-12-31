@@ -1,4 +1,5 @@
 use std::time::{Duration};
+use dotrix_math::{SquareMatrix, Mat4};
 
 use crate::{
     assets::{Animation, Id},
@@ -99,9 +100,8 @@ impl Animator {
 }
 
 pub fn skeletal_animation(frame: Const<Frame>, world: Const<World>, assets: Const<Assets>) {
-    use cgmath::SquareMatrix;
     for (model, animator) in world.query::<(&mut Model, &mut Animator)>() {
-        let global_transform = cgmath::Matrix4::<f32>::identity(); // model.transform.matrix();
+        let global_transform = Mat4::identity(); // model.transform.matrix();
         if let Some(skin) = assets.get(model.skin) {
 
             let mut local_transforms = None;

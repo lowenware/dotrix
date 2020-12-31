@@ -504,8 +504,8 @@ dependencies = [
 name = "dotrix"
 version = "0.2.0"
 dependencies = [
- "cgmath",
  "dotrix_core",
+ "dotrix_math",
  "dotrix_ui",
 ]
 
@@ -515,7 +515,7 @@ version = "0.2.0"
 dependencies = [
  "base64 0.13.0",
  "bytemuck",
- "cgmath",
+ "dotrix_math",
  "futures",
  "gltf",
  "image",
@@ -526,6 +526,13 @@ dependencies = [
  "wgpu",
  "wgpu-subscriber",
  "winit",
+]
+
+[[package]]
+name = "dotrix_math"
+version = "0.2.0"
+dependencies = [
+ "cgmath",
 ]
 
 [[package]]

@@ -1,5 +1,6 @@
 use bytemuck::{ Pod, Zeroable };
 use wgpu::util::DeviceExt;
+use dotrix_math::{Vec3, InnerSpace};
 
 #[derive(Default)]
 pub struct Mesh {
@@ -178,7 +179,6 @@ impl Mesh {
     }
 
     pub fn calculate(&mut self) {
-        use cgmath::InnerSpace;
         if self.normals.is_none() {
             let mut normals = vec![[0.0; 3]; self.positions.len()];
             let faces = self.indices
@@ -195,9 +195,9 @@ impl Mesh {
                     i1 = indices[i1] as usize;
                     i2 = indices[i2] as usize;
                 }
-                let v0 = cgmath::Vector3::from(self.positions[i0]);
-                let v1 = cgmath::Vector3::from(self.positions[i1]);
-                let v2 = cgmath::Vector3::from(self.positions[i2]);
+                let v0 = Vec3::from(self.positions[i0]);
+                let v1 = Vec3::from(self.positions[i1]);
+                let v2 = Vec3::from(self.positions[i2]);
                 let n = (v1 - v0).cross(v2 - v1).normalize();
                 normals[i0] = n.into();
                 normals[i1] = n.into();

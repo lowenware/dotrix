@@ -31,8 +31,9 @@ version = "0.2"
 path = "./dotrix_ui"
 optional = true
 
-[dev-dependencies.cgmath]
-version = "0.17"
+[dependencies.dotrix_math]
+version = "0.2"
+path = "./dotrix_math"
 
 [[example]]
 name = "demo"

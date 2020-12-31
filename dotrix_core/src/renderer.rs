@@ -4,7 +4,10 @@ pub mod pipeline;
 pub mod skybox;
 mod model;
 mod overlay;
+pub mod transform;
 
+
+pub use transform::*;
 pub use model::*;
 pub use overlay::*;
 pub use skybox::*;
@@ -14,6 +17,8 @@ use pipeline::Pipeline;
 use std::collections::HashMap;
 use winit::window::Window;
 use wgpu::util::DeviceExt;
+
+use dotrix_math::{Mat4, Deg, perspective};
 
 use crate::{
     assets::Id,
@@ -28,12 +33,12 @@ pub struct Renderer {
     sc_desc: wgpu::SwapChainDescriptor,
     surface: wgpu::Surface,
     frame: Option<wgpu::SwapChainFrame>,
-    projection: cgmath::Matrix4<f32>,
+    projection: Mat4,
     depth_buffer: wgpu::TextureView,
     pipelines: HashMap<Id<Pipeline>, Pipeline>,
 }
 
-pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
+pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
     1.0, 0.0, 0.0, 0.0,
     0.0, 1.0, 0.0, 0.0,
     0.0, 0.0, 0.5, 0.0,
@@ -176,7 +181,7 @@ impl Renderer {
         self.frame = Some(frame);
     }
 
-    pub fn projection(&self) -> &cgmath::Matrix4<f32> {
+    pub fn projection(&self) -> &Mat4 {
         &self.projection
     }
 
@@ -206,12 +211,12 @@ impl Renderer {
         draw_depth_buffer.create_view(&wgpu::TextureViewDescriptor::default())
     }
 
-    fn frustum(aspect_ratio: f32) -> cgmath::Matrix4<f32> {
-        let fov = cgmath::Deg(70f32);
+    fn frustum(aspect_ratio: f32) -> Mat4 {
+        let fov = Deg(70f32);
         let near_plane = 0.1;
         let far_plane = 1000.0;
 
-        cgmath::perspective(fov, aspect_ratio, near_plane, far_plane)
+        perspective(fov, aspect_ratio, near_plane, far_plane)
     }
 }
 
