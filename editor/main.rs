@@ -1,13 +1,13 @@
 mod controls;
 mod editor;
-mod space;
+mod terrain;
 
 use dotrix::{
     Dotrix,
     ecs::{ RunLevel, System },
     math::{ Point3 },
     services::{ Assets, Frame, Camera, Input, World },
-    systems::{ camera_control, overlay, world_renderer },
+    systems::{ overlay, world_renderer },
     input::{ ActionMapper, Button, Mapper },
 };
 
@@ -17,10 +17,11 @@ use editor::{ Editor };
 
 fn main() {
     Dotrix::application("Dotrix Editor")
-        .with_system(System::from(space::startup).with(RunLevel::Startup))
-        .with_system(System::from(camera_control))
+        .with_system(System::from(editor::startup).with(RunLevel::Startup))
+        .with_system(System::from(editor::camera_control))
         .with_system(System::from(overlay))
         .with_system(System::from(editor::ui))
+        .with_system(System::from(terrain::draw))
         .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_service(Assets::new())
         .with_service(Frame::new())

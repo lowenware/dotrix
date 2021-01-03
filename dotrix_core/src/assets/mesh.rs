@@ -157,6 +157,9 @@ impl Mesh {
     }
 
     pub fn load_as_static(&mut self, device: &wgpu::Device) {
+        if self.vertices_buffer.is_some() {
+            return;
+        }
         let vertices = self.as_static()
             .expect("Mesh is not suitable for a static model");
         self.vertices_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -168,6 +171,9 @@ impl Mesh {
     }
 
     pub fn load_as_skinned(&mut self, device: &wgpu::Device) {
+        if self.vertices_buffer.is_some() {
+            return;
+        }
         let vertices = self.as_skinned()
             .expect("Mesh is not suitable for a skinned model");
         self.vertices_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -206,6 +212,11 @@ impl Mesh {
             }
             self.normals = Some(normals);
         }
+    }
+
+    pub fn unload(&mut self) {
+        self.vertices_buffer.take();
+        self.indices_buffer.take();
     }
 }
 

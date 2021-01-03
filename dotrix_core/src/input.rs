@@ -18,7 +18,7 @@ pub use winit::event::{
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, )] // TODO: add support for serialization
 pub enum Button {
     Key(KeyCode), // TODO: consider support for Key{scancode: u32}?
-    Mouse(MouseButton),
+    Mouse(MouseButton), // TODO: would love to see here MouseLeft, MouseRight etc..
 }
 
 /// State of a button.
