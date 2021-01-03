@@ -1,5 +1,3 @@
-#![feature(type_name_of_val)]
-
 mod application;
 pub mod animation;
 pub mod assets;
