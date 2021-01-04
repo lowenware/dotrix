@@ -1,9 +1,6 @@
-mod widget;
-
-pub use widget::{ Widget, WidgetVertex };
-
 use crate::{
     ecs::{ Const, Mut },
+    renderer::{ Widget },
     services::{
         Assets,
         Input,
@@ -24,12 +21,12 @@ impl Overlay {
         }
     }
 
-    pub fn provider<T: 'static + Send + Sync>(&self) -> &T {
-        self.provider.downcast_ref::<T>().unwrap()
+    pub fn provider<T: 'static + Send + Sync>(&self) -> Option<&T> {
+        self.provider.downcast_ref::<T>()
     }
 
-    pub fn provider_mut<T: 'static + Send + Sync>(&mut self) -> &mut T {
-        self.provider.downcast_mut::<T>().unwrap()
+    pub fn provider_mut<T: 'static + Send + Sync>(&mut self) -> Option<&mut T> {
+        self.provider.downcast_mut::<T>()
     }
 
     pub fn update(
@@ -103,14 +100,14 @@ impl dyn Provider {
     }
 }
 
-pub fn overlay(
+pub fn overlay_update(
     mut assets: Mut<Assets>,
     input: Const<Input>,
     mut renderer: Mut<Renderer>
 ) {
     let (width, height) = renderer.display_size();
     let scale_factor = renderer.scale_factor();
-    if let Some(overlay) = renderer.overlay.as_mut() {
+    for overlay in &mut renderer.overlay {
         overlay.update(&mut assets, &input, scale_factor, width as f32, height as f32);
     }
 }

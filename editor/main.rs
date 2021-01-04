@@ -7,7 +7,7 @@ use dotrix::{
     ecs::{ RunLevel, System },
     math::{ Point3 },
     services::{ Assets, Frame, Camera, Input, World },
-    systems::{ overlay, world_renderer },
+    systems::{ overlay_update, world_renderer },
     input::{ ActionMapper, Button, Mapper },
 };
 
@@ -19,7 +19,7 @@ fn main() {
     Dotrix::application("Dotrix Editor")
         .with_system(System::from(editor::startup).with(RunLevel::Startup))
         .with_system(System::from(editor::camera_control))
-        .with_system(System::from(overlay))
+        .with_system(System::from(overlay_update))
         .with_system(System::from(editor::ui))
         .with_system(System::from(terrain::draw))
         .with_system(System::from(world_renderer).with(RunLevel::Render))

@@ -3,12 +3,16 @@ mod light;
 pub mod pipeline;
 pub mod skybox;
 mod model;
+mod overlay;
+mod widget;
 
 pub mod transform;
 pub use transform::*;
 pub use model::*;
 pub use skybox::*;
-pub use light::{Light, LightUniform};
+pub use light::{ Light, LightUniform };
+pub use overlay::{ Overlay, overlay_update, Provider as OverlayProvider };
+pub use widget::{ Widget, WidgetVertex };
 
 use pipeline::Pipeline;
 use std::collections::HashMap;
@@ -19,7 +23,7 @@ use dotrix_math::{Mat4, Deg, perspective};
 use crate::{
     assets::Id,
     ecs::{ Const, Mut, Context },
-    services::{ Assets, Camera, Overlay, World },
+    services::{ Assets, Camera, World },
 };
 
 pub struct Renderer {
@@ -34,7 +38,7 @@ pub struct Renderer {
     pub frame: Option<wgpu::SwapChainFrame>,
     pub projection: Mat4,
     pub pipelines: HashMap<Id<Pipeline>, Pipeline>,
-    pub overlay: Option<Overlay>,
+    pub overlay: Vec<Overlay>,
 }
 
 pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
@@ -83,8 +87,22 @@ impl Renderer {
             frame: None,
             projection: Self::frustum(size.width as f32 / size.height as f32),
             pipelines: HashMap::new(),
-            overlay: None,
+            overlay: Vec::new(),
         }
+    }
+
+    pub fn add_overlay(&mut self, overlay_provider: Box<dyn OverlayProvider>) {
+        self.overlay.push(Overlay::new(overlay_provider));
+    }
+
+    pub fn overlay_provider<T: 'static + Send + Sync>(&self) -> Option<&T> {
+        for overlay in &self.overlay {
+            let provider = overlay.provider::<T>();
+            if provider.is_some() {
+                return provider;
+            }
+        }
+        None
     }
 
     pub fn add_pipeline(&mut self, pipeline: Pipeline) -> Id<Pipeline> {
@@ -350,7 +368,7 @@ pub fn world_renderer(
         model.draw(&assets, &mut encoder, pipeline, frame, depth_buffer);
     }
 
-    if let Some(overlay) = renderer.overlay.as_ref() {
+    for overlay in &renderer.overlay {
         let scale_factor = renderer.window.scale_factor() as f32;
         let size = renderer.window.inner_size();
 

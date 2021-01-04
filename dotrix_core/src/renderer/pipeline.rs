@@ -7,9 +7,8 @@ use super::{
         texture3d_entry,
         sampler_entry,
     },
+    widget::WidgetVertex,
 };
-
-use crate::overlay::WidgetVertex;
 
 pub struct Pipeline {
     pub bind_group_layout: wgpu::BindGroupLayout,

@@ -8,7 +8,7 @@ use dotrix::{
         Slider
     },
     input::{ Button, MouseButton, State as InputState },
-    services::{ Camera, Frame, Input, World, Overlay, Renderer },
+    services::{ Camera, Frame, Input, World, Renderer },
 };
 
 use std::f32::consts::PI;
@@ -40,10 +40,8 @@ impl Editor {
 }
 
 pub fn ui(mut editor: Mut<Editor>, renderer: Mut<Renderer>) {
-    let egui = renderer.overlay
-        .as_ref()
-        .expect("Renderer does not contain an Overlay instance")
-        .provider::<Egui>();
+    let egui = renderer.overlay_provider::<Egui>()
+        .expect("Renderer does not contain an Overlay instance");
 
     SidePanel::left("side_panel", 240.0).show(&egui.ctx, |ui| {
         CollapsingHeader::new("Terrain")
@@ -70,7 +68,7 @@ const ROTATE_SPEED: f32 = PI / 10.0;
 const ZOOM_SPEED: f32 = 10.0;
 
 pub fn startup(mut renderer: Mut<Renderer>, mut world: Mut<World>) {
-    renderer.overlay = Some(Overlay::new(Box::new(Egui::default())));
+    renderer.add_overlay(Box::new(Egui::default()));
 
     world.spawn(Some((Light::white([0.0, 500.0, 0.0]),)));
 }

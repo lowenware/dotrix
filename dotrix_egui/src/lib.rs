@@ -8,7 +8,7 @@ use dotrix_core::{
         MouseButton,
         State as InputState
     },
-    overlay::{ WidgetVertex, Provider, Widget },
+    renderer::{ WidgetVertex, OverlayProvider, Widget },
     services::{ Assets, Input },
 };
 
@@ -23,7 +23,7 @@ pub struct Egui {
     texture_version: Option<u64>,
 }
 
-impl Provider for Egui {
+impl OverlayProvider for Egui {
 
     fn feed(
         &mut self,

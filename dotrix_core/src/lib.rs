@@ -5,7 +5,6 @@ mod camera;
 pub mod ecs;
 mod frame;
 pub mod input;
-pub mod overlay;
 pub mod renderer;
 mod scheduler;
 mod world;
@@ -29,7 +28,6 @@ pub mod services {
         camera::Camera,
         input::Input,
         frame::Frame,
-        overlay::Overlay,
         renderer::Renderer,
         world::World,
     };
@@ -40,7 +38,7 @@ pub mod systems {
         renderer::{
             world_renderer,
         },
-        overlay::overlay,
+        renderer::overlay_update,
         animation::skeletal_animation,
         camera::camera_control,
     };
