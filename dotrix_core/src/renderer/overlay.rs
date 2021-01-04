@@ -46,7 +46,7 @@ impl Overlay {
         surface_width: f32,
         surface_height: f32,
     ) -> Vec<Widget> {
-        self.provider.tesselate(scale_factor, surface_width, surface_height)
+        self.provider.tessellate(scale_factor, surface_width, surface_height)
     }
 }
 
@@ -60,7 +60,7 @@ pub trait Provider: Any + Send + Sync {
         surface_height: f32,
     );
 
-    fn tesselate(
+    fn tessellate(
         &self,
         scale_factor: f32,
         surface_width: f32,

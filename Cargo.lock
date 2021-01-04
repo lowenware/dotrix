@@ -590,9 +590,9 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 
 [[package]]
 name = "egui"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e53b7f113b52fa8146de4f18ec93c3fb5c92250b970ef8f503372af5d737379"
+checksum = "f073ba598f9a5c37d920cf934eee70f2d3bb945a2950620a5e4cd0894db69e5d"
 dependencies = [
  "ahash 0.6.2",
  "atomic_refcell",

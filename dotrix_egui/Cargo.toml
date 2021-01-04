@@ -11,4 +11,4 @@ version = "0.2"
 path = "../dotrix_core"
 
 [dependencies.egui]
-version = "0.6"
+version = "0.7"

@@ -89,14 +89,14 @@ impl OverlayProvider for Egui {
         self.texture_version = Some(texture.version);
     }
 
-    fn tesselate(
+    fn tessellate(
         &self,
         scale_factor: f32,
         surface_width: f32,
         surface_height: f32,
     ) -> Vec<Widget> {
         let (_output, paint_commands) = self.ctx.end_frame();
-        let paint_jobs = self.ctx.tesselate(paint_commands);
+        let paint_jobs = self.ctx.tessellate(paint_commands);
         let physical_width = surface_width * scale_factor;
         let physical_height = surface_height * scale_factor;
 
@@ -151,7 +151,7 @@ fn egui_texture_to_rgba(texture: &egui::Texture) -> Vec<u8> {
     let mut data = Vec::with_capacity(4 * texture.pixels.len());
 
     for &alpha in texture.pixels.iter() {
-        data.extend(egui::Srgba::white_alpha(alpha).to_array().iter());
+        data.extend(egui::paint::color::Color32::from_white_alpha(alpha).to_array().iter());
     }
     data
 }
