@@ -4,13 +4,13 @@ use std::collections::HashMap;
 use winit::event::{
     ElementState,
     KeyboardInput,
+    MouseButton,
     MouseScrollDelta,
     WindowEvent,
 };
 
 pub use winit::event::{
     ModifiersState as Modifiers,
-    MouseButton,
     VirtualKeyCode as KeyCode,
 };
 
@@ -18,7 +18,10 @@ pub use winit::event::{
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, )] // TODO: add support for serialization
 pub enum Button {
     Key(KeyCode), // TODO: consider support for Key{scancode: u32}?
-    Mouse(MouseButton), // TODO: would love to see here MouseLeft, MouseRight etc..
+    MouseLeft,
+    MouseRight,
+    MouseMiddle,
+    MouseOther(u8),
 }
 
 /// State of a button.
@@ -160,7 +163,7 @@ impl Input {
         let (x, y) = self.mouse_position
             .as_ref()
             .map(|p| (
-                    clamp(p.x / self.window_size.x, 0.0, 1.0), 
+                    clamp(p.x / self.window_size.x, 0.0, 1.0),
                     clamp(p.y / self.window_size.y, 0.0, 1.0),
             ))
             .unwrap_or((0.0, 0.0));
@@ -249,8 +252,15 @@ impl Input {
     }
 
     /// Handle mouse click events from winit.
-    fn on_mouse_click_event(&mut self, state: ElementState, button: winit::event::MouseButton) {
-        self.on_button_state(Button::Mouse(button), state);
+    fn on_mouse_click_event(&mut self, state: ElementState, mouse_btn: winit::event::MouseButton) {
+        let btn: Button = match mouse_btn {
+            MouseButton::Left => Button::MouseLeft,
+            MouseButton::Right => Button::MouseRight,
+            MouseButton::Middle => Button::MouseMiddle,
+            MouseButton::Other(num) => Button::MouseOther(num),
+        };
+
+        self.on_button_state(btn, state);
     }
 
     /// Handle mouse wheel event from winit.

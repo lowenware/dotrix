@@ -7,7 +7,7 @@ use dotrix::{
         SidePanel,
         Slider
     },
-    input::{ Button, MouseButton, State as InputState },
+    input::{ Button, State as InputState },
     services::{ Camera, Frame, Input, World, Renderer },
 };
 
@@ -16,7 +16,7 @@ use std::f32::consts::PI;
 pub struct Editor {
     pub octaves: usize,
     pub frequency: f64,
-    pub lacunarity: f64, 
+    pub lacunarity: f64,
     pub persistence: f64,
     pub chunk_size: usize,
     pub xz_div: f64,
@@ -81,10 +81,10 @@ pub fn camera_control(mut camera: Mut<Camera>, input: Const<Input>, frame: Const
     let distance = camera.distance - ZOOM_SPEED * mouse_scroll * time_delta;
     camera.distance = if distance > -1.0 { distance } else { -1.0 };
 
-    if input.button_state(Button::Mouse(MouseButton::Right)) == Some(InputState::Hold) {
+    if input.button_state(Button::MouseRight) == Some(InputState::Hold) {
         camera.y_angle += mouse_delta.x * ROTATE_SPEED * time_delta;
 
-        let xz_angle = camera.xz_angle + mouse_delta.y * ROTATE_SPEED * time_delta;  
+        let xz_angle = camera.xz_angle + mouse_delta.y * ROTATE_SPEED * time_delta;
         let half_pi = PI / 2.0;
 
         camera.xz_angle = if xz_angle >= half_pi {

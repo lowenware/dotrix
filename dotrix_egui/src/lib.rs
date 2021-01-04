@@ -5,7 +5,6 @@ use dotrix_core::{
         Event as InputEvent,
         KeyCode,
         Modifiers,
-        MouseButton,
         State as InputState
     },
     renderer::{ WidgetVertex, OverlayProvider, Widget },
@@ -50,7 +49,7 @@ impl OverlayProvider for Egui {
                 .collect::<Vec<_>>();
 
         self.ctx.begin_frame(egui::RawInput {
-            mouse_down: input.button_state(Button::Mouse(MouseButton::Left))
+            mouse_down: input.button_state(Button::MouseLeft)
                 .map(|state| state == InputState::Hold)
                 .unwrap_or(false),
             mouse_pos: input.mouse_position()

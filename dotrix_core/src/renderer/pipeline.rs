@@ -36,7 +36,7 @@ macro_rules! create_shader_module {
             $device.create_shader_module(&wgpu::ShaderModuleDescriptor {
                 label: Some(name),
                 source: wgpu::util::make_spirv(&module.as_binary_u8()),
-                experimental_translation: false,
+                flags: wgpu::ShaderFlags::EXPERIMENTAL_TRANSLATION,
             })
         }
     };
