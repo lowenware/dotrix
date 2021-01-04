@@ -38,7 +38,7 @@ pub fn load_gltf(
     }
 
     for animation in gltf.animations() {
-        load_animation(sender, &name, &animation, &buffers)?;
+        load_animation(sender, &name, &animation, &buffers);
     }
 
     Ok(())
@@ -155,7 +155,7 @@ fn load_mesh(
     let mode = primitive.mode();
 
     if mode != gltf::mesh::Mode::Triangles {
-        return Err(ImportError::NotImplemented("primitive mode", mode_to_string(mode)));
+        return Err(ImportError::NotImplemented("primitive mode", Some(mode_to_string(mode))));
     }
 
     let positions = reader.read_positions().map(|p| p.collect::<Vec<[f32; 3]>>());
@@ -240,7 +240,7 @@ fn load_animation(
     name: &str,
     gltf_animation: &gltf::Animation,
     buffers: &[Vec<u8>],
-) -> Result <(), ImportError> {
+) {
     let name = if let Some(animation_name) = gltf_animation.name() {
         [name, animation_name].join("::")
     } else {
@@ -281,11 +281,9 @@ fn load_animation(
             asset: Box::new(animation),
         }
     )).unwrap();
-
-    Ok(())
 }
 
-fn mode_to_string(mode: gltf::mesh::Mode) -> Option<String> {
+fn mode_to_string(mode: gltf::mesh::Mode) -> String {
     let result = match mode {
         gltf::mesh::Mode::Points => "Points",
         gltf::mesh::Mode::Lines => "Lines",
@@ -295,5 +293,5 @@ fn mode_to_string(mode: gltf::mesh::Mode) -> Option<String> {
         gltf::mesh::Mode::TriangleStrip => "Triangle Strip",
         gltf::mesh::Mode::TriangleFan => "Triangle Fan",
     };
-    Some(String::from(result))
+    String::from(result)
 }

@@ -17,7 +17,6 @@ pub mod components {
         renderer::{
             Light,
             Model,
-            Widget,
             SkyBox,
         },
     };
@@ -29,7 +28,7 @@ pub mod services {
         camera::Camera,
         input::Input,
         frame::Frame,
-        renderer::{ Overlay, Renderer },
+        renderer::Renderer,
         world::World,
     };
 }
@@ -39,6 +38,7 @@ pub mod systems {
         renderer::{
             world_renderer,
         },
+        renderer::overlay_update,
         animation::skeletal_animation,
         camera::camera_control,
     };
@@ -50,11 +50,23 @@ pub struct Dotrix {
     app: Option<Application>,
 }
 
+#[derive(Default)]
+pub struct Display {
+    pub clear_color: [f64; 4],
+    pub fullscreen: bool,
+}
+
 impl Dotrix {
     pub fn application(name: &'static str) -> Self {
         Self {
             app: Some(Application::new(name)),
         }
+    }
+
+    pub fn with_display(&mut self, display: Display) -> &mut Self {
+        let app = self.app.as_mut().unwrap();
+        app.set_display(display.clear_color, display.fullscreen);
+        self
     }
 
     pub fn with_system(&mut self, system: System) -> &mut Self {

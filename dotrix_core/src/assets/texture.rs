@@ -31,6 +31,7 @@ impl Texture {
         });
 
         self.view = Some(texture.create_view(&wgpu::TextureViewDescriptor::default()));
+        // let bytes_per_pixel = self.data.len() as u32 / (self.height * self.width);
 
         queue.write_texture(
             wgpu::TextureCopyView {
@@ -41,8 +42,8 @@ impl Texture {
             &self.data,
             wgpu::TextureDataLayout {
                 offset: 0,
-                bytes_per_row: 4 * self.width,
-                rows_per_image: 0,
+                bytes_per_row: self.data.len() as u32 / self.height,
+                rows_per_image: self.height as u32,
             },
             texture_extent,
         );

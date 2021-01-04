@@ -1,11 +1,9 @@
-use std::time::{Duration};
+use std::time::Duration;
 use std::collections::HashMap;
-use super::{
-    skin::JointId,
-};
+use super::skin::JointId;
 
-use super::super::renderer::transform::{ TransformBuilder };
-use dotrix_math::{slerp, Vec3, Quat, VectorSpace};
+use crate::renderer::transform::TransformBuilder;
+use dotrix_math::{ slerp, Vec3, Quat, VectorSpace };
 
 #[derive(Debug)]
 pub enum Interpolation {

@@ -244,7 +244,8 @@ where
 {
     type Item = T;
     fn fetch(services: &mut Services) -> Self {
-        let service: &mut T = services.get_mut::<T>().expect("Service does not exist");
+        let service: &mut T = services.get_mut::<T>()
+            .unwrap_or_else(|| panic!("Service {} does not exist", std::any::type_name::<T>()));
         Mut {
             value: service as *mut T
         }
@@ -257,7 +258,8 @@ where
 {
     type Item = T;
     fn fetch(service: &mut Services) -> Self {
-        let service: &T = service.get::<T>().expect("Service does not exist");
+        let service: &T = service.get::<T>()
+            .unwrap_or_else(|| panic!("Service {} does not exist", std::any::type_name::<T>()));
         Const {
             value: service as *const T
         }

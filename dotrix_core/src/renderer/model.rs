@@ -69,23 +69,22 @@ impl Model {
     ) {
         use wgpu::util::DeviceExt;
 
-        let device = renderer.device();
-        let queue = renderer.queue();
+        let device = &renderer.device;
+        let queue = &renderer.queue;
 
         let transform_matrix = self.transform.matrix();
         let model_transform = AsRef::<[f32; 16]>::as_ref(&transform_matrix);
 
-        if let Some(buffers) = self.buffers.as_ref() {
-            queue.write_buffer(&buffers.transform, 0, bytemuck::cast_slice(model_transform));
+        if let Ok((_, texture, skin)) = self.get_assets(assets, device, queue) {
+            if let Some(buffers) = self.buffers.as_ref() {
+                queue.write_buffer(&buffers.transform, 0, bytemuck::cast_slice(model_transform));
 
-            if let Some(pose) = self.pose.as_ref() {
-                if let Some(skin) = assets.get(self.skin) {
-                    pose.load(&skin.index, queue);
+                if let Some(pose) = self.pose.as_ref() {
+                    if let Some(skin) = assets.get(self.skin) {
+                        pose.load(&skin.index, queue);
+                    }
                 }
-            }
-        } else {
-            self.buffers = if let Ok((_, texture, skin)) = self.get_assets(assets, device, queue) {
-
+            } else {
                 let transform = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Model Transform"),
                     contents: bytemuck::cast_slice(model_transform),
@@ -129,17 +128,13 @@ impl Model {
 
                 self.pose = pose;
 
-                Some(
+                self.buffers = Some(
                     Buffers {
                         bind_group,
                         transform,
                     }
                 )
-            } else {
-                None
-            };
-
-
+            }
         }
     }
 
@@ -162,6 +157,7 @@ impl Model {
                 .expect("Static model mesh must have initialized buffers at this stage");
 
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: &frame.view,
                     resolve_target: None,
