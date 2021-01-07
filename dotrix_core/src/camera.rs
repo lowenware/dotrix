@@ -54,6 +54,14 @@ impl Camera {
         self.view = Some(Self::matrix(self.target, self.distance, self.y_angle, self.xz_angle));
     }
 
+    pub fn position(&self) -> Vec3 {
+        let dy = self.distance * self.xz_angle.sin();
+        let dxz = self.distance * self.xz_angle.cos();
+        let dx = dxz * self.y_angle.cos();
+        let dz = dxz * self.y_angle.sin();
+        Vec3::new(self.target.x + dx, self.target.y + dy, self.target.z + dz)
+    }
+
     fn matrix(target: Point3, distance: f32, y_angle: f32, xz_angle: f32) -> Mat4 {
         let dy = distance * xz_angle.sin();
         let dxz = distance * xz_angle.cos();

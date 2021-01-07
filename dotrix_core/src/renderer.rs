@@ -212,9 +212,9 @@ impl Renderer {
     fn frustum(aspect_ratio: f32) -> Mat4 {
         let fov = Deg(70f32);
         let near_plane = 0.1;
-        let far_plane = 1000.0;
+        let far_plane = 2000.0;
 
-        OPENGL_TO_WGPU_MATRIX * perspective(fov, aspect_ratio, near_plane, far_plane)
+        perspective(fov, aspect_ratio, near_plane, far_plane)
     }
 }
 
@@ -296,7 +296,7 @@ pub fn world_renderer(
     }
 
     // Prepare projection * view matrix
-    let proj_view_matrix = renderer.projection * camera.view();
+    let proj_view_matrix = OPENGL_TO_WGPU_MATRIX * renderer.projection * camera.view();
     let proj_view_slice = AsRef::<[f32; 16]>::as_ref(&proj_view_matrix);
 
     if let Some(proj_view_buffer) = ctx.proj_view_buffer.as_ref() {
@@ -343,7 +343,7 @@ pub fn world_renderer(
             skybox.pipeline = ctx.pipelines.as_ref().unwrap().skybox;
         }
         let pipeline = renderer.pipeline(skybox.pipeline);
-        let proj_view = renderer.projection * camera.view_static();
+        let proj_view = OPENGL_TO_WGPU_MATRIX * renderer.projection * camera.view_static();
 
         skybox.load(&assets, device, queue, pipeline, sampler, &proj_view);
         skybox.draw(&mut encoder, pipeline, frame);
@@ -352,6 +352,10 @@ pub fn world_renderer(
     // render static models
     let query = world.query::<(&mut Model,)>();
     for (model,) in query {
+        if model.disabled {
+            continue;
+        }
+
         if model.pipeline.is_null() {
             let pipelines = ctx.pipelines.as_ref().unwrap();
             model.pipeline = if !model.skin.is_null() {

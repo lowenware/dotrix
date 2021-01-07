@@ -1,79 +1,229 @@
 use dotrix::{
-    components::{ Light },
+    assets::{ Mesh },
+    components::{ Light, Model },
     ecs::{ Mut, Const },
     egui::{
         Egui,
         CollapsingHeader,
-        SidePanel,
-        Slider
+        Label,
+        TopPanel,
+        Separator,
+        Slider,
+        Window
     },
-    input::{ Button, State as InputState },
-    services::{ Camera, Frame, Input, World, Renderer },
+    math::{ Vec3 },
+    renderer::{ Transform },
+    input::{ Button, State as InputState, Mapper, KeyCode },
+    services::{ Assets, Camera, Frame, Input, World, Renderer },
+    terrain::Terrain,
 };
 
+use crate::controls::Action;
+
+use noise::{ Fbm, MultiFractal };
 use std::f32::consts::PI;
 
 pub struct Editor {
-    pub octaves: usize,
-    pub frequency: f64,
-    pub lacunarity: f64,
-    pub persistence: f64,
-    pub chunk_size: usize,
-    pub xz_div: f64,
-    pub y_div: f64,
-    pub changed: bool,
+    pub sea_level: u8,
+    pub terrain_size: usize,
+    pub terrain_size_changed: bool,
+    pub noise_octaves: usize,
+    pub noise_frequency: f64,
+    pub noise_lacunarity: f64,
+    pub noise_persistence: f64,
+    pub noise_scale: f64,
+    pub noise_amplitude: f64,
+    pub show_toolbox: bool,
+    pub brush_x: f32,
+    pub brush_y: f32,
+    pub brush_z: f32,
+    pub brush_radius: f32,
+    pub brush_add: bool,
+    pub brush_sub: bool,
+    pub brush_changed: bool,
+    pub apply_noise: bool,
+    pub lod: usize,
 }
 
 impl Editor {
     pub fn new() -> Self {
+        // let mut density = Density::new(2048, 64, 2048, Vec3i::new(1024, 0, 1024));
+
+        let noise_octaves = 8;
+        let noise_frequency = 1.1;
+        let noise_lacunarity = 4.5;
+        let noise_persistence = 0.1;
+        let noise_scale = 256.0;
+        let noise_amplitude: f64 = 93.0;
+
+        /*
+        let noise = Fbm::new();
+        let noise = noise.set_octaves(noise_octaves);
+        let noise = noise.set_frequency(noise_frequency);
+        let noise = noise.set_lacunarity(noise_lacunarity);
+        let noise = noise.set_persistence(noise_persistence);
+
+        density.set(|x, y, z| {
+            let xf = x as f64 / noise_scale + 0.5;
+            let zf = z as f64 / noise_scale + 0.5;
+            let yf = y as f64;
+            let n = 4.0 * (noise.get([xf, zf]) + 1.0);
+            let value = /* noise_amplitude.exp() **/ n - yf;
+            value as f32
+        });
+    */
+
         Self {
-            octaves: 6,
-            frequency: 1.0,
-            lacunarity: 2.0,
-            persistence: 0.5,
-            chunk_size: 64,
-            xz_div: 4.0,
-            y_div: 8.0,
-            changed: true,
+            sea_level: 0,
+            terrain_size: 64,
+            terrain_size_changed: true,
+            noise_octaves,
+            noise_frequency,
+            noise_lacunarity,
+            noise_persistence,
+            noise_scale,
+            noise_amplitude,
+            show_toolbox: true,
+            brush_x: 0.0,
+            brush_y: 10.0,
+            brush_z: 0.0,
+            brush_radius: 5.0,
+            brush_add: false,
+            brush_sub: false,
+            brush_changed: false,
+            apply_noise: true,
+            lod: 2,
         }
+    }
+
+    pub fn noise(&self) -> Fbm {
+        let noise = Fbm::new();
+        let noise = noise.set_octaves(self.noise_octaves);
+        let noise = noise.set_frequency(self.noise_frequency);
+        let noise = noise.set_lacunarity(self.noise_lacunarity);
+        noise.set_persistence(self.noise_persistence)
     }
 }
 
-pub fn ui(mut editor: Mut<Editor>, renderer: Mut<Renderer>) {
+pub fn ui(mut editor: Mut<Editor>, renderer: Mut<Renderer>, mut terrain: Mut<Terrain>) {
     let egui = renderer.overlay_provider::<Egui>()
         .expect("Renderer does not contain an Overlay instance");
 
-    SidePanel::left("side_panel", 240.0).show(&egui.ctx, |ui| {
+    TopPanel::top("side_panel").show(&egui.ctx, |ui| {
+        ui.horizontal(|ui| {
+            if ui.button("🗋").clicked { println!("New"); }
+            if ui.button("🖴").clicked { println!("Save"); }
+            if ui.button("🗁").clicked { println!("Open"); }
+            if ui.button("🛠").clicked { editor.show_toolbox = !editor.show_toolbox; }
+            if ui.button("ℹ").clicked { println!("Info"); }
+        });
+    });
+
+    let mut show_toolbox = editor.show_toolbox;
+
+    Window::new("Toolbox").open(&mut show_toolbox).show(&egui.ctx, |ui| {
+
+        CollapsingHeader::new("View").default_open(true).show(ui, |ui| {
+            ui.add(Label::new("LOD"));
+            ui.add(Slider::usize(&mut editor.lod, 1..=16).text("level"));
+        });
+
         CollapsingHeader::new("Terrain")
             .default_open(true)
             .show(ui, |ui| {
                 ui.vertical(|ui| {
-                    ui.add(Slider::usize(&mut editor.chunk_size, 8..=256).text("Size"));
-                    ui.add(Slider::f64(&mut editor.xz_div, 1.0..=256.0).text("XZ Divider"));
-                    ui.add(Slider::f64(&mut editor.y_div, 1.0..=256.0).text("Y Divider"));
-                    ui.add(Slider::usize(&mut editor.octaves, 1..=10).text("Octaves"));
-                    ui.add(Slider::f64(&mut editor.frequency, 0.1..=10.0).text("Frequency"));
-                    ui.add(Slider::f64(&mut editor.lacunarity, 0.1..=10.0).text("Lacunarity"));
-                    ui.add(Slider::f64(&mut editor.persistence, 0.1..=10.0).text("Persistence"));
+                    ui.horizontal(|ui| {
+                        ui.add(Label::new("Size:"));
+                        if ui.button("Resize").clicked { editor.terrain_size_changed = true; }
+                    });
+                    ui.add(Slider::usize(&mut editor.terrain_size, 8..=256).text("Meters"));
+
+                    ui.add(Separator::new());
+
+                    ui.horizontal(|ui| {
+                        ui.add(Label::new("Brush:"));
+                        if ui.button("Add").clicked { editor.brush_add = true; }
+                        if ui.button("Sub").clicked { editor.brush_sub = true; }
+                    });
+
+                    ui.add(Slider::f32(&mut editor.brush_x, -64.0..=64.0).text("X"));
+                    ui.add(Slider::f32(&mut editor.brush_y, -64.0..=64.0).text("Y"));
+                    ui.add(Slider::f32(&mut editor.brush_z, -64.0..=64.0).text("Z"));
+                    ui.add(Slider::f32(&mut editor.brush_radius, 1.0..=16.0).text("Radius"));
+
+                    ui.add(Separator::new());
+
+                    ui.add(Label::new("Noise:"));
+                    ui.add(Slider::f64(&mut editor.noise_scale, 1.0..=256.0).text("Scale"));
+                    ui.add(Slider::f64(&mut editor.noise_amplitude, 1.0..=256.0).text("Amplitude"));
+                    ui.add(Slider::usize(&mut editor.noise_octaves, 1..=10).text("Octaves"));
+                    ui.add(Slider::f64(&mut editor.noise_frequency, 0.1..=10.0).text("Frequency"));
+                    ui.add(Slider::f64(&mut editor.noise_lacunarity, 0.1..=10.0).text("Lacunarity"));
+                    ui.add(Slider::f64(&mut editor.noise_persistence, 0.1..=10.0).text("Persistence"));
+                    if ui.button("Apply").clicked {
+                        terrain.populate(
+                            &editor.noise(),
+                            editor.noise_amplitude,
+                            editor.noise_scale
+                        );
+                    }
                 });
-                if ui.button("Update").clicked {
-                    editor.changed = true;
-                }
             });
-                // ui.label(format!("Hello '{}', age {}", name, age));
     });
+
+    editor.show_toolbox = show_toolbox;
 }
 
 const ROTATE_SPEED: f32 = PI / 10.0;
 const ZOOM_SPEED: f32 = 10.0;
+const MOVE_SPEED: f32 = 64.0;
 
-pub fn startup(mut renderer: Mut<Renderer>, mut world: Mut<World>) {
+pub struct Cursor(Vec3);
+
+pub fn startup(
+    mut assets: Mut<Assets>,
+    editor: Const<Editor>,
+    mut input: Mut<Input>,
+    mut renderer: Mut<Renderer>,
+    mut terrain: Mut<Terrain>,
+    mut world: Mut<World>,
+) {
+
+    assets.import("editor/assets/terrain.png");
     renderer.add_overlay(Box::new(Egui::default()));
 
     world.spawn(Some((Light::white([0.0, 500.0, 0.0]),)));
+
+    input.mapper_mut::<Mapper<Action>>()
+        .set(vec![
+            (Action::Move, Button::Key(KeyCode::W)),
+        ]);
+
+    let cursor = assets.store(Mesh::cube());
+    assets.import("assets/green.png");
+    let texture = assets.register("green");
+    let transform = Transform {
+        translate: Vec3::new(0.0, 0.5, 0.0),
+        scale: Vec3::new(0.05, 0.05, 0.05),
+        ..Default::default()
+    };
+
+    world.spawn(
+        Some((
+            Model { mesh: cursor, texture, transform, ..Default::default() },
+            Cursor(Vec3::new(0.0, 0.0, 0.0))
+        ))
+    );
+
+    terrain.populate(&editor.noise(), editor.noise_amplitude, editor.noise_scale);
 }
 
-pub fn camera_control(mut camera: Mut<Camera>, input: Const<Input>, frame: Const<Frame>) {
+pub fn camera_control(
+    mut camera: Mut<Camera>,
+    input: Const<Input>,
+    frame: Const<Frame>,
+    world: Const<World>,
+) {
     let time_delta = frame.delta().as_secs_f32();
     let mouse_delta = input.mouse_delta();
     let mouse_scroll = input.mouse_scroll();
@@ -94,6 +244,29 @@ pub fn camera_control(mut camera: Mut<Camera>, input: Const<Input>, frame: Const
         } else {
             xz_angle
         };
+    }
+
+    // move
+    let distance = if input.is_action_hold(Action::Move) {
+        MOVE_SPEED * frame.delta().as_secs_f32()
+    } else {
+        0.0
+    };
+
+    if distance > 0.00001 {
+        let y_angle = camera.y_angle;
+
+        let dx = distance * y_angle.cos();
+        let dz = distance * y_angle.sin();
+
+        camera.target.x -= dx;
+        camera.target.z -= dz;
+
+        let query = world.query::<(&mut Model, &Cursor)>();
+        for (model, _) in query {
+            model.transform.translate.x = camera.target.x;
+            model.transform.translate.z = camera.target.z;
+        }
     }
 
     camera.set_view();

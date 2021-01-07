@@ -70,7 +70,7 @@ impl Assets {
         let path = std::path::Path::new(path_str);
         let name = path.file_stem().map(|n| n.to_str().unwrap()).unwrap();
         let resource = Resource::new(name.to_string(), path_str.to_string());
-        let id = self.store::<Resource>(resource, name);
+        let id = self.store_as::<Resource>(resource, name);
         // TODO: start loading in separate thread
         let task = Task { path: path.to_path_buf(), name: name.to_string() };
         self.sender.send(Request::Import(task)).unwrap();
@@ -78,9 +78,17 @@ impl Assets {
     }
 
     /// stores new asset in the system under user defined name
-    pub fn store<T>(&mut self, asset: T, name: &str) -> Id<T>
+    pub fn store_as<T>(&mut self, asset: T, name: &str) -> Id<T>
     where Self: AssetMapGetter<T> {
         let id = self.register(name);
+        self.map_mut().insert(id, asset);
+        id
+    }
+
+    /// stores new asset in the system under user defined name
+    pub fn store<T>(&mut self, asset: T) -> Id<T>
+    where Self: AssetMapGetter<T> {
+        let id = Id::new(self.next_id());
         self.map_mut().insert(id, asset);
         id
     }
@@ -109,6 +117,12 @@ impl Assets {
         self.map_mut().get_mut(&handle)
     }
 
+    /// Remove asset by the handle
+    pub fn remove<T>(&mut self, handle: Id<T>) -> Option<T>
+    where Self: AssetMapGetter<T> {
+        self.map_mut().remove(&handle)
+    }
+
     /// Returns an Id for an asset and increments the internal generator
     fn next_id(&mut self) -> RawId {
         let result = self.id_generator;
@@ -120,22 +134,22 @@ impl Assets {
         while let Ok(response) = self.receiver.try_recv() {
             match response {
                 Response::Animation(animation) => {
-                    self.store(*animation.asset, &animation.name);
+                    self.store_as(*animation.asset, &animation.name);
                     //let id = self.find::<Animation>(animation.name.as_str());
                     //self.map_mut().insert(id, animation.asset);
                 },
                 Response::Mesh(mesh) => {
-                    self.store(*mesh.asset, &mesh.name);
+                    self.store_as(*mesh.asset, &mesh.name);
                     //let id = self.find::<Mesh>(mesh.name.as_str());
                     //self.map_mut().insert(id, mesh.asset);
                 },
                 Response::Skin(skin) => {
-                    self.store(*skin.asset, &skin.name);
+                    self.store_as(*skin.asset, &skin.name);
                     //let id = self.find::<Skin>(skin.name.as_str());
                     //self.map_mut().insert(id, skin.asset);
                 },
                 Response::Texture(texture) => {
-                    self.store(*texture.asset, &texture.name);
+                    self.store_as(*texture.asset, &texture.name);
                     //let id = self.find::<Texture>(texture.name.as_str());
                     //self.map_mut().insert(id, texture.asset);
                 },

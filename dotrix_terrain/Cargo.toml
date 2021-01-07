@@ -9,9 +9,10 @@ license = "MIT"
 
 [dependencies]
 dotrix_core = { version = "0.2", path = "../dotrix_core" }
+dotrix_math = { version = "0.2", path = "../dotrix_math" }
 rand = { version = "0.8" }
 rayon = "1.5"
 
-[dependencies.cgmath]
-version = "0.17"
+[dependencies.noise]
+version = "0.7"
 

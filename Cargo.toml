@@ -61,7 +61,8 @@ optional = true
 [dev-dependencies.rand]
 version = "0.8"
 
-[dev-dependencies.rayon]
+# editor only
+[dependencies.rayon]
 version = "1.5"
 
 [dependencies.noise]
