@@ -216,7 +216,7 @@ pub fn update_camera(mut camera: Mut<Camera>, mut editor: Mut<Editor>, input: Co
     let mut xz_angle = editor.cam_xz_angle;
 
     // Calculate new values
-    distance = distance - ZOOM_SPEED * mouse_scroll * time_delta;
+    distance -= ZOOM_SPEED * mouse_scroll * time_delta;
     distance = if distance > -1.0 { distance } else { -1.0 };
 
     if input.button_state(Button::MouseRight) == Some(InputState::Hold) {
