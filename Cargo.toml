@@ -82,3 +82,7 @@ path = "examples/skybox/skybox.rs"
 [[example]]
 name = "ui"
 path = "examples/ui/ui.rs"
+
+[[example]]
+name = "egui"
+path = "examples/egui/main.rs"
