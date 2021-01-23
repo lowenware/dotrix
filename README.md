@@ -29,7 +29,7 @@ under [examples/](examples/) folder. Later when API becomes more or less stable 
 Book for a quick start.
 
 ## Demo Example
-![Demo Example](./examples/demo/demo.png)
+[![Demo Example](https://img.youtube.com/vi/KXOr_KxMNWM/0.jpg)](https://www.youtube.com/watch?v=KXOr_KxMNWM)
 
 ```
 cargo run --release --example demo
