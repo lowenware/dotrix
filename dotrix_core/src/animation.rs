@@ -18,6 +18,7 @@ pub enum State {
 pub struct Animator {
     animation: Id<Animation>,
     state: State,
+    pub speed: f32,
 }
 
 impl Animator {
@@ -25,6 +26,7 @@ impl Animator {
         Self {
             animation,
             state: State::Stop,
+            speed: 1.0,
         }
     }
 
@@ -32,6 +34,7 @@ impl Animator {
         Self {
             animation,
             state: State::Play(Duration::from_secs(0)),
+            speed: 1.0,
         }
     }
 
@@ -39,6 +42,7 @@ impl Animator {
         Self {
             animation,
             state: State::Loop(Duration::from_secs(0)),
+            speed: 1.0,
         }
     }
 
@@ -70,7 +74,7 @@ impl Animator {
     fn update(&mut self, delta: Duration, duration: Duration) -> Option<Duration> {
         self.state = match self.state {
             State::Play(current) => {
-                let new_duration = current + delta;
+                let new_duration = current + delta.mul_f32(self.speed);
                 if new_duration < duration {
                     State::Play(new_duration)
                 } else {
@@ -78,9 +82,9 @@ impl Animator {
                 }
             },
             State::Loop(current) => {
-                let new_duration = current + delta;
+                let new_duration = current + delta.mul_f32(self.speed);
                 State::Loop(
-                    if new_duration < duration { 
+                    if new_duration < duration {
                         new_duration
                     } else {
                         Duration::from_secs_f32(new_duration.as_secs_f32() % duration.as_secs_f32())
