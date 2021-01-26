@@ -85,4 +85,4 @@ path = "examples/ui/ui.rs"
 
 [[example]]
 name = "egui"
-path = "examples/egui/main.rs"
+path = "examples/egui/egui.rs"

@@ -19,7 +19,7 @@ use dotrix::{
 };
 use std::f32::consts::PI;
 
-pub struct Editor {
+pub struct Settings {
     pub fox_transform: Transform,
 
     pub anim_clip: FoxAnimClip,
@@ -34,13 +34,14 @@ pub struct Editor {
     pub light_color: Vec4,
 }
 
-impl Editor {
+impl Settings {
     pub fn new() -> Self {
         Self {
             fox_transform: Transform {
                 translate: Vec3 {x: 80.0, y: 0.0, z: 0.0},
                 ..Default::default()
             },
+
             anim_clip: FoxAnimClip::Walk,
             anim_play: true,
             anim_speed: 1.0,
@@ -56,11 +57,13 @@ impl Editor {
 
     /// Reset to default values
     pub fn reset(&mut self) {
-        let default = Editor::new();
+        let default = Settings::new();
 
         self.fox_transform = default.fox_transform;
+
         self.anim_clip = default.anim_clip;
         self.anim_play = default.anim_play;
+        self.anim_speed = default.anim_speed;
 
         self.cam_distance = default.cam_distance;
         self.cam_y_angle = default.cam_y_angle;
@@ -71,7 +74,7 @@ impl Editor {
     }
 }
 
-pub fn ui(mut editor: Mut<Editor>, renderer: Mut<Renderer>) {
+pub fn ui(mut editor: Mut<Settings>, renderer: Mut<Renderer>) {
     let egui = renderer.overlay_provider::<Egui>()
         .expect("Renderer does not contain an Overlay instance");
 
@@ -201,7 +204,7 @@ pub fn startup(mut renderer: Mut<Renderer>) {
 }
 
 /// This func updates camera based on values in editor and controls
-pub fn update_camera(mut camera: Mut<Camera>, mut editor: Mut<Editor>, input: Const<Input>, frame: Const<Frame>) {
+pub fn update_camera(mut camera: Mut<Camera>, mut editor: Mut<Settings>, input: Const<Input>, frame: Const<Frame>) {
     const ROTATE_SPEED: f32 = PI / 10.0;
     const ZOOM_SPEED: f32 = 500.0;
 
@@ -248,7 +251,7 @@ pub fn update_camera(mut camera: Mut<Camera>, mut editor: Mut<Editor>, input: Co
 
 /// This func updates fox's entity based on values in editor
 pub fn update_fox(
-    editor: Const<Editor>,
+    editor: Const<Settings>,
     world: Mut<World>,
 ) {
     // Query fox entity
@@ -290,7 +293,7 @@ pub fn update_fox(
 
 /// This func updates all light entities based on values in editor
 pub fn update_lights(
-    editor: Const<Editor>,
+    editor: Const<Settings>,
     world: Mut<World>,
 ) {
     // Query fox light entities

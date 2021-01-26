@@ -1,4 +1,4 @@
-mod editor;
+mod settings;
 mod fox;
 
 use dotrix::{
@@ -10,7 +10,7 @@ use dotrix::{
     services::{ Assets, Camera, Frame, Input, World },
     systems::{ overlay_update, skeletal_animation, world_renderer },
 };
-use editor::{ Editor };
+use settings::{ Settings };
 
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum Action {}
@@ -20,16 +20,16 @@ fn main() {
         .with_system(System::from(spawn_lights).with(RunLevel::Startup))
         .with_system(System::from(fox::startup).with(RunLevel::Startup))
         .with_system(System::from(skeletal_animation))
-        .with_system(System::from(editor::startup).with(RunLevel::Startup))
+        .with_system(System::from(settings::startup).with(RunLevel::Startup))
         .with_system(System::from(overlay_update))
-        .with_system(System::from(editor::ui))
-        .with_system(System::from(editor::update_camera))
-        .with_system(System::from(editor::update_fox))
-        .with_system(System::from(editor::update_lights))
+        .with_system(System::from(settings::ui))
+        .with_system(System::from(settings::update_camera))
+        .with_system(System::from(settings::update_fox))
+        .with_system(System::from(settings::update_lights))
         .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_service(Assets::new())
         .with_service(Frame::new())
-        .with_service(Editor::new())
+        .with_service(Settings::new())
         .with_service(Camera {
             distance: 222.0,
             y_angle: 0.74,
