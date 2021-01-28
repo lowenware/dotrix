@@ -200,7 +200,7 @@ fn init_player(
 
 fn init_light(world: &mut World) {
     // spawn source of white light at (0.0, 100.0, 0.0)
-    world.spawn(Some((Light::white([0.0, 100.0, 0.0]),)));
+    world.spawn(Some((Light::white(Vec3::new(0.0, 100.0, 0.0)),)));
 }
 
  // Component indentifying players's entity
@@ -216,7 +216,7 @@ fn player_control(
 ) {
     const PLAYER_SPEED: f32 = 10.0;
 
-    // Query player entity 
+    // Query player entity
     let query = world.query::<(&mut Model, &mut Animator, &mut Player)>();
     // this loop will run only once, because Player component is assigned to only one entity
     for (model, animator, player) in query {

@@ -15,6 +15,7 @@ pub mod components {
     pub use crate::{
         animation::Animator,
         renderer::{
+            AmbientLight,
             Light,
             Model,
             SkyBox,

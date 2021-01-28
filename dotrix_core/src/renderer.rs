@@ -1,4 +1,5 @@
 pub mod bind_group_layout;
+pub mod color;
 mod light;
 pub mod pipeline;
 pub mod skybox;
@@ -7,11 +8,12 @@ mod overlay;
 mod widget;
 mod wireframe;
 
+pub use color::Color;
 pub mod transform;
 pub use transform::*;
 pub use model::*;
 pub use skybox::*;
-pub use light::{ Light, LightUniform };
+pub use light::{ AmbientLight, Light, LightUniform };
 pub use overlay::{ Overlay, overlay_update, Provider as OverlayProvider };
 pub use widget::{ Widget, WidgetVertex };
 pub use wireframe::*;
@@ -294,8 +296,14 @@ pub fn world_renderer(
     }
 
     // Prepare lights
-    let query = world.query::<(&mut Light,)>();
     let mut lights = LightUniform::default();
+
+    let query = world.query::<(&mut AmbientLight,)>();
+    for (amb_light,) in query {
+        lights.ambient = amb_light.color;
+    }
+
+    let query = world.query::<(&mut Light,)>();
     for (light,) in query {
         lights.push(*light);
     }

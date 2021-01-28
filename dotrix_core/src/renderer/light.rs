@@ -1,20 +1,45 @@
-use dotrix_math::Vec4;
+use super::Color;
+use dotrix_math::Vec3;
 
 const MAX_LIGHTS: usize = 10;
+
+pub struct AmbientLight {
+    pub color: Color,
+}
+
+impl AmbientLight {
+    pub fn new(color: Color) -> Self {
+        Self {
+            color
+        }
+    }
+}
 
 /// Component to be added to entities
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Light {
-    pub position: Vec4,
-    pub color: Vec4,
+    pub position: Vec3,
+    pub intensity: f32, // Do not sort, must be exactly like that
+    pub color: Color,
 }
 
 impl Light {
-    pub fn white(position: [f32; 3]) -> Self {
+    pub fn white(position: Vec3) -> Self {
         Self {
-            position: Vec4::new(position[0], position[1], position[2], 1.0),
-            color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            position,
+            intensity: 1.0,
+            color: Color::white(),
+        }
+    }
+}
+
+impl Default for Light {
+    fn default() -> Self {
+        Self {
+            position: Vec3::new(0.0, 0.0, 0.0),
+            intensity: 1.0,
+            color: Color::white(),
         }
     }
 }
@@ -26,6 +51,7 @@ unsafe impl bytemuck::Pod for Light {}
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct LightUniform {
+    pub ambient: Color,
     pub length: [u32; 4],
     pub light_source: [Light; MAX_LIGHTS],
 }
@@ -46,8 +72,9 @@ impl LightUniform {
 impl Default for LightUniform {
     fn default() -> Self {
         Self {
+            ambient: Color::black(),
             length: [0; 4],
-            light_source: [Light::white([0.0, 0.0, 0.0]); MAX_LIGHTS],
+            light_source: [Light::white(Vec3::new(0.0, 0.0, 0.0)); MAX_LIGHTS],
         }
     }
 }

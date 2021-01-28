@@ -5,8 +5,8 @@ use dotrix::{
     Dotrix,
     ecs::{ Mut, RunLevel, System },
     input::{ Mapper },
-    math::{ Point3 },
-    renderer::{ Light },
+    math::{ Point3, Vec3 },
+    renderer::{ AmbientLight, Color, Light },
     services::{ Assets, Camera, Frame, Input, World },
     systems::{ overlay_update, skeletal_animation, world_renderer },
 };
@@ -43,6 +43,7 @@ fn main() {
 }
 
 pub fn spawn_lights(mut world: Mut<World>) {
-    world.spawn(Some((Light::white([0.0, 500.0, 0.0]),)));
-    world.spawn(Some((Light::white([200.0, 50.0, 200.0]),)));
+    world.spawn(Some((AmbientLight::new(Color::rgb(0.2, 0.2, 0.2)),)));
+    world.spawn(Some((Light::white(Vec3::new(0.0, 500.0, 0.0)),)));
+    world.spawn(Some((Light::white(Vec3::new(200.0, 50.0, 200.0)),)));
 }

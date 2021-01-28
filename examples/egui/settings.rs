@@ -1,7 +1,7 @@
 use crate::fox::{ Fox, FoxAnimClip };
 use dotrix::{
     animation::State as AnimState,
-    components::{ Animator, Light, Model },
+    components::{ AmbientLight, Animator, Light, Model },
     ecs::{ Const, Mut },
     egui::{
         CollapsingHeader,
@@ -13,8 +13,8 @@ use dotrix::{
         Slider,
     },
     input::{ Button, State as InputState },
-    math::{ Point3, Vec3, Vec4 },
-    renderer::transform::Transform,
+    math::{ Point3, Vec3 },
+    renderer::{ Color, Transform },
     services::{ Camera, Frame, Input, Renderer, World },
 };
 use std::f32::consts::PI;
@@ -31,7 +31,9 @@ pub struct Settings {
     pub cam_xz_angle: f32,
     pub cam_target: Point3,
 
-    pub light_color: Vec4,
+    pub amb_light_color: Color,
+    pub light_color: Color,
+    pub light_intensity: f32,
 }
 
 impl Settings {
@@ -51,7 +53,9 @@ impl Settings {
             cam_xz_angle: 0.25,
             cam_target: Point3::new(0.0, 0.5, 0.0),
 
-            light_color: Vec4::new(1.0, 1.0, 1.0, 1.0),
+            amb_light_color: Color::rgb(0.2, 0.2, 0.2),
+            light_color: Color::white(),
+            light_intensity: 1.0,
         }
     }
 
@@ -70,7 +74,9 @@ impl Settings {
         self.cam_xz_angle = default.cam_xz_angle;
         self.cam_target = default.cam_target;
 
+        self.amb_light_color = default.amb_light_color;
         self.light_color = default.light_color;
+        self.light_intensity = default.light_intensity;
     }
 }
 
@@ -171,23 +177,57 @@ pub fn ui(mut editor: Mut<Settings>, renderer: Mut<Renderer>) {
             .show(ui, |ui| {
                 Grid::new("light").show(ui, |ui| {
                     ui.label("Red");
-                    ui.add(Slider::f32(&mut editor.light_color.x, 0.0..=3.0).text(""));
+                    ui.add(Slider::f32(&mut editor.light_color.r, 0.0..=1.0).text(""));
                     if ui.button("↺").on_hover_text("Reset value").clicked {
-                        editor.light_color.x = 1.0;
+                        editor.light_color.r = 1.0;
                     };
                     ui.end_row();
 
                     ui.label("Green");
-                    ui.add(Slider::f32(&mut editor.light_color.y, 0.0..=3.0).text(""));
+                    ui.add(Slider::f32(&mut editor.light_color.g, 0.0..=1.0).text(""));
                     if ui.button("↺").on_hover_text("Reset value").clicked {
-                        editor.light_color.y = 1.0;
+                        editor.light_color.g = 1.0;
                     };
                     ui.end_row();
 
                     ui.label("Blue");
-                    ui.add(Slider::f32(&mut editor.light_color.z, 0.0..=3.0).text(""));
+                    ui.add(Slider::f32(&mut editor.light_color.b, 0.0..=1.0).text(""));
                     if ui.button("↺").on_hover_text("Reset value").clicked {
-                        editor.light_color.z = 1.0;
+                        editor.light_color.b = 1.0;
+                    };
+                    ui.end_row();
+
+                    ui.label("Intensity");
+                    ui.add(Slider::f32(&mut editor.light_intensity, 0.0..=3.0).text(""));
+                    if ui.button("↺").on_hover_text("Reset value").clicked {
+                        editor.light_intensity = 1.0;
+                    };
+                    ui.end_row();
+                });
+            });
+
+            CollapsingHeader::new("Ambient Light")
+            .default_open(true)
+            .show(ui, |ui| {
+                Grid::new("ambient light").show(ui, |ui| {
+                    ui.label("Red");
+                    ui.add(Slider::f32(&mut editor.amb_light_color.r, 0.0..=1.0).text(""));
+                    if ui.button("↺").on_hover_text("Reset value").clicked {
+                        editor.amb_light_color.r = 0.2;
+                    };
+                    ui.end_row();
+
+                    ui.label("Green");
+                    ui.add(Slider::f32(&mut editor.amb_light_color.g, 0.0..=1.0).text(""));
+                    if ui.button("↺").on_hover_text("Reset value").clicked {
+                        editor.amb_light_color.g = 0.2;
+                    };
+                    ui.end_row();
+
+                    ui.label("Blue");
+                    ui.add(Slider::f32(&mut editor.amb_light_color.b, 0.0..=1.0).text(""));
+                    if ui.button("↺").on_hover_text("Reset value").clicked {
+                        editor.amb_light_color.b = 0.2;
                     };
                     ui.end_row();
                 });
@@ -296,11 +336,18 @@ pub fn update_lights(
     editor: Const<Settings>,
     world: Mut<World>,
 ) {
-    // Query fox light entities
+    // Query light entities
     let query = world.query::<(&mut Light,)>();
 
     for (light,) in query {
         light.color = editor.light_color;
+        light.intensity = editor.light_intensity;
     }
 
+    // Set ambient light, should be only one
+    let query = world.query::<(&mut AmbientLight,)>();
+
+    for (amb_light,) in query {
+        amb_light.color = editor.amb_light_color;
+    }
 }

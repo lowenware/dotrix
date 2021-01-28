@@ -91,6 +91,6 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
         )
     ]);
 
-    world.spawn(Some((Light::white([200.0, 50.0, 200.0]),)));
+    world.spawn(Some((Light::white(Vec3::new(200.0, 50.0, 200.0)),)));
 }
 
