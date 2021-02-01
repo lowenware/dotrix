@@ -57,13 +57,6 @@ optional = true
 [dev-dependencies.rand]
 version = "0.8"
 
-# editor only
-[dependencies.rayon]
-version = "1.5"
-
-[dependencies.noise]
-version = "0.7"
-
 [[example]]
 name = "demo"
 path = "examples/demo/demo.rs"
@@ -77,6 +70,9 @@ name = "fox"
 path = "examples/animation/fox.rs"
 
 [[example]]
+name = "light"
+path = "examples/light/light.rs"
+
+[[example]]
 name = "skybox"
 path = "examples/skybox/skybox.rs"
-

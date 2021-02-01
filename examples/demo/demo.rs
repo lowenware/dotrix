@@ -2,7 +2,7 @@ use dotrix::{
     Dotrix,
     assets::{ Mesh },
     ecs::{ Const, Mut, RunLevel, System },
-    components::{ Animator, Light, Model, SkyBox },
+    components::{ Animator, Model, SimpleLight, SkyBox },
     services::{ Assets, Camera, Frame, Input, World },
     systems::{ camera_control, skeletal_animation, world_renderer },
     renderer::transform::Transform,
@@ -200,7 +200,9 @@ fn init_player(
 
 fn init_light(world: &mut World) {
     // spawn source of white light at (0.0, 100.0, 0.0)
-    world.spawn(Some((Light::white(Vec3::new(0.0, 100.0, 0.0)),)));
+    world.spawn(Some((SimpleLight{
+        position: Vec3::new(0.0, 100.0, 0.0), ..Default::default()
+    },)));
 }
 
  // Component indentifying players's entity

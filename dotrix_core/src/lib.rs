@@ -16,10 +16,13 @@ pub mod components {
         animation::Animator,
         renderer::{
             AmbientLight,
-            Light,
+            DirLight,
             Model,
+            PointLight,
+            SimpleLight,
             SkyBox,
-            WireFrame,
+            SpotLight,
+			WireFrame,
         },
     };
 }

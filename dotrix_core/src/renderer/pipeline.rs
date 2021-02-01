@@ -69,7 +69,7 @@ impl Pipeline {
 
         let shaders = (
             create_shader_module!(device, "static", vert),
-            create_shader_module!(device, "static", frag),
+            create_shader_module!(device, "diffuse", frag),
         );
 
         Self::new_for_static_model(device, sc_desc, shaders)
@@ -191,7 +191,7 @@ impl Pipeline {
 
         let shaders = (
             create_shader_module!(device, "skinned", vert),
-            create_shader_module!(device, "skinned", frag),
+            create_shader_module!(device, "diffuse", frag),
         );
 
         Self::new_for_skinned_model(device, sc_desc, shaders)

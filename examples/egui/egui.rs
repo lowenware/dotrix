@@ -1,12 +1,12 @@
-mod settings;
 mod fox;
+mod settings;
 
 use dotrix::{
     Dotrix,
     ecs::{ Mut, RunLevel, System },
     input::{ Mapper },
     math::{ Point3, Vec3 },
-    renderer::{ AmbientLight, Color, Light },
+    renderer::{ AmbientLight, SimpleLight },
     services::{ Assets, Camera, Frame, Input, World },
     systems::{ overlay_update, skeletal_animation, world_renderer },
 };
@@ -29,7 +29,7 @@ fn main() {
         .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_service(Assets::new())
         .with_service(Frame::new())
-        .with_service(Settings::new())
+        .with_service(Settings::default())
         .with_service(Camera {
             distance: 222.0,
             y_angle: 0.74,
@@ -43,7 +43,17 @@ fn main() {
 }
 
 pub fn spawn_lights(mut world: Mut<World>) {
-    world.spawn(Some((AmbientLight::new(Color::rgb(0.2, 0.2, 0.2)),)));
-    world.spawn(Some((Light::white(Vec3::new(0.0, 500.0, 0.0)),)));
-    world.spawn(Some((Light::white(Vec3::new(200.0, 50.0, 200.0)),)));
+    world.spawn(Some((AmbientLight {
+        ..Default::default()
+    },)));
+
+    world.spawn(Some((SimpleLight {
+        position: Vec3::new(0.0, 500.0, 0.0),
+        ..Default::default()
+    },)));
+
+    world.spawn(Some((SimpleLight {
+        position: Vec3::new(200.0, 50.0, 200.0),
+        ..Default::default()
+    },)));
 }
