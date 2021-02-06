@@ -21,7 +21,7 @@ version = "1.4"
 features = ["derive"]
 
 [dependencies.dotrix_math]
-version = "0.2.0"
+version = "0.2"
 path = "../dotrix_math"
 
 [dependencies.futures]
@@ -47,8 +47,7 @@ features = ["derive"]
 version = "1.0"
 
 [dependencies.wgpu]
-git = "https://github.com/gfx-rs/wgpu-rs"
-rev = "3d605463bb1c7c4d4f468ac166916855c4fda6cc"
+version = "0.7"
 features = ["trace"]
 
 [dependencies.wgpu-subscriber]
