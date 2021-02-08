@@ -100,67 +100,69 @@ impl Pipeline {
             }
         );
 
-        let vertex_state = wgpu::VertexStateDescriptor {
-            index_format: None, // Some(wgpu::IndexFormat::Uint32),
-            vertex_buffers: &[wgpu::VertexBufferDescriptor {
-                stride: StaticModelVertex::size(),
-                step_mode: wgpu::InputStepMode::Vertex,
-                attributes: &[
-                    // position
-                    wgpu::VertexAttributeDescriptor {
-                        format: wgpu::VertexFormat::Float3,
-                        offset: 0,
-                        shader_location: 0,
-                    },
-                    // normal
-                    wgpu::VertexAttributeDescriptor {
-                        format: wgpu::VertexFormat::Float3,
-                        offset: 4 * 3,
-                        shader_location: 1,
-                    },
-                    // texture coordinates
-                    wgpu::VertexAttributeDescriptor {
-                        format: wgpu::VertexFormat::Float2,
-                        offset: 4 * 6,
-                        shader_location: 2,
-                    },
-                ],
-            }],
-        };
+        let vertex_buffers = [wgpu::VertexBufferLayout {
+            array_stride: StaticModelVertex::size(),
+            step_mode: wgpu::InputStepMode::Vertex,
+            attributes: &[
+                // position
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float3,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                // normal
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float3,
+                    offset: 4 * 3,
+                    shader_location: 1,
+                },
+                // texture coordinates
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float2,
+                    offset: 4 * 6,
+                    shader_location: 2,
+                },
+            ],
+        }];
 
         let wgpu_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Static model pipeline"),
             layout: Some(&pipeline_layout),
-            vertex_stage: wgpu::ProgrammableStageDescriptor {
+            vertex: wgpu::VertexState {
                 module: &vs_module,
                 entry_point: "main",
+                buffers: &vertex_buffers,
             },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+            fragment: Some(wgpu::FragmentState {
                 module: &fs_module,
                 entry_point: "main",
+                targets: &[
+                    wgpu::ColorTargetState {
+                        format: sc_desc.format,
+                        color_blend: wgpu::BlendState::REPLACE,
+                        alpha_blend: wgpu::BlendState::REPLACE,
+                        write_mask: wgpu::ColorWrite::ALL,
+                    }
+                ],
             }),
-            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+            primitive: wgpu::PrimitiveState {
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: wgpu::CullMode::Back,
                 ..Default::default()
-            }),
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
-            color_states: &[wgpu::ColorStateDescriptor {
-                format: sc_desc.format,
-                color_blend: wgpu::BlendDescriptor::REPLACE,
-                alpha_blend: wgpu::BlendDescriptor::REPLACE,
-                write_mask: wgpu::ColorWrite::ALL,
-            }],
-            depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilStateDescriptor::default(),
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState {
+                    constant: 2, // corresponds to bilinear filtering
+                    slope_scale: 2.0,
+                    clamp: 0.0,
+                },
+                clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
             }),
-            vertex_state: vertex_state.clone(),
-            sample_count: 1,
-            sample_mask: !0,
-            alpha_to_coverage_enabled: false,
+            multisample: wgpu::MultisampleState::default(),
         });
 
         Pipeline {
@@ -216,79 +218,81 @@ impl Pipeline {
             }
         );
 
-        let vertex_state = wgpu::VertexStateDescriptor {
-            index_format: None,
-            vertex_buffers: &[wgpu::VertexBufferDescriptor {
-                stride: SkinnedModelVertex::size(),
-                step_mode: wgpu::InputStepMode::Vertex,
-                attributes: &[
-                    // position
-                    wgpu::VertexAttributeDescriptor {
-                        format: wgpu::VertexFormat::Float3,
-                        offset: 0,
-                        shader_location: 0,
-                    },
-                    // normal
-                    wgpu::VertexAttributeDescriptor {
-                        format: wgpu::VertexFormat::Float3,
-                        offset: 4 * 3,
-                        shader_location: 1,
-                    },
-                    // texture coordinates
-                    wgpu::VertexAttributeDescriptor {
-                        format: wgpu::VertexFormat::Float2,
-                        offset: 4 * 6,
-                        shader_location: 2,
-                    },
-                    // weights
-                    wgpu::VertexAttributeDescriptor {
-                        format: wgpu::VertexFormat::Float4,
-                        offset: 4 * 8,
-                        shader_location: 3,
-                    },
-                    // joints
-                    wgpu::VertexAttributeDescriptor {
-                        format: wgpu::VertexFormat::Ushort4,
-                        offset: 4 * 12,
-                        shader_location: 4,
-                    },
-                ],
-            }],
-        };
+        let vertex_buffers = [wgpu::VertexBufferLayout {
+            array_stride: SkinnedModelVertex::size(),
+            step_mode: wgpu::InputStepMode::Vertex,
+            attributes: &[
+                // position
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float3,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                // normal
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float3,
+                    offset: 4 * 3,
+                    shader_location: 1,
+                },
+                // texture coordinates
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float2,
+                    offset: 4 * 6,
+                    shader_location: 2,
+                },
+                // weights
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float4,
+                    offset: 4 * 8,
+                    shader_location: 3,
+                },
+                // joints
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Ushort4,
+                    offset: 4 * 12,
+                    shader_location: 4,
+                },
+            ],
+        }];
 
         let wgpu_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Skinned model pipeline"),
             layout: Some(&pipeline_layout),
-            vertex_stage: wgpu::ProgrammableStageDescriptor {
+            vertex: wgpu::VertexState {
                 module: &vs_module,
                 entry_point: "main",
+                buffers: &vertex_buffers,
             },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+            fragment: Some(wgpu::FragmentState {
                 module: &fs_module,
                 entry_point: "main",
+                targets: &[
+                    wgpu::ColorTargetState {
+                        format: sc_desc.format,
+                        color_blend: wgpu::BlendState::REPLACE,
+                        alpha_blend: wgpu::BlendState::REPLACE,
+                        write_mask: wgpu::ColorWrite::ALL,
+                    }
+                ],
             }),
-            rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+            primitive: wgpu::PrimitiveState {
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: wgpu::CullMode::Back,
                 ..Default::default()
-            }),
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
-            color_states: &[wgpu::ColorStateDescriptor {
-                format: sc_desc.format,
-                color_blend: wgpu::BlendDescriptor::REPLACE,
-                alpha_blend: wgpu::BlendDescriptor::REPLACE,
-                write_mask: wgpu::ColorWrite::ALL,
-            }],
-            depth_stencil_state: Some(wgpu::DepthStencilStateDescriptor {
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
                 format: wgpu::TextureFormat::Depth32Float,
                 depth_write_enabled: true,
                 depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilStateDescriptor::default(),
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState {
+                    constant: 2, // corresponds to bilinear filtering
+                    slope_scale: 2.0,
+                    clamp: 0.0,
+                },
+                clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
             }),
-            vertex_state: vertex_state.clone(),
-            sample_count: 1,
-            sample_mask: !0,
-            alpha_to_coverage_enabled: false,
+            multisample: wgpu::MultisampleState::default(),
         });
 
         Pipeline {
@@ -340,46 +344,59 @@ impl Pipeline {
             push_constant_ranges: &[],
         });
 
-        let vertex_state = wgpu::VertexStateDescriptor {
-            index_format: None,
-            vertex_buffers: &[wgpu::VertexBufferDescriptor {
-                stride: vertex_size as wgpu::BufferAddress,
-                step_mode: wgpu::InputStepMode::Vertex,
-                attributes: &[
-                    // position
-                    wgpu::VertexAttributeDescriptor {
-                        format: wgpu::VertexFormat::Float3,
-                        offset: 0,
-                        shader_location: 0,
-                    },
-                ],
-            }],
-        };
+        let vertex_buffers = [wgpu::VertexBufferLayout {
+            array_stride: vertex_size as wgpu::BufferAddress,
+            step_mode: wgpu::InputStepMode::Vertex,
+            attributes: &[
+                // position
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float3,
+                    offset: 0,
+                    shader_location: 0,
+                },
+            ],
+        }];
 
         let wgpu_pipeline = device.create_render_pipeline(
             &wgpu::RenderPipelineDescriptor {
                 label: None,
                 layout: Some(&pipeline_layout),
-                vertex_stage: wgpu::ProgrammableStageDescriptor {
+                vertex: wgpu::VertexState {
                     module: &vs_module,
                     entry_point: "main",
+                    buffers: &vertex_buffers,
                 },
-                fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+                fragment: Some(wgpu::FragmentState {
                     module: &fs_module,
                     entry_point: "main",
+                    targets: &[
+                        wgpu::ColorTargetState {
+                            format: sc_desc.format,
+                            color_blend: wgpu::BlendState::REPLACE,
+                            alpha_blend: wgpu::BlendState::REPLACE,
+                            write_mask: wgpu::ColorWrite::ALL,
+                        }
+                    ],
                 }),
-                rasterization_state: Some(wgpu::RasterizationStateDescriptor {
+                primitive: wgpu::PrimitiveState {
                     front_face: wgpu::FrontFace::Ccw,
                     cull_mode: wgpu::CullMode::None,
                     ..Default::default()
-                }),
-                primitive_topology: wgpu::PrimitiveTopology::TriangleList,
-                color_states: &[sc_desc.format.into()],
-                depth_stencil_state: None,
-                vertex_state: vertex_state.clone(),
-                sample_count: 1,
-                sample_mask: !0,
-                alpha_to_coverage_enabled: false,
+                },
+                depth_stencil: None,
+                /*Some(wgpu::DepthStencilState {
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: wgpu::StencilState::default(),
+                    bias: wgpu::DepthBiasState {
+                        constant: 2, // corresponds to bilinear filtering
+                        slope_scale: 2.0,
+                        clamp: 0.0,
+                    },
+                    clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
+                }),*/ 
+                multisample: wgpu::MultisampleState::default(),
             }
         );
 
@@ -436,71 +453,64 @@ impl Pipeline {
             }
         );
 
-        let vertex_state = wgpu::VertexStateDescriptor {
-            index_format: None,
-            vertex_buffers: &[wgpu::VertexBufferDescriptor {
-                stride: WidgetVertex::size(),
-                step_mode: wgpu::InputStepMode::Vertex,
-                attributes: &[
-                    // position
-                    wgpu::VertexAttributeDescriptor {
-                        format: wgpu::VertexFormat::Float2,
-                        offset: 0,
-                        shader_location: 0,
-                    },
-                    // texture coordinates
-                    wgpu::VertexAttributeDescriptor {
-                        format: wgpu::VertexFormat::Float2,
-                        offset: 4 * 2,
-                        shader_location: 1,
-                    },
-                    // color
-                    wgpu::VertexAttributeDescriptor {
-                        format: wgpu::VertexFormat::Float4,
-                        offset: 4 * 4,
-                        shader_location: 2,
-                    },
-                ],
-            }],
-        };
+        let vertex_buffers = [wgpu::VertexBufferLayout {
+            array_stride: WidgetVertex::size(),
+            step_mode: wgpu::InputStepMode::Vertex,
+            attributes: &[
+                // position
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float2,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                // texture coordinates
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float2,
+                    offset: 4 * 2,
+                    shader_location: 1,
+                },
+                // color
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float4,
+                    offset: 4 * 4,
+                    shader_location: 2,
+                },
+            ],
+        }];
 
         let wgpu_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Overlay pipeline"),
             layout: Some(&pipeline_layout),
-            vertex_stage: wgpu::ProgrammableStageDescriptor {
+            vertex: wgpu::VertexState {
                 module: &vs_module,
                 entry_point: "main",
+                buffers: &vertex_buffers,
             },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
+            fragment: Some(wgpu::FragmentState {
                 module: &fs_module,
                 entry_point: "main",
+                targets: &[
+                    wgpu::ColorTargetState {
+                        format: sc_desc.format,
+                        color_blend: wgpu::BlendState {
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                            ..Default::default()
+                        },
+                        alpha_blend: wgpu::BlendState {
+                            src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
+                            dst_factor: wgpu::BlendFactor::One,
+                            ..Default::default()
+                        },
+                        write_mask: wgpu::ColorWrite::ALL,
+                    }
+                ],
             }),
-            rasterization_state: Some(wgpu::RasterizationStateDescriptor::default()),
-            /*rasterization_state: Some(wgpu::RasterizationStateDescriptor {
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::Back,
+            primitive: wgpu::PrimitiveState {
                 ..Default::default()
-            }),*/
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
-            color_states: &[wgpu::ColorStateDescriptor {
-                format: sc_desc.format,
-                color_blend: wgpu::BlendDescriptor {
-                    src_factor: wgpu::BlendFactor::One,
-                    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                    ..Default::default()
-                },
-                alpha_blend: wgpu::BlendDescriptor {
-                    src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
-                    dst_factor: wgpu::BlendFactor::One,
-                    ..Default::default()
-                },
-                write_mask: wgpu::ColorWrite::ALL,
-            }],
-            depth_stencil_state: None,
-            vertex_state,
-            sample_count: 1,
-            sample_mask: !0,
-            alpha_to_coverage_enabled: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
         });
 
         Pipeline {
