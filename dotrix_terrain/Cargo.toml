@@ -1,10 +1,10 @@
 [package]
 name = "dotrix_terrain"
-version = "0.2.0"
+version = "0.1.0"
 authors = ["Elias Kartashov <elias@lowenware.com>"]
 edition = "2018"
 
-description = "Terrain for Dotrix 3D Game Engine"
+description = "Terrain for Dotrix 3D Game Engine (under construction)"
 license = "MIT"
 
 [dependencies]

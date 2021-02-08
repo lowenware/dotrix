@@ -49,12 +49,12 @@ path = "./dotrix_egui"
 optional = true
 
 [dependencies.dotrix_ui]
-version = "0.2"
+version = "0.1"
 path = "./dotrix_ui"
 optional = true
 
 [dependencies.dotrix_terrain]
-version = "0.2"
+version = "0.1"
 path = "./dotrix_terrain"
 optional = true
 
