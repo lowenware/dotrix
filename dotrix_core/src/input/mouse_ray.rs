@@ -1,8 +1,8 @@
-use dotrix::{
+use crate::{
     ecs::{ Const, Mut },
     services::{ Camera, Input, Renderer },
-    math::{ InnerSpace, SquareMatrix, Vec2, Vec3, Vec4 },
 };
+use dotrix_math::{ InnerSpace, SquareMatrix, Vec2, Vec3, Vec4 };
 
 #[derive(Default)]
 pub struct MouseRay {

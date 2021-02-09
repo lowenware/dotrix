@@ -1,23 +1,22 @@
 mod controls;
 mod editor;
-mod mouse_ray;
 
 use dotrix::{
-    Dotrix,
+    Dotrix, Display,
     ecs::{ RunLevel, System },
     math::{ Point3 },
     services::{ Assets, Frame, Camera, Input, World },
     systems::{ overlay_update, world_renderer },
-    input::{ ActionMapper, Button, Mapper },
+    input::{ ActionMapper, Button, Mapper, MouseRay, mouse_ray },
     terrain,
 };
 
-use mouse_ray::{ MouseRay, mouse_ray };
 use controls::{ Action };
 use editor::{ Editor };
 
 fn main() {
     Dotrix::application("Dotrix Editor")
+        .with_display(Display { clear_color: [0.29, 0.71, 0.98, 1.0], ..Default::default()})
         .with_system(System::from(editor::startup).with(RunLevel::Startup))
         .with_system(System::from(editor::camera_control))
         .with_system(System::from(overlay_update))

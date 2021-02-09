@@ -1,5 +1,10 @@
+/// Mouse ray calculation module
+mod mouse_ray;
+
 use dotrix_math::{Vec2, clamp};
 use std::collections::HashMap;
+
+pub use mouse_ray::{ MouseRay, mouse_ray };
 
 use winit::event::{
     ElementState,

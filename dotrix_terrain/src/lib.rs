@@ -372,7 +372,7 @@ impl Instance {
         }
         // println!("Instance: {:?}:{} -> {:?}", self.position, self.level, round_up);
         self.round_up = *round_up;
-        let uvs = Some(vec![[1.0, 1.0]; len]);
+        let uvs = Some(vec![[0.0, 0.0]; len]);
         /* match self.ring {
             2 => vec![[0.0, 0.0]; len],
             3 => vec![[1.0, 0.0]; len],
