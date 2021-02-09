@@ -7,7 +7,7 @@ use dotrix::{
     math::{ Point3 },
     services::{ Assets, Frame, Camera, Input, World },
     systems::{ overlay_update, world_renderer },
-    input::{ ActionMapper, Button, Mapper, MouseRay, mouse_ray },
+    input::{ ActionMapper, Button, Mapper, Ray, mouse_ray },
     terrain,
 };
 
@@ -28,7 +28,7 @@ fn main() {
         .with_service(terrain::service())
         .with_service(Frame::new())
         .with_service(Editor::new())
-        .with_service(MouseRay::default())
+        .with_service(Ray::default())
         .with_service(Camera {
             distance: 100.0,
             xz_angle: std::f32::consts::PI / 4.0,

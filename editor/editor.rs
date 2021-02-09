@@ -5,6 +5,7 @@ use dotrix::{
     egui::{
         Egui,
         CollapsingHeader,
+        Grid,
         Label,
         TopPanel,
         Separator,
@@ -14,7 +15,7 @@ use dotrix::{
     math::{ Vec3 },
     renderer::{ Transform },
     input::{ Button, State as InputState, Mapper, KeyCode },
-    services::{ Assets, Camera, Frame, Input, World, Renderer },
+    services::{ Assets, Camera, Frame, Input, World, Ray, Renderer },
     terrain::Terrain,
 };
 
@@ -34,6 +35,7 @@ pub struct Editor {
     pub noise_scale: f64,
     pub noise_amplitude: f64,
     pub show_toolbox: bool,
+    pub show_info: bool,
     pub brush_x: f32,
     pub brush_y: f32,
     pub brush_z: f32,
@@ -47,43 +49,18 @@ pub struct Editor {
 
 impl Editor {
     pub fn new() -> Self {
-        // let mut density = Density::new(2048, 64, 2048, Vec3i::new(1024, 0, 1024));
-
-        let noise_octaves = 8;
-        let noise_frequency = 1.1;
-        let noise_lacunarity = 4.5;
-        let noise_persistence = 0.1;
-        let noise_scale = 256.0;
-        let noise_amplitude: f64 = 93.0;
-
-        /*
-        let noise = Fbm::new();
-        let noise = noise.set_octaves(noise_octaves);
-        let noise = noise.set_frequency(noise_frequency);
-        let noise = noise.set_lacunarity(noise_lacunarity);
-        let noise = noise.set_persistence(noise_persistence);
-
-        density.set(|x, y, z| {
-            let xf = x as f64 / noise_scale + 0.5;
-            let zf = z as f64 / noise_scale + 0.5;
-            let yf = y as f64;
-            let n = 4.0 * (noise.get([xf, zf]) + 1.0);
-            let value = /* noise_amplitude.exp() **/ n - yf;
-            value as f32
-        });
-    */
-
         Self {
             sea_level: 0,
             terrain_size: 64,
             terrain_size_changed: true,
-            noise_octaves,
-            noise_frequency,
-            noise_lacunarity,
-            noise_persistence,
-            noise_scale,
-            noise_amplitude,
+            noise_octaves: 8,
+            noise_frequency: 1.1,
+            noise_lacunarity: 4.5,
+            noise_persistence: 0.1,
+            noise_scale: 256.0,
+            noise_amplitude: 93.0,
             show_toolbox: true,
+            show_info: false,
             brush_x: 0.0,
             brush_y: 10.0,
             brush_z: 0.0,
@@ -105,7 +82,14 @@ impl Editor {
     }
 }
 
-pub fn ui(mut editor: Mut<Editor>, renderer: Mut<Renderer>, mut terrain: Mut<Terrain>) {
+pub fn ui(
+    mut editor: Mut<Editor>,
+    renderer: Mut<Renderer>,
+    mut terrain: Mut<Terrain>,
+    camera: Const<Camera>,
+    frame: Const<Frame>,
+    ray: Const<Ray>,
+) {
     let egui = renderer.overlay_provider::<Egui>()
         .expect("Renderer does not contain an Overlay instance");
 
@@ -115,13 +99,13 @@ pub fn ui(mut editor: Mut<Editor>, renderer: Mut<Renderer>, mut terrain: Mut<Ter
             if ui.button("🖴").clicked { println!("Save"); }
             if ui.button("🗁").clicked { println!("Open"); }
             if ui.button("🛠").clicked { editor.show_toolbox = !editor.show_toolbox; }
-            if ui.button("ℹ").clicked { println!("Info"); }
+            if ui.button("ℹ").clicked { editor.show_info = !editor.show_info; }
         });
     });
 
-    let mut show_toolbox = editor.show_toolbox;
+    let mut show_window = editor.show_toolbox;
 
-    Window::new("Toolbox").open(&mut show_toolbox).show(&egui.ctx, |ui| {
+    Window::new("Toolbox").open(&mut show_window).show(&egui.ctx, |ui| {
 
         CollapsingHeader::new("View").default_open(true).show(ui, |ui| {
             ui.add(Label::new("LOD"));
@@ -171,7 +155,48 @@ pub fn ui(mut editor: Mut<Editor>, renderer: Mut<Renderer>, mut terrain: Mut<Ter
             });
     });
 
-    editor.show_toolbox = show_toolbox;
+    editor.show_toolbox = show_window;
+
+    let mut show_window = editor.show_info;
+
+    Window::new("Info").open(&mut show_window).show(&egui.ctx, |ui| {
+        let grid = Grid::new("info")
+            .striped(true)
+            .spacing([40.0, 4.0]);
+
+        grid.show(ui, |ui| {
+            ui.label("FPS");
+            ui.label(format!("{}", frame.fps()));
+            ui.end_row();
+
+            let vec = ray.origin.as_ref()
+                .map(|v| format!("x: {:.4}, y: {:.4}, z: {:.4}", v.x, v.y, v.z));
+
+            ui.label("Camera Position");
+            ui.label(vec.as_ref().map(|s| s.as_str()).unwrap_or("-"));
+            ui.end_row();
+
+            let vec = format!("x: {:.4}, y: {:.4}, z: {:.4}",
+                camera.target.x, camera.target.y, camera.target.z);
+
+            ui.label("Camera Target");
+            ui.label(vec);
+            ui.end_row();
+
+            let vec = ray.direction.as_ref()
+                .map(|v| format!("x: {:.4}, y: {:.4}, z: {:.4}", v.x, v.y, v.z));
+
+            ui.label("Mouse Ray");
+            ui.label(vec.as_ref().map(|s| s.as_str()).unwrap_or("-"));
+            ui.end_row();
+
+            ui.label("Generated in");
+            ui.label(format!("{} us", terrain.generated_in.as_micros()));
+            ui.end_row();
+        });
+    });
+
+    editor.show_info = show_window;
 }
 
 const ROTATE_SPEED: f32 = PI / 10.0;

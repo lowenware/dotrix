@@ -28,6 +28,7 @@ pub mod services {
         camera::Camera,
         input::Input,
         frame::Frame,
+        input::Ray,
         renderer::Renderer,
         world::World,
     };

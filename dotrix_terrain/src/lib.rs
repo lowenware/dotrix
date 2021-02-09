@@ -6,6 +6,7 @@ pub use marching_cubes::*;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
+    time::{ Duration, Instant },
 };
 use noise::{ NoiseFn, Fbm };
 use rayon::prelude::*;
@@ -49,6 +50,7 @@ pub struct Terrain {
     pub octree: Octree<VoxelMap>,
     pub changed: bool,
     pub lod: usize,
+    pub generated_in: Duration,
 }
 
 impl Terrain {
@@ -62,6 +64,7 @@ impl Terrain {
             octree: Octree::new(Vec3i::new(0, 0, 0), 2048),
             changed: false,
             lod: 3,
+            generated_in: Duration::from_secs(0),
         }
     }
 
@@ -541,6 +544,7 @@ pub fn spawn(
     mut assets: Mut<Assets>,
     mut world: Mut<World>,
 ) {
+    let now = Instant::now();
     // let viewer = Point3::new(0.0, 0.0, 0.0);
     let viewer = camera.target;
 
@@ -614,6 +618,8 @@ pub fn spawn(
                 true
             });
     }
+
+    terrain.generated_in = now.elapsed();
 }
 
 
