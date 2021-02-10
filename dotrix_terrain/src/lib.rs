@@ -183,8 +183,11 @@ pub fn service() -> Terrain {
     Terrain::default()
 }
 
+#[derive(Debug)]
 pub struct Block {
     pub position: Vec3i,
+    pub bound_min: Vec3i,
+    pub bound_max: Vec3i,
 }
 
 pub struct Instance {
@@ -425,8 +428,19 @@ impl Instance {
     }
 
     pub fn block(&self) -> Block {
+        let half_size = self.size as i32 / 2;
         Block {
             position: self.position,
+            bound_min: Vec3i::new(
+                self.position.x - half_size,
+                self.position.y - half_size,
+                self.position.z - half_size
+            ),
+            bound_max: Vec3i::new(
+                self.position.x + half_size,
+                self.position.y + half_size,
+                self.position.z + half_size
+            ),
         }
     }
 

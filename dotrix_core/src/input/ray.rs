@@ -61,10 +61,10 @@ impl Ray {
                     return None; 
                 }
 
-                // let min = if z_min > min) { z_min } else { min };
-                // let min = if z_max < max) { z_max } else { max };
+                let min = if z_min > min { z_min } else { min };
+                let max = if z_max < max { z_max } else { max };
  
-                return Some((Vec3::new(x_min, y_min, z_min), Vec3::new(x_max, y_max, z_max)));
+                return Some((Vec3::new(min, y_min, z_min), Vec3::new(max, y_max, z_max)));
             }
         }
         None
@@ -82,14 +82,17 @@ pub fn mouse_ray(
         let (viewport_width, viewport_height) = renderer.display_size();
         let ray = Ray::normalized_device_coords(
             mouse, viewport_width as f32, viewport_height as f32);
+
         // eye coordinates
         let mut ray = renderer.projection.invert().unwrap() * ray;
         ray.z = -1.0;
-        ray.w = 1.0;
+        ray.w = 0.0;
         // world coordinates
         let ray = camera.view().invert().unwrap() * ray;
-        Vec3::new(-ray.x, -ray.y, -ray.z).normalize()
+        Vec3::new(ray.x, ray.y, ray.z).normalize()
     });
+
+    println!("dir {:?}", ray.direction);
 
     let inverted = ray.direction.as_ref().map(|d| 1.0_f32 / d);
 

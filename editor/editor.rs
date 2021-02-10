@@ -12,7 +12,7 @@ use dotrix::{
         Slider,
         Window
     },
-    math::{ Vec3 },
+    math::{ Vec3, Vec3i },
     renderer::{ Transform },
     input::{ Button, State as InputState, Mapper, KeyCode },
     services::{ Assets, Camera, Frame, Input, World, Ray, Renderer },
@@ -45,6 +45,7 @@ pub struct Editor {
     pub brush_changed: bool,
     pub apply_noise: bool,
     pub lod: usize,
+    pub picked_block: Option<Vec3i>,
 }
 
 impl Editor {
@@ -70,6 +71,7 @@ impl Editor {
             brush_changed: false,
             apply_noise: true,
             lod: 2,
+            picked_block: None,
         }
     }
 
@@ -193,6 +195,13 @@ pub fn ui(
             ui.label("Generated in");
             ui.label(format!("{} us", terrain.generated_in.as_micros()));
             ui.end_row();
+
+
+            let vec = editor.picked_block.as_ref()
+                .map(|v| format!("x: {:.4}, y: {:.4}, z: {:.4}", v.x, v.y, v.z));
+            ui.label("Picked block");
+            ui.label(vec.as_ref().map(|s| s.as_str()).unwrap_or("None"));
+            ui.end_row();
         });
     });
 
@@ -214,6 +223,7 @@ pub fn startup(
     mut world: Mut<World>,
 ) {
 
+    assets.import("editor/assets/red.png");
     assets.import("editor/assets/terrain.png");
     renderer.add_overlay(Box::new(Egui::default()));
 

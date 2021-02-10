@@ -1,3 +1,4 @@
+mod brush;
 mod controls;
 mod editor;
 
@@ -23,6 +24,7 @@ fn main() {
         .with_system(System::from(mouse_ray))
         .with_system(System::from(editor::ui))
         .with_system(System::from(terrain::spawn))
+        .with_system(System::from(brush::picker))
         .with_system(System::from(world_renderer).with(RunLevel::Render))
         .with_service(Assets::new())
         .with_service(terrain::service())
