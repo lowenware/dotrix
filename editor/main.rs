@@ -17,7 +17,7 @@ use editor::{ Editor };
 
 fn main() {
     Dotrix::application("Dotrix Editor")
-        .with_display(Display { clear_color: [0.29, 0.71, 0.98, 1.0], ..Default::default()})
+        .with_display(Display { clear_color: [1.00, 1.00, 1.00, 1.0], ..Default::default()})
         .with_system(System::from(editor::startup).with(RunLevel::Startup))
         .with_system(System::from(editor::camera_control))
         .with_system(System::from(overlay_update))
@@ -32,8 +32,8 @@ fn main() {
         .with_service(Editor::new())
         .with_service(Ray::default())
         .with_service(Camera {
-            distance: 100.0,
-            xz_angle: std::f32::consts::PI / 4.0,
+            distance: 400.0,
+            xz_angle: std::f32::consts::PI / 2.0,
             y_angle: std::f32::consts::PI / 2.0,
             target: Point3::new(0.0, 0.5, 0.0),
             ..Default::default()

@@ -241,10 +241,21 @@ impl Instance {
             Self::resolve_seams_x(&mut map, (self.level - round_up[0]) as usize + 1, x);
         }
         if round_up[1] > 0 {
+            println!("resolve_seams Y: level={}, size={}, position={:?}", self.level, self.size, self.position);
             Self::resolve_seams_y(&mut map, (self.level - round_up[1]) as usize + 1, y);
+            /*
+            println!("\nResolve seams y: {}", y);
+            for z in 0..17 {
+                print!("  {}: ", z);
+                for x in 0..17 {
+                    print!("{}, ", map[x][y][z]);
+                }
+                println!(";")
+            }*/
         }
         if round_up[2] > 0 {
             Self::resolve_seams_z(&mut map, (self.level - round_up[2]) as usize + 1, z);
+
         }
 
         map
@@ -302,18 +313,34 @@ impl Instance {
     }
 
     fn resolve_seams_y(map: &mut VoxelMap, step: usize, y: usize) {
+        for x in (0..17).step_by(step) {
+            for z in (0..16).step_by(step) {
+                let mut v = map[x][y][z];
+                let s = (map[x][y][z + step] - v) / step as f32;
+                for zi in 1..step {
+                    v += s;
+                    map[x][y][z + zi] = v;
+                }
+            }
+        }
+
+        for z in (0..17).step_by(step) {
+            for x in (0..16).step_by(step) {
+                let mut v = map[x][y][z];
+                let s = (map[x + step][y][z] - v) / step as f32;
+                for zi in 1..step {
+                    v += s;
+                    map[x + zi][y][z] = v;
+                }
+            }
+        }
+
         for x in (0..16).step_by(step) {
             for z in (0..16).step_by(step) {
-                // interpolate a = lerp(A, B), c = lerp(D,C), e = lerp(a,c)
                 let mut v0 = map[x][y][z];
                 let s0 = (map[x + step][y][z] - v0) / step as f32;
                 let mut v1 = map[x][y][z + step];
                 let s1 = (map[x + step][y][z + step] - v1) / step as f32;
-                // interpolate d = lerp(A, D), b = lerp(B, C)
-                let s2 = (v1 - v0) / step as f32;
-                let s3 = (map[x + step][y][z + step] - map[x + step][y][z]) / step as f32;
-                let mut v2 = v0;
-                let mut v3 = v1;
                 for xi in 1..step {
                     v0 += s0;
                     v1 += s1;
@@ -325,11 +352,6 @@ impl Instance {
                         v += s;
                         map[x + xi][y][z + zi] = v;
                     }
-                    // interpolate d = lerp(A, D), b = lerp(B, C)
-                    v2 += s2;
-                    v3 += s3;
-                    map[x][y][z + xi] = v2;
-                    map[x + step][y][z + xi] = v3;
                 }
             }
         }
@@ -378,7 +400,7 @@ impl Instance {
         }
         // println!("Instance: {:?}:{} -> {:?}", self.position, self.level, round_up);
         self.round_up = *round_up;
-        let uvs = Some(vec![[0.0, 0.0]; len]);
+        let uvs = Some(vec![[1.0, 0.0]; len]);
         /* match self.ring {
             2 => vec![[0.0, 0.0]; len],
             3 => vec![[1.0, 0.0]; len],

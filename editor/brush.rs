@@ -35,8 +35,8 @@ pub fn picker(
             ),
         ];
         let texture = if let Some((t_min, t_max)) = ray.intersect_box(bounds) {
-            println!("Intersection with: {:?}", block);
             editor.picked_block = Some(block.position);
+            // println!("Intersects in {:?} and {:?}", t_min, t_max);
             red
         } else {
             gray

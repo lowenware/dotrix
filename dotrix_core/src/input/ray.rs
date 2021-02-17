@@ -61,10 +61,10 @@ impl Ray {
                     return None; 
                 }
 
-                let min = if z_min > min { z_min } else { min };
-                let max = if z_max < max { z_max } else { max };
+                //let min = if z_min > min { z_min } else { min };
+                //let max = if z_max < max { z_max } else { max };
  
-                return Some((Vec3::new(min, y_min, z_min), Vec3::new(max, y_max, z_max)));
+                return Some((Vec3::new(x_min, y_min, z_min), Vec3::new(x_max, y_max, z_max)));
             }
         }
         None
@@ -91,8 +91,6 @@ pub fn mouse_ray(
         let ray = camera.view().invert().unwrap() * ray;
         Vec3::new(ray.x, ray.y, ray.z).normalize()
     });
-
-    println!("dir {:?}", ray.direction);
 
     let inverted = ray.direction.as_ref().map(|d| 1.0_f32 / d);
 
