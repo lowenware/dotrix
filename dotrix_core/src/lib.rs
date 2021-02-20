@@ -18,6 +18,7 @@ pub mod components {
             Light,
             Model,
             SkyBox,
+            WireFrame,
         },
     };
 }

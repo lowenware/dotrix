@@ -86,7 +86,7 @@ fn run(
     }: Application
 ) {
     // initalize WGPU and surface
-    let (device, queue, surface) = futures::executor::block_on(init_surface(&window));
+    let (adapter, device, queue, surface) = futures::executor::block_on(init_surface(&window));
 
     let (mut pool, _spawner) = {
         let local_pool = futures::executor::LocalPool::new();
@@ -95,7 +95,7 @@ fn run(
     };
     let mut last_update_inst = Instant::now();
 
-    services.add(Renderer::new(device, queue, surface, window, clear_color));
+    services.add(Renderer::new(adapter, device, queue, surface, window, clear_color));
 
     scheduler.run_startup(&mut services);
 
@@ -162,6 +162,7 @@ fn run(
 async fn init_surface(
     window: &winit::window::Window
 ) -> (
+    wgpu::Adapter,
     wgpu::Device,
     wgpu::Queue,
     wgpu::Surface,
@@ -190,5 +191,5 @@ async fn init_surface(
         .await
         .expect("Failed to create device");
 
-    ( device, queue, surface )
+    ( adapter, device, queue, surface )
 }

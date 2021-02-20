@@ -6,6 +6,7 @@ mod mesh;
 mod skin;
 mod resource;
 mod texture;
+mod wires;
 
 pub use id::*;
 pub use loader::*;
@@ -14,6 +15,7 @@ pub use mesh::*;
 pub use skin::{Skin, Pose}; // TODO: consider moving of Pose to some shared place
 pub use resource::*;
 pub use texture::*;
+pub use wires::*;
 
 use std::{
     collections::HashMap,
@@ -30,6 +32,7 @@ pub struct Assets {
     textures: HashMap<Id<Texture>, Texture>,
     meshes: HashMap<Id<Mesh>, Mesh>,
     skins: HashMap<Id<Skin>, Skin>,
+    wires: HashMap<Id<Wires>, Wires>,
     loaders: Vec<Loader>,
     sender: mpsc::Sender<Request>,
     receiver: mpsc::Receiver<Response>,
@@ -58,6 +61,7 @@ impl Assets {
             textures: HashMap::new(),
             meshes: HashMap::new(),
             skins: HashMap::new(),
+            wires: HashMap::new(),
             loaders,
             sender,
             receiver,
@@ -210,6 +214,16 @@ impl AssetMapGetter<Resource> for Assets {
 
     fn map_mut(&mut self) -> &mut HashMap<Id<Resource>, Resource> {
         &mut self.resources
+    }
+}
+
+impl AssetMapGetter<Wires> for Assets {
+    fn map(&self) -> &HashMap<Id<Wires>, Wires> {
+        &self.wires
+    }
+
+    fn map_mut(&mut self) -> &mut HashMap<Id<Wires>, Wires> {
+        &mut self.wires
     }
 }
 
