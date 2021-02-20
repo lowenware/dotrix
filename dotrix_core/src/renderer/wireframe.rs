@@ -55,7 +55,7 @@ impl WireFrame {
         let transform_matrix = self.transform.matrix();
         let wire_frame_transform = AsRef::<[f32; 16]>::as_ref(&transform_matrix);
 
-        if let Ok(_) = self.get_assets(assets, device) {
+        if self.get_assets(assets, device).is_ok() {
 
             if let Some(buffers) = self.buffers.as_ref() {
                 queue.write_buffer(

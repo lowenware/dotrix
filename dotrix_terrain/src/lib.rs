@@ -13,7 +13,7 @@ use rayon::prelude::*;
 
 use dotrix_core::{
     assets::{ Id, Mesh },
-    components::{ Model },
+    components::{ Model, WireFrame },
     ecs::{ Const, Mut, Context },
     renderer::{ Transform },
     services::{ Assets, Camera, World },
@@ -439,9 +439,23 @@ impl Instance {
                 ..Default::default()
             };
             let block = self.block();
+            let wires = assets.find("wires_gray").expect("wires_gray to be loaded");
+            let wires_transform = Transform {
+                translate: Vec3::new(
+                    self.position.x as f32,
+                    self.position.y as f32,
+                    self.position.z as f32,
+                ),
+                scale: Vec3::new(half_size, half_size, half_size),
+                ..Default::default()
+            };
 
             world.spawn(
-                Some((Model { mesh, texture, transform, ..Default::default() }, block,))
+                Some((
+                    Model { mesh, texture, transform, ..Default::default() },
+                    WireFrame { wires, transform: wires_transform, ..Default::default() },
+                    block
+                ))
             );
 
             self.mesh = Some(mesh);
@@ -636,8 +650,8 @@ pub fn spawn(
         }
     }
 
-    let query = world.query::<(&mut Model, &Block)>();
-    for (model, block) in query {
+    let query = world.query::<(&mut Model, &mut WireFrame, &Block)>();
+    for (model, wire_frame, block) in query {
         model.disabled = ctx.instances.get(&block.position)
             .map(|instance| instance.disabled || instance.mesh.is_none())
             .unwrap_or_else(|| {
@@ -653,6 +667,7 @@ pub fn spawn(
                 */
                 true
             });
+        wire_frame.disabled = model.disabled;
     }
 
     terrain.generated_in = now.elapsed();
