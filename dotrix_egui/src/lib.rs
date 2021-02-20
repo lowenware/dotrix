@@ -78,7 +78,7 @@ impl OverlayProvider for Egui {
                 return;
             }
         } else {
-            self.texture = Some(assets.store(Texture {
+            self.texture = Some(assets.store_as(Texture {
                 width: texture.width as u32,
                 height: texture.height as u32,
                 data: egui_texture_to_rgba(&texture),

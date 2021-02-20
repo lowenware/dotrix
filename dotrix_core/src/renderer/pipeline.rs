@@ -1,4 +1,11 @@
-use crate::assets::{ StaticModelVertex, SkinnedModelVertex, VertexAttributes };
+use std::borrow::Cow;
+
+use crate::assets::{
+    StaticModelVertex,
+    SkinnedModelVertex,
+    VertexAttributes,
+    WireFrameVertex
+};
 
 use super::{
     bind_group_layout::{
@@ -520,3 +527,122 @@ impl Pipeline {
     }
 }
 
+
+/// Pipeline for static model
+impl Pipeline {
+
+    pub fn default_for_wire_frame(
+        adapter: &wgpu::Adapter,
+        device: &wgpu::Device,
+        sc_desc: &wgpu::SwapChainDescriptor,
+    ) -> Pipeline {
+        // TODO: custom shaders for the model to be handled here
+
+        let mut flags = wgpu::ShaderFlags::VALIDATION;
+        match adapter.get_info().backend {
+            wgpu::Backend::Metal | wgpu::Backend::Vulkan => {
+                flags |= wgpu::ShaderFlags::EXPERIMENTAL_TRANSLATION
+            }
+            _ => (),
+        }
+        let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shaders/wires.wgsl"))),
+            flags,
+        });
+
+        Self::new_for_wire_frame(device, sc_desc, shader)
+    }
+
+    pub fn new_for_wire_frame(
+        device: &wgpu::Device,
+        sc_desc: &wgpu::SwapChainDescriptor,
+        shader: wgpu::ShaderModule,
+    ) -> Self {
+
+        let bind_group_layout = device.create_bind_group_layout(
+            &wgpu::BindGroupLayoutDescriptor {
+                label: None,
+                entries: &[
+                    // Projection * View matrix
+                    uniform_entry(0),
+                    // Model transform matrix
+                    uniform_entry(1),
+                ],
+            }
+        );
+
+        let pipeline_layout = device.create_pipeline_layout(
+            &wgpu::PipelineLayoutDescriptor {
+                label: None,
+                bind_group_layouts: &[&bind_group_layout],
+                push_constant_ranges: &[],
+            }
+        );
+
+        let vertex_buffers = [wgpu::VertexBufferLayout {
+            array_stride: WireFrameVertex::size(),
+            step_mode: wgpu::InputStepMode::Vertex,
+            attributes: &[
+                // position
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float3,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                // color
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float3,
+                    offset: 4 * 3,
+                    shader_location: 1,
+                },
+            ],
+        }];
+
+        let wgpu_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("WireFrame pipeline"),
+            layout: Some(&pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &vertex_buffers,
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[
+                    wgpu::ColorTargetState {
+                        format: sc_desc.format,
+                        color_blend: wgpu::BlendState::REPLACE,
+                        alpha_blend: wgpu::BlendState::REPLACE,
+                        write_mask: wgpu::ColorWrite::ALL,
+                    }
+                ],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::LineList,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: wgpu::CullMode::Back,
+                ..Default::default()
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState {
+                    constant: 2, // corresponds to bilinear filtering
+                    slope_scale: 2.0,
+                    clamp: 0.0,
+                },
+                clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
+            }),
+            multisample: wgpu::MultisampleState::default(),
+        });
+
+        Pipeline {
+            bind_group_layout,
+            wgpu_pipeline,
+        }
+    }
+}

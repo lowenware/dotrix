@@ -14,10 +14,6 @@ license = "MIT"
 name = "dotrix"
 path = "src/lib.rs"
 
-[[bin]]
-name = "editor"
-path = "editor/main.rs"
-
 [features]
 default = [ "egui", "terrain", "ui" ]
 
@@ -54,14 +50,15 @@ path = "./dotrix_ui"
 optional = true
 
 [dependencies.dotrix_terrain]
-version = "0.1"
+version = "0.2"
 path = "./dotrix_terrain"
 optional = true
 
 [dev-dependencies.rand]
 version = "0.8"
 
-[dev-dependencies.rayon]
+# editor only
+[dependencies.rayon]
 version = "1.5"
 
 [dependencies.noise]
@@ -72,6 +69,10 @@ name = "demo"
 path = "examples/demo/demo.rs"
 
 [[example]]
+name = "egui"
+path = "examples/egui/egui.rs"
+
+[[example]]
 name = "fox"
 path = "examples/animation/fox.rs"
 
@@ -79,10 +80,3 @@ path = "examples/animation/fox.rs"
 name = "skybox"
 path = "examples/skybox/skybox.rs"
 
-[[example]]
-name = "ui"
-path = "examples/ui/ui.rs"
-
-[[example]]
-name = "egui"
-path = "examples/egui/egui.rs"

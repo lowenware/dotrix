@@ -20,6 +20,7 @@ pub struct Model {
     pub pose: Option<Pose>,
     pub buffers: Option<Buffers>,
     pub pipeline: Id<Pipeline>,
+    pub disabled: bool,
 }
 
 impl Model {

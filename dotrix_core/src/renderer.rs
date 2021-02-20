@@ -5,6 +5,7 @@ pub mod skybox;
 mod model;
 mod overlay;
 mod widget;
+mod wireframe;
 
 pub mod transform;
 pub use transform::*;
@@ -13,12 +14,13 @@ pub use skybox::*;
 pub use light::{ Light, LightUniform };
 pub use overlay::{ Overlay, overlay_update, Provider as OverlayProvider };
 pub use widget::{ Widget, WidgetVertex };
+pub use wireframe::*;
 
 use pipeline::Pipeline;
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
-use dotrix_math::{Mat4, Deg, perspective};
+use dotrix_math::{ Mat4, Deg, perspective };
 
 use crate::{
     assets::Id,
@@ -28,6 +30,7 @@ use crate::{
 
 pub struct Renderer {
     pub window: winit::window::Window,
+    pub adapter: wgpu::Adapter,
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub surface: wgpu::Surface,
@@ -50,6 +53,7 @@ pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
 
 impl Renderer {
     pub fn new(
+        adapter: wgpu::Adapter,
         device: wgpu::Device,
         queue: wgpu::Queue,
         surface: wgpu::Surface,
@@ -77,6 +81,7 @@ impl Renderer {
 
         Self {
             window,
+            adapter,
             device,
             queue,
             surface,
@@ -132,6 +137,15 @@ impl Renderer {
 
     pub fn add_overlay_pipeline(&mut self) -> Id<Pipeline> {
         let pipeline = Pipeline::default_for_overlay(&self.device, &self.sc_desc);
+        self.add_pipeline(pipeline)
+    }
+
+    pub fn add_wire_frame_pipeline(&mut self) -> Id<Pipeline> {
+        let pipeline = Pipeline::default_for_wire_frame(
+            &self.adapter,
+            &self.device,
+            &self.sc_desc
+        );
         self.add_pipeline(pipeline)
     }
 
@@ -212,9 +226,9 @@ impl Renderer {
     fn frustum(aspect_ratio: f32) -> Mat4 {
         let fov = Deg(70f32);
         let near_plane = 0.1;
-        let far_plane = 1000.0;
+        let far_plane = 2000.0;
 
-        OPENGL_TO_WGPU_MATRIX * perspective(fov, aspect_ratio, near_plane, far_plane)
+        perspective(fov, aspect_ratio, near_plane, far_plane)
     }
 }
 
@@ -224,6 +238,7 @@ pub struct Pipelines {
     static_model: Id<Pipeline>,
     skinned_model: Id<Pipeline>,
     overlay: Id<Pipeline>,
+    wire_frame: Id<Pipeline>,
 }
 
 #[derive(Default)]
@@ -246,12 +261,14 @@ pub fn world_renderer(
         let static_model = renderer.add_static_model_pipeline();
         let skinned_model = renderer.add_skinned_model_pipeline();
         let overlay = renderer.add_overlay_pipeline();
+        let wire_frame = renderer.add_wire_frame_pipeline();
         ctx.pipelines = Some(
             Pipelines {
                 skybox,
                 static_model,
                 skinned_model,
                 overlay,
+                wire_frame,
             }
         );
     }
@@ -296,7 +313,7 @@ pub fn world_renderer(
     }
 
     // Prepare projection * view matrix
-    let proj_view_matrix = renderer.projection * camera.view();
+    let proj_view_matrix = OPENGL_TO_WGPU_MATRIX * renderer.projection * camera.view();
     let proj_view_slice = AsRef::<[f32; 16]>::as_ref(&proj_view_matrix);
 
     if let Some(proj_view_buffer) = ctx.proj_view_buffer.as_ref() {
@@ -343,7 +360,7 @@ pub fn world_renderer(
             skybox.pipeline = ctx.pipelines.as_ref().unwrap().skybox;
         }
         let pipeline = renderer.pipeline(skybox.pipeline);
-        let proj_view = renderer.projection * camera.view_static();
+        let proj_view = OPENGL_TO_WGPU_MATRIX * renderer.projection * camera.view_static();
 
         skybox.load(&assets, device, queue, pipeline, sampler, &proj_view);
         skybox.draw(&mut encoder, pipeline, frame);
@@ -352,6 +369,10 @@ pub fn world_renderer(
     // render static models
     let query = world.query::<(&mut Model,)>();
     for (model,) in query {
+        if model.disabled {
+            continue;
+        }
+
         if model.pipeline.is_null() {
             let pipelines = ctx.pipelines.as_ref().unwrap();
             model.pipeline = if !model.skin.is_null() {
@@ -366,6 +387,24 @@ pub fn world_renderer(
 
         model.load(&renderer, &mut assets, pipeline, sampler, proj_view_buffer, lights_buffer);
         model.draw(&assets, &mut encoder, pipeline, frame, depth_buffer);
+    }
+
+    let query = world.query::<(&mut WireFrame,)>();
+    for (wire_frame,) in query {
+
+        if wire_frame.disabled {
+            continue;
+        }
+
+        if wire_frame.pipeline.is_null() {
+            let pipelines = ctx.pipelines.as_ref().unwrap();
+            wire_frame.pipeline = pipelines.wire_frame;
+        }
+        let pipeline = renderer.pipeline(wire_frame.pipeline);
+        let proj_view_buffer = ctx.proj_view_buffer.as_ref().unwrap();
+
+        wire_frame.load(&renderer, &mut assets, pipeline, proj_view_buffer);
+        wire_frame.draw(&assets, &mut encoder, pipeline, frame, depth_buffer);
     }
 
     for overlay in &renderer.overlay {

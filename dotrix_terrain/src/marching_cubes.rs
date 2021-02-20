@@ -1,10 +1,13 @@
+use rayon::prelude::*;
+
 /// Voxel Vertex structure
-struct Vertex {
-    position: [f32; 3],
-    value: f32,
+pub struct Vertex {
+    pub position: [f32; 3],
+    pub value: f32,
 }
 
 impl Vertex {
+    /// Create new Vertex instance
     pub fn new([x, y, z]: [usize; 3], value: f32) -> Self {
         Self {
             position: [x as f32, y as f32, z as f32],
@@ -13,12 +16,13 @@ impl Vertex {
     }
 }
 
-struct Voxel {
-    vertices: [Vertex; 8],
+/// Voxel structure
+pub struct Voxel {
+    pub vertices: [Vertex; 8],
 }
 
 impl Voxel {
-
+    /// Interpolate position of the surface vertex
     pub fn slerp(&self, isolevel: f32, index_1: usize, index_2: usize) -> [f32; 3] {
         let position_1 = self.vertices[index_1].position;
         let position_2 = self.vertices[index_2].position;
@@ -61,7 +65,7 @@ pub struct MarchingCubes {
 impl MarchingCubes {
     pub fn new() -> Self {
         Self {
-            size: 64,
+            size: 16,
             isolevel: 0.0,
             low_poly: true,
         }
@@ -71,29 +75,27 @@ impl MarchingCubes {
     /// Returns vector of vertices and optional vector of indices, dependent on `low_poly`
     /// parameter
     pub fn polygonize<F>(&self, density: F) -> (Vec<[f32; 3]>, Option<Vec<u32>>)
-    where F: Fn(usize, usize, usize) -> f32
+    where F: Fn(usize, usize, usize) -> f32 + Send + Sync
     {
-        let mut positions = Vec::with_capacity(300_000);
-
-        for x0 in 0..self.size {
+        let positions = (0..self.size).into_par_iter().map(|x0| {
             let x1 = x0 + 1;
-            for z0 in 0..self.size {
+            (0..self.size).into_par_iter().map(|z0| {
                 let z1 = z0 + 1;
-                for y0 in 0..self.size {
+                (0..self.size).into_par_iter().map(|y0| {
+                    let mut positions = Vec::with_capacity(16);
                     let y1 = y0 + 1;
                     let voxel = Voxel {
                         vertices: [
-                            Vertex::new([x0, y0, z0], density(x0, y0, z0)),
-                            Vertex::new([x1, y0, z0], density(x1, y0, z0)),
-                            Vertex::new([x1, y1, z0], density(x1, y1, z0)),
-                            Vertex::new([x0, y1, z0], density(x0, y1, z0)),
-                            Vertex::new([x0, y0, z1], density(x0, y0, z1)),
-                            Vertex::new([x1, y0, z1], density(x1, y0, z1)),
-                            Vertex::new([x1, y1, z1], density(x1, y1, z1)),
-                            Vertex::new([x0, y1, z1], density(x0, y1, z1)),
+                            Vertex::new([x0, y0, z0], density(x0, y0, z0)), // 0
+                            Vertex::new([x1, y0, z0], density(x1, y0, z0)), // 1
+                            Vertex::new([x1, y1, z0], density(x1, y1, z0)), // 2
+                            Vertex::new([x0, y1, z0], density(x0, y1, z0)), // 3
+                            Vertex::new([x0, y0, z1], density(x0, y0, z1)), // 4
+                            Vertex::new([x1, y0, z1], density(x1, y0, z1)), // 5
+                            Vertex::new([x1, y1, z1], density(x1, y1, z1)), // 6
+                            Vertex::new([x0, y1, z1], density(x0, y1, z1)), // 7
                         ]
                     };
-
                     let mut case_index = 0;
                     let mut vertices = [[0.0, 0.0, 0.0]; 12];
 
@@ -105,7 +107,7 @@ impl MarchingCubes {
 
                     // Cube is entirely in or out of the surface
                     if CASE_TO_NUMPOLY[case_index] == 0 {
-                        continue;
+                        return positions;
                     }
 
                     // Find intersections witht the voxel
@@ -141,9 +143,12 @@ impl MarchingCubes {
                             }
                         */
                     }
-                }
-            }
-        }
+                    positions
+                }).flatten().collect::<Vec<_>>()
+            }).flatten().collect::<Vec<_>>()
+        }).flatten().collect::<Vec<_>>();
+
+        // (Arc::try_unwrap(positions).unwrap().into_inner().unwrap(), None)
         (positions, None)
     }
 }

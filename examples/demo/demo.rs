@@ -137,7 +137,7 @@ fn init_terrain(
     mesh.calculate();
 
     // Store mesh and get its ID
-    let mesh = assets.store(mesh, "terrain");
+    let mesh = assets.store_as(mesh, "terrain");
 
     // import terrain texture and get its ID
     assets.import("examples/demo/terrain.png");

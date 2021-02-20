@@ -33,7 +33,7 @@ impl TransformBuilder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct Transform {
     pub translate: Vec3,
     pub rotate: Quat,

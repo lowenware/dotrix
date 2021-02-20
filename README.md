@@ -22,6 +22,11 @@ numerical ID. Each entitiy agregates constant number of components.
 4. **Services** are Rust objects available through systems, providing some key
 features or access to global resources, like Assets, Input or Render management.
 
+## Editor
+
+Editor application is under active development in the separate repository
+[lowenware/dotrix-editor](https://github.com/lowenware/dotrix-editor).
+
 ## Getting started
 
 The best place to start is to review examples distributed with the engine. All examples are grouped
@@ -34,6 +39,13 @@ Book for a quick start.
 ```
 cargo run --release --example demo
 ```
+
+## EGUI
+
+```
+cargo run --release --example egui
+```
+
 
 ## Skeletal Animation
 
@@ -48,6 +60,8 @@ cargo run --release --example skybox
 ```
 
 ## Shaders Compilation
+
+> __Migration to WGLS shaders is pending__
 
 Dotrix is distributed with both sources and precompiled to SPIR-V shaders. So until you make a
 change in a shader's code, you won't need to compile it. We are looking forward integration with
