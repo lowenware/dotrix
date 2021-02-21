@@ -243,7 +243,7 @@ impl Instance {
             Self::resolve_seams_x(&mut map, (self.level - round_up[0]) as usize + 1, x);
         }
         if round_up[1] > 0 {
-            println!("resolve_seams Y: level={}, size={}, position={:?}", self.level, self.size, self.position);
+            // println!("resolve_seams Y: level={}, size={}, position={:?}", self.level, self.size, self.position);
             Self::resolve_seams_y(&mut map, (self.level - round_up[1]) as usize + 1, y);
             /*
             println!("\nResolve seams y: {}", y);
