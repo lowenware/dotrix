@@ -32,11 +32,11 @@ impl Ray {
     }
 
     /// Calculate intersection with an axis aligned box
-    /// Returns optional positions of far and near intersection points
-    pub fn intersect_box(
+    /// Returns optional ray length in near and far intersection points
+    pub fn intersect_aligned_box(
         &self,
         bounds: [Vec3; 2],
-    ) -> Option<(Vec3, Vec3)> {
+    ) -> Option<(f32, f32)> {
 
         if let Some(origin) = self.origin.as_ref() {
             if let Some(inverted) = self.inverted.as_ref() {
@@ -51,20 +51,20 @@ impl Ray {
                     return None;
                 }
 
-                let min = if y_min > x_min { y_min } else { x_min };
-                let max = if y_max < x_max { y_max } else { x_max };
+                let t_min = if y_min > x_min { y_min } else { x_min };
+                let t_max = if y_max < x_max { y_max } else { x_max };
 
                 let z_min = (bounds[self.sign[2] as usize].z - origin.z) * inverted.z; 
                 let z_max = (bounds[1 - self.sign[2] as usize].z - origin.z) * inverted.z; 
 
-                if min > z_max || z_min > max {
+                if t_min > z_max || z_min > t_max {
                     return None; 
                 }
 
-                //let min = if z_min > min { z_min } else { min };
-                //let max = if z_max < max { z_max } else { max };
+                let t_min = if z_min > t_min { z_min } else { t_min };
+                let t_max = if z_max < t_max { z_max } else { t_max };
  
-                return Some((Vec3::new(x_min, y_min, z_min), Vec3::new(x_max, y_max, z_max)));
+                return Some((t_min, t_max));
             }
         }
         None
@@ -103,4 +103,38 @@ pub fn mouse_ray(
     }
 
     ray.inverted = inverted;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ray_intersection() {
+        let direction = Vec3::new(0.0, 0.0, -1.0);
+        let inverted = 1.0_f32 / direction;
+        let sign = [
+            if inverted.x < 0.0 { 1 } else { 0 },
+            if inverted.y < 0.0 { 1 } else { 0 },
+            if inverted.z < 0.0 { 1 } else { 0 },
+        ];
+        let ray = Ray {
+            direction: Some(direction),
+            origin: Some(Vec3::new(0.0, 0.0, 10.0)),
+            inverted: Some(inverted),
+            sign,
+        };
+
+        let res = ray.intersect_aligned_box([
+            Vec3::new(-1.0, -1.0, -1.0),
+            Vec3::new(1.0, 1.0, 1.0)
+        ]);
+
+        assert_eq!(res.is_some(), true);
+        let (t_min, t_max) = res.unwrap();
+
+        assert_eq!(t_min.round() as i32, 9);
+        assert_eq!(t_max.round() as i32, 11);
+    }
+
 }

@@ -1,7 +1,9 @@
 mod marching_cubes;
+mod voxel_map;
 pub mod octree;
 
 pub use marching_cubes::*;
+pub use voxel_map::*;
 
 use std::{
     collections::HashMap,
@@ -40,8 +42,6 @@ impl Lod {
         (2_i32).pow(self.0 as u32)
     }
 }
-
-pub type VoxelMap = [[[f32; 17]; 17]; 17];
 
 pub struct Terrain {
     pub last_viewer_position: Option<Point3>,
@@ -89,19 +89,19 @@ impl Terrain {
         let step = offset / (16 / 2);
 
         // density.value already applies theoffset
-        let mut payload = [[[0.0; 17]; 17]; 17];
+        let mut density = [[[0.0; 17]; 17]; 17];
         for x in 0..17 {
             let xf = (node.x - offset + x * step) as f64 / noise_scale + 0.5;
             for y in 0..17 {
                 let yf = (node.y - offset + y * step) as f64 /* noise_scale + 0.5 */;
                 for z in 0..17 {
                     let zf = (node.z - offset + z * step) as f64 / noise_scale + 0.5;
-                    payload[x as usize][y as usize][z as usize] = 
+                    density[x as usize][y as usize][z as usize] = 
                         (noise_amplitude * (noise.get([xf, zf]) + 1.0) - yf) as f32;
                 }
             }
         }
-        self.octree.store(node, payload);
+        self.octree.store(node, VoxelMap::new(density));
 
         if depth < 3 {
             let children = OctreeNode::<i32>::children(&node, offset / 2);
@@ -188,6 +188,8 @@ pub struct Block {
     pub position: Vec3i,
     pub bound_min: Vec3i,
     pub bound_max: Vec3i,
+    /// size of the cube (not block)
+    pub cube_size: usize,
 }
 
 pub struct Instance {
@@ -241,7 +243,7 @@ impl Instance {
             Self::resolve_seams_x(&mut map, (self.level - round_up[0]) as usize + 1, x);
         }
         if round_up[1] > 0 {
-            println!("resolve_seams Y: level={}, size={}, position={:?}", self.level, self.size, self.position);
+            // println!("resolve_seams Y: level={}, size={}, position={:?}", self.level, self.size, self.position);
             Self::resolve_seams_y(&mut map, (self.level - round_up[1]) as usize + 1, y);
             /*
             println!("\nResolve seams y: {}", y);
@@ -291,21 +293,21 @@ impl Instance {
     fn resolve_seams_x(map: &mut VoxelMap, step: usize, x: usize) {
         for y in (0..16).step_by(step) {
             for z in (0..16).step_by(step) {
-                let mut v0 = map[x][y][z];
-                let s0 = (map[x][y][z + step] - v0) / step as f32;
-                let mut v1 = map[x][y + step][z];
-                let s1 = (map[x][y + step][z + step] - v1) / step as f32;
+                let mut v0 = map.density[x][y][z];
+                let s0 = (map.density[x][y][z + step] - v0) / step as f32;
+                let mut v1 = map.density[x][y + step][z];
+                let s1 = (map.density[x][y + step][z + step] - v1) / step as f32;
 
                 for zi in 1..step {
                     v0 += s0;
                     v1 += s1;
-                    map[x][y][z + zi] = v0;
-                    map[x][y + step][z + zi] = v1;
+                    map.density[x][y][z + zi] = v0;
+                    map.density[x][y + step][z + zi] = v1;
                     let mut v = v0;
                     let s = (v1 - v0) / step as f32;
                     for yi in 1..step {
                         v += s;
-                        map[x][y + yi][z + zi] = v;
+                        map.density[x][y + yi][z + zi] = v;
                     }
                 }
             }
@@ -315,42 +317,42 @@ impl Instance {
     fn resolve_seams_y(map: &mut VoxelMap, step: usize, y: usize) {
         for x in (0..17).step_by(step) {
             for z in (0..16).step_by(step) {
-                let mut v = map[x][y][z];
-                let s = (map[x][y][z + step] - v) / step as f32;
+                let mut v = map.density[x][y][z];
+                let s = (map.density[x][y][z + step] - v) / step as f32;
                 for zi in 1..step {
                     v += s;
-                    map[x][y][z + zi] = v;
+                    map.density[x][y][z + zi] = v;
                 }
             }
         }
 
         for z in (0..17).step_by(step) {
             for x in (0..16).step_by(step) {
-                let mut v = map[x][y][z];
-                let s = (map[x + step][y][z] - v) / step as f32;
+                let mut v = map.density[x][y][z];
+                let s = (map.density[x + step][y][z] - v) / step as f32;
                 for zi in 1..step {
                     v += s;
-                    map[x + zi][y][z] = v;
+                    map.density[x + zi][y][z] = v;
                 }
             }
         }
 
         for x in (0..16).step_by(step) {
             for z in (0..16).step_by(step) {
-                let mut v0 = map[x][y][z];
-                let s0 = (map[x + step][y][z] - v0) / step as f32;
-                let mut v1 = map[x][y][z + step];
-                let s1 = (map[x + step][y][z + step] - v1) / step as f32;
+                let mut v0 = map.density[x][y][z];
+                let s0 = (map.density[x + step][y][z] - v0) / step as f32;
+                let mut v1 = map.density[x][y][z + step];
+                let s1 = (map.density[x + step][y][z + step] - v1) / step as f32;
                 for xi in 1..step {
                     v0 += s0;
                     v1 += s1;
-                    map[x + xi][y][z] = v0;
-                    map[x + xi][y][z + step] = v1;
+                    map.density[x + xi][y][z] = v0;
+                    map.density[x + xi][y][z + step] = v1;
                     let mut v = v0;
                     let s = (v1 - v0) / step as f32;
                     for zi in 1..step {
                         v += s;
-                        map[x + xi][y][z + zi] = v;
+                        map.density[x + xi][y][z + zi] = v;
                     }
                 }
             }
@@ -360,20 +362,20 @@ impl Instance {
     fn resolve_seams_z(map: &mut VoxelMap, step: usize, z: usize) {
         for x in (0..16).step_by(step) {
             for y in (0..16).step_by(step) {
-                let mut v0 = map[x][y][z];
-                let s0 = (map[x + step][y][z] - v0) / step as f32;
-                let mut v1 = map[x][y + step][z];
-                let s1 = (map[x + step][y + step][z] - v1) / step as f32;
+                let mut v0 = map.density[x][y][z];
+                let s0 = (map.density[x + step][y][z] - v0) / step as f32;
+                let mut v1 = map.density[x][y + step][z];
+                let s1 = (map.density[x + step][y + step][z] - v1) / step as f32;
                 for xi in 1..step {
                     v0 += s0;
                     v1 += s1;
-                    map[x + xi][y][z] = v0;
-                    map[x + xi][y + step][z] = v1;
+                    map.density[x + xi][y][z] = v0;
+                    map.density[x + xi][y + step][z] = v1;
                     let mut v = v0;
                     let s = (v1 - v0) / step as f32;
                     for yi in 1..step {
                         v += s;
-                        map[x + xi][y + yi][z] = v;
+                        map.density[x + xi][y + yi][z] = v;
                     }
                 }
             }
@@ -390,7 +392,7 @@ impl Instance {
         let scale = (self.size / map_size) as f32;
 
         let map = self.resolve_seams(round_up);
-        let (positions, _) = mc.polygonize(|x, y, z| map[x][y][z]);
+        let (positions, _) = mc.polygonize(|x, y, z| map.density[x][y][z]);
 
         let len = positions.len();
 
@@ -477,6 +479,7 @@ impl Instance {
                 self.position.y + half_size,
                 self.position.z + half_size
             ),
+            cube_size: self.size / 16,
         }
     }
 
