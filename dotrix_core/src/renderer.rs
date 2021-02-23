@@ -1,4 +1,5 @@
 pub mod bind_group_layout;
+pub mod color;
 mod light;
 pub mod pipeline;
 pub mod skybox;
@@ -7,11 +8,12 @@ mod overlay;
 mod widget;
 mod wireframe;
 
+pub use color::Color;
 pub mod transform;
 pub use transform::*;
 pub use model::*;
 pub use skybox::*;
-pub use light::{ Light, LightUniform };
+pub use light::{ AmbientLight, DirLight, Light, LightUniform, PointLight, SimpleLight, SpotLight };
 pub use overlay::{ Overlay, overlay_update, Provider as OverlayProvider };
 pub use widget::{ Widget, WidgetVertex };
 pub use wireframe::*;
@@ -72,7 +74,7 @@ impl Renderer {
 
         let depth_buffer = Self::create_depth_buffer(&device, size.width, size.height);
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
-        let clear_color = wgpu::Color { 
+        let clear_color = wgpu::Color {
             r: clear_color[0],
             g: clear_color[1],
             b: clear_color[2],
@@ -294,10 +296,39 @@ pub fn world_renderer(
     }
 
     // Prepare lights
-    let query = world.query::<(&mut Light,)>();
     let mut lights = LightUniform::default();
-    for (light,) in query {
-        lights.push(*light);
+
+    let query = world.query::<(&AmbientLight,)>();
+    for (amb_light,) in query {
+        lights.ambient = amb_light.to_raw();
+    }
+
+    let query = world.query::<(&DirLight,)>();
+    for (dir_light,) in query {
+        if dir_light.enabled {
+            lights.push_dir_light(dir_light.to_raw());
+        }
+    }
+
+    let query = world.query::<(&PointLight,)>();
+    for (point_light,) in query {
+        if point_light.enabled {
+            lights.push_point_light(point_light.to_raw());
+        }
+    }
+
+    let query = world.query::<(&SimpleLight,)>();
+    for (simple_light,) in query {
+        if simple_light.enabled {
+            lights.push_simple_light(simple_light.to_raw());
+        }
+    }
+
+    let query = world.query::<(&SpotLight,)>();
+    for (spot_light,) in query {
+        if spot_light.enabled {
+            lights.push_spot_light(spot_light.to_raw());
+        }
     }
 
     if let Some(lights_buffer) = ctx.lights_buffer.as_ref() {

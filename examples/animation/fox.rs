@@ -9,7 +9,7 @@
 use dotrix::{
     Dotrix,
     assets::{ Animation, Mesh, Skin, Texture },
-    components::{ Animator, Light, Model },
+    components::{ Animator, Model, SimpleLight },
     ecs::{ Mut, RunLevel, System },
     renderer::transform::Transform,
     services::{ Assets, Camera, Frame, World },
@@ -91,6 +91,8 @@ fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
         )
     ]);
 
-    world.spawn(Some((Light::white([200.0, 50.0, 200.0]),)));
+    world.spawn(Some((SimpleLight{
+        position: Vec3::new(200.0, 50.0, 200.0), ..Default::default()
+    },)));
 }
 

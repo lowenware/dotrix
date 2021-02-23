@@ -15,10 +15,14 @@ pub mod components {
     pub use crate::{
         animation::Animator,
         renderer::{
-            Light,
+            AmbientLight,
+            DirLight,
             Model,
+            PointLight,
+            SimpleLight,
             SkyBox,
-            WireFrame,
+            SpotLight,
+			WireFrame,
         },
     };
 }
