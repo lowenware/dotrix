@@ -1,6 +1,6 @@
 [package]
 name = "dotrix_core"
-version = "0.2.1"
+version = "0.3.0"
 authors = [
   "Elias Kartashov <elias@lowenware.com>",
   "Štěpán Wünsch <sw@lowenware.com>",
@@ -21,7 +21,7 @@ version = "1.4"
 features = ["derive"]
 
 [dependencies.dotrix_math]
-version = "0.2"
+version = "0.3"
 path = "../dotrix_math"
 
 [dependencies.futures]

@@ -9,15 +9,22 @@ use std::f32::consts::PI;
 const ROTATE_SPEED: f32 = PI / 10.0;
 const ZOOM_SPEED: f32 = 10.0;
 
+/// Camera management service
 pub struct Camera {
+    /// Distance between the camera and a target
     pub distance: f32,
+    /// Angle around the Y axis
     pub y_angle: f32,
+    /// Angle in horizontal plane
     pub xz_angle: f32,
+    /// Camera target coordinate
     pub target: Point3,
+    /// View matri
     pub view: Option<Mat4>,
 }
 
 impl Camera {
+    /// Creates new Camera instance
     pub fn new() -> Self {
         let distance = 15.0;
         let y_angle = -PI / 2.0;
@@ -33,6 +40,7 @@ impl Camera {
         }
     }
 
+    /// Returns view matrix
     pub fn view(&self) -> Mat4 {
         self.view
             .as_ref()
@@ -42,6 +50,9 @@ impl Camera {
             })
     }
 
+    /// Returns view matrix with zero transition
+    ///
+    /// It is useful for sky boxes and domes
     pub fn view_static(&self) -> Mat4 {
         let mut view_static = self.view();
         view_static.w.x = 0.0;
@@ -50,10 +61,12 @@ impl Camera {
         view_static
     }
 
+    /// Generates and stores view matrix using values from properties
     pub fn set_view(&mut self) {
         self.view = Some(Self::matrix(self.target, self.distance, self.y_angle, self.xz_angle));
     }
 
+    /// Returns calculated camera position
     pub fn position(&self) -> Vec3 {
         let dy = self.distance * self.xz_angle.sin();
         let dxz = self.distance * self.xz_angle.cos();
@@ -85,6 +98,7 @@ impl Default for Camera {
     }
 }
 
+/// System controlling camera with mouse
 pub fn camera_control(mut camera: Mut<Camera>, input: Const<Input>, frame: Const<Frame>) {
     let time_delta = frame.delta().as_secs_f32();
     let mouse_delta = input.mouse_delta();

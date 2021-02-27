@@ -1,6 +1,9 @@
 use std::time::{Duration, Instant};
 use log::info;
 
+/// Frame tracking service
+///
+/// Calculates FPS and tracks delta time between renderings
 pub struct Frame {
     first: Option<Instant>,
     current: Option<Instant>,
@@ -12,6 +15,7 @@ pub struct Frame {
 }
 
 impl Frame {
+    /// Constructs service instance
     pub fn new() -> Self {
         Self {
             first: None,
@@ -24,7 +28,7 @@ impl Frame {
         }
     }
 
-    pub fn next(&mut self) {
+    pub(crate) fn next(&mut self) {
         let now = Instant::now();
         if let Some(first) = self.first {
             self.time = now - first;
@@ -52,14 +56,17 @@ impl Frame {
         self.counter += 1;
     }
 
+    /// Returns [`Duration`] from application start
     pub fn time(&self) -> Duration {
         self.time
     }
 
+    /// Returns FPS
     pub fn fps(&self) -> u32 {
         if let Some(fps) = self.fps { fps } else { self.counter }
     }
 
+    /// Returns [`Duration`] from previous rendering
     pub fn delta(&self) -> Duration {
         self.delta
     }

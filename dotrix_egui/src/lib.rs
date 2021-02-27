@@ -1,3 +1,50 @@
+//! EGUI integration interface
+//!
+//! ## Usage
+//! ```no_run
+//! use dotrix_core::{
+//!     Dotrix,
+//!     ecs::{ Const, Mut, System, RunLevel },
+//!     services::Renderer,
+//!     systems::{ overlay_update, world_renderer },
+//! };
+//!
+//! use dotrix_egui::{
+//!     Egui,
+//!     SidePanel,
+//!     Label,
+//! };
+//!
+//! fn main() {
+//!     Dotrix::application("My Game with EGUI")
+//!         .with_system(System::from(startup).with(RunLevel::Startup))
+//!         .with_system(System::from(overlay_update))
+//!         .with_system(System::from(ui))
+//!         .with_system(System::from(world_renderer).with(RunLevel::Render))
+//!         .run();
+//! }
+//!
+//! fn startup(mut renderer: Mut<Renderer>) {
+//!     renderer.add_overlay(Box::new(Egui::default()));
+//! }
+//!
+//! fn ui(renderer: Const<Renderer>) {
+//!     let egui = renderer.overlay_provider::<Egui>()
+//!         .expect("Renderer does not contain an Overlay instance");
+//!
+//!     // use native EGUI API
+//!     SidePanel::left("side_panel", 300.0).show(&egui.ctx, |ui| {
+//!         ui.add(Label::new("Dotrix & Egui integration"))
+//!     });
+//! }
+//! ```
+//!
+//! Dotrix provides a simple
+//! [example](https://github.com/lowenware/dotrix/blob/main/examples/egui/egui.rs) demonstrating
+//! the EGUI.
+#![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
+#![warn(missing_docs)]
+
 use dotrix_core::{
     assets::{ Id, Texture },
     input::{
@@ -15,8 +62,10 @@ pub use egui::*;
 
 const TEXTURE_NAME: &str = "egui::texture";
 
+/// EGUI overlay provider
 #[derive(Default)]
 pub struct Egui {
+    /// EGUI context
     pub ctx: egui::CtxRef,
     texture: Option<Id<Texture>>,
     texture_version: Option<u64>,

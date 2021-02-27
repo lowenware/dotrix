@@ -4,9 +4,13 @@ use dotrix_math::{ Vec3, Vec4 };
 #[derive(Clone, Debug)]
 /// Component to be added to entities
 pub struct SimpleLight {
+    /// Is light source enabled
     pub enabled: bool,
+    /// Light source position
     pub position: Vec3,
+    /// Light color
     pub color: Color,
+    /// Light intensity
     pub intensity: f32,
 }
 

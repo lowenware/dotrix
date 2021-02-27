@@ -1,6 +1,6 @@
 [package]
 name = "dotrix"
-version = "0.2.0"
+version = "0.3.0"
 authors = [
   "Elias Kartashov <elias@lowenware.com>",
   "Štěpán Wünsch <sw@lowenware.com>",
@@ -15,42 +15,35 @@ name = "dotrix"
 path = "src/lib.rs"
 
 [features]
-default = [ "egui", "terrain", "ui" ]
+default = [ "egui", "terrain" ]
 
 egui = ["dotrix_egui"]
 terrain = ["dotrix_terrain"]
-ui = ["dotrix_ui"]
 
 [workspace]
 members = [
   "dotrix_core",
   "dotrix_egui",
   "dotrix_terrain",
-  "dotrix_ui",
 ]
 
 [dependencies.dotrix_core]
-version = "0.2"
+version = "0.3"
 path = "./dotrix_core"
 
 [dependencies.dotrix_math]
-version = "0.2"
+version = "0.3"
 path = "./dotrix_math"
 
 # Optional dependencies
 
 [dependencies.dotrix_egui]
-version = "0.2"
+version = "0.3"
 path = "./dotrix_egui"
 optional = true
 
-[dependencies.dotrix_ui]
-version = "0.1"
-path = "./dotrix_ui"
-optional = true
-
 [dependencies.dotrix_terrain]
-version = "0.2"
+version = "0.3"
 path = "./dotrix_terrain"
 optional = true
 

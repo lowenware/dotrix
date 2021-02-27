@@ -6,18 +6,45 @@ use crate::{
 use super::pipeline::Pipeline;
 use super::transform::Transform;
 
+/// Pipeline buffers
 pub struct Buffers {
     bind_group: wgpu::BindGroup,
     transform: wgpu::Buffer,
 }
 
+/// Component to draw wire frames
+///
+/// Typical use of the component is to render a wired cube
+///
+/// ```
+/// use dotrix_core::{
+///     assets::Wires,
+///     components::WireFrame,
+///     ecs::Mut,
+///     services::{ Assets, World },
+/// };
+///
+/// fn my_system( mut assets: Mut<Assets>, mut world: Mut<World>) {
+///     let wires = assets.store(Wires::cube([1.0; 3]));
+///     world.spawn(
+///         Some((
+///             WireFrame { wires, ..Default::default() },
+///         ))
+///     );
+/// }
+/// ```
 #[derive(Default)]
 pub struct WireFrame {
+    /// wires asset id
     pub wires: Id<Wires>,
+    /// transformations
     pub transform: Transform,
-    pub buffers: Option<Buffers>,
+    /// custom [`Id`] of a rendering [`Pipeline`]
     pub pipeline: Id<Pipeline>,
+    /// is rendering disabled
     pub disabled: bool,
+    /// pipeline buffers
+    pub buffers: Option<Buffers>,
 }
 
 impl WireFrame {
@@ -95,6 +122,7 @@ impl WireFrame {
         }
     }
 
+    /// draw the [`WireFrame`]
     pub(crate) fn draw(
         &self,
         assets: &Assets,

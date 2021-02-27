@@ -2,22 +2,30 @@ use bytemuck::{ Pod, Zeroable };
 use wgpu::util::DeviceExt;
 use dotrix_math::{ Vec3, InnerSpace, VectorSpace };
 
+/// Asset with 3D model data
 #[derive(Default)]
 pub struct Mesh {
+    /// Vertices positions
     pub positions: Vec<[f32; 3]>,
+    /// Normals for the vertices
     pub normals: Option<Vec<[f32; 3]>>,
+    /// Texture coordinates for the vertices
     pub uvs: Option<Vec<[f32; 2]>>,
+    /// Transformation weights for the vertices
     pub weights: Option<Vec<[f32; 4]>>,
+    /// Indices of joints affecting the transformation
     pub joints: Option<Vec<[u16; 4]>>,
+    /// Indices of the vertices
     pub indices: Option<Vec<u32>>,
+    /// Vertices pipeline buffer
     pub vertices_buffer: Option<wgpu::Buffer>,
+    /// Indices pipeline buffer
     pub indices_buffer: Option<wgpu::Buffer>,
 }
 
 impl Mesh {
-
-    /// converts a mesh into a vector of vertices data, packed for static shadering:
-    /// positions, normals, uvs
+    /// Converts a mesh into a vector of vertices data, packed for static shadering
+    /// (positions, normals, uvs)
     pub fn as_static(&self) -> Option<Vec<StaticModelVertex>> {
         if let Some(normals) = self.normals.as_ref() {
             if let Some(uvs) = self.uvs.as_ref() {
@@ -39,8 +47,8 @@ impl Mesh {
         None
     }
 
-    /// converts a mesh into a vector of vertices data, packed for skinned shadering:
-    /// positions, normals, uvs, weights, 
+    /// Converts a mesh into a vector of vertices data, packed for skinned shadering
+    /// (positions, normals, uvs, weights, affected joints)
     pub fn as_skinned(&self) -> Option<Vec<SkinnedModelVertex>> {
         if let Some(normals) = self.normals.as_ref() {
             if let Some(uvs) = self.uvs.as_ref() {
@@ -69,10 +77,12 @@ impl Mesh {
         None
     }
 
+    /// Checks if the [`Mesh`] has information about [`crate::assets::Skin`]
     pub fn is_skinned(&self) -> bool {
         self.weights.is_some() && self.joints.is_some()
     }
 
+    /// Returns the number of the [`Mesh`] indices
     pub fn indices_count(&self) -> u32 {
         self.indices
             .as_ref()
@@ -80,6 +90,7 @@ impl Mesh {
             .unwrap_or_else(|| self.positions.len()) as u32
     }
 
+    /// Generates a cube [`Mesh`]
     pub fn cube() -> Self {
         Self {
             positions: vec!(
@@ -136,6 +147,7 @@ impl Mesh {
         }
     }
 
+    /// Loads vertices buffer
     pub fn load_vertices_buffer(&mut self, device: &wgpu::Device, buffer: &[u8]) {
         self.vertices_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Static Mesh Vertex Buffer"),
@@ -144,6 +156,7 @@ impl Mesh {
         }));
     }
 
+    /// Loads indices buffer
     pub fn load_indices_buffer(&mut self, device: &wgpu::Device) {
         self.indices_buffer = self.indices
             .as_ref()
@@ -156,6 +169,7 @@ impl Mesh {
             });
     }
 
+    /// Loads the [`Mesh`] buffers for static [`crate::components::Model`]
     pub fn load_as_static(&mut self, device: &wgpu::Device) {
         if self.vertices_buffer.is_some() {
             return;
@@ -170,6 +184,7 @@ impl Mesh {
         self.load_indices_buffer(device);
     }
 
+    /// Loads the [`Mesh`] buffers for [`crate::components::Model`] with [`crate::assets::Skin`]
     pub fn load_as_skinned(&mut self, device: &wgpu::Device) {
         if self.vertices_buffer.is_some() {
             return;
@@ -184,6 +199,7 @@ impl Mesh {
         self.load_indices_buffer(device);
     }
 
+    /// Calculates Mesh missing data (normals)
     pub fn calculate(&mut self) {
         if self.normals.is_none() {
             let mut normals = vec![[99.9; 3]; self.positions.len()];
@@ -214,23 +230,30 @@ impl Mesh {
         }
     }
 
+    /// Unloads the [`Mesh`] buffers
     pub fn unload(&mut self) {
         self.vertices_buffer.take();
         self.indices_buffer.take();
     }
 }
 
+/// Abstraction for vertex data with attributes
 pub trait VertexAttributes: Pod + Zeroable {
+    /// Returns size of the vertex data
     fn size() -> wgpu::BufferAddress {
         std::mem::size_of::<Self>() as wgpu::BufferAddress
     }
 }
 
+/// Vertex data for static [`crate::components::Model`]
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct StaticModelVertex {
+    /// Vertex coordinates
     pub position: [f32; 3],
+    /// Normal vector at the position
     pub normal: [f32; 3],
+    /// Texture coordinate for the vertex
     pub uv: [f32; 2],
 }
 
@@ -238,13 +261,19 @@ unsafe impl Pod for StaticModelVertex {}
 unsafe impl Zeroable for StaticModelVertex {}
 impl VertexAttributes for StaticModelVertex {}
 
+/// Vertex data for [`crate::components::Model`] with [`crate::assets::Skin`]
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct SkinnedModelVertex {
+    /// Vertex coordinates
     pub position: [f32; 3],
+    /// Normal vector at the position
     pub normal: [f32; 3],
+    /// Texture coordinate for the vertex
     pub uv: [f32; 2],
+    /// Weights of the transformation for the vertex
     pub weights: [f32; 4],
+    /// Joints affecting the vertex transformation
     pub joints: [u16; 4],
 }
 

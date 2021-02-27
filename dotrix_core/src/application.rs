@@ -21,6 +21,9 @@ use crate::{
 
 use services::Services;
 
+/// Application data to maintain the process
+///
+/// Do not construct it manually, use [`crate::Dotrix`] instead
 pub struct Application {
     name: &'static str,
     scheduler: Scheduler,
@@ -30,6 +33,7 @@ pub struct Application {
 }
 
 impl Application {
+    /// Constructs new [`Application`] with defined name
     pub fn new(name: &'static str) -> Self {
         Self {
             name,
@@ -40,19 +44,23 @@ impl Application {
         }
     }
 
+    /// Sets parameters for rendering output
     pub fn set_display(&mut self, clear_color: [f64; 4], fullscreen: bool) {
         self.clear_color = clear_color;
         self.fullscreen = fullscreen;
     }
 
+    /// Adds a system to the [`Application`]
     pub fn add_system(&mut self, system: System) {
         self.scheduler.add(system);
     }
 
+    /// Adds a service to the [`Application`]
     pub fn add_service<T: Service>(&mut self, service: T) {
         self.services.add(service);
     }
 
+    /// Returns a service of the [`Application`]
     pub fn service<T: Service>(&mut self) -> &mut T
     {
         self.services.get_mut::<T>().expect("Application services does not exist")
@@ -71,6 +79,9 @@ impl Application {
     }
 }
 
+/// Service abstraction
+///
+/// More info about [`crate::services`]
 pub trait Service: Send + Sync + 'static {}
 impl<T: Send + Sync + 'static> Service for T {}
 

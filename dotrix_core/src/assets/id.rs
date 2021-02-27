@@ -1,17 +1,22 @@
+//! Assets identifiers
 use std::{
     fmt::Debug,
     hash::{Hash, Hasher},
     marker::PhantomData,
 };
 
+/// Raw Identifier is a 64 bit integer
 pub type RawId = u64;
 
+/// Asset identifier
 pub struct Id<T> {
+    /// Actual identifier value
     pub id: RawId,
     phantom: PhantomData<T>
 }
 
 impl<T> Id<T> {
+    /// Constructs an asset identifier from [`RawId`]
     pub fn new(id: RawId) -> Self {
         Self {
             id,
@@ -19,6 +24,7 @@ impl<T> Id<T> {
         }
     }
 
+    /// Checks if id is null
     pub fn is_null(&self) -> bool {
         self.id == 0
     }

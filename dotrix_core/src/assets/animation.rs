@@ -5,6 +5,7 @@ use super::skin::JointId;
 use crate::renderer::transform::TransformBuilder;
 use dotrix_math::{ slerp, Vec3, Quat, VectorSpace };
 
+/// Interpolation types
 #[derive(Debug)]
 pub enum Interpolation {
     Linear,
@@ -13,6 +14,7 @@ pub enum Interpolation {
 }
 
 impl Interpolation {
+    /// Construct interpolation type from GLTF
     pub fn from(interpolation: gltf::animation::Interpolation) -> Self {
         match interpolation {
             gltf::animation::Interpolation::Linear => Interpolation::Linear,
@@ -38,8 +40,8 @@ impl Interpolate for Quat {
     }
 }
 
-/// Keyframes for the channel transformations of type T
-pub struct KeyFrame<T> {
+/// Keyframes for the channel transformations
+pub(crate) struct KeyFrame<T> {
     transformation: T,
     timestamp: f32,
 }
@@ -97,6 +99,7 @@ impl<T: Interpolate + Copy + Clone> Channel<T> {
     }
 }
 
+/// Asset structure
 pub struct Animation {
     duration: Duration,
     translation_channels: Vec<Channel<Vec3>>,
@@ -105,6 +108,7 @@ pub struct Animation {
 }
 
 impl Animation {
+    /// Constructs new asset instance
     pub fn new() -> Self {
         Self {
             duration: Duration::from_secs(0),
@@ -114,10 +118,12 @@ impl Animation {
         }
     }
 
+    /// Returns [`Duration`] of the animation
     pub fn duration(&self) -> Duration {
         self.duration
     }
 
+    /// Adds translation transformation channel
     pub fn add_translation_channel(
         &mut self,
         joint_id: JointId,
@@ -129,6 +135,7 @@ impl Animation {
         self.translation_channels.push(Channel::from(joint_id, interpolation, timestamps, translations));
     }
 
+    /// Adds rotation transformation channel
     pub fn add_rotation_channel(
         &mut self,
         joint_id: JointId,
@@ -140,6 +147,7 @@ impl Animation {
         self.rotation_channels.push(Channel::from(joint_id, interpolation, timestamps, rotations));
     }
 
+    /// Adds scale transformation channel
     pub fn add_scale_channel(
         &mut self,
         joint_id: JointId,
@@ -159,6 +167,8 @@ impl Animation {
         }
     }
 
+    /// Samples the animeation at some keyframe (s) and returns a HashMap of
+    /// [`crate::assets::Skin`] joint id to [`TransformBuilder`]
     pub fn sample(&self, keyframe: f32) -> HashMap<JointId, TransformBuilder> {
         let mut result = HashMap::new();
 

@@ -1,14 +1,21 @@
 
+/// Texture asset
 #[derive(Default)]
 pub struct Texture {
+    /// Texture width in pixels
     pub width: u32,
+    /// Texture height in pixels
     pub height: u32,
+    /// Texture depth
     pub depth: u32,
+    /// Raw texture data
     pub data: Vec<u8>,
+    /// Texture buffer
     pub view: Option<wgpu::TextureView>,
 }
 
 impl Texture {
+    /// Loads the [`Texture`] data to a buffer
     pub fn load(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
         if self.view.is_some() {
             return;
@@ -31,7 +38,6 @@ impl Texture {
         });
 
         self.view = Some(texture.create_view(&wgpu::TextureViewDescriptor::default()));
-        // let bytes_per_pixel = self.data.len() as u32 / (self.height * self.width);
 
         queue.write_texture(
             wgpu::TextureCopyView {
@@ -49,10 +55,12 @@ impl Texture {
         );
     }
 
+    /// Unloads the [`Texture`] data from the buffer
     pub fn unload(&mut self) {
         self.view.take();
     }
 
+    /// Returns a view of the [`Texture`]
     pub fn view(&self) -> &wgpu::TextureView {
         self.view.as_ref().unwrap()
     }

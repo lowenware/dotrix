@@ -1,3 +1,4 @@
+//! Octree implementation to store voxel maps
 use std::collections::HashMap;
 
 use dotrix_math::Vec3i;
@@ -11,22 +12,33 @@ const RIGHT_BOTTOM_BACK: usize = 5;
 const RIGHT_BOTTOM_FRONT: usize = 6;
 const LEFT_BOTTOM_FRONT: usize = 7;
 
+/// Octree of <T>
 pub struct Octree<T> {
+    /// Root node position
     pub root: Vec3i,
+    /// Nodes storage
     pub nodes: HashMap<Vec3i, Node<T>>,
+    /// Depth of the tree
     pub depth: usize,
+    /// Size of the root node
     pub size: usize,
 }
 
+/// Node of the [`Octree`]
 #[derive(Debug)]
 pub struct Node<T> {
+    /// Node level
     pub level: usize,
+    /// Node size
     pub size: usize,
+    /// Positions of children
     pub children: Option<[Vec3i; 8]>,
+    /// Custom payload
     pub payload: Option<T>,
 }
 
 impl<T> Octree<T> {
+    /// Constructs the [`Octree`] from a node
     pub fn new(root: Vec3i, size: usize) -> Self {
         let mut nodes = HashMap::new();
 
@@ -45,6 +57,7 @@ impl<T> Octree<T> {
         }
     }
 
+    /// Stores a new node with payload at specified position
     pub fn store(&mut self, key: Vec3i, payload: T) {
         if key == self.root {
             if let Some(root) = self.nodes.get_mut(&key) {
@@ -100,10 +113,12 @@ impl<T> Octree<T> {
         }
     }
 
+    /// Loads node from the [`Octree`] by the position
     pub fn load(&self, key: &Vec3i) -> Option<&Node<T>> {
         self.nodes.get(&key).map(|n| n.payload.as_ref().map(|_| n)).unwrap_or(None)
     }
 
+    /// Finds node or it's closest parent in the [`Octree`]
     pub fn find(&self, key: &Vec3i) -> Option<(Vec3i, &Node<T>)> {
         if let Some(node) = self.nodes.get(key) {
             if node.payload.is_some() {
@@ -140,10 +155,12 @@ impl<T> Octree<T> {
             .unwrap_or(None)
     }
 
+    /// Returns size of the [`Octree`]
     pub fn size(&self) -> usize {
         self.size
     }
 
+    /// Returns children positions of the specified [`Octree`] node by its position
     pub fn children(&self, key: &Vec3i) -> Option<&[Vec3i; 8]> {
         self.nodes.get(&key)
             .map(|n| n.children.as_ref())
@@ -152,6 +169,7 @@ impl<T> Octree<T> {
 }
 
 impl<T> Node<T> {
+    /// Calculates children positions of a [`Node`] by its position
     pub fn children(parent: &Vec3i, offset: i32) -> [Vec3i; 8] {
         let mut res = [Vec3i::new(0, 0, 0); 8];
         for (i, child) in res.iter_mut().enumerate() {

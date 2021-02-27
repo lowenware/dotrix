@@ -1,4 +1,6 @@
+//! Bind group layout entry constructors
 
+/// Constructs uniform bind group layout entry
 pub fn uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
         binding,
@@ -12,6 +14,7 @@ pub fn uniform_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     }
 }
 
+/// Constructs 2D texture bind group layout entry
 pub fn texture2d_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
         binding,
@@ -25,6 +28,7 @@ pub fn texture2d_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     }
 }
 
+/// Constructs 3D texture bind group layout entry
 pub fn texture3d_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
         binding,
@@ -38,6 +42,7 @@ pub fn texture3d_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     }
 }
 
+/// Constructs texture sampler bind group layout entry
 pub fn sampler_entry(binding: u32) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
         binding,

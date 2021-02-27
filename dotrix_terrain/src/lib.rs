@@ -1,3 +1,9 @@
+//! Dotrix terrain implementation
+//!
+//! This crate is under active development
+#![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
+#![warn(missing_docs)]
+
 mod marching_cubes;
 mod voxel_map;
 pub mod octree;
@@ -25,6 +31,7 @@ use dotrix_math::{ Point3, Vec3, Vec3i, MetricSpace };
 
 use octree::{Octree, Node as OctreeNode};
 
+/// Level of details identified by number
 pub struct Lod(pub usize);
 
 // TODO: unify with octree
@@ -38,22 +45,32 @@ const RIGHT_BOTTOM_FRONT: u8 = 6;
 const LEFT_BOTTOM_FRONT: u8 = 7;
 
 impl Lod {
+    /// Get scale of the terrain chunk for specified [`Lod`]
     pub fn scale(&self) -> i32 {
         (2_i32).pow(self.0 as u32)
     }
 }
 
+/// Service for terrain management
 pub struct Terrain {
+    /// Last position of the viewer, the terrain is being around that point
     pub last_viewer_position: Option<Point3>,
+    /// Terrain will be regenerated if viewer moves by this threshold distance
     pub update_if_moved_by: f32,
+    /// Square of the view distance
     pub view_distance2: f32,
+    /// Voxel mapping
     pub octree: Octree<VoxelMap>,
+    /// Changes tracking flag, if `true` terrain will be regenerated
     pub changed: bool,
+    /// Highest [`Lod`] limitation
     pub lod: usize,
+    /// Generation time tracking
     pub generated_in: Duration,
 }
 
 impl Terrain {
+    /// Constructs new service instance
     pub fn new() -> Self {
         let map_size = 16;
         let update_if_moved_by = map_size as f32 * 0.5;
@@ -68,6 +85,7 @@ impl Terrain {
         }
     }
 
+    /// Populates the voxel map with noise
     pub fn populate(&mut self, noise: &Fbm, amplitude: f64, scale: f64) {
         let root = Vec3i::new(0, 0, 0);
 
@@ -178,20 +196,26 @@ impl Default for Terrain {
     }
 }
 
+/// Returns default [`Terrain`] service
 #[inline(always)]
 pub fn service() -> Terrain {
     Terrain::default()
 }
 
+/// [`Terrain`] block component
 #[derive(Debug)]
 pub struct Block {
+    /// Block position (center of the cube)
     pub position: Vec3i,
+    /// Position of the block's front bottom left corer
     pub bound_min: Vec3i,
+    /// Position of the block's back top bottom right corer
     pub bound_max: Vec3i,
-    /// size of the cube (not block)
-    pub cube_size: usize,
+    /// size of the voxel (not block)
+    pub voxel_size: usize,
 }
 
+/// Chunk instance of the terrain
 pub struct Instance {
     position: Vec3i,
     map: VoxelMap,
@@ -207,6 +231,7 @@ pub struct Instance {
 }
 
 impl Instance {
+    /// Constructs [`Instance`] from [`OctreeNode`] at some position
     pub fn from(position: Vec3i, node: &OctreeNode<VoxelMap>, index: u8) -> Self {
         Self {
             position,
@@ -382,6 +407,7 @@ impl Instance {
         }
     }
 
+    /// Generates polygons of the [`Instance`]
     pub fn polygonize(&mut self, assets: &mut Assets, world: &mut World, round_up: &[u8; 3]) {
 
         let map_size = 16;
@@ -465,6 +491,7 @@ impl Instance {
         self.updated = false;
     }
 
+    /// Constructs [`Block`] component from the [`Instance`]
     pub fn block(&self) -> Block {
         let half_size = self.size as i32 / 2;
         Block {
@@ -479,7 +506,7 @@ impl Instance {
                 self.position.y + half_size,
                 self.position.z + half_size
             ),
-            cube_size: self.size / 16,
+            voxel_size: self.size / 16,
         }
     }
 
@@ -498,6 +525,7 @@ impl Instance {
         })
     }
 
+    /// Finds what Instances surrounds the current one
     pub fn round_up(&self, instances: &HashMap<Vec3i, Instance>) -> [u8; 3] {
         let size = self.size as i32;
         let parent_size = 2 * size;
@@ -585,11 +613,14 @@ impl Instance {
     }
 }
 
+/// Terrain [`spawn`] system context
 #[derive(Default)]
 pub struct Spawner {
+    /// Previously spawned instances
     pub instances: HashMap<Vec3i, Instance>,
 }
 
+/// System to spawn the terrain
 pub fn spawn(
     mut ctx: Context<Spawner>,
     camera: Const<Camera>,

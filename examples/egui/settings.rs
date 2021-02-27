@@ -80,7 +80,7 @@ impl Default for Settings {
     }
 }
 
-pub fn ui(mut settings: Mut<Settings>, renderer: Mut<Renderer>) {
+pub fn ui(mut settings: Mut<Settings>, renderer: Const<Renderer>) {
     let egui = renderer.overlay_provider::<Egui>()
         .expect("Renderer does not contain an Overlay instance");
 

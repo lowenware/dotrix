@@ -8,12 +8,14 @@ pub struct VoxelMap {
 }
 
 impl VoxelMap {
+    /// Constructs new [`VoxelMap`]
     pub fn new(density: [[[f32; 17]; 17]; 17]) -> Self {
         Self {
             density,
         }
     }
 
+    /// Interpolates a density value inside of the [`VoxelMap`]
     pub fn value(&self, voxel_size: usize, point: &Vec3) -> Option<f32> {
         let x0 = Self::align_voxel_axis((point.x / voxel_size as f32).floor() as i32);
         let y0 = Self::align_voxel_axis((point.y / voxel_size as f32).floor() as i32);
@@ -46,6 +48,7 @@ impl VoxelMap {
         else { 15 }
     }
 
+    /// Linearly interpolates density values between two positions
     pub fn lerp(position: f32, position0: f32, position1: f32, value0: f32, value1: f32) -> f32 {
         let ratio = (position - position0) / (position1 - position0);
         let delta_value = value1 - value0;
