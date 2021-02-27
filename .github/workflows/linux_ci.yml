@@ -26,5 +26,8 @@ jobs:
     - name: Run tests
       run: cargo test --workspace --verbose
 
+    - name: Build docs
+      run: cargo doc
+
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings

@@ -1,6 +1,6 @@
 [package]
 name = "dotrix_math"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Nikita Zemtsov <z-nik@ya.ru>"]
 edition = "2018"
 description = "Math crate for Dotrix 3D Game Engine"

@@ -1,6 +1,6 @@
 [package]
 name = "dotrix_terrain"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Elias Kartashov <elias@lowenware.com>"]
 edition = "2018"
 
@@ -8,8 +8,8 @@ description = "Terrain for Dotrix 3D Game Engine (under construction)"
 license = "MIT"
 
 [dependencies]
-dotrix_core = { version = "0.2", path = "../dotrix_core" }
-dotrix_math = { version = "0.2", path = "../dotrix_math" }
+dotrix_core = { version = "0.3", path = "../dotrix_core" }
+dotrix_math = { version = "0.3", path = "../dotrix_math" }
 rand = { version = "0.8" }
 rayon = "1.5"
 

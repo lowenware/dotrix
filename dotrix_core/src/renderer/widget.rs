@@ -13,23 +13,34 @@ use crate::{
     },
 };
 
+/// Overlay widget component 
 pub struct Widget {
+    /// list of vertices
     pub vertices: Vec<WidgetVertex>,
+    /// list of indices
     pub indices: Option<Vec<u32>>,
+    /// custom [`Id`] of an overlay [`Texture`]
     pub texture: Id<Texture>,
+    /// custom [`Id`] of a rendering [`Pipeline`]
     pub pipeline: Id<Pipeline>,
-    pub buffers: Option<Buffers>,
+    /// Minimal clip size by X axis
     pub clip_min_x: u32,
+    /// Minimal clip size by Y axis
     pub clip_min_y: u32,
+    /// widget width
     pub width: u32,
+    /// widget height
     pub height: u32,
+    /// Pipeline buffers
+    pub buffers: Option<Buffers>,
 }
 
+/// Pipeline buffers
 pub struct Buffers {
-    pub bind_group: wgpu::BindGroup,
-    pub vertices_buffer: wgpu::Buffer,
-    pub indices_buffer: Option<wgpu::Buffer>,
-    pub screen_size: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
+    vertices_buffer: wgpu::Buffer,
+    indices_buffer: Option<wgpu::Buffer>,
+    screen_size: wgpu::Buffer,
 }
 
 impl Widget {
@@ -52,6 +63,7 @@ impl Widget {
         Err(())
     }
 
+    /// Loads [`Widget`] data to buffers
     pub(crate) fn load(
         &mut self,
         renderer: &Renderer,
@@ -133,6 +145,7 @@ impl Widget {
         }
     }
 
+    /// Renders widget
     pub(crate) fn draw(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -190,11 +203,15 @@ impl Default for Widget {
     }
 }
 
+/// Vertex buffer element
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct WidgetVertex {
+    /// Vertex position
     pub position: [f32; 2],
+    /// Vertex texture coordinate
     pub uv: [f32; 2],
+    /// Vertex color
     pub color: [f32; 4],
 }
 

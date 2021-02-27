@@ -1,3 +1,4 @@
+//! Assets and management service
 mod animation;
 mod id;
 mod loader;
@@ -12,7 +13,7 @@ pub use id::*;
 pub use loader::*;
 pub use animation::Animation;
 pub use mesh::*;
-pub use skin::{Skin, Pose}; // TODO: consider moving of Pose to some shared place
+pub use skin::{ Skin, Pose }; // TODO: consider moving of Pose to some shared place
 pub use resource::*;
 pub use texture::*;
 pub use wires::*;
@@ -25,6 +26,33 @@ use std::{
 
 const THREADS_COUNT: usize = 4;
 
+/// Assets management service
+///
+/// To enable assets management in your game, add the service service using [`crate::Dotrix`]
+/// builder, so it can be accessed in [`crate::systems`].
+///
+/// ```no_run
+/// use dotrix_core::{
+///     Dotrix,
+///     services::Assets,
+/// };
+///
+/// fn main() {
+///     Dotrix::application("My Game")
+///         .with_service(Assets::new())
+///         .run()
+/// }
+/// ```
+///
+/// Stored asset can be identified by its [`Id`]. The [`Id`] is being assigned to an asset, once 
+/// the asset is stored.
+///
+/// File operations performed by the service are being executed in separate threads, so no
+/// execution blocking happens. Due to some resources may contain several assets, they may not be
+/// loaded at the same time. Also bigger assets may take longer time to be loaded.
+///
+/// There is a way to aquire asset [`Id`] immediately without awaiting using [`Assets::register`]
+/// method.
 pub struct Assets {
     registry: HashMap<String, RawId>,
     resources: HashMap<Id<Resource>, Resource>,
@@ -69,7 +97,7 @@ impl Assets {
         }
     }
 
-    /// imports an asset file to the container
+    /// Imports an asset file by its path and returns [`Id`] of the [`Resource`]
     pub fn import(&mut self, path_str: &str) -> Id<Resource> {
         let path = std::path::Path::new(path_str);
         let name = path.file_stem().map(|n| n.to_str().unwrap()).unwrap();
@@ -81,7 +109,36 @@ impl Assets {
         id
     }
 
-    /// stores new asset in the system under user defined name
+    /// Associates an asset name with [`Id`] and returns it
+    ///
+    /// If name was already used, then no changes will be done and already associated [`Id`] will
+    /// be returned.
+    ///
+    /// As it was said, names of assets loaded with [`Assets::import`] method can be predictable
+    /// in most cases. Using that prediction, developer can obtain an [`Id`] even before calling
+    /// the [`Assets::import`] method.
+    ///
+    /// ```no_run
+    /// use dotrix_core::{
+    ///     assets::Texture,
+    ///     ecs::Mut,
+    ///     services::Assets,
+    /// };
+    ///
+    /// fn my_system(mut assets: Mut<Assets>) {
+    ///     // get the id
+    ///     let texture = assets.register::<Texture>("my_texture");
+    ///     // import the texture
+    ///     assets.import("/path/to/my_texture.png");
+    /// }
+    /// ```
+    pub fn register<T>(&mut self, name: &str) -> Id<T>
+    where Self: AssetMapGetter<T> {
+        let raw_id = self.next_id();
+        Id::new(*self.registry.entry(name.to_string()).or_insert(raw_id))
+    }
+
+    /// Stores an asset under user defined name and returns [`Id`] of it
     pub fn store_as<T>(&mut self, asset: T, name: &str) -> Id<T>
     where Self: AssetMapGetter<T> {
         let id = self.register(name);
@@ -89,7 +146,7 @@ impl Assets {
         id
     }
 
-    /// stores new asset in the system under user defined name
+    /// Stores an asset and returns [`Id`] of it
     pub fn store<T>(&mut self, asset: T) -> Id<T>
     where Self: AssetMapGetter<T> {
         let id = Id::new(self.next_id());
@@ -97,44 +154,37 @@ impl Assets {
         id
     }
 
-    /// Registers user defined name for an asset
-    pub fn register<T>(&mut self, name: &str) -> Id<T>
-    where Self: AssetMapGetter<T> {
-        let raw_id = self.next_id();
-        Id::new(*self.registry.entry(name.to_string()).or_insert(raw_id))
-    }
-
+    /// Searches for an asset by the name and return [`Id`] of it if the asset exists
     pub fn find<T>(&self, name: &str) -> Option<Id<T>>
     where Self: AssetMapGetter<T> {
         self.registry.get(&name.to_string()).map(|id| Id::new(*id))
     }
 
-    /// Gets an asset by the handle
+    /// Searches an asset by its [`Id`] and returns it by a reference if the asset exists
     pub fn get<T>(&self, handle: Id<T>) -> Option<&T>
     where Self: AssetMapGetter<T> {
         self.map().get(&handle)
     }
 
-    /// Gets an asset by the handle
+    /// Searches an asset by its [`Id`] and returns it by a mutual reference if the asset exists
     pub fn get_mut<T>(&mut self, handle: Id<T>) -> Option<&mut T>
     where Self: AssetMapGetter<T> {
         self.map_mut().get_mut(&handle)
     }
 
-    /// Remove asset by the handle
+    /// Removes an asset from the Service and returns it if the asset exists
     pub fn remove<T>(&mut self, handle: Id<T>) -> Option<T>
     where Self: AssetMapGetter<T> {
         self.map_mut().remove(&handle)
     }
 
-    /// Returns an Id for an asset and increments the internal generator
     fn next_id(&mut self) -> RawId {
         let result = self.id_generator;
         self.id_generator += 1;
         result
     }
 
-    pub fn fetch(&mut self) {
+    pub(crate) fn fetch(&mut self) {
         while let Ok(response) = self.receiver.try_recv() {
             match response {
                 Response::Animation(animation) => {
@@ -162,8 +212,11 @@ impl Assets {
     }
 }
 
+/// Asset map getting trait
 pub trait AssetMapGetter<T> {
+    /// Returns HashMap reference for selected asset type
     fn map(&self) -> &HashMap<Id<T>, T>;
+    /// Returns mutable HashMap reference for selected asset type
     fn map_mut(&mut self) -> &mut HashMap<Id<T>, T>;
 }
 

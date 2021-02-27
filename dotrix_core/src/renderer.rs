@@ -1,3 +1,5 @@
+//! Rendering service and system, pipelines, abstractions for models, transformation, skybox,
+//! lights and overlay
 pub mod bind_group_layout;
 pub mod color;
 mod light;
@@ -7,10 +9,10 @@ mod model;
 mod overlay;
 mod widget;
 mod wireframe;
+pub mod transform;
 
 pub use color::Color;
-pub mod transform;
-pub use transform::*;
+pub use transform::Transform;
 pub use model::*;
 pub use skybox::*;
 pub use light::{ AmbientLight, DirLight, Light, LightUniform, PointLight, SimpleLight, SpotLight };
@@ -30,22 +32,39 @@ use crate::{
     services::{ Assets, Camera, World },
 };
 
+/// Service providing an interface to `WGPU` and `WINIT`
+///
+/// Renderer is the only service added by default by the engine. It may change in future.
 pub struct Renderer {
+    /// `WINIT` window instance
     pub window: winit::window::Window,
+    /// `WGPU` adapter instance
     pub adapter: wgpu::Adapter,
+    /// `WGPU` device instance
     pub device: wgpu::Device,
+    /// `WGPU` queue instance
     pub queue: wgpu::Queue,
+    /// `WGPU` surface instance
     pub surface: wgpu::Surface,
+    /// Depth buffer instance
     pub depth_buffer: wgpu::TextureView,
+    /// `WGPU` swap chain descriptor
     pub sc_desc: wgpu::SwapChainDescriptor,
+    /// `WGPU` swap chain instance
     pub swap_chain: wgpu::SwapChain,
+    /// Color for background if nothing is rendered there
     pub clear_color: wgpu::Color,
+    /// `WGPU` swap chain frame instance
     pub frame: Option<wgpu::SwapChainFrame>,
+    /// Current projection matrix
     pub projection: Mat4,
+    /// Pipelines storage
     pub pipelines: HashMap<Id<Pipeline>, Pipeline>,
+    /// Overlay providers storageOverlay providers storage
     pub overlay: Vec<Overlay>,
 }
 
+/// Conversion matrix
 pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
     1.0, 0.0, 0.0, 0.0,
     0.0, 1.0, 0.0, 0.0,
@@ -54,6 +73,7 @@ pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
 );
 
 impl Renderer {
+    /// Constructs new instance of the service
     pub fn new(
         adapter: wgpu::Adapter,
         device: wgpu::Device,
@@ -98,10 +118,12 @@ impl Renderer {
         }
     }
 
+    /// Adds an [`OverlayProvider`] to the service
     pub fn add_overlay(&mut self, overlay_provider: Box<dyn OverlayProvider>) {
         self.overlay.push(Overlay::new(overlay_provider));
     }
 
+    /// Returns the [`OverlayProvider`] previously added to the service, by it's type
     pub fn overlay_provider<T: 'static + Send + Sync>(&self) -> Option<&T> {
         for overlay in &self.overlay {
             let provider = overlay.provider::<T>();
@@ -112,36 +134,43 @@ impl Renderer {
         None
     }
 
+    /// Adds rendering [`Pipeline`] to the service and returns [`Id`] of it
     pub fn add_pipeline(&mut self, pipeline: Pipeline) -> Id<Pipeline> {
         let id = Id::new(self.pipelines.len() as u64 + 1);
         self.pipelines.insert(id, pipeline);
         id
     }
 
+    /// Returns reference to a [`Pipeline`] by its [`Id`]
     pub fn pipeline(&self, id: Id<Pipeline>) -> &Pipeline {
         self.pipelines.get(&id).expect("Pipeline has to be registered with `add_pipeline` method")
     }
 
+    /// Adds a skybox [`Pipeline`] to the service and returns [`Id`] of it
     pub fn add_skybox_pipeline(&mut self) -> Id<Pipeline> {
         let pipeline = Pipeline::default_for_skybox(&self.device, &self.sc_desc);
         self.add_pipeline(pipeline)
     }
 
+    /// Adds a non animated model [`Pipeline`] to the service and returns [`Id`] of it
     pub fn add_static_model_pipeline(&mut self) -> Id<Pipeline> {
         let pipeline = Pipeline::default_for_static_model(&self.device, &self.sc_desc);
         self.add_pipeline(pipeline)
     }
 
+    /// Adds a skinned model [`Pipeline`] to the service and returns [`Id`] of it
     pub fn add_skinned_model_pipeline(&mut self) -> Id<Pipeline> {
         let pipeline = Pipeline::default_for_skinned_model(&self.device, &self.sc_desc);
         self.add_pipeline(pipeline)
     }
 
+    /// Adds an overlay [`Pipeline`] to the service and returns [`Id`] of it
     pub fn add_overlay_pipeline(&mut self) -> Id<Pipeline> {
         let pipeline = Pipeline::default_for_overlay(&self.device, &self.sc_desc);
         self.add_pipeline(pipeline)
     }
 
+    /// Adds a wire frame [`Pipeline`] to the service and returns [`Id`] of it
     pub fn add_wire_frame_pipeline(&mut self) -> Id<Pipeline> {
         let pipeline = Pipeline::default_for_wire_frame(
             &self.adapter,
@@ -151,6 +180,7 @@ impl Renderer {
         self.add_pipeline(pipeline)
     }
 
+    /// Handler of the window resize event
     pub fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
             self.sc_desc.width = width;
@@ -165,10 +195,12 @@ impl Renderer {
         }
     }
 
+    /// Returns current swap chain frame instance
     pub fn frame(&self) -> Option<&wgpu::SwapChainFrame> {
         self.frame.as_ref()
     }
 
+    /// Triggers swap chain of the frame
     pub fn next_frame(&mut self) {
         let frame = match self.swap_chain.get_current_frame() {
             Ok(frame) => frame,
@@ -182,21 +214,25 @@ impl Renderer {
         self.frame = Some(frame);
     }
 
+    /// Finalizes frame rendering
     pub fn finalize(&mut self) {
         self.frame.take();
     }
 
+    /// Returns a tuple of physical display size (width, height)
     pub fn display_size(&self) -> (u32, u32) {
         let size = self.window.inner_size();
         ( size.width, size.height )
     }
 
+    /// Returns a tuple of virtual (scaled) display size (width, height)
     pub fn display_virtual_size(&self) -> (f32, f32) {
         let size = self.window.inner_size();
         let scale_factor = self.window.scale_factor() as f32;
         ( size.width as f32 / scale_factor, size.height as f32 / scale_factor )
     }
 
+    /// Returns current scale factor of the display
     pub fn scale_factor(&self) -> f32 {
         self.window.scale_factor() as f32
     }
@@ -243,6 +279,7 @@ pub struct Pipelines {
     wire_frame: Id<Pipeline>,
 }
 
+/// [`Context`] of the [`world_renderer`] system
 #[derive(Default)]
 pub struct WorldRenderer {
     lights_buffer: Option<wgpu::Buffer>,
@@ -251,6 +288,7 @@ pub struct WorldRenderer {
     pipelines: Option<Pipelines>,
 }
 
+/// System to render models, skyboxes, wire frames and overlays
 pub fn world_renderer(
     mut ctx: Context<WorldRenderer>,
     mut renderer: Mut<Renderer>,
@@ -298,6 +336,7 @@ pub fn world_renderer(
     // Prepare lights
     let mut lights = LightUniform::default();
 
+	// TODO: consider a single component for all lights
     let query = world.query::<(&AmbientLight,)>();
     for (amb_light,) in query {
         lights.ambient = amb_light.to_raw();

@@ -15,43 +15,66 @@ use super::{
     load_gltf::load_gltf,
 };
 
+/// Asset loading task
 pub struct Task {
+    /// Asset path
     pub path: PathBuf,
+    /// Asset name
     pub name: String,
 }
 
+/// Imported asset data
 pub struct Asset<T> {
+    /// Asset name
     pub name: String,
+    /// Asset data
     pub asset: Box<T>,
 }
 
+/// Loading request
 pub enum Request {
+    /// Resource import request
     Import(Task),
+    /// Thread termination request
     Terminate,
 }
 
+/// Loading response
 pub enum Response {
+    /// Animation asset loaded
     Animation(Asset<Animation>),
+    /// Texture asset loaded
     Texture(Asset<Texture>),
+    /// Mesh asset loaded
     Mesh(Asset<Mesh>),
+    /// Skin asset loaded
     Skin(Asset<Skin>),
 }
 
+/// Asset loader thread
 pub struct Loader {
     thread: Option<thread::JoinHandle<()>>,
 }
 
+/// Asset import errors
 #[derive(Debug)]
 pub enum ImportError {
+    /// Error occured during Base64 decoding
     Base64Decode(base64::DecodeError),
+    /// Error occured during file reading
     FileRead(std::io::Error),
+    /// Error occured during image decoding
     ImageDecode(image::ImageError),
+    /// Error occuerd during GLTF decoding
     GltfDecode(gltf::Error),
+    /// Feature is not implemented
     NotImplemented(&'static str, Option<String>),
+    /// It seems that source data were corrupted
     Corruption(&'static str),
 }
 
 impl Loader {
+    /// Constructs new asset loader
     pub fn new(
         id: usize,
         receiver: Arc<Mutex<mpsc::Receiver<Request>>>,
@@ -77,6 +100,7 @@ impl Loader {
         }
     }
 
+    /// Joins the loader thread with parent process
     pub fn join(&mut self) {
         if let Some(thread) = self.thread.take() {
             thread.join().unwrap();
@@ -114,7 +138,7 @@ fn import_resource(
     }
 }
 
-pub fn load_image(
+pub(crate) fn load_image(
     sender: &Arc<Mutex<mpsc::Sender<Response>>>,
     name: String,
     data: Vec<u8>,

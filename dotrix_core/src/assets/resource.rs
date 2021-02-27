@@ -1,34 +1,24 @@
-/*
- * TODO: Implement resources state control
-use std::vec::Vec;
-pub enum State {
-    Busy,
-    Ready,
-    Fail,
-}
-*/
-
+/// Data structure representing an asset file
 pub struct Resource {
     name: String,
     path: String,
-//    state: State,
-//    data: Option<Vec<u8>>,
 }
 
 impl Resource {
+    /// Constructs new resource
     pub fn new(name: String, path: String) -> Self {
         Self {
             name,
             path,
-//            state: State::Busy,
-//            data: None,
         }
     }
 
+    /// Returns the [`Resource`] path
     pub fn path(&self) -> &String {
         &self.path
     }
 
+    /// Returns the [`Resource`] name
     pub fn name(&self) -> &String {
         &self.name
     }

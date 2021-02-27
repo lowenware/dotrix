@@ -1,15 +1,22 @@
 use super::{ Color, Light, RawPointLight };
 use dotrix_math::{ Vec3, Vec4 };
 
-#[derive(Clone, Debug)]
 /// Component to be added to entities
+#[derive(Clone, Debug)]
 pub struct PointLight {
+    /// Is light source enabled
     pub enabled: bool,
+    /// Light source position
     pub position: Vec3,
+    /// Light color
     pub color: Color,
+    /// Light source intencity
     pub intensity: f32,
+    /// Constant light
     pub constant: f32,
+    /// Linear light
     pub linear: f32,
+    /// Quadratic light
     pub quadratic: f32,
 }
 
@@ -41,7 +48,7 @@ impl Light<RawPointLight> for PointLight {
             a_constant: self.constant,
             a_linear: self.linear,
             a_quadratic: self.quadratic,
-            unused: 1.0,
+            padding: 1.0,
         }
     }
 }

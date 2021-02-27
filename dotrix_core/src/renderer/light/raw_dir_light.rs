@@ -5,8 +5,10 @@ use dotrix_math::{ Vec4 };
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct RawDirLight {
+    /// Light direction
     pub direction: Vec4,
-    pub color: Color, // Vec4
+    /// Light color
+    pub color: Color
 }
 
 impl Default for RawDirLight {

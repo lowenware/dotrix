@@ -1,3 +1,5 @@
+//! Component and buffers
+
 use crate::{
     assets::{ Id, Texture, Mesh },
     services::Assets,
@@ -6,19 +8,64 @@ use crate::{
 use super::pipeline::Pipeline;
 use dotrix_math::Mat4;
 
+/// Pipeline buffers
 pub struct Buffers {
-    pub bind_group: wgpu::BindGroup,
-    pub vertices: wgpu::Buffer,
-    pub indices: wgpu::Buffer,
-    pub proj_view: wgpu::Buffer,
-    pub indices_count: u32,
+    bind_group: wgpu::BindGroup,
+    vertices: wgpu::Buffer,
+    indices: wgpu::Buffer,
+    proj_view: wgpu::Buffer,
+    indices_count: u32,
 }
 
+/// SkyBox component
+///
+/// SkyBox is a cube with 6 textures on internal sides. It has one major difference from the rgular
+/// cube though: SkyBox is fixed relatively to camera position.
+///
+/// Usage is quite straight forward. You need 6 textures and spawn an entity with the compomnet.
+/// 
+/// ```no_run
+/// use dotrix_core::{
+///     assets::Texture,
+///     components::SkyBox,
+///     ecs::Mut,
+///     services::{ Assets, World },
+/// };
+///
+/// fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
+///     let primary_texture = [
+///         assets.register::<Texture>("skybox_right"),
+///         assets.register::<Texture>("skybox_left"),
+///         assets.register::<Texture>("skybox_top"),
+///         assets.register::<Texture>("skybox_bottom"),
+///         assets.register::<Texture>("skybox_back"),
+///         assets.register::<Texture>("skybox_front"),
+///     ];
+///
+///     assets.import("examples/skybox/skybox_right.png");
+///     assets.import("examples/skybox/skybox_left.png");
+///     assets.import("examples/skybox/skybox_top.png");
+///     assets.import("examples/skybox/skybox_bottom.png");
+///     assets.import("examples/skybox/skybox_front.png");
+///     assets.import("examples/skybox/skybox_back.png");
+///
+///     world.spawn(vec![
+///         (SkyBox { primary_texture, ..Default::default() },),
+///     ]);
+/// }
+/// ```
+/// Dotrix provides a simple
+/// [example](https://github.com/lowenware/dotrix/blob/main/examples/skybox/skybox.rs) of how to
+/// use the [`SkyBox`].
 #[derive(Default)]
 pub struct SkyBox {
+    /// Slice of [`Id`] of [`Texture`] assets
     pub primary_texture: [Id<Texture>; 6],
+    /// Second texture is for the smooth change (not implemented yet)
     pub secondary_texture: Option<[Id<Texture>; 6]>,
+    /// Pipline buffers
     pub buffers: Option<Buffers>,
+    /// [`Id`] of a rendering [`Pipeline`]
     pub pipeline: Id<Pipeline>,
 }
 
@@ -36,6 +83,7 @@ impl SkyBox {
         Some(faces)
     }
 
+    /// Loads the [`SkyBox`] buffers
     pub fn load(
         &mut self,
         assets: &Assets,
@@ -152,6 +200,7 @@ impl SkyBox {
         }
     }
 
+    /// Renders the [`SkyBox`]
     pub(crate) fn draw(
         &self,
         encoder: &mut wgpu::CommandEncoder,

@@ -1,3 +1,4 @@
+//! Various implementations of light sources
 use super::Color;
 
 mod ambient_light;
@@ -25,7 +26,9 @@ use raw_spot_light::RawSpotLight;
 
 const MAX_LIGHTS: usize = 10;
 
+/// Abstract converter to shaders data format
 pub trait Light<T> {
+    /// Converts data to format suitable for shaders
     fn to_raw(&self) -> T;
 }
 
@@ -33,11 +36,17 @@ pub trait Light<T> {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct LightUniform {
+    /// Light colot
     pub ambient: Color,
+    /// Slice with numbers of light sources
     pub count: [u32; 4],
+    /// Directional lights
     pub dir_lights: [RawDirLight; MAX_LIGHTS],
+    /// Point lights
     pub point_lights: [RawPointLight; MAX_LIGHTS],
+    /// Simple lights
     pub simple_lights: [RawSimpleLight; MAX_LIGHTS],
+    /// Spot lights
     pub spot_lights: [RawSpotLight; MAX_LIGHTS],
 }
 
@@ -45,6 +54,7 @@ unsafe impl bytemuck::Zeroable for LightUniform {}
 unsafe impl bytemuck::Pod for LightUniform {}
 
 impl LightUniform {
+    /// Adds a directional light source to the uniform
     pub fn push_dir_light(&mut self, light: RawDirLight) { // TODO: less code duplication
         let i = self.count[0] as usize;
         if i < MAX_LIGHTS {
@@ -53,6 +63,7 @@ impl LightUniform {
         }
     }
 
+    /// Adds a point light source to the uniform
     pub fn push_point_light(&mut self, light: RawPointLight) {
         let i = self.count[1] as usize;
         if i < MAX_LIGHTS {
@@ -61,7 +72,7 @@ impl LightUniform {
         }
     }
 
-
+    /// Adds a simple light source to the uniform
     pub fn push_simple_light(&mut self, light: RawSimpleLight) {
         let i = self.count[2] as usize;
         if i < MAX_LIGHTS {
@@ -70,6 +81,7 @@ impl LightUniform {
         }
     }
 
+    /// Adds a spot light source to the uniform
     pub fn push_spot_light(&mut self, light: RawSpotLight) {
         let i = self.count[3] as usize;
         if i < MAX_LIGHTS {

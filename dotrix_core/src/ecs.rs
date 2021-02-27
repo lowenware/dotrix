@@ -1,3 +1,4 @@
+//! Entity Component System
 use core::ops::{Deref, DerefMut};
 
 use crate::application::{
@@ -12,18 +13,26 @@ pub struct Entity(u64);
 pub trait Component: Send + Sync + 'static {}
 impl<T: Send + Sync + 'static> Component for T {}
 
+/// Wrapper for system functions
+///
+/// Read [`crate::systems`] for more information
 pub struct System {
     data: Box<dyn Systemized>,
     run_level: RunLevel,
 }
 
+/// Defines when and how often a system should run.
 pub enum RunLevel {
+    /// Before rendering stage
     Standard,
+    /// Only once on application startup
     Startup,
+    /// Rendering stage
     Render,
 }
 
 impl System {
+    /// Constructs a system from function
     pub fn from<Fun, Ctx, Srv>(func: Fun) -> Self
     where
         Fun: IntoSystem<Ctx, Srv> + Sync + Send,
@@ -36,6 +45,7 @@ impl System {
         }
     }
 
+    /// Adds an option to the system
     pub fn with<T>(mut self, option: T) -> Self
     where
         Self: SystemOption<T>,
@@ -44,15 +54,18 @@ impl System {
         self
     }
 
-    pub fn tuple(self) -> (Box<dyn Systemized>, RunLevel) {
+    pub(crate) fn tuple(self) -> (Box<dyn Systemized>, RunLevel) {
         (self.data, self.run_level)
     }
 }
 
+/// System option abstract interface
 pub trait SystemOption<T> {
+    /// customize the syystem with an option
     fn set_option(&mut self, option: T);
 }
 
+/// [`RunLevel`] option implementation
 impl SystemOption<RunLevel> for System {
     fn set_option(&mut self, option: RunLevel) {
         self.run_level = option;
@@ -68,8 +81,11 @@ where
     ctx: Ctx,
 }
 
+/// Abstraction for [`System`] prepared to be integrated into engine
 pub trait Systemized: Send + Sync {
+    /// Returns name of the system
     fn name(&mut self) -> &'static str;
+    /// Executes system cylce
     fn run(&mut self, app: &mut Services);
 }
 
@@ -87,7 +103,9 @@ where
     }
 }
 
+/// Abstraction for a function that can be turned into a [`System`]
 pub trait IntoSystem<C, S> {
+    /// Converts a function into [`System`]
     fn into_system(self) -> Box<dyn Systemized>;
 }
 
@@ -125,6 +143,7 @@ macro_rules! impl_into_system {
     }
 }
 
+/// Abstraction for [`System`] context
 pub trait SystemContext: Default + Send + Sync + 'static {}
 impl<T: Default + Send + Sync + 'static> SystemContext for T {}
 
@@ -146,11 +165,13 @@ impl_into_system!((CTX), (A, B, C, D, E, F));
 impl_into_system!((CTX), (A, B, C, D, E, F, G));
 impl_into_system!((CTX), (A, B, C, D, E, F, G, H));
 
+/// Accessor for [`System`] context to privately store data between runs
 pub struct Context<T> {
     value: *mut T,
 }
 
 impl<T> Context<T> {
+    /// Constructs an accessor instance
     fn new(ctx: &mut T) -> Self {
         Context {
             value: ctx as *mut T,
@@ -181,6 +202,7 @@ where
     }
 }
 
+/// Mutable accessor for [`Service`] instance
 pub struct Mut<T>
 where
     T: Service
@@ -214,8 +236,9 @@ where
 unsafe impl<T: Service> Send for Mut<T> {}
 unsafe impl<T: Service> Sync for Mut<T> {}
 
+/// Imutable accessor for [`Service`] instance
 pub struct Const<T> {
-    pub value: *const T,
+    value: *const T,
 }
 
 impl<T> Deref for Const<T>
@@ -233,9 +256,12 @@ where
 unsafe impl<T: Service> Send for Const<T> {}
 unsafe impl<T: Service> Sync for Const<T> {}
 
+/// Abstraction to access [`Service`] in their storage
 pub trait Accessor: Send + Sync {
+    /// Type of [`Service`] to be accessed
     type Item: Service;
-    fn fetch(app: &mut Services) -> Self;
+    /// Fetches the [`Service`] from the storage
+    fn fetch(services: &mut Services) -> Self;
 }
 
 impl<T> Accessor for Mut<T>

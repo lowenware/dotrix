@@ -1,7 +1,9 @@
+//! Custom math functions
 use super::{ Quat };
 
 // nalgebra and cgmath lerp methods produce some weird artifacts, see link bellow
 // https://github.com/rustgd/cgmath/issues/300
+/// Interpolates quaternion
 pub fn slerp(
     left: Quat,
     right: Quat,

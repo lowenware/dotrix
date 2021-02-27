@@ -1,4 +1,4 @@
-/// Mouse ray calculation module
+//! Input service, ray casting service and utils
 mod ray;
 
 use dotrix_math::{Vec2, clamp};
@@ -19,39 +19,58 @@ pub use winit::event::{
     VirtualKeyCode as KeyCode,
 };
 
-/// Information about KeyboardKey or MouseButton.
+/// Input button abstraction
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, )] // TODO: add support for serialization
 pub enum Button {
+    /// Key by the code
     Key(KeyCode), // TODO: consider support for Key{scancode: u32}?
+    /// Left mouse button
     MouseLeft,
+    /// Right Mouse Button
     MouseRight,
+    /// Middle mouse button
     MouseMiddle,
+    /// Mouse button by the code
     MouseOther(u8),
 }
 
-/// State of a button.
+/// State of a button
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum State {
+    /// Button was activated (pressed)
     Activated,
+    /// Button is hold
     Hold,
+    /// Button was deactivated (released)
     Deactivated,
 }
 
+/// Input event abstraction
 pub enum Event {
+    /// Copy to clipboard event
     Copy,
+    /// Cut to clipboard event
     Cut,
+    /// Custom key event
     Key(KeyEvent),
+    /// Text input event
     Text(String),
 }
 
+/// Key input event
 #[derive(Debug)]
 pub struct KeyEvent {
+    /// Key code of the event trigger
     pub key_code: KeyCode,
+    /// Key state
     pub pressed: bool,
+    /// Active modifiers
     pub modifiers: Modifiers,
 }
 
 /// Input Service
+///
+/// Collects input events, tracks state changes and provides mapping to game actions
 pub struct Input {
     mapper: Box<dyn std::any::Any + Send + Sync>,
     states: HashMap<Button, State>,
@@ -59,11 +78,14 @@ pub struct Input {
     mouse_position: Option<Vec2>,
     last_mouse_position: Option<Vec2>,
     window_size: Vec2, // TODO: move to other struct or service
+    /// events collector
     pub events: Vec<Event>,
+    /// modifiers collector
     pub modifiers: Modifiers,
 }
 
 impl Input {
+    /// Service constructor from [`ActionMapper`]
     pub fn new(mapper: Box<dyn std::any::Any + Send + Sync>) -> Self {
         Self {
             mapper,
@@ -96,7 +118,7 @@ impl Input {
         self.states.get(&button).copied()
     }
 
-    /// Checks if mapped action button is pressed.
+    /// Checks if mapped action button is pressed
     pub fn is_action_activated<T>(&self, action: T) -> bool
     where
         Self: ActionMapper<T>,
@@ -107,7 +129,7 @@ impl Input {
             .unwrap_or(false)
     }
 
-    /// Checks if mapped action button is released.
+    /// Checks if mapped action button is released
     pub fn is_action_deactivated<T>(&self, action: T) -> bool
     where
         Self: ActionMapper<T>,
@@ -118,7 +140,7 @@ impl Input {
             .unwrap_or(false)
     }
 
-    /// Checks if mapped button is pressed or hold.
+    /// Checks if mapped button is pressed or hold
     pub fn is_action_hold<T>(&self, action: T) -> bool
     where
         Self: ActionMapper<T>,
@@ -144,26 +166,30 @@ impl Input {
         self.window_size = Vec2::new(width, height);
     }
 
-    /// Mouse scroll delta. Value should can be positive (up) or negative (down), usually -1 and 1
-    /// (but should be smaller on higher, depends on OS and device).
+    /// Mouse scroll delta
+    ///
+    /// Value should can be positive (up) or negative (down)
     pub fn mouse_scroll(&self) -> f32 {
         self.mouse_scroll_delta
     }
 
-    /// Current mouse position in pixel coordinates. The top-left of the window is at (0, 0).
+    /// Current mouse position in pixel coordinates. The top-left of the window is at (0, 0)
     pub fn mouse_position(&self) -> Option<&Vec2> {
         self.mouse_position.as_ref()
     }
 
-    /// Difference of the mouse position from the last frame in pixel coordinates. The top-left of
-    /// the window is at (0, 0).
+    /// Difference of the mouse position from the last frame in pixel coordinates
+    ///
+    /// The top-left of the window is at (0, 0).
     pub fn mouse_delta(&self) -> Vec2 {
         self.last_mouse_position
             .map(|p| self.mouse_position.unwrap() - p)
             .unwrap_or_else(|| Vec2::new(0.0, 0.0))
     }
 
-    /// Normalized mouse position. The top-left of the window is at (0, 0), bottom-right at (1, 1).
+    /// Normalized mouse position
+    ///
+    /// The top-left of the window is at (0, 0), bottom-right at (1, 1)
     pub fn mouse_position_normalized(&self) -> Vec2 {
         let (x, y) = self.mouse_position
             .as_ref()
@@ -176,9 +202,8 @@ impl Input {
         Vec2::new(x, y)
     }
 
-    /// This method should be called in application.rs after render, so States from events will be
-    /// properly updated.
-    pub fn reset(&mut self) {
+    /// This method must be called periodically to update states from events
+    pub(crate) fn reset(&mut self) {
         if let Some(mouse_position) = self.mouse_position.as_ref() {
             self.last_mouse_position = Some(*mouse_position);
         }
@@ -196,9 +221,8 @@ impl Input {
         self.events.clear();
     }
 
-    /// This method should be called in application.rs in event_loop, so systems will get actual
-    /// Input data.
-    pub fn on_event(&mut self, event: &winit::event::Event<'_, ()>) {
+    /// Handles input event
+    pub(crate) fn on_event(&mut self, event: &winit::event::Event<'_, ()>) {
         if let winit::event::Event::WindowEvent { event, .. } = event {
             match event {
                 WindowEvent::KeyboardInput { input, .. } => self.on_keyboard_event(input),
@@ -223,7 +247,6 @@ impl Input {
         }
     }
 
-    /// Handle cursor moved event from winit.
     fn on_cursor_moved_event(&mut self, position: &winit::dpi::PhysicalPosition<f64>) {
         self.mouse_position = Some(Vec2 {
             x: position.x as f32,
@@ -231,7 +254,6 @@ impl Input {
         });
     }
 
-    /// Handle keyboard event from winit.
     fn on_keyboard_event(&mut self, input: &KeyboardInput) {
         if let Some(key_code) = input.virtual_keycode {
             self.events.push(Event::Key(KeyEvent {
@@ -256,7 +278,6 @@ impl Input {
         }
     }
 
-    /// Handle mouse click events from winit.
     fn on_mouse_click_event(&mut self, state: ElementState, mouse_btn: winit::event::MouseButton) {
         let btn: Button = match mouse_btn {
             MouseButton::Left => Button::MouseLeft,
@@ -268,7 +289,6 @@ impl Input {
         self.on_button_state(btn, state);
     }
 
-    /// Handle mouse wheel event from winit.
     fn on_mouse_wheel_event(&mut self, delta: &MouseScrollDelta) {
         let change = match delta {
             MouseScrollDelta::LineDelta(_x, y) => *y,
@@ -276,16 +296,81 @@ impl Input {
         };
         self.mouse_scroll_delta += change;
     }
-
-
 }
 
-/// Trait for Input Mapper, needs to be implemented.
+/// Game action to input mapping
 pub trait ActionMapper<T: Copy + Eq + std::hash::Hash> {
+    /// Checks if action is mapped and returns an appropriate button
     fn action_mapped(&self, action: T) -> Option<&Button>;
 }
 
-/// Mapper for input
+/// Default implementation of [`ActionMapper`]
+///
+/// It is quite flexible and should be enough for many use cases. To use it, you need to prepare
+/// enumeration of actions for your game. Once initialized and [`Input`] service constructed,
+/// all you need is to populate the mappings.
+///
+/// ## Example
+///
+/// ```no_run
+/// use dotrix_core::{
+///     Dotrix,
+///     ecs::{ Const, Mut, RunLevel, System },
+///     input::{ ActionMapper, Button, Mapper, KeyCode },
+///     services::Input,
+/// };
+///
+/// #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+/// pub enum Action {
+///     MoveForward,
+///     MoveBackward,
+///     MoveLeft,
+///     MoveRight,
+/// }
+///
+/// fn main() {
+///     Dotrix::application("My Game")
+///         .with_service(Input::new(Box::new(Mapper::<Action>::new())))
+///         .with_system(System::from(startup).with(RunLevel::Startup))
+///         .with_system(System::from(test_inputs))
+///         .run();
+/// }
+///
+/// // Initialize mappings
+/// fn startup(mut input: Mut<Input>) {
+///     input.mapper_mut::<Mapper<Action>>()
+///         .set(vec![
+///             (Action::MoveForward, Button::Key(KeyCode::W)),
+///             (Action::MoveBackward, Button::Key(KeyCode::S)),
+///             (Action::MoveLeft, Button::Key(KeyCode::A)),
+///             (Action::MoveRight, Button::Key(KeyCode::D)),
+///         ]);
+/// }
+///
+/// // handle inputs in system
+/// fn test_inputs(input: Const<Input>) {
+///     if input.is_action_hold(Action::MoveForward) {
+///         println!("Move Forward");
+///     }
+///     if input.is_action_hold(Action::MoveBackward) {
+///         println!("Move Backward");
+///     }
+///     if input.is_action_hold(Action::MoveLeft) {
+///         println!("Move Left");
+///     }
+///     if input.is_action_hold(Action::MoveRight) {
+///         println!("Move Right");
+///     }
+/// }
+///
+/// // Turn Input service into a Mapper
+/// impl ActionMapper<Action> for Input {
+///     fn action_mapped(&self, action: Action) -> Option<&Button> {
+///         let mapper = self.mapper::<Mapper<Action>>();
+///         mapper.get_button(action)
+///     }
+/// }
+/// ```
 pub struct Mapper<T> {
     map: HashMap<T, Button>,
 }
@@ -294,42 +379,43 @@ impl<T> Mapper<T>
 where
     T: Copy + Eq + std::hash::Hash
 {
+    /// Constructs new [`Mapper`]
     pub fn new() -> Self {
         Self {
             map: HashMap::new(),
         }
     }
 
-    /// Add a new action to mapper. If action already exists, it will be overridden.
+    /// Add a new action to mapper. If action already exists, it will be overridden
     pub fn add_action(&mut self, action: T, button: Button) {
         self.map.insert(action, button);
     }
 
-    /// Add multiple actions to mapper. Existing actions will be overridden.
+    /// Add multiple actions to mapper. Existing actions will be overridden
     pub fn add_actions(&mut self, actions: Vec<(T, Button)>) {
         for (action, button) in actions.iter() {
             self.map.insert(*action, *button);
         }
     }
 
-    /// Get button that is binded to that action.
+    /// Get button that is binded to that action
     pub fn get_button(&self, action: T) -> Option<&Button> {
         self.map.get(&action)
     }
 
-    /// Remove action from mapper.
+    /// Remove action from mapper
     pub fn remove_action(&mut self, action: T) {
         self.map.remove(&action);
     }
 
-    /// Remove multiple actions from mapper.
+    /// Remove multiple actions from mapper
     pub fn remove_actions(&mut self, actions: Vec<T>) {
         for action in actions.iter() {
             self.map.remove(action);
         }
     }
 
-    /// Removes all actions and set new ones.
+    /// Removes all actions and set new ones
     pub fn set(&mut self, actions: Vec<(T, Button)>) {
         self.map.clear();
         self.add_actions(actions);

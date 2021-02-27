@@ -1,3 +1,4 @@
+//! Constructors for rendering pipelines
 use std::borrow::Cow;
 
 use crate::assets::{
@@ -17,8 +18,11 @@ use super::{
     widget::WidgetVertex,
 };
 
+/// Rendering Pipeline
 pub struct Pipeline {
+    /// WGPU bind group layout
     pub bind_group_layout: wgpu::BindGroupLayout,
+    /// WGPU pipeline
     pub wgpu_pipeline: wgpu::RenderPipeline,
 }
 
@@ -61,6 +65,7 @@ macro_rules! create_shader_module {
 /// Pipeline for static model
 impl Pipeline {
 
+    /// Returns pipeline for [`crate::components::Model`] without a skin with default shaders
     pub fn default_for_static_model(
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
@@ -75,6 +80,7 @@ impl Pipeline {
         Self::new_for_static_model(device, sc_desc, shaders)
     }
 
+    /// Returns pipeline for [`crate::components::Model`] without a skin with custom shaders
     pub fn new_for_static_model(
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
@@ -183,6 +189,7 @@ impl Pipeline {
 /// Pipeline for skinned model
 impl Pipeline {
 
+    /// Returns pipeline for [`crate::components::Model`] with skin and default shaders
     pub fn default_for_skinned_model(
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
@@ -197,6 +204,7 @@ impl Pipeline {
         Self::new_for_skinned_model(device, sc_desc, shaders)
     }
 
+    /// Returns pipeline for [`crate::components::Model`] with skin and custom shaders
     pub fn new_for_skinned_model(
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
@@ -311,6 +319,7 @@ impl Pipeline {
 
 /// Pipeline for SkyBox
 impl Pipeline {
+    /// Returns pipeline for [`crate::components::SkyBox`] with default shaders
     pub fn default_for_skybox(
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
@@ -324,6 +333,7 @@ impl Pipeline {
         Self::new_for_skybox(device, sc_desc, shaders)
     }
 
+    /// Returns pipeline for [`crate::components::SkyBox`] with custom shaders
     pub fn new_for_skybox(
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
@@ -418,6 +428,7 @@ impl Pipeline {
 /// Pipeline for overlays
 impl Pipeline {
 
+    /// Returns pipeline for [`crate::renderer::OverlayProvider`] with default shaders
     pub fn default_for_overlay(
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
@@ -432,6 +443,7 @@ impl Pipeline {
         Self::new_for_overlay(device, sc_desc, shaders)
     }
 
+    /// Returns pipeline for [`crate::renderer::OverlayProvider`] with custom shaders
     pub fn new_for_overlay(
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
@@ -531,6 +543,7 @@ impl Pipeline {
 /// Pipeline for static model
 impl Pipeline {
 
+    /// Returns pipeline for [`crate::components::WireFrame`] with default shaders
     pub fn default_for_wire_frame(
         adapter: &wgpu::Adapter,
         device: &wgpu::Device,
@@ -554,6 +567,7 @@ impl Pipeline {
         Self::new_for_wire_frame(device, sc_desc, shader)
     }
 
+    /// Returns pipeline for [`crate::components::WireFrame`] with custom shaders
     pub fn new_for_wire_frame(
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,

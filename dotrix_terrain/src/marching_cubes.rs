@@ -2,7 +2,9 @@ use rayon::prelude::*;
 
 /// Voxel Vertex structure
 pub struct Vertex {
+    /// Vertex position
     pub position: [f32; 3],
+    /// Density Value at the position
     pub value: f32,
 }
 
@@ -18,6 +20,7 @@ impl Vertex {
 
 /// Voxel structure
 pub struct Voxel {
+    /// Vertices of the cube
     pub vertices: [Vertex; 8],
 }
 
@@ -63,6 +66,7 @@ pub struct MarchingCubes {
 }
 
 impl MarchingCubes {
+    /// Construct Marching Cube builder
     pub fn new() -> Self {
         Self {
             size: 16,
@@ -153,6 +157,7 @@ impl MarchingCubes {
     }
 }
 
+/// Marching cubes cases
 pub const CASE_TO_NUMPOLY: [u32; 256] = [
     0x0,   0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c,
     0x80c, 0x905, 0xa0f, 0xb06, 0xc0a, 0xd03, 0xe09, 0xf00,
@@ -188,12 +193,14 @@ pub const CASE_TO_NUMPOLY: [u32; 256] = [
     0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0
 ];
 
+/// Vertex indices for edges
 pub const VERTEX_INDICES: [(usize, usize); 12] = [
     (0, 1), (1, 2), (2, 3), (3, 0),
     (4, 5), (5, 6), (6, 7), (7, 4),
     (0, 4), (1, 5), (2, 6), (3, 7),
 ];
 
+/// Polygons connections
 pub const EDGE_CONNECT_LIST: [[i8; 16]; 256] = [
     [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
     [0, 8, 3, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1],

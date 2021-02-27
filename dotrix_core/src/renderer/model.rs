@@ -6,20 +6,30 @@ use crate::{
 use super::pipeline::Pipeline;
 use super::transform::Transform;
 
+/// Pipeline buffers
 pub struct Buffers {
     bind_group: wgpu::BindGroup,
     transform: wgpu::Buffer,
 }
 
+/// 3D model component
 #[derive(Default)]
 pub struct Model {
+    /// [`Id`] of a [`Mesh`] asset
     pub mesh: Id<Mesh>,
+    /// [`Id`] of a [`Texture`] asset
     pub texture: Id<Texture>,
+    /// Model transformation
     pub transform: Transform,
+    /// [`Id`] of a [`Skin`] asset
     pub skin: Id<Skin>,
+    /// Skinned model pose
     pub pose: Option<Pose>,
+    /// Pipeline buffers
     pub buffers: Option<Buffers>,
+    /// [`Id`] of a rendering [`Pipeline`]
     pub pipeline: Id<Pipeline>,
+    /// is rendering disabled
     pub disabled: bool,
 }
 
@@ -58,7 +68,7 @@ impl Model {
         Err(())
     }
 
-    /// Initialize model specific buffers, should be called just once by renderer
+    /// Loads the [`Model`] buffers
     pub(crate) fn load(
         &mut self,
         renderer: &Renderer,
@@ -139,6 +149,7 @@ impl Model {
         }
     }
 
+    /// Renders the [`Model`]
     pub(crate) fn draw(
         &self,
         assets: &Assets,

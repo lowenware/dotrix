@@ -1,3 +1,4 @@
+//! data structure and constructors
 use std::convert::{ From, Into };
 use std::ops::{ Index, IndexMut };
 

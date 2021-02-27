@@ -14,30 +14,30 @@ use crate::{
     recursive,
 };
 
-pub struct Context {
-    pub name: *mut String,
-}
 
-impl Context {
-    pub fn cast(&mut self) -> &mut String {
-        unsafe {
-            &mut *self.name
-        }
-    }
-}
-
-/// World implements a container for Systems, Entities and their Components and quering functionality
+/// Service to store and manage entities
+///
+/// To enable entities management in your game, add the service service using [`crate::Dotrix`]
+/// builder, so it can be accessed in [`crate::systems`].
+///
+/// ```no_run
+/// use dotrix_core::{
+///     Dotrix,
+///     services::World
+/// };
+///
+/// fn main() {
+///     Dotrix::application("My Game")
+///         .with_service(World::new())
+///         .run()
+/// }
+/// ```
 pub struct World {
     /// Entities container grouped by archetypes
     content: Vec<Container>,
     /// Spawn counter for Entity ID generation
     counter: u64,
-    name: String,
 }
-
-// TODO: find a way how to get rid of it, maybe use some other constructor
-unsafe impl Send for World {}
-unsafe impl Sync for World {}
 
 impl World {
     /// Create new empty World instance
@@ -45,11 +45,40 @@ impl World {
         Self {
             content: Vec::new(),
             counter: 0,
-            name: String::from("MyWorld")
         }
     }
 
     /// Spawn single or multiple entities in the world
+    ///
+    /// Entity appears only when you spawn it in the [`World`] as a tuple of [`crate::components`].
+    ///
+    /// ```no_run
+    /// use dotrix_core::{
+    ///     ecs::Mut,
+    ///     services::World,
+    /// };
+    ///
+    /// // First component
+    /// struct Component1(u32);
+    /// // Second component
+    /// struct Component2(u32);
+    ///
+    /// fn spawn(mut world: Mut<World>) {
+    ///     // Spawn single entity in the world
+    ///     world.spawn(
+    ///         Some( // Iterator
+    ///             (Component1, Component2) // Your Entity
+    ///         )
+    ///     );
+    ///
+    ///     // Bulk spawning of entities of the same archetype
+    ///     world.spawn((0..123).map(|i| (Component1(i),)));
+    /// }
+    /// ```
+    ///
+    /// _NOTE: if your entity has only one component, don't forget to put trailing comma after it
+    /// as it is shown in the example above. Otherwise it won't be parsed by Rust compiler as
+    /// a tuple.
     pub fn spawn<T, I>(&mut self, iter: I) 
     where
         T: Archetype + Pattern,
@@ -72,7 +101,28 @@ impl World {
         }
     }
 
-    /// Query stored components in the World
+    /// Query entities from the World
+    ///
+    /// ## Example:
+    /// ```no_run
+    /// use dotrix_core::{
+    ///     ecs::Mut,
+    ///     services::World,
+    /// };
+    /// // First component
+    /// struct Component1(u32);
+    ///
+    /// // Second component
+    /// struct Component2(u32);
+    ///
+    /// fn my_system(mut world: Mut<World>) {
+    ///     let query = world.query::<(&Component1, &mut Component2)>();
+    ///     for (cmp1, cmp2) in query {
+    ///         println!("Reset value of Component 2 for Component 1 of {}", cmp1.0);
+    ///         cmp2.0 = 0;
+    ///     }
+    /// }
+    /// ```
     pub fn query<'w, Q>(&'w self) -> impl Iterator<Item = <<Q as Query>::Iter as Iterator>::Item> + 'w
     where
         Q: Query<'w>,
@@ -87,23 +137,14 @@ impl World {
         }
     }
 
+    /// Returns current value of entities counter
     pub fn counter(&self) -> u64 {
         self.counter
     }
-
-    /*
-    pub fn get<T>(&mut self) -> &T
-    where Self: Fetcher<T> {
-        self.fetch()
-    }
-    */
-
-    pub fn context(&mut self) -> Context {
-        Context {
-            name: (&mut self.name) as *mut String,
-        }
-    }
 }
+
+unsafe impl Send for World {}
+unsafe impl Sync for World {}
 
 impl Default for World {
     fn default() -> Self {
@@ -111,59 +152,29 @@ impl Default for World {
     }
 }
 
-/*
-pub trait Fetcher<T> {
-    fn fetch(&mut self) -> &T;
-}
-
-impl Fetcher<Context> for World {
-    fn fetch(&mut self) -> &Context {
-        &self.context
-    }
-}
-*/
-
-/*
-pub trait Selector<'w> {
-    type Iter: Iterator;
-    type Component: Component;
-
-    fn borrow(container: &'w Container) -> Self::Iter;
-    fn matches(container: &'w Container) -> bool {
-        container.has(TypeId::of::<Self::Component>())
-    }
-}
-
-impl<'w, C> Selector<'w> for &'_ C
-where
-    C: Component,
-{
-    type Iter = std::slice::Iter<'w, C>;
-    type Component = C;
-
-    fn borrow(container: &'w Container) -> Self::Iter {
-        container.get::<C>().unwrap().iter()
-    }
-}
-*/
-
-/// Trait definition of Entities with the same set of components
+/// Abstraction for Entities with the same set of components
 pub trait Archetype {
+    /// Stores archetype in a [`Container`]
     fn store(self, container: &mut Container);
+    /// Prepares the [`Container`] to store the archetype
     fn map(container: &mut Container);
 }
 
-/// Trait definition of components set
+/// Abstraction for a set of components
 pub trait Pattern {
+    /// Returns number of components in the [`Pattern`]
     fn len() -> usize;
+    /// Checks if [`Pattern`] matches the [`Archetype`]
     fn matches(container: &Container) -> bool;
 }
 
-/// Trait definition of a Query
+/// Abstraction for queries inoked by [`World::query`]
 pub trait Query<'w> {
     type Iter: Iterator + 'w;
 
+    /// Selects entities from container
     fn select(container: &'w Container) -> Self::Iter;
+    /// Checks if [`Query`] matches the [`Container`]
     fn matches(container: &'w Container) -> bool;
 }
 

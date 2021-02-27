@@ -1,12 +1,16 @@
 use super::{ Color, Light, RawDirLight };
 use dotrix_math::{ Vec3, Vec4 };
 
-#[derive(Clone, Debug)]
 /// Component to be added to entities
+#[derive(Clone, Debug)]
 pub struct DirLight {
+    /// Is light source enabled
     pub enabled: bool,
+    /// Light source direction
     pub direction: Vec3,
+    /// Light source color
     pub color: Color,
+    /// Light source intensity
     pub intensity: f32,
 }
 
