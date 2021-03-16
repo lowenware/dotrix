@@ -50,6 +50,9 @@ optional = true
 [dev-dependencies.rand]
 version = "0.8"
 
+[dev-dependencies.noise]
+version = "0.7"
+
 [[example]]
 name = "demo"
 path = "examples/demo/demo.rs"
@@ -65,6 +68,10 @@ path = "examples/animation/fox.rs"
 [[example]]
 name = "light"
 path = "examples/light/light.rs"
+
+[[example]]
+name = "marching_cubes"
+path = "examples/marching_cubes/marching_cubes.rs"
 
 [[example]]
 name = "skybox"

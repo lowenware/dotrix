@@ -1,6 +1,7 @@
 use rayon::prelude::*;
 
 /// Voxel Vertex structure
+#[derive(Debug)]
 pub struct Vertex {
     /// Vertex position
     pub position: [f32; 3],
@@ -19,6 +20,7 @@ impl Vertex {
 }
 
 /// Voxel structure
+#[derive(Debug)]
 pub struct Voxel {
     /// Vertices of the cube
     pub vertices: [Vertex; 8],
@@ -32,7 +34,8 @@ impl Voxel {
         let value_1 = self.vertices[index_1].value;
         let value_2 = self.vertices[index_2].value;
 
-        if (isolevel - value_1).abs() < 0.00001 {
+        let iso_diff = isolevel - value_1;
+        if iso_diff.abs() < 0.00001 {
             return position_1;
         }
 
@@ -40,11 +43,13 @@ impl Voxel {
             return position_2;
         }
 
-        if (value_1 - value_2).abs() < 0.00001 {
+        let diff = value_2 - value_1;
+
+        if diff.abs() < 0.00001 {
             return position_1;
         }
 
-        let m = (isolevel - value_1) / (value_2 - value_1);
+        let m = iso_diff / diff;
 
         [
             position_1[0] + m * (position_2[0] - position_1[0]),

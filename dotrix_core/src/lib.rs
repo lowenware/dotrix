@@ -65,11 +65,10 @@ pub mod services {
 //!     services::{ World },
 //! };
 //!
-//! fn main() {
-//!     Dotrix::application("My Game")
-//!         .with_service(World::default())
-//!         .run();
-//! }
+//! // in fn main()
+//! Dotrix::application("My Game")
+//!     .with_service(World::default())
+//!     .run();
 //!
 //! ```
 //! After adding a service to your game you can access it inside of [`crate::systems`].

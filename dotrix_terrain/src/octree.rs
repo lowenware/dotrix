@@ -118,6 +118,11 @@ impl<T> Octree<T> {
         self.nodes.get(&key).map(|n| n.payload.as_ref().map(|_| n)).unwrap_or(None)
     }
 
+    /// Loads node as mutable from the [`Octree`] by the position
+    pub fn load_mut(&mut self, key: &Vec3i) -> Option<&mut Node<T>> {
+        self.nodes.get_mut(&key)
+    }
+
     /// Finds node or it's closest parent in the [`Octree`]
     pub fn find(&self, key: &Vec3i) -> Option<(Vec3i, &Node<T>)> {
         if let Some(node) = self.nodes.get(key) {
