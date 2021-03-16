@@ -33,28 +33,30 @@ The best place to start is to review examples distributed with the engine. All e
 under [examples/](examples/) folder. Later when API becomes more or less stable we will prepare a
 Book for a quick start.
 
-## Demo Example
+## Examples
 [![Demo Example](https://img.youtube.com/vi/KXOr_KxMNWM/0.jpg)](https://www.youtube.com/watch?v=KXOr_KxMNWM)
 
+**Features:** input, skeletal animation, light, terrain, player control
 ```
 cargo run --release --example demo
 ```
 
-## EGUI
-
+**Features:** UI and EGUI integration, skeletal animation, light, camera control, transformation
 ```
 cargo run --release --example egui
 ```
 
-
-## Skeletal Animation
-
+**Features:** skeletal animation, light, camera control
 ```
 cargo run --release --example fox
 ```
 
-## SkyBox
+**Features:** marching cubes, camera control, UI
+```
+cargo run --release --example marching_cubes
+```
 
+**Features:** skybox, camera control
 ```
 cargo run --release --example skybox
 ```

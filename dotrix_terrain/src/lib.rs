@@ -268,17 +268,7 @@ impl Instance {
             Self::resolve_seams_x(&mut map, (self.level - round_up[0]) as usize + 1, x);
         }
         if round_up[1] > 0 {
-            // println!("resolve_seams Y: level={}, size={}, position={:?}", self.level, self.size, self.position);
             Self::resolve_seams_y(&mut map, (self.level - round_up[1]) as usize + 1, y);
-            /*
-            println!("\nResolve seams y: {}", y);
-            for z in 0..17 {
-                print!("  {}: ", z);
-                for x in 0..17 {
-                    print!("{}, ", map[x][y][z]);
-                }
-                println!(";")
-            }*/
         }
         if round_up[2] > 0 {
             Self::resolve_seams_z(&mut map, (self.level - round_up[2]) as usize + 1, z);
@@ -690,6 +680,7 @@ pub fn spawn(
             .map(|instance| instance.disabled || instance.mesh.is_none())
             .unwrap_or_else(|| {
                 // println!("Not instanced {:?}", block.position);
+
                 /*
                 println!("Chunk not found: {:?}", index);
                 let mesh = model.mesh;

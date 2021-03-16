@@ -12,11 +12,11 @@
 //!     systems::skeletal_animation,
 //! };
 //!
-//! fn main() {
-//!     Dotrix::application("My Game")
-//!         .with_system(System::from(skeletal_animation))
-//!         .run()
-//! }
+//! // in your main function
+//! Dotrix::application("My Game")
+//!     .with_system(System::from(skeletal_animation))
+//!     .run()
+//! 
 //! ```
 //!
 //! ## Spawning animated models

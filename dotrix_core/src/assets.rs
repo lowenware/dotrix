@@ -37,11 +37,10 @@ const THREADS_COUNT: usize = 4;
 ///     services::Assets,
 /// };
 ///
-/// fn main() {
-///     Dotrix::application("My Game")
-///         .with_service(Assets::new())
-///         .run()
-/// }
+/// // in fn main()
+/// Dotrix::application("My Game")
+///     .with_service(Assets::new())
+///     .run()
 /// ```
 ///
 /// Stored asset can be identified by its [`Id`]. The [`Id`] is being assigned to an asset, once 

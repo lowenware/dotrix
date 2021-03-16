@@ -519,6 +519,7 @@ dependencies = [
  "dotrix_egui",
  "dotrix_math",
  "dotrix_terrain",
+ "noise",
  "rand 0.8.3",
 ]
 

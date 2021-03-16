@@ -26,11 +26,10 @@ use crate::{
 ///     services::World
 /// };
 ///
-/// fn main() {
-///     Dotrix::application("My Game")
-///         .with_service(World::new())
-///         .run()
-/// }
+/// // in fn main()
+/// Dotrix::application("My Game")
+///     .with_service(World::new())
+///     .run()
 /// ```
 pub struct World {
     /// Entities container grouped by archetypes
