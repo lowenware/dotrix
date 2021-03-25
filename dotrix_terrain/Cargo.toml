@@ -16,3 +16,6 @@ rayon = "1.5"
 [dependencies.noise]
 version = "0.7"
 
+[dependencies.bytemuck]
+version = "1.5"
+

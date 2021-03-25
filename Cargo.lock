@@ -561,6 +561,7 @@ dependencies = [
 name = "dotrix_terrain"
 version = "0.3.0"
 dependencies = [
+ "bytemuck",
  "dotrix_core",
  "dotrix_math",
  "noise",

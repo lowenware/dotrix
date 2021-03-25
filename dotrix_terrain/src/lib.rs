@@ -4,10 +4,16 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
 #![warn(missing_docs)]
 
+pub const CHUNK_SIZE: usize = 16;
+
+mod density;
+mod grid;
 mod marching_cubes;
 mod voxel_map;
 pub mod octree;
 
+pub use density::*;
+pub use grid::*;
 pub use marching_cubes::*;
 pub use voxel_map::*;
 
@@ -33,6 +39,9 @@ use octree::{Octree, Node as OctreeNode};
 
 /// Level of details identified by number
 pub struct Lod(pub usize);
+
+/// Number of density values per side of the block inside of the grid
+pub const GRID_BLOCK_SIZE: usize = CHUNK_SIZE;
 
 // TODO: unify with octree
 const LEFT_TOP_BACK: u8 = 0;
@@ -60,73 +69,40 @@ pub struct Terrain {
     /// Square of the view distance
     pub view_distance2: f32,
     /// Voxel mapping
-    pub octree: Octree<VoxelMap>,
+    pub octree: Octree,
     /// Changes tracking flag, if `true` terrain will be regenerated
     pub changed: bool,
     /// Highest [`Lod`] limitation
     pub lod: usize,
     /// Generation time tracking
     pub generated_in: Duration,
+    /// Density grid
+    pub grid: Grid,
 }
 
 impl Terrain {
     /// Constructs new service instance
     pub fn new() -> Self {
         let map_size = 16;
+        let grid_size = 32;
         let update_if_moved_by = map_size as f32 * 0.5;
+        let mut octree = Octree::new(Vec3i::new(0, 0, 0), grid_size);
+        octree.store(Vec3i::new(grid_size as i32 / 4, grid_size as i32 / 4, grid_size as i32 / 4));
         Self {
             update_if_moved_by: update_if_moved_by * update_if_moved_by,
             last_viewer_position: None,
             view_distance2: 768.0 * 768.0 + 768.0 * 768.0 + 768.0 * 768.0,
-            octree: Octree::new(Vec3i::new(0, 0, 0), 2048),
+            octree,
             changed: false,
             lod: 3,
             generated_in: Duration::from_secs(0),
+            grid: Grid::flat(grid_size + 1, GRID_BLOCK_SIZE),
         }
     }
 
     /// Populates the voxel map with noise
     pub fn populate(&mut self, noise: &Fbm, amplitude: f64, scale: f64) {
-        let root = Vec3i::new(0, 0, 0);
-
-        self.octree = Octree::new(root, 2048);
-        self.populate_node(noise, amplitude, scale, root, 0);
-        self.changed = true;
-    }
-
-    fn populate_node(
-        &mut self,
-        noise: &Fbm,
-        noise_amplitude: f64,
-        noise_scale: f64,
-        node: Vec3i,
-        depth: usize
-    ) {
-        let scale = Lod(depth).scale();
-        let offset = self.octree.size() as i32 / scale / 2;
-        let step = offset / (16 / 2);
-
-        // density.value already applies theoffset
-        let mut density = [[[0.0; 17]; 17]; 17];
-        for x in 0..17 {
-            let xf = (node.x - offset + x * step) as f64 / noise_scale + 0.5;
-            for y in 0..17 {
-                let yf = (node.y - offset + y * step) as f64 /* noise_scale + 0.5 */;
-                for z in 0..17 {
-                    let zf = (node.z - offset + z * step) as f64 / noise_scale + 0.5;
-                    density[x as usize][y as usize][z as usize] = 
-                        (noise_amplitude * (noise.get([xf, zf]) + 1.0) - yf) as f32;
-                }
-            }
-        }
-        self.octree.store(node, VoxelMap::new(density));
-
-        if depth < 3 {
-            let children = OctreeNode::<i32>::children(&node, offset / 2);
-            for child in children.iter() {
-                self.populate_node(noise, noise_amplitude, noise_scale, *child, depth + 1);
-            }
-        }
+        return;
     }
 
     fn spawn(&mut self, target: Point3, instances: &mut HashMap<Vec3i, Instance>) {
@@ -146,15 +122,13 @@ impl Terrain {
             // let lod = Lod(node.level);
 
             if !recursive || node.level == self.lod || node.children.is_none(){
-                if node.payload.is_some() {
-                    // Get stored instance or make new from the node
-                    let mut instances = instances.lock().unwrap();
-                    if let Some(instance) = instances.get_mut(node_key) {
-                        // check if has LOD round up has changed
-                        instance.disabled = false;
-                    } else {
-                        instances.insert(*node_key, Instance::from(*node_key, &node, index));
-                    }
+                // Get stored instance or make new from the node
+                let mut instances = instances.lock().unwrap();
+                if let Some(instance) = instances.get_mut(node_key) {
+                    // check if has LOD round up has changed
+                    instance.disabled = false;
+                } else {
+                    instances.insert(*node_key, Instance::from(*node_key, &node, index));
                 }
             } else {
                 let min_view_distance2 = 0.75 * node.size as f32 * 0.75 * node.size as f32;
@@ -218,7 +192,6 @@ pub struct Block {
 /// Chunk instance of the terrain
 pub struct Instance {
     position: Vec3i,
-    map: VoxelMap,
     /// Postition index in parent cube
     index: u8,
     level: u8,
@@ -232,10 +205,9 @@ pub struct Instance {
 
 impl Instance {
     /// Constructs [`Instance`] from [`OctreeNode`] at some position
-    pub fn from(position: Vec3i, node: &OctreeNode<VoxelMap>, index: u8) -> Self {
+    pub fn from(position: Vec3i, node: &OctreeNode, index: u8) -> Self {
         Self {
             position,
-            map: *node.payload.as_ref().unwrap(),
             index,
             level: node.level as u8,
             size: node.size,
@@ -249,9 +221,9 @@ impl Instance {
 
     fn resolve_seams(
         &self,
+        density: &mut Vec<Vec<Vec<f32>>>,
         round_up: &[u8; 3],
-    ) -> VoxelMap {
-        let mut map = self.map;
+    ) {
         let (x, y, z) = match self.index {
             LEFT_TOP_BACK => (0, 16, 0),
             RIGHT_TOP_BACK => (16, 16, 0),
@@ -265,17 +237,15 @@ impl Instance {
         };
 
         if round_up[0] > 0 {
-            Self::resolve_seams_x(&mut map, (self.level - round_up[0]) as usize + 1, x);
+            Self::resolve_seams_x(density, (self.level - round_up[0]) as usize + 1, x);
         }
         if round_up[1] > 0 {
-            Self::resolve_seams_y(&mut map, (self.level - round_up[1]) as usize + 1, y);
+            Self::resolve_seams_y(density, (self.level - round_up[1]) as usize + 1, y);
         }
         if round_up[2] > 0 {
-            Self::resolve_seams_z(&mut map, (self.level - round_up[2]) as usize + 1, z);
+            Self::resolve_seams_z(density, (self.level - round_up[2]) as usize + 1, z);
 
         }
-
-        map
     }
 
 
@@ -305,92 +275,91 @@ impl Instance {
         }
     }
     */
-    fn resolve_seams_x(map: &mut VoxelMap, step: usize, x: usize) {
+    fn resolve_seams_x(density: &mut Vec<Vec<Vec<f32>>>, step: usize, x: usize) {
         for y in (0..16).step_by(step) {
             for z in (0..16).step_by(step) {
-                let mut v0 = map.density[x][y][z];
-                let s0 = (map.density[x][y][z + step] - v0) / step as f32;
-                let mut v1 = map.density[x][y + step][z];
-                let s1 = (map.density[x][y + step][z + step] - v1) / step as f32;
+                let mut v0 = density[x][y][z];
+                let s0 = (density[x][y][z + step] - v0) / step as f32;
+                let mut v1 = density[x][y + step][z];
+                let s1 = (density[x][y + step][z + step] - v1) / step as f32;
 
                 for zi in 1..step {
                     v0 += s0;
                     v1 += s1;
-                    map.density[x][y][z + zi] = v0;
-                    map.density[x][y + step][z + zi] = v1;
+                    density[x][y][z + zi] = v0;
+                    density[x][y + step][z + zi] = v1;
                     let mut v = v0;
                     let s = (v1 - v0) / step as f32;
                     for yi in 1..step {
                         v += s;
-                        map.density[x][y + yi][z + zi] = v;
+                        density[x][y + yi][z + zi] = v;
                     }
                 }
             }
         }
     }
 
-    fn resolve_seams_y(map: &mut VoxelMap, step: usize, y: usize) {
+    fn resolve_seams_y(density: &mut Vec<Vec<Vec<f32>>>, step: usize, y: usize) {
         for x in (0..17).step_by(step) {
             for z in (0..16).step_by(step) {
-                let mut v = map.density[x][y][z];
-                let s = (map.density[x][y][z + step] - v) / step as f32;
+                let mut v = density[x][y][z];
+                let v1 = density[x][y][z + step];
+                let s = (v1 - v) / step as f32;
                 for zi in 1..step {
-                    v += s;
-                    map.density[x][y][z + zi] = v;
+                    let old = density[x][y][z + zi];
+                    if (v1 < 0.0 && v < 0.0 && old > 0.0) || (v1 > 0.0 && v > 0.0 && old < 0.0) {
+                        v = 0.0;
+                    } else {
+                        v += s;
+                    }
+                    density[x][y][z + zi] = v;
                 }
             }
         }
 
         for z in (0..17).step_by(step) {
             for x in (0..16).step_by(step) {
-                let mut v = map.density[x][y][z];
-                let s = (map.density[x + step][y][z] - v) / step as f32;
-                for zi in 1..step {
-                    v += s;
-                    map.density[x + zi][y][z] = v;
+                let mut v = density[x][y][z];
+                let v1 = density[x + step][y][z];
+                let s = (v1 - v) / step as f32;
+                for xi in 1..step {
+                    let old = density[x + xi][y][z];
+                    if (v1 < 0.0 && v < 0.0 && old > 0.0) || (v1 > 0.0 && v > 0.0 && old < 0.0) {
+                        v = 0.0;
+                    } else {
+                        v += s;
+                    }
+                    density[x + xi][y][z] = v;
                 }
             }
         }
 
         for x in (0..16).step_by(step) {
             for z in (0..16).step_by(step) {
-                let mut v0 = map.density[x][y][z];
-                let s0 = (map.density[x + step][y][z] - v0) / step as f32;
-                let mut v1 = map.density[x][y][z + step];
-                let s1 = (map.density[x + step][y][z + step] - v1) / step as f32;
-                for xi in 1..step {
-                    v0 += s0;
-                    v1 += s1;
-                    map.density[x + xi][y][z] = v0;
-                    map.density[x + xi][y][z + step] = v1;
-                    let mut v = v0;
-                    let s = (v1 - v0) / step as f32;
-                    for zi in 1..step {
-                        v += s;
-                        map.density[x + xi][y][z + zi] = v;
-                    }
-                }
+                let v1 = (density[x + step][y][z + step] - density[x][y][z]) / step as f32 + density[x][y][z];
+                let v2 = (density[x][y][z + step] - density[x + step][y][z]) / step as f32 + density[x + step][y][z];
+                density[x + 1][y][z + 1] = if v1 < v2 { v1 } else { v2 };
             }
         }
     }
 
-    fn resolve_seams_z(map: &mut VoxelMap, step: usize, z: usize) {
+    fn resolve_seams_z(density: &mut Vec<Vec<Vec<f32>>>, step: usize, z: usize) {
         for x in (0..16).step_by(step) {
             for y in (0..16).step_by(step) {
-                let mut v0 = map.density[x][y][z];
-                let s0 = (map.density[x + step][y][z] - v0) / step as f32;
-                let mut v1 = map.density[x][y + step][z];
-                let s1 = (map.density[x + step][y + step][z] - v1) / step as f32;
+                let mut v0 = density[x][y][z];
+                let s0 = (density[x + step][y][z] - v0) / step as f32;
+                let mut v1 = density[x][y + step][z];
+                let s1 = (density[x + step][y + step][z] - v1) / step as f32;
                 for xi in 1..step {
                     v0 += s0;
                     v1 += s1;
-                    map.density[x + xi][y][z] = v0;
-                    map.density[x + xi][y + step][z] = v1;
+                    density[x + xi][y][z] = v0;
+                    density[x + xi][y + step][z] = v1;
                     let mut v = v0;
                     let s = (v1 - v0) / step as f32;
                     for yi in 1..step {
                         v += s;
-                        map.density[x + xi][y + yi][z] = v;
+                        density[x + xi][y + yi][z] = v;
                     }
                 }
             }
@@ -398,7 +367,13 @@ impl Instance {
     }
 
     /// Generates polygons of the [`Instance`]
-    pub fn polygonize(&mut self, assets: &mut Assets, world: &mut World, round_up: &[u8; 3]) {
+    pub fn polygonize(
+        &mut self,
+        assets: &mut Assets,
+        world: &mut World,
+        mut density: Density,
+        round_up: &[u8; 3],
+    ) {
 
         let map_size = 16;
         let mc = MarchingCubes {
@@ -407,8 +382,13 @@ impl Instance {
         };
         let scale = (self.size / map_size) as f32;
 
-        let map = self.resolve_seams(round_up);
-        let (positions, _) = mc.polygonize(|x, y, z| map.density[x][y][z]);
+        // self.resolve_seams(&mut density, round_up);
+        // TODO: repair seams patching
+        let map_size_sq = (map_size + 1) * (map_size + 1);
+        let density_values = density.values().expect("Density values to be set");
+        let (positions, _) = mc.polygonize(
+            |x, y, z| density_values[map_size_sq * x + (map_size + 1) * y + z] as f32
+        );
 
         let len = positions.len();
 
@@ -416,7 +396,6 @@ impl Instance {
             self.empty = true;
             return;
         }
-        // println!("Instance: {:?}:{} -> {:?}", self.position, self.level, round_up);
         self.round_up = *round_up;
         let uvs = Some(vec![[1.0, 0.0]; len]);
         /* match self.ring {
@@ -670,7 +649,11 @@ pub fn spawn(
         let round_up = round_ups.get(key).expect("Each instance must have a roundup");
         if instance.updated || !Instance::is_same_round_up(&instance.round_up, round_up) {
             // println!("polygonize: {:?}", instance.position);
-            instance.polygonize(&mut assets, &mut world, round_up);
+            let half_size = instance.size as i32 / 2;
+            let base = Vec3i::new(key.x - half_size, key.y - half_size, key.z - half_size);
+            let density = terrain.grid.load(base, 17);
+            // println!("{:?} -> {:?}\n", base, density);
+            instance.polygonize(&mut assets, &mut world, density, round_up);
         }
     }
 
