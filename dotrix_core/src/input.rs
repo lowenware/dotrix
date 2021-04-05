@@ -31,7 +31,7 @@ pub enum Button {
     /// Middle mouse button
     MouseMiddle,
     /// Mouse button by the code
-    MouseOther(u8),
+    MouseOther(u16),
 }
 
 /// State of a button
