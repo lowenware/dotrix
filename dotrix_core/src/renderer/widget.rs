@@ -10,6 +10,7 @@ use crate::{
     services::{
         Assets,
         Renderer,
+        Window,
     },
 };
 
@@ -70,17 +71,18 @@ impl Widget {
         assets: &mut Assets,
         pipeline: &Pipeline,
         sampler: &wgpu::Sampler,
+        window: &Window,
     ) {
         use wgpu::util::DeviceExt;
 
         let device = &renderer.device;
         let queue = &renderer.queue;
 
-        let screen_size = renderer.window.inner_size();
-        let scale_factor = renderer.window.scale_factor() as f32;
+        let screen_size = window.inner_size();
+        let scale_factor = window.scale_factor() as f32;
         let screen_size = [
-            screen_size.width as f32 / scale_factor,
-            screen_size.height as f32 / scale_factor
+            screen_size.x as f32 / scale_factor,
+            screen_size.y as f32 / scale_factor
         ];
 
         if let Some(buffers) = self.buffers.as_ref() {
@@ -160,7 +162,7 @@ impl Widget {
                     attachment: &frame.view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load, 
+                        load: wgpu::LoadOp::Load,
                         store: true,
                     },
                 }],

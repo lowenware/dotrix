@@ -12,6 +12,7 @@ mod frame;
 pub mod input;
 pub mod renderer;
 mod scheduler;
+pub mod window;
 mod world;
 
 pub use application::{ Application, Service };
@@ -81,6 +82,7 @@ pub mod services {
         frame::Frame,
         input::Ray,
         renderer::Renderer,
+        window::Window,
         world::World,
     };
 }

@@ -5,6 +5,7 @@ use crate::{
         Assets,
         Input,
         Renderer,
+        Window,
     },
 };
 
@@ -165,10 +166,11 @@ impl dyn Provider {
 pub fn overlay_update(
     mut assets: Mut<Assets>,
     input: Const<Input>,
-    mut renderer: Mut<Renderer>
+    mut renderer: Mut<Renderer>,
+    window: Const<Window>
 ) {
-    let (width, height) = renderer.display_size();
-    let scale_factor = renderer.scale_factor();
+    let (width, height) = renderer.display_size(&window);
+    let scale_factor = renderer.scale_factor(&window);
     for overlay in &mut renderer.overlay {
         overlay.update(&mut assets, &input, scale_factor, width as f32, height as f32);
     }
