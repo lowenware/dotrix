@@ -7,10 +7,13 @@ use dotrix::{
         combo_box,
         Egui,
         Grid,
+        ScrollArea,
         SidePanel,
+        Slider,
         TopPanel,
     },
-    services::{ Camera, Frame, Renderer, Window },
+    math::{ Vec2i, Vec2u },
+    services::{ Camera, Frame, Input, Renderer, Window },
     window::{ CursorIcon, UserAttentionType },
 };
 use std::collections::hash_map::HashMap;
@@ -19,6 +22,7 @@ pub struct Settings {
     fullscreen: bool,
     icon: String,
     icons: HashMap<String, Id<Texture>>,
+    min_inner_size: Vec2u,
     title: String,
 }
 
@@ -28,6 +32,7 @@ impl Default for Settings {
             fullscreen: false,
             icon: String::from("none"),
             icons: HashMap::new(),
+            min_inner_size: Vec2u::new(640, 480),
             title: String::new(),
         }
     }
@@ -37,6 +42,7 @@ pub fn ui(
     assets: Const<Assets>,
     camera: Const<Camera>,
     frame: Const<Frame>,
+    input: Const<Input>,
     mut match_finder: Mut<MatchFinder>,
     renderer: Const<Renderer>,
     mut settings: Mut<Settings>,
@@ -63,8 +69,10 @@ pub fn ui(
         });
     });
 
-    SidePanel::left("side_panel", 300.0).show(&egui.ctx, |ui| {
-        CollapsingHeader::new("Info")
+    SidePanel::left("side_panel", 300.0)
+    .show(&egui.ctx, |ui| {
+        ScrollArea::auto_sized().show(ui, |ui| {
+            CollapsingHeader::new("ℹ Info")
             .default_open(false)
             .show(ui, |ui| {
                 Grid::new("info_grid").show(ui, |ui| {
@@ -72,47 +80,104 @@ pub fn ui(
                     ui.label(format!("{}", frame.fps()));
                     ui.end_row();
 
-                    ui.label("Window Inner Size");
-                    ui.label(format!("x: {}, y: {}", window.inner_size().x, window.inner_size().y));
+                    ui.label("Screen size");
+                    ui.label(format!("x: {}, y: {}", window.screen_size().x, window.screen_size().y));
                     ui.end_row();
+                });
 
-                    ui.label("Camera Position");
-                    ui.label(format!("x: {:.4}, y: {:.4}, z: {:.4}",
-                        camera.position().x, camera.position().y, camera.position().z));
-                    ui.end_row();
+                CollapsingHeader::new("ℹ Camera")
+                    .default_open(false)
+                    .show(ui, |ui| {
+                        Grid::new("info_camera_grid").show(ui, |ui| {
+                            ui.label("Position");
+                            ui.label(format!("x: {:.4}, y: {:.4}, z: {:.4}",
+                                camera.position().x, camera.position().y, camera.position().z));
+                            ui.end_row();
 
-                    let vec = format!("x: {:.4}, y: {:.4}, z: {:.4}",
-                        camera.target.x, camera.target.y, camera.target.z);
+                            let vec = format!("x: {:.4}, y: {:.4}, z: {:.4}",
+                                camera.target.x, camera.target.y, camera.target.z);
 
-                    ui.label("Camera Target");
-                    ui.label(vec);
-                    ui.end_row();
+                            ui.label("Target");
+                            ui.label(vec);
+                            ui.end_row();
 
-                    ui.label("Camera Disctance");
-                    ui.label(format!("{:.4}", camera.distance));
-                    ui.end_row();
+                            ui.label("Disctance");
+                            ui.label(format!("{:.4}", camera.distance));
+                            ui.end_row();
+                        });
+                    });
+
+                CollapsingHeader::new("ℹ Cursor")
+                .default_open(false)
+                .show(ui, |ui| {
+                    Grid::new("info_cursor_grid").show(ui, |ui| {
+                        ui.label("Position");
+                        ui.label(format!("x: {}, y: {}",
+                            input.mouse_position().unwrap().x, input.mouse_position().unwrap().y));
+                        ui.end_row();
+
+                        ui.label("Normalized position");
+                        ui.label(format!("x: {:.4}, y: {:.4}",
+                            input.mouse_position_normalized().x,
+                            input.mouse_position_normalized().y
+                        ));
+                        ui.end_row();
+
+                        ui.label("Delta");
+                        ui.label(format!("x: {}, y: {}",
+                            input.mouse_delta().x,
+                            input.mouse_delta().y
+                        ));
+                        ui.end_row();
+                    });
+                });
+
+
+                CollapsingHeader::new("ℹ Window")
+                .default_open(true)
+                .show(ui, |ui| {
+                    Grid::new("info_window_grid").show(ui, |ui| {
+                        ui.label("Inner Position");
+                        ui.label(format!("x: {}, y: {}", window.inner_position().x, window.inner_position().y));
+                        ui.end_row();
+
+                        ui.label("Inner Size");
+                        ui.label(format!("x: {}, y: {}", window.inner_size().x, window.inner_size().y));
+                        ui.end_row();
+
+                        ui.label("Min. Inner Size");
+                        ui.label(format!("x: {}, y: {}", window.min_inner_size().x, window.min_inner_size().y));
+                        ui.end_row();
+
+                        ui.label("Outer Position");
+                        ui.label(format!("x: {}, y: {}", window.outer_position().x, window.outer_position().y));
+                        ui.end_row();
+
+                        ui.label("Outer Size");
+                        ui.label(format!("x: {}, y: {}", window.outer_size().x, window.outer_size().y));
+                        ui.end_row();
+                    });
                 });
             });
 
-        CollapsingHeader::new("Cursor")
+        CollapsingHeader::new("🖱 Cursor")
             .default_open(true)
             .show(ui, |ui| {
                 Grid::new("grid_cursor").show(ui, |ui| {
-                    ui.label("Cursor icon");
+                    ui.label("Icon");
                     let id = ui.make_persistent_id("cur_icon_combo_box");
                     let cur_icon = window.cursor_icon();
                     let mut new_cur_icon = cur_icon;
 
-                    if combo_box(ui, id, format!("{:?}", new_cur_icon), |ui| {
+                    combo_box(ui, id, format!("{:?}", new_cur_icon), |ui| {
                         for icon in CURSOR_ICONS.iter() {
                             ui.selectable_value(&mut new_cur_icon, *icon, format!("{:?}", icon));
                         }
-                    }).active {
-                        if cur_icon != new_cur_icon {
-                            println!("cursor icon changed!");
-                            window.set_cursor_icon(new_cur_icon);
-                        }
-                    };
+                    });
+
+                    if cur_icon != new_cur_icon {
+                        window.set_cursor_icon(new_cur_icon);
+                    }
                     ui.end_row();
 
                     ui.label("set Cursor visible");
@@ -139,7 +204,7 @@ pub fn ui(
                 });
             });
 
-        CollapsingHeader::new("Window")
+        CollapsingHeader::new("Ｓ Window")
             .default_open(true)
             .show(ui, |ui| {
                 Grid::new("window").show(ui, |ui| {
@@ -149,25 +214,24 @@ pub fn ui(
                     };
                     ui.end_row();
 
-                    ui.label("Window icon");
+                    ui.label("Icon");
                     let id = ui.make_persistent_id("win_icon_combo_box");
 
                     let win_icon = String::from(settings.icon.as_str());
-                    if combo_box(ui, id, format!("{}", settings.icon), |ui| {
+                    combo_box(ui, id, format!("{}", settings.icon), |ui| {
                         ui.selectable_value(&mut settings.icon, String::from("dotrix"), "Dotrix");
                         ui.selectable_value(&mut settings.icon, String::from("lowenware"), "Lowenware");
                         ui.selectable_value(&mut settings.icon, String::from("rustacean"), "Rustacean");
                         ui.selectable_value(&mut settings.icon, String::from("None"), "None");
-                    }).active {
-                        if win_icon != settings.icon {
-                            println!("window icon changed!");
-                            if let Some(id) = settings.icons.get(&settings.icon) {
-                                window.set_icon(assets.get(*id));
-                            } else {
-                                window.set_icon(None);
-                            }
+                    });
+
+                    if win_icon != settings.icon {
+                        if let Some(id) = settings.icons.get(&settings.icon) {
+                            window.set_icon(assets.get(*id));
+                        } else {
+                            window.set_icon(None);
                         }
-                    };
+                    }
                     ui.end_row();
 
                     window.set_minimized(false);
@@ -222,10 +286,76 @@ pub fn ui(
                         }
                     });
                     ui.end_row();
+
+                    ui.label("set Min Inner Size - x");
+                    ui.add(Slider::u32(&mut settings.min_inner_size.x, 100..=window.screen_size().x)
+                        .text(""));
+                    ui.end_row();
+
+                    ui.label("set Min Inner Size - y");
+                    ui.add(Slider::u32(&mut settings.min_inner_size.y, 100..=window.screen_size().y)
+                        .text(""));
+                    ui.end_row();
+
+                    if settings.min_inner_size != window.min_inner_size() {
+                        window.set_min_inner_size(settings.min_inner_size);
+                    };
+
+                    let mut inner_size = window.inner_size();
+                    ui.label("set Inner Size - x");
+                    ui.add(Slider::u32(&mut inner_size.x, 100..=window.screen_size().x)
+                        .text(""));
+                    ui.end_row();
+
+                    ui.label("set Inner Size - y");
+                    ui.add(Slider::u32(&mut inner_size.y, 100..=window.screen_size().y)
+                        .text(""));
+                    ui.end_row();
+
+                    if window.inner_size() != inner_size {
+                        window.set_inner_size(inner_size);
+                    }
+
+                    // TODO: we should use work area for that
+                    // https://docs.microsoft.com/en-gb/windows/win32/api/winuser/nf-winuser-systemparametersinfoa
+                    ui.label("Move");
+                    Grid::new("window_movement_grid").show(ui, |ui| {
+                        ui.label("");
+                        ui.vertical_centered(|ui| {
+                            if ui.button("Top").clicked {
+                                move_window_top(&window);
+                            };
+                        });
+                        ui.label("");
+                        ui.end_row();
+
+                        ui.end_row();
+                        if ui.button("Left").clicked {
+                            move_window_left(&window);
+                        };
+                        ui.vertical_centered(|ui| {
+                            if ui.button("Center").clicked {
+                                move_window_center(&window);
+                            };
+                        });
+                        if ui.button("Right").clicked {
+                            move_window_right(&window);
+                        };
+                        ui.end_row();
+
+                        ui.label("");
+                        ui.vertical_centered(|ui| {
+                            if ui.button("Bottom").clicked {
+                                move_window_bottom(&window);
+                            };
+                        });
+                        ui.label("");
+                        ui.end_row();
+                    });
                 });
             });
 
-            CollapsingHeader::new("Match Finder")
+            CollapsingHeader::new("🚨 Match Finder")
             .default_open(true)
             .show(ui, |ui| {
                 ui.label("This is a demonstration of user attention type.");
@@ -278,6 +408,7 @@ pub fn ui(
                     }
                 });
             });
+        });
     });
 }
 
@@ -295,6 +426,41 @@ pub fn startup(
         settings.icons.insert(String::from(*name), assets.register::<Texture>(name));
         assets.import(format!("examples/window/assets/{}.png", name).as_str());
     }
+}
+
+fn move_window_left(window: &Window) {
+    window.set_outer_position(Vec2i::new(0, window.outer_position().y));
+}
+
+fn move_window_right(window: &Window) {
+    window.set_outer_position(
+        Vec2i::new(
+            window.screen_size().x as i32 - window.outer_size().x as i32,
+            window.outer_position().y,
+        )
+    );
+}
+
+fn move_window_top(window: &Window) {
+    window.set_outer_position(Vec2i::new(window.outer_position().x, 0));
+}
+
+fn move_window_bottom(window: &Window) {
+    window.set_outer_position(
+        Vec2i::new(
+            window.outer_position().x,
+            window.screen_size().y as i32 - window.outer_size().y as i32,
+        )
+    );
+}
+
+fn move_window_center(window: &Window) {
+    window.set_outer_position(
+        Vec2i::new(
+            (window.screen_size().x - window.outer_size().x) as i32 / 2,
+            (window.screen_size().y - window.outer_size().y) as i32 / 2,
+        )
+    );
 }
 
 const CURSOR_ICONS: &[CursorIcon] = &[
