@@ -16,6 +16,7 @@ const NOT_SUPPORTED_ERROR: &str = "Sorry, the feature is not supported on this d
 /// Window service - a wrapper for [`winit::window::Window`] instance
 pub struct Window {
     always_on_top: bool,
+    pub (crate) close_request: bool,
     cursor_grab: bool,
     cursor_icon: CursorIcon,
     cursor_visible: bool,
@@ -32,6 +33,7 @@ impl Window {
     pub (crate) fn new(window: winit::window::Window) -> Self  {
         Self {
             always_on_top: false,
+            close_request: false,
             cursor_grab: false,
             cursor_icon: CursorIcon::Default,
             cursor_visible: true,
@@ -46,6 +48,11 @@ impl Window {
     /// Check if the window will always be on top of other windows.
     pub fn always_on_top(&self) -> bool {
         self.always_on_top
+    }
+
+    /// Closes the window. It will exit the game.
+    pub fn close(&mut self) {
+        self.close_request = true;
     }
 
     /// Check if the cursor is grabbed (prevented from leaving the window).

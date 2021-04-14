@@ -53,7 +53,7 @@ pub fn ui(
 
     TopPanel::top("top_panel").show(&egui.ctx, |ui| {
         ui.horizontal(|ui| {
-            if ui.button("🗙").clicked { println!("Close not implemented"); }
+            if ui.button("🗙").clicked { window.close(); }
             if ui.button("🗕").clicked { window.set_minimized(true); }
             if window.maximized() {
                 if ui.button("Ｓ").clicked { window.set_maximized(false); }

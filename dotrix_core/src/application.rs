@@ -134,7 +134,11 @@ fn run(
             Event::MainEventsCleared => {
                 if last_update_inst.elapsed() > Duration::from_millis(5) {
                     if let Some(window) = services.get::<Window>() {
-                        window.request_redraw();
+                        if window.close_request {
+                            *control_flow = ControlFlow::Exit;
+                        } else {
+                            window.request_redraw();
+                        }
                     }
                     last_update_inst = Instant::now();
                 }
