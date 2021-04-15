@@ -14,26 +14,30 @@ use dotrix::{
     },
     math::{ Vec2i, Vec2u },
     services::{ Camera, Frame, Input, Renderer, Window },
-    window::{ CursorIcon, UserAttentionType },
+    window::{ CursorIcon, UserAttentionType, VideoModeDescriptor, WindowMode },
 };
 use std::collections::hash_map::HashMap;
 
 pub struct Settings {
-    fullscreen: bool,
+    current_video_mode: Option<VideoModeDescriptor>,
     icon: String,
     icons: HashMap<String, Id<Texture>>,
     min_inner_size: Vec2u,
     title: String,
+    video_modes: Vec<VideoModeDescriptor>,
+    window_mode: WindowMode,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            fullscreen: false,
+            current_video_mode: None,
             icon: String::from("none"),
             icons: HashMap::new(),
             min_inner_size: Vec2u::new(640, 480),
             title: String::new(),
+            video_modes: Vec::new(),
+            window_mode: WindowMode::Windowed,
         }
     }
 }
@@ -208,10 +212,39 @@ pub fn ui(
             .default_open(true)
             .show(ui, |ui| {
                 Grid::new("window").show(ui, |ui| {
-                    ui.checkbox(&mut settings.fullscreen, "Fullscreen");
+                    ui.label("Display mode");
+
+                    let id = ui.make_persistent_id("win_mode_combo_box");
+                    combo_box(ui, id, format!("{:?}", settings.window_mode), |ui| {
+                        for mode in [WindowMode::Fullscreen, WindowMode::BorderlessFullscreen, WindowMode::Windowed].iter() {
+                            ui.selectable_value(&mut settings.window_mode, *mode, format!("{:?}", mode));
+                        }
+                    });
+                    ui.end_row();
+
+                    if WindowMode::Fullscreen == settings.window_mode {
+                        let id = ui.make_persistent_id("win_video_mode_combo_box");
+                        ui.label("Video mode");
+                        if settings.current_video_mode.is_none() {
+                            settings.current_video_mode = Some(settings.video_modes[0]); // TODO: not safe?!
+                        }
+                        let mut video_mode = settings.current_video_mode;
+
+                        combo_box(ui, id, format!("{}", video_mode.unwrap()), |ui| {
+                            for mode in settings.video_modes.iter() {
+                                ui.selectable_value(&mut video_mode, Some(*mode), format!("{}", mode));
+                            }
+                        });
+                        settings.current_video_mode = video_mode;
+                        ui.end_row();
+                    }
+
+                    ui.label("");
                     if ui.button("Apply").clicked {
-                        window.set_fullscreen(settings.fullscreen)
-                    };
+                        window.set_video_mode(settings.current_video_mode);
+                        window.set_window_mode(settings.window_mode);
+                    }
+
                     ui.end_row();
 
                     ui.label("Icon");
@@ -420,6 +453,7 @@ pub fn startup(
 ) {
     renderer.add_overlay(Box::new(Egui::default()));
     settings.title = String::from(window.title());
+    settings.video_modes = window.video_modes_descriptors().clone();
 
     // Load icons
     for name in ["dotrix", "lowenware", "rustacean"].iter() {

@@ -2,13 +2,15 @@
 
 use crate::assets::Texture;
 
-use dotrix_math::{clamp_min, Vec2, Vec2i, Vec2u};
+use dotrix_math::{ clamp_min, Vec2, Vec2i, Vec2u };
 use winit::{
-    dpi::{ PhysicalPosition, PhysicalSize, Position},
-    window::{ self, Fullscreen }
+    dpi::{ PhysicalPosition, PhysicalSize, Position },
+    monitor:: { VideoMode },
+    window::{ self }
 };
 
 pub use window::CursorIcon as CursorIcon;
+use winit::window::Fullscreen;
 pub use window::UserAttentionType as UserAttentionType;
 
 const NOT_SUPPORTED_ERROR: &str = "Sorry, the feature is not supported on this device.";
@@ -24,13 +26,17 @@ pub struct Window {
     min_inner_size: Vec2u,
     resizable: bool,
     title: String,
+    video_modes: Vec<VideoModeDescriptor>,
+    video_mode: Option<VideoModeDescriptor>,
     /// `WINIT` window instance
     window: winit::window::Window,
+    window_mode: WindowMode,
 }
 
 impl Window {
     /// Service constructor from [`winit::window::Window`]
     pub (crate) fn new(window: winit::window::Window) -> Self  {
+        let video_modes = init_video_modes(&window);
         Self {
             always_on_top: false,
             close_request: false,
@@ -41,7 +47,10 @@ impl Window {
             resizable: true,
             min_inner_size: Vec2u::new(0, 0),
             title: String::new(),
+            video_mode: None,
+            video_modes,
             window,
+            window_mode: WindowMode::Windowed,
         }
     }
 
@@ -75,7 +84,7 @@ impl Window {
         self.decorations
     }
 
-    /// Chech if the window is in fullscreen mode.
+    /// Check if the window is in fullscreen mode.
     pub fn fullscreen(&self) -> bool {
         self.window.fullscreen().is_some()
     }
@@ -279,4 +288,93 @@ impl Window {
     pub fn title(&self) -> &str {
         self.title.as_str()
     }
+
+    pub fn video_mode(&self) -> VideoModeDescriptor {
+        self.video_mode.unwrap_or(self.video_modes[0])
+    }
+
+    pub fn set_video_mode(&mut self, video_mode: Option<VideoModeDescriptor>) {
+        self.video_mode = video_mode;
+    }
+
+    pub fn video_modes(&self, monitor_index: u8) -> Option<impl Iterator<Item = VideoMode>> {
+        if let Some(monitor) = self.window.current_monitor() {
+            let v_modes = monitor.video_modes();
+            Some(v_modes)
+        } else {
+            None
+        }
+    }
+
+    pub fn video_modes_descriptors(&self) -> &Vec<VideoModeDescriptor> {
+        &self.video_modes
+    }
+
+    pub fn set_window_mode(&self, mode: WindowMode) {
+        match mode {
+            WindowMode::Fullscreen => {
+                if let Some(video_mode) = self.get_winit_video_mode(self.video_mode()) {
+                    self.window.set_fullscreen(Some(Fullscreen::Exclusive(video_mode)))
+                }
+            },
+            WindowMode::BorderlessFullscreen => self.window.set_fullscreen(Some(Fullscreen::Borderless(None))),
+            WindowMode::Windowed => self.window.set_fullscreen(None),
+        }
+    }
+
+    pub fn window_mode(&self) -> WindowMode {
+        self.window_mode
+    }
+
+    fn get_winit_video_mode(&self, descriptor: VideoModeDescriptor) -> Option<VideoMode> {
+        self.window.current_monitor().unwrap().video_modes().find(|v| { // TODO: not safe?!
+            v.size().width == descriptor.resolution.x &&
+            v.size().height == descriptor.resolution.y &&
+            v.refresh_rate() == descriptor.refresh_rate &&
+            v.bit_depth() == descriptor.color_depth
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+pub struct VideoModeDescriptor {
+    color_depth: u16,
+    refresh_rate: u16,
+    resolution: Vec2u,
+    //monitor: u8,
+}
+
+impl std::fmt::Display for VideoModeDescriptor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} x {}, {} hz, {} bit",
+            self.resolution.x, self.resolution.y, self.refresh_rate, self.color_depth)
+    }
+}
+
+fn init_video_modes(window: &winit::window::Window) -> Vec<VideoModeDescriptor> {
+    if let Some(monitor) = window.current_monitor() {
+        let video_modes = monitor.video_modes().map(|v| {
+            VideoModeDescriptor {
+                color_depth: v.bit_depth(),
+                refresh_rate: v.refresh_rate(),
+                resolution: Vec2u::new(v.size().width, v.size().height),
+            }
+        }).collect();
+        video_modes
+    } else {
+        Vec::new()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+pub enum FullscreenMode {
+    Borderless,
+    Exclusive,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+pub enum WindowMode {
+    Fullscreen,
+    BorderlessFullscreen,
+    Windowed,
 }
