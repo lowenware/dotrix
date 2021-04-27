@@ -14,29 +14,29 @@ use dotrix::{
     },
     math::{ Vec2i, Vec2u },
     services::{ Camera, Frame, Input, Renderer, Window },
-    window::{ CursorIcon, UserAttentionType, VideoModeDescriptor, WindowMode },
+    window::{ CursorIcon, Fullscreen, UserAttentionType, VideoMode },
 };
 use std::collections::hash_map::HashMap;
 
 pub struct Settings {
-    current_video_mode: Option<VideoModeDescriptor>,
+    current_monitor_number: usize,
+    current_video_mode: Option<VideoMode>,
     icon: String,
     icons: HashMap<String, Id<Texture>>,
     min_inner_size: Vec2u,
     title: String,
-    video_modes: Vec<VideoModeDescriptor>,
     window_mode: WindowMode,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            current_monitor_number: 0,
             current_video_mode: None,
             icon: String::from("none"),
             icons: HashMap::new(),
             min_inner_size: Vec2u::new(640, 480),
             title: String::new(),
-            video_modes: Vec::new(),
             window_mode: WindowMode::Windowed,
         }
     }
@@ -136,6 +136,33 @@ pub fn ui(
                     });
                 });
 
+                CollapsingHeader::new("ℹ Monitors")
+                .default_open(false)
+                .show(ui, |ui| {
+                    for monitor in window.monitors() {
+                        CollapsingHeader::new(format!("Monitor {}", monitor.number))
+                        .default_open(false)
+                        .show(ui, |ui| {
+                            Grid::new(format!("info_monitors_{}", monitor.name)).show(ui, |ui| {
+                                ui.label("Number");
+                                ui.label(format!("{}", monitor.number));
+                                ui.end_row();
+
+                                ui.label("Name");
+                                ui.label(format!("{}", monitor.name));
+                                ui.end_row();
+
+                                ui.label("Scale Factor");
+                                ui.label(format!("{}", monitor.scale_factor));
+                                ui.end_row();
+
+                                ui.label("Size");
+                                ui.label(format!("x: {}, y: {}", monitor.size.x, monitor.size.y));
+                                ui.end_row();
+                            });
+                        });
+                    }
+                });
 
                 CollapsingHeader::new("ℹ Window")
                 .default_open(true)
@@ -159,6 +186,10 @@ pub fn ui(
 
                         ui.label("Outer Size");
                         ui.label(format!("x: {}, y: {}", window.outer_size().x, window.outer_size().y));
+                        ui.end_row();
+
+                        ui.label("Scale factor");
+                        ui.label(format!("{}", window.scale_factor()));
                         ui.end_row();
                     });
                 });
@@ -216,33 +247,61 @@ pub fn ui(
 
                     let id = ui.make_persistent_id("win_mode_combo_box");
                     combo_box(ui, id, format!("{:?}", settings.window_mode), |ui| {
-                        for mode in [WindowMode::Fullscreen, WindowMode::BorderlessFullscreen, WindowMode::Windowed].iter() {
+                        for mode in WINDOW_MODES.iter() {
                             ui.selectable_value(&mut settings.window_mode, *mode, format!("{:?}", mode));
                         }
                     });
                     ui.end_row();
 
-                    if WindowMode::Fullscreen == settings.window_mode {
-                        let id = ui.make_persistent_id("win_video_mode_combo_box");
-                        ui.label("Video mode");
-                        if settings.current_video_mode.is_none() {
-                            settings.current_video_mode = Some(settings.video_modes[0]); // TODO: not safe?!
-                        }
-                        let mut video_mode = settings.current_video_mode;
+                    if WindowMode::BorderlessFullscreen == settings.window_mode
+                    || WindowMode::Fullscreen == settings.window_mode {
+                        let mut current_monitor_number = settings.current_monitor_number;
+                        let mut current_monitor = &window.monitors()[current_monitor_number];
 
-                        combo_box(ui, id, format!("{}", video_mode.unwrap()), |ui| {
-                            for mode in settings.video_modes.iter() {
-                                ui.selectable_value(&mut video_mode, Some(*mode), format!("{}", mode));
+                        let id = ui.make_persistent_id("win_monitor_combo_box");
+                        ui.label("Monitor");
+                        combo_box(ui, id, &current_monitor.name, |ui| {
+                            for (i, monitor) in window.monitors().iter().enumerate() {
+                                ui.selectable_value(&mut current_monitor_number, i, &monitor.name);
                             }
                         });
-                        settings.current_video_mode = video_mode;
+                        if current_monitor_number != settings.current_monitor_number {
+                            settings.current_monitor_number = current_monitor_number;
+                            settings.current_video_mode = None;
+                            current_monitor = &window.monitors()[current_monitor_number];
+                        }
                         ui.end_row();
+
+                        if WindowMode::Fullscreen == settings.window_mode {
+                            let video_modes = &current_monitor.video_modes;
+                            let id = ui.make_persistent_id("win_video_mode_combo_box");
+                            ui.label("Video mode");
+                            if settings.current_video_mode.is_none() {
+                                settings.current_video_mode = Some(video_modes[0]);
+                            }
+                            let mut video_mode = settings.current_video_mode;
+
+                            combo_box(ui, id, format!("{}", video_mode.unwrap()), |ui| {
+                                for mode in video_modes {
+                                    ui.selectable_value(&mut video_mode, Some(mode.clone()), format!("{}", mode));
+                                }
+                            });
+                            settings.current_video_mode = video_mode;
+                            ui.end_row();
+                        }
                     }
 
                     ui.label("");
                     if ui.button("Apply").clicked {
-                        window.set_video_mode(settings.current_video_mode);
-                        window.set_window_mode(settings.window_mode);
+                        match settings.window_mode {
+                            WindowMode::Fullscreen => window.set_fullscreen(
+                                Some(Fullscreen::Exclusive(settings.current_video_mode.unwrap()))
+                            ),
+                            WindowMode::BorderlessFullscreen => window.set_fullscreen(
+                                Some(Fullscreen::Borderless(settings.current_monitor_number))
+                            ),
+                            WindowMode::Windowed => window.set_fullscreen(None),
+                        }
                     }
 
                     ui.end_row();
@@ -453,7 +512,6 @@ pub fn startup(
 ) {
     renderer.add_overlay(Box::new(Egui::default()));
     settings.title = String::from(window.title());
-    settings.video_modes = window.video_modes_descriptors().clone();
 
     // Load icons
     for name in ["dotrix", "lowenware", "rustacean"].iter() {
@@ -533,4 +591,17 @@ const CURSOR_ICONS: &[CursorIcon] = &[
     CursorIcon::Wait,
     CursorIcon::ZoomIn,
     CursorIcon::ZoomOut,
+];
+
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+pub enum WindowMode {
+    Fullscreen,
+    BorderlessFullscreen,
+    Windowed,
+}
+
+const WINDOW_MODES: &[WindowMode] = &[
+    WindowMode::Fullscreen,
+    WindowMode::BorderlessFullscreen,
+    WindowMode::Windowed,
 ];
