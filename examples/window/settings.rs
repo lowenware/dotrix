@@ -13,7 +13,7 @@ use dotrix::{
         TopPanel,
     },
     math::{ Vec2i, Vec2u },
-    services::{ Camera, Frame, Input, Renderer, Window },
+    services::{ Frame, Input, Renderer, Window },
     window::{ CursorIcon, Fullscreen, UserAttentionType, VideoMode },
 };
 use std::collections::hash_map::HashMap;
@@ -44,7 +44,6 @@ impl Default for Settings {
 
 pub fn ui(
     assets: Const<Assets>,
-    camera: Const<Camera>,
     frame: Const<Frame>,
     input: Const<Input>,
     mut match_finder: Mut<MatchFinder>,
@@ -61,9 +60,7 @@ pub fn ui(
             if ui.button("🗕").clicked { window.set_minimized(true); }
             if window.maximized() {
                 if ui.button("Ｓ").clicked { window.set_maximized(false); }
-            } else {
-                if ui.button("🗖").clicked { window.set_maximized(true); }
-            }
+            } else if ui.button("🗖").clicked { window.set_maximized(true); }
 
             ui.horizontal(|ui| {
                 if ui.text_edit_singleline(&mut settings.title).lost_kb_focus {
@@ -88,28 +85,6 @@ pub fn ui(
                     ui.label(format!("x: {}, y: {}", window.screen_size().x, window.screen_size().y));
                     ui.end_row();
                 });
-
-                CollapsingHeader::new("ℹ Camera")
-                    .default_open(false)
-                    .show(ui, |ui| {
-                        Grid::new("info_camera_grid").show(ui, |ui| {
-                            ui.label("Position");
-                            ui.label(format!("x: {:.4}, y: {:.4}, z: {:.4}",
-                                camera.position().x, camera.position().y, camera.position().z));
-                            ui.end_row();
-
-                            let vec = format!("x: {:.4}, y: {:.4}, z: {:.4}",
-                                camera.target.x, camera.target.y, camera.target.z);
-
-                            ui.label("Target");
-                            ui.label(vec);
-                            ui.end_row();
-
-                            ui.label("Disctance");
-                            ui.label(format!("{:.4}", camera.distance));
-                            ui.end_row();
-                        });
-                    });
 
                 CollapsingHeader::new("ℹ Cursor")
                 .default_open(false)
@@ -145,15 +120,15 @@ pub fn ui(
                         .show(ui, |ui| {
                             Grid::new(format!("info_monitors_{}", monitor.name)).show(ui, |ui| {
                                 ui.label("Number");
-                                ui.label(format!("{}", monitor.number));
+                                ui.label(monitor.number.to_string());
                                 ui.end_row();
 
                                 ui.label("Name");
-                                ui.label(format!("{}", monitor.name));
+                                ui.label(monitor.name.to_string());
                                 ui.end_row();
 
                                 ui.label("Scale Factor");
-                                ui.label(format!("{}", monitor.scale_factor));
+                                ui.label(monitor.scale_factor.to_string());
                                 ui.end_row();
 
                                 ui.label("Size");
@@ -283,7 +258,7 @@ pub fn ui(
 
                             combo_box(ui, id, format!("{}", video_mode.unwrap()), |ui| {
                                 for mode in video_modes {
-                                    ui.selectable_value(&mut video_mode, Some(mode.clone()), format!("{}", mode));
+                                    ui.selectable_value(&mut video_mode, Some(*mode), mode.to_string());
                                 }
                             });
                             settings.current_video_mode = video_mode;
@@ -310,7 +285,7 @@ pub fn ui(
                     let id = ui.make_persistent_id("win_icon_combo_box");
 
                     let win_icon = String::from(settings.icon.as_str());
-                    combo_box(ui, id, format!("{}", settings.icon), |ui| {
+                    combo_box(ui, id, settings.icon.to_string(), |ui| {
                         ui.selectable_value(&mut settings.icon, String::from("dotrix"), "Dotrix");
                         ui.selectable_value(&mut settings.icon, String::from("lowenware"), "Lowenware");
                         ui.selectable_value(&mut settings.icon, String::from("rustacean"), "Rustacean");
