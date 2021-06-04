@@ -7,7 +7,7 @@ use std::{
 use winit::{
     event::{ Event, WindowEvent },
     event_loop::{ ControlFlow, EventLoop },
-    window::{ Window, WindowBuilder }
+    window::{ Window as WinitWindow, WindowBuilder }
 };
 
 use crate::{
@@ -17,6 +17,7 @@ use crate::{
     input::Input,
     renderer::Renderer,
     scheduler::Scheduler,
+    window::Window,
 };
 
 use services::Services;
@@ -70,7 +71,6 @@ impl Application {
     pub fn run(self) {
         let event_loop = EventLoop::new();
         let window = WindowBuilder::new()
-            .with_title(self.name)
             .build(&event_loop).unwrap();
 
         wgpu_subscriber::initialize_default_subscriber(None);
@@ -88,9 +88,10 @@ impl<T: Send + Sync + 'static> Service for T {}
 /// Application run cycle
 fn run(
     event_loop: EventLoop<()>,
-    window: Window,
+    window: WinitWindow,
     Application {
         clear_color,
+        name,
         mut scheduler,
         mut services,
         ..
@@ -106,7 +107,13 @@ fn run(
     };
     let mut last_update_inst = Instant::now();
 
-    services.add(Renderer::new(adapter, device, queue, surface, window, clear_color));
+    // Window service
+    let mut win_service = Window::new(window);
+    win_service.set_title(name);
+    services.add(win_service);
+
+    // Renderer service
+    services.add(Renderer::new(adapter, device, queue, surface, services.get::<Window>().unwrap() ,clear_color));
 
     scheduler.run_startup(&mut services);
 
@@ -126,8 +133,12 @@ fn run(
         match event {
             Event::MainEventsCleared => {
                 if last_update_inst.elapsed() > Duration::from_millis(5) {
-                    if let Some(renderer) = services.get_mut::<Renderer>() {
-                        renderer.window.request_redraw();
+                    if let Some(window) = services.get::<Window>() {
+                        if window.close_request {
+                            *control_flow = ControlFlow::Exit;
+                        } else {
+                            window.request_redraw();
+                        }
                     }
                     last_update_inst = Instant::now();
                 }
@@ -171,7 +182,7 @@ fn run(
 
 
 async fn init_surface(
-    window: &winit::window::Window
+    window: &WinitWindow
 ) -> (
     wgpu::Adapter,
     wgpu::Device,

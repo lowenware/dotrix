@@ -76,7 +76,7 @@ pub struct Input {
     states: HashMap<Button, State>,
     mouse_scroll_delta: f32,
     mouse_position: Option<Vec2>,
-    last_mouse_position: Option<Vec2>,
+    mouse_delta: Vec2,
     window_size: Vec2, // TODO: move to other struct or service
     /// events collector
     pub events: Vec<Event>,
@@ -92,7 +92,7 @@ impl Input {
             states: HashMap::new(),
             mouse_scroll_delta: 0.0,
             mouse_position: None,
-            last_mouse_position: None,
+            mouse_delta: Vec2::new(0.0, 0.0),
             window_size: Vec2::new(0.0, 0.0),
             events: Vec::with_capacity(8),
             modifiers: Modifiers::empty()
@@ -182,9 +182,7 @@ impl Input {
     ///
     /// The top-left of the window is at (0, 0).
     pub fn mouse_delta(&self) -> Vec2 {
-        self.last_mouse_position
-            .map(|p| self.mouse_position.unwrap() - p)
-            .unwrap_or_else(|| Vec2::new(0.0, 0.0))
+        self.mouse_delta
     }
 
     /// Normalized mouse position
@@ -204,9 +202,7 @@ impl Input {
 
     /// This method must be called periodically to update states from events
     pub(crate) fn reset(&mut self) {
-        if let Some(mouse_position) = self.mouse_position.as_ref() {
-            self.last_mouse_position = Some(*mouse_position);
-        }
+        self.mouse_delta = Vec2 { x: 0.0, y: 0.0 };
         self.mouse_scroll_delta = 0.0;
 
         self.states.retain(|_btn, state| match state {
@@ -242,6 +238,14 @@ impl Input {
                         }
                     }
                 }
+                _ => {},
+            }
+        }
+
+        if let winit::event::Event::DeviceEvent { event, .. } = event {
+            match event {
+                winit::event::DeviceEvent::MouseMotion { delta } =>
+                    self.on_mouse_motion_event(delta),
                 _ => {},
             }
         }
@@ -295,6 +299,12 @@ impl Input {
             MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
         };
         self.mouse_scroll_delta += change;
+    }
+
+    fn on_mouse_motion_event(&mut self, delta: &(f64, f64)) {
+        let (x, y) = *delta; // TODO: can descruct tuple as f32?
+        self.mouse_delta.x += x as f32;
+        self.mouse_delta.y += y as f32;
     }
 }
 

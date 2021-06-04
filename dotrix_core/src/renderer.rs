@@ -30,14 +30,13 @@ use crate::{
     assets::Id,
     ecs::{ Const, Mut, Context },
     services::{ Assets, Camera, World },
+    window::Window,
 };
 
 /// Service providing an interface to `WGPU` and `WINIT`
 ///
 /// Renderer is the only service added by default by the engine. It may change in future.
 pub struct Renderer {
-    /// `WINIT` window instance
-    pub window: winit::window::Window,
     /// `WGPU` adapter instance
     pub adapter: wgpu::Adapter,
     /// `WGPU` device instance
@@ -79,7 +78,7 @@ impl Renderer {
         device: wgpu::Device,
         queue: wgpu::Queue,
         surface: wgpu::Surface,
-        window: winit::window::Window,
+        window: &Window,
         clear_color: [f64; 4],
     ) -> Self {
         let size = window.inner_size();
@@ -87,12 +86,12 @@ impl Renderer {
         let sc_desc = wgpu::SwapChainDescriptor {
             usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
-            width: size.width,
-            height: size.height,
+            width: size.x,
+            height: size.y,
             present_mode: wgpu::PresentMode::Mailbox,
         };
 
-        let depth_buffer = Self::create_depth_buffer(&device, size.width, size.height);
+        let depth_buffer = Self::create_depth_buffer(&device, size.x, size.y);
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
         let clear_color = wgpu::Color {
             r: clear_color[0],
@@ -102,7 +101,6 @@ impl Renderer {
         };
 
         Self {
-            window,
             adapter,
             device,
             queue,
@@ -112,7 +110,7 @@ impl Renderer {
             swap_chain,
             clear_color,
             frame: None,
-            projection: Self::frustum(size.width as f32 / size.height as f32),
+            projection: Self::frustum(size.x as f32 / size.y as f32),
             pipelines: HashMap::new(),
             overlay: Vec::new(),
         }
@@ -220,21 +218,21 @@ impl Renderer {
     }
 
     /// Returns a tuple of physical display size (width, height)
-    pub fn display_size(&self) -> (u32, u32) {
-        let size = self.window.inner_size();
-        ( size.width, size.height )
+    pub fn display_size(&self, window: &Window) -> (u32, u32) {
+        let size = window.inner_size();
+        ( size.x, size.y )
     }
 
     /// Returns a tuple of virtual (scaled) display size (width, height)
-    pub fn display_virtual_size(&self) -> (f32, f32) {
-        let size = self.window.inner_size();
-        let scale_factor = self.window.scale_factor() as f32;
-        ( size.width as f32 / scale_factor, size.height as f32 / scale_factor )
+    pub fn display_virtual_size(&self, window: &Window) -> (f32, f32) {
+        let size = window.inner_size();
+        let scale_factor = window.scale_factor() as f32;
+        ( size.x as f32 / scale_factor, size.y as f32 / scale_factor )
     }
 
     /// Returns current scale factor of the display
-    pub fn scale_factor(&self) -> f32 {
-        self.window.scale_factor() as f32
+    pub fn scale_factor(&self, window: &Window) -> f32 {
+        window.scale_factor() as f32
     }
 
     fn create_depth_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
@@ -294,6 +292,7 @@ pub fn world_renderer(
     mut renderer: Mut<Renderer>,
     mut assets: Mut<Assets>,
     camera: Const<Camera>,
+    window: Const<Window>,
     world: Const<World>
 ) {
     if ctx.pipelines.is_none() {
@@ -478,15 +477,15 @@ pub fn world_renderer(
     }
 
     for overlay in &renderer.overlay {
-        let scale_factor = renderer.window.scale_factor() as f32;
-        let size = renderer.window.inner_size();
+        let scale_factor = window.scale_factor() as f32;
+        let size = window.inner_size();
 
-        for widget in &mut overlay.widgets(scale_factor, size.width as f32, size.height as f32) {
+        for widget in &mut overlay.widgets(scale_factor, size.x as f32, size.y as f32) {
             if widget.pipeline.is_null() {
                 widget.pipeline = ctx.pipelines.as_ref().unwrap().overlay;
             }
             let pipeline = renderer.pipeline(widget.pipeline);
-            widget.load(&renderer, &mut assets, pipeline, sampler);
+            widget.load(&renderer, &mut assets, pipeline, sampler, &window);
             widget.draw(&mut encoder, pipeline, frame);
         }
     }

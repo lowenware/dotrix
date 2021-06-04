@@ -1,6 +1,6 @@
 use crate::{
     ecs::{ Const, Mut },
-    services::{ Camera, Input, Renderer },
+    services::{ Camera, Input, Renderer, Window },
 };
 use dotrix_math::{ InnerSpace, SquareMatrix, Vec2, Vec3, Vec4 };
 
@@ -77,9 +77,10 @@ pub fn mouse_ray(
     camera: Const<Camera>,
     input: Const<Input>,
     renderer: Const<Renderer>,
+    window: Const<Window>,
 ) {
     ray.direction = input.mouse_position().map(|mouse| {
-        let (viewport_width, viewport_height) = renderer.display_size();
+        let (viewport_width, viewport_height) = renderer.display_size(&window);
         let ray = Ray::normalized_device_coords(
             mouse, viewport_width as f32, viewport_height as f32);
 

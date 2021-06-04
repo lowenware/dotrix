@@ -8,6 +8,7 @@
 pub mod math;
 pub use math::slerp;
 pub use cgmath::num_traits::clamp;
+pub use cgmath::num_traits::clamp_min;
 pub use cgmath::perspective;
 pub use cgmath::VectorSpace;
 pub use cgmath::InnerSpace;
@@ -31,6 +32,10 @@ pub type Vec3i = cgmath::Vector3<i32>;
 pub type Vec4i = cgmath::Vector4<i32>;
 /// 2 dimentional vector of f32
 pub type Vec2 = cgmath::Vector2<f32>;
+/// 2 dimentional vector of i32
+pub type Vec2i = cgmath::Vector2<i32>;
+/// 2 dimentional vector of u32
+pub type Vec2u = cgmath::Vector2<u32>;
 /// Quaternion of f32
 pub type Quat = cgmath::Quaternion<f32>;
 

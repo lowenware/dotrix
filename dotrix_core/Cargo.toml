@@ -54,7 +54,9 @@ features = ["trace"]
 version = "0.1.0"
 
 [dependencies.winit]
-version = "0.24.0"
+git = "https://github.com/rust-windowing/winit/"
+rev = "ba704c4eb49638da7516250d26adee35ee0bc9a4"
+# TODO: update winit to version 0.25 when released
 features = ["serde"]
 
 # Optional dependencies

@@ -76,3 +76,7 @@ path = "examples/marching_cubes/marching_cubes.rs"
 [[example]]
 name = "skybox"
 path = "examples/skybox/skybox.rs"
+
+[[example]]
+name = "window"
+path = "examples/window/window.rs"
