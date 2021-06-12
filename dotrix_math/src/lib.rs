@@ -20,6 +20,8 @@ pub use cgmath::Deg;
 
 /// 4x4 Matrix of f32
 pub type Mat4 = cgmath::Matrix4<f32>;
+/// 2 dimentional point of f32
+pub type Point2 = cgmath::Point2<f32>;
 /// 3 dimentional point of f32
 pub type Point3 = cgmath::Point3<f32>;
 /// 4 dimentional vector of f32
