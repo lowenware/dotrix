@@ -183,7 +183,7 @@ fn init_player(
     // spawn model in the world
     world.spawn(Some(
         (
-            Model { mesh, texture, skin, transform, ..Default::default() },
+            Model { mesh, texture, transform, skin, ..Default::default() },
             Animator::new(run), // Animation control (stopped by default)
             Player {
                 is_running: false,

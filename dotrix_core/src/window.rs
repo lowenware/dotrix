@@ -104,25 +104,25 @@ impl Window {
     /// Find winit monitor based on monitor number.
     fn get_winit_monitor(&self, monitor_number: usize) -> Option<WinitMonitor> {
         if let Some(monitor) = self.monitors.get(monitor_number) {
-            return self.window.available_monitors().find(|w_monitor| {
+            self.window.available_monitors().find(|w_monitor| {
                 w_monitor.name().unwrap() == monitor.name
-            });
+            })
         } else {
-            return None;
+            None
         }
     }
 
     /// Find winit video mode based on our descriptor.
     fn get_winit_video_mode(&self, vmode: VideoMode) -> Option<WinitVideoMode> {
         if let Some(monitor) = self.get_winit_monitor(vmode.monitor_number) {
-            return monitor.video_modes().find(|w_vmode| {
+            monitor.video_modes().find(|w_vmode| {
                 w_vmode.size().width == vmode.resolution.x &&
                 w_vmode.size().height == vmode.resolution.y &&
                 w_vmode.refresh_rate() == vmode.refresh_rate &&
                 w_vmode.bit_depth() == vmode.color_depth
-            });
+            })
         } else {
-            return None;
+            None
         }
     }
 
@@ -380,16 +380,16 @@ fn init_monitors(window: &winit::window::Window) -> Vec<Monitor> {
             video_modes: w_monitor.video_modes().filter_map(|vmode| {
                 if vmode.size().width > w_monitor.size().width
                 || vmode.size().height > w_monitor.size().height {
-                    return None;
+                    None
                 } else {
-                    return Some(
+                    Some(
                         VideoMode {
                             color_depth: vmode.bit_depth(),
                             monitor_number: i,
                             refresh_rate: vmode.refresh_rate(),
                             resolution: Vec2u::new(vmode.size().width, vmode.size().height),
                         }
-                    );
+                    )
                 }
             }).collect(),
         }

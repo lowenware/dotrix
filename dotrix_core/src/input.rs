@@ -242,12 +242,10 @@ impl Input {
             }
         }
 
-        if let winit::event::Event::DeviceEvent { event, .. } = event {
-            match event {
-                winit::event::DeviceEvent::MouseMotion { delta } =>
-                    self.on_mouse_motion_event(delta),
-                _ => {},
-            }
+        if let winit::event::Event::DeviceEvent {
+            event: winit::event::DeviceEvent::MouseMotion { delta }, ..
+        } = event {
+            self.on_mouse_motion_event(delta)
         }
     }
 
