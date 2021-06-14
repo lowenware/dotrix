@@ -48,10 +48,7 @@ pub(crate) struct KeyFrame<T> {
 
 impl<T> KeyFrame<T> {
     fn new(timestamp: f32, transformation: T) -> Self {
-        Self {
-            timestamp,
-            transformation
-        }
+        Self { transformation, timestamp }
     }
 }
 
@@ -72,11 +69,7 @@ impl<T: Interpolate + Copy + Clone> Channel<T> {
             |(timestamp, transformation)| KeyFrame::new(timestamp, transformation)
         ).collect::<Vec<_>>();
 
-        Channel {
-            interpolation,
-            keyframes,
-            joint_id,
-        }
+        Channel { keyframes, joint_id, interpolation }
     }
 
     fn sample(&self, keyframe: f32) -> Option<T> {

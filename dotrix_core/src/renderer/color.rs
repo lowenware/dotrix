@@ -1,5 +1,5 @@
 //! data structure and constructors
-use std::convert::{ From, Into };
+use std::convert::From;
 use std::ops::{ Index, IndexMut };
 
 /// RGBA Color.
@@ -145,6 +145,7 @@ impl From<[f32; 4]> for Color {
     }
 }
 
+/*
 impl Into<[f32; 3]> for Color {
     fn into(self) -> [f32; 3] {
         self.to_f32_3()
@@ -156,3 +157,4 @@ impl Into<[f32; 4]> for Color {
         self.to_f32_4()
     }
 }
+*/

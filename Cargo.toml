@@ -69,9 +69,9 @@ path = "examples/animation/fox.rs"
 name = "light"
 path = "examples/light/light.rs"
 
-[[example]]
-name = "marching_cubes"
-path = "examples/marching_cubes/marching_cubes.rs"
+#[[example]]
+#name = "marching_cubes"
+#path = "examples/marching_cubes/marching_cubes.rs"
 
 [[example]]
 name = "skybox"

@@ -25,13 +25,7 @@ impl Joint {
         name: Option<String>,
         local_bind_transform: Transform,
     ) -> Self {
-
-        Self {
-            id,
-            parent_id,
-            name,
-            local_bind_transform,
-        }
+        Self { local_bind_transform, name, id, parent_id }
     }
 
     fn transform(
