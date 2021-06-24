@@ -10,9 +10,19 @@ license = "MIT"
 [dependencies]
 dotrix_core = { version = "0.3", path = "../dotrix_core" }
 dotrix_math = { version = "0.3", path = "../dotrix_math" }
-rand = { version = "0.8" }
 rayon = "1.5"
 
 [dependencies.noise]
 version = "0.7"
+
+[dependencies.num]
+version = "^0.3"
+
+[dependencies.rand]
+version = "0.8.4"
+features = ["small_rng"]
+
+[dependencies.wgpu]
+version = "0.9"
+features = ["trace"]
 

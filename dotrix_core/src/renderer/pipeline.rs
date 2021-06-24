@@ -70,8 +70,6 @@ impl Pipeline {
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
     ) -> Pipeline {
-        // TODO: custom shaders for the model to be handled here
-
         let shaders = (
             create_shader_module!(device, "static", vert),
             create_shader_module!(device, "diffuse", frag),
@@ -119,19 +117,19 @@ impl Pipeline {
             attributes: &[
                 // position
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float3,
+                    format: wgpu::VertexFormat::Float32x3,
                     offset: 0,
                     shader_location: 0,
                 },
                 // normal
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float3,
+                    format: wgpu::VertexFormat::Float32x3,
                     offset: 4 * 3,
                     shader_location: 1,
                 },
                 // texture coordinates
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float2,
+                    format: wgpu::VertexFormat::Float32x2,
                     offset: 4 * 6,
                     shader_location: 2,
                 },
@@ -152,15 +150,17 @@ impl Pipeline {
                 targets: &[
                     wgpu::ColorTargetState {
                         format: sc_desc.format,
-                        color_blend: wgpu::BlendState::REPLACE,
-                        alpha_blend: wgpu::BlendState::REPLACE,
+                        blend: Some(wgpu::BlendState {
+                            color: wgpu::BlendComponent::REPLACE,
+                            alpha: wgpu::BlendComponent::REPLACE,
+                        }),
                         write_mask: wgpu::ColorWrite::ALL,
                     }
                 ],
             }),
             primitive: wgpu::PrimitiveState {
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::Back,
+                cull_mode: Some(wgpu::Face::Back),
                 ..Default::default()
             },
             depth_stencil: Some(wgpu::DepthStencilState {
@@ -173,7 +173,7 @@ impl Pipeline {
                     slope_scale: 2.0,
                     clamp: 0.0,
                 },
-                clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
+                // clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
             }),
             multisample: wgpu::MultisampleState::default(),
         });
@@ -194,8 +194,6 @@ impl Pipeline {
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
     ) -> Pipeline {
-        // TODO: custom shaders for the model to be handled here
-
         let shaders = (
             create_shader_module!(device, "skinned", vert),
             create_shader_module!(device, "diffuse", frag),
@@ -239,31 +237,31 @@ impl Pipeline {
             attributes: &[
                 // position
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float3,
+                    format: wgpu::VertexFormat::Float32x3,
                     offset: 0,
                     shader_location: 0,
                 },
                 // normal
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float3,
+                    format: wgpu::VertexFormat::Float32x3,
                     offset: 4 * 3,
                     shader_location: 1,
                 },
                 // texture coordinates
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float2,
+                    format: wgpu::VertexFormat::Float32x2,
                     offset: 4 * 6,
                     shader_location: 2,
                 },
                 // weights
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float4,
+                    format: wgpu::VertexFormat::Float32x4,
                     offset: 4 * 8,
                     shader_location: 3,
                 },
                 // joints
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Ushort4,
+                    format: wgpu::VertexFormat::Uint16x4,
                     offset: 4 * 12,
                     shader_location: 4,
                 },
@@ -284,15 +282,17 @@ impl Pipeline {
                 targets: &[
                     wgpu::ColorTargetState {
                         format: sc_desc.format,
-                        color_blend: wgpu::BlendState::REPLACE,
-                        alpha_blend: wgpu::BlendState::REPLACE,
+                        blend: Some(wgpu::BlendState {
+                            color: wgpu::BlendComponent::REPLACE,
+                            alpha: wgpu::BlendComponent::REPLACE,
+                        }),
                         write_mask: wgpu::ColorWrite::ALL,
                     }
                 ],
             }),
             primitive: wgpu::PrimitiveState {
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::Back,
+                cull_mode: Some(wgpu::Face::Back),
                 ..Default::default()
             },
             depth_stencil: Some(wgpu::DepthStencilState {
@@ -305,7 +305,7 @@ impl Pipeline {
                     slope_scale: 2.0,
                     clamp: 0.0,
                 },
-                clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
+                // clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
             }),
             multisample: wgpu::MultisampleState::default(),
         });
@@ -367,7 +367,7 @@ impl Pipeline {
             attributes: &[
                 // position
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float3,
+                    format: wgpu::VertexFormat::Float32x3,
                     offset: 0,
                     shader_location: 0,
                 },
@@ -389,15 +389,23 @@ impl Pipeline {
                     targets: &[
                         wgpu::ColorTargetState {
                             format: sc_desc.format,
+                            blend: Some(wgpu::BlendState {
+                                color: wgpu::BlendComponent::REPLACE,
+                                alpha: wgpu::BlendComponent::REPLACE,
+                            }),
+                            write_mask: wgpu::ColorWrite::ALL,
+                        }
+                        /* wgpu::ColorTargetState {
+                            format: sc_desc.format,
                             color_blend: wgpu::BlendState::REPLACE,
                             alpha_blend: wgpu::BlendState::REPLACE,
                             write_mask: wgpu::ColorWrite::ALL,
-                        }
+                        } */
                     ],
                 }),
                 primitive: wgpu::PrimitiveState {
                     front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: wgpu::CullMode::None,
+                    cull_mode: Some(wgpu::Face::Back),
                     ..Default::default()
                 },
                 depth_stencil: None,
@@ -433,8 +441,6 @@ impl Pipeline {
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
     ) -> Pipeline {
-        // TODO: custom shaders for the model to be handled here
-
         let shaders = (
             create_shader_module!(device, "overlay", vert),
             create_shader_module!(device, "overlay", frag),
@@ -478,19 +484,19 @@ impl Pipeline {
             attributes: &[
                 // position
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float2,
+                    format: wgpu::VertexFormat::Float32x2,
                     offset: 0,
                     shader_location: 0,
                 },
                 // texture coordinates
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float2,
+                    format: wgpu::VertexFormat::Float32x2,
                     offset: 4 * 2,
                     shader_location: 1,
                 },
                 // color
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float4,
+                    format: wgpu::VertexFormat::Float32x4,
                     offset: 4 * 4,
                     shader_location: 2,
                 },
@@ -511,6 +517,23 @@ impl Pipeline {
                 targets: &[
                     wgpu::ColorTargetState {
                         format: sc_desc.format,
+                        blend: Some(wgpu::BlendState {
+                            color: wgpu::BlendComponent {
+                                src_factor: wgpu::BlendFactor::One,
+                                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                                ..Default::default()
+                            },
+                            alpha: wgpu::BlendComponent {
+                                src_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                                dst_factor: wgpu::BlendFactor::One,
+                                ..Default::default()
+                            },
+                        }),
+                        write_mask: wgpu::ColorWrite::ALL,
+                    }
+                    /*
+                    wgpu::ColorTargetState {
+                        format: sc_desc.format,
                         color_blend: wgpu::BlendState {
                             src_factor: wgpu::BlendFactor::One,
                             dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
@@ -523,6 +546,7 @@ impl Pipeline {
                         },
                         write_mask: wgpu::ColorWrite::ALL,
                     }
+                    */
                 ],
             }),
             primitive: wgpu::PrimitiveState {
@@ -549,8 +573,6 @@ impl Pipeline {
         device: &wgpu::Device,
         sc_desc: &wgpu::SwapChainDescriptor,
     ) -> Pipeline {
-        // TODO: custom shaders for the model to be handled here
-
         let mut flags = wgpu::ShaderFlags::VALIDATION;
         match adapter.get_info().backend {
             wgpu::Backend::Metal | wgpu::Backend::Vulkan => {
@@ -600,13 +622,13 @@ impl Pipeline {
             attributes: &[
                 // position
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float3,
+                    format: wgpu::VertexFormat::Float32x3,
                     offset: 0,
                     shader_location: 0,
                 },
                 // color
                 wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float3,
+                    format: wgpu::VertexFormat::Float32x3,
                     offset: 4 * 3,
                     shader_location: 1,
                 },
@@ -627,8 +649,10 @@ impl Pipeline {
                 targets: &[
                     wgpu::ColorTargetState {
                         format: sc_desc.format,
-                        color_blend: wgpu::BlendState::REPLACE,
-                        alpha_blend: wgpu::BlendState::REPLACE,
+                        blend: Some(wgpu::BlendState {
+                            color: wgpu::BlendComponent::REPLACE,
+                            alpha: wgpu::BlendComponent::REPLACE,
+                        }),
                         write_mask: wgpu::ColorWrite::ALL,
                     }
                 ],
@@ -636,7 +660,7 @@ impl Pipeline {
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::LineList,
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::Back,
+                cull_mode: Some(wgpu::Face::Back),
                 ..Default::default()
             },
             depth_stencil: Some(wgpu::DepthStencilState {
@@ -649,7 +673,7 @@ impl Pipeline {
                     slope_scale: 2.0,
                     clamp: 0.0,
                 },
-                clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
+                // clamp_depth: device.features().contains(wgpu::Features::DEPTH_CLAMPING),
             }),
             multisample: wgpu::MultisampleState::default(),
         });

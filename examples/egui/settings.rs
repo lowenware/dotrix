@@ -55,6 +55,7 @@ impl Settings {
         self.light = default.light;
         self.amb_light = default.amb_light;
     }
+
 }
 
 impl Default for Settings {
