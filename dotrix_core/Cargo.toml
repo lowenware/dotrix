@@ -47,8 +47,10 @@ features = ["derive"]
 version = "1.0"
 
 [dependencies.wgpu]
-version = "0.7"
+version = "0.9"
 features = ["trace"]
+git = "https://github.com/gfx-rs/wgpu"
+rev = "b6a6a6753411537f4e143bb79234913a243a518e"
 
 [dependencies.wgpu-subscriber]
 version = "0.1.0"

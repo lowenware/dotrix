@@ -20,11 +20,11 @@ pub use overlay::{ Overlay, overlay_update, Provider as OverlayProvider };
 pub use widget::{ Widget, WidgetVertex };
 pub use wireframe::*;
 
-use pipeline::Pipeline;
+pub use pipeline::Pipeline;
 use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 
-use dotrix_math::{ Mat4, Deg, perspective };
+use dotrix_math::{ Mat4, Rad, perspective };
 
 use crate::{
     assets::Id,
@@ -239,7 +239,7 @@ impl Renderer {
         let buffer_extent = wgpu::Extent3d {
             width,
             height,
-            depth: 1,
+            depth_or_array_layers: 1,
         };
 
         let texture = wgpu::TextureDescriptor {
@@ -260,9 +260,9 @@ impl Renderer {
     }
 
     fn frustum(aspect_ratio: f32) -> Mat4 {
-        let fov = Deg(70f32);
-        let near_plane = 0.1;
-        let far_plane = 2000.0;
+        let fov = Rad(1.1);
+        let near_plane = 0.0625;
+        let far_plane = 524288.06;
 
         perspective(fov, aspect_ratio, near_plane, far_plane)
     }
@@ -401,16 +401,16 @@ pub fn world_renderer(
     {
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
-            color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                attachment: &frame.view,
+            color_attachments: &[wgpu::RenderPassColorAttachment {
+                view: &frame.view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(renderer.clear_color),
                     store: true,
                 },
             }],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                attachment: depth_buffer,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: depth_buffer,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: true,
