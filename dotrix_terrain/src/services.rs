@@ -1,6 +1,7 @@
 use crate::{ Heightmap, Generator, Terrain };
 use dotrix_core::{
-    assets::{Id, Texture, Mesh},
+    assets::{ Id, Texture, Mesh },
+    renderer::{ Pipeline },
 };
 use dotrix_math::{Vec3, InnerSpace};
 
@@ -23,6 +24,8 @@ pub struct Manager {
     pub texture: Id<Texture>,
     /// List of the terrain heights to determine UV of the texture
     pub texture_heights: Vec<f32>,
+    /// Terrain Pipeline ID
+    pub pipeline: Id<Pipeline>,
 }
 
 impl Manager {
@@ -36,7 +39,8 @@ impl Manager {
             force_spawn: true,
             heightmap,
             texture: Id::default(),
-            texture_heights
+            texture_heights,
+            pipeline: Id::default(),
         }
     }
 
@@ -52,19 +56,18 @@ impl Manager {
         let mut uvs = Vec::with_capacity(capacity);
         let mut normals = vec![[0.0, 0.0, 0.0]; capacity];
         let mut indices = Vec::with_capacity(3 * 2 * self.tile_size * self.tile_size);
-
-        let mut min_yf = 0.0;
-        let mut max_yf = 0.0;
+        let half_world_size = ((self.heightmap.size() - 1) / 2) as i32;
 
         for z in -offset..=offset {
-            let zf = (terrain.z + z * scale) as f32;
+            let world_z = terrain.z + z * scale;
+            let map_z = if world_z < -half_world_size { 0 } else { world_z + half_world_size };
             for x in -offset..=offset {
-                let xf = (terrain.x + x * scale) as f32;
-                let yf = self.heightmap.y_value(xf, zf);
-                if min_yf > yf { min_yf = yf; }
-                if max_yf < yf { max_yf = yf; }
-                positions.push([xf, yf, zf]);
-                uvs.push(self.uv_from_height(yf));
+                let world_x = terrain.x + x * scale;
+                let map_x = if world_x < -half_world_size { 0 } else { world_x + half_world_size};
+                let world_y = self.heightmap.value(map_x as usize, map_z as usize);
+                // println!("    world {}({}):{}({}) -> {}", world_x, map_x, world_z, map_z, world_y);
+                positions.push([world_x as f32, world_y, world_z as f32]);
+                uvs.push(self.uv_from_height(world_y));
             }
         }
 
@@ -121,6 +124,7 @@ impl Manager {
 
     /// Calculates texture UV for specific height value
     pub fn uv_from_height(&self, height: f32) -> [f32; 2] {
+        return [0.0, 0.0];
         let mut i = 0.0;
         for (idx, &tx_height) in self.texture_heights.iter().enumerate() {
             if height > tx_height {

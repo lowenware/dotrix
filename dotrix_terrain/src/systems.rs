@@ -5,10 +5,11 @@ use std::{
 use dotrix_core::{
     components::Model,
     ecs::{ Const, Mut, Context },
-    services::{ Assets, Camera, World },
+    services::{ Assets, Camera, Renderer, World },
 };
 
 use crate::{ Terrain, Manager };
+use crate::pipeline::default_pipeline;
 
 /// Terrain spawn system context
 #[derive(Default)]
@@ -33,6 +34,18 @@ struct TileIndex {
 struct Viewer {
     position: [f32; 2],
     view_distance_sq: f32,
+}
+
+/// Terrain Startup System
+pub fn startup(
+    mut renderer: Mut<Renderer>,
+    mut manager: Mut<Manager>,
+) {
+    if manager.pipeline.is_null() {
+        let pipeline = default_pipeline(&renderer.adapter, &renderer.device, &renderer.sc_desc);
+        manager.pipeline = renderer.add_pipeline(pipeline);
+    }
+
 }
 
 /// Terrain spawn system
@@ -62,8 +75,16 @@ pub fn spawn(
     }
     ctx.last_viewer_position = Some(viewer.position);
 
-    // disable force spawn if was enabled previously
-    manager.force_spawn = false;
+    if manager.force_spawn {
+        ctx.tiles.clear();
+
+        let query = world.query::<(&Terrain, &mut Model)>();
+        for (_, model) in query {
+            model.disabled = true;
+        }
+
+        manager.force_spawn = false;
+    }
 
     // mark all tiles non visible
     for tile in ctx.tiles.values_mut() {
@@ -118,6 +139,7 @@ pub fn spawn(
         let model = Model {
             mesh: assets.store(mesh),
             texture: manager.texture,
+            pipeline: manager.pipeline,
             ..Default::default()
         };
 
@@ -125,6 +147,7 @@ pub fn spawn(
 
         tile.spawned = true;
     }
+
 
 
     /*

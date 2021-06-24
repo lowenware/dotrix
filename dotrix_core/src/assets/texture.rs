@@ -24,7 +24,7 @@ impl Texture {
         let texture_extent = wgpu::Extent3d {
             width: self.width,
             height: self.height,
-            depth: 1,
+            depth_or_array_layers: 1,
         };
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -39,17 +39,20 @@ impl Texture {
 
         self.view = Some(texture.create_view(&wgpu::TextureViewDescriptor::default()));
 
+        let bytes_per_row = std::num::NonZeroU32::new(self.data.len() as u32 / self.height)
+            .unwrap();
+
         queue.write_texture(
-            wgpu::TextureCopyView {
+            wgpu::ImageCopyTexture {
                 texture: &texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
             },
             &self.data,
-            wgpu::TextureDataLayout {
+            wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: self.data.len() as u32 / self.height,
-                rows_per_image: self.height as u32,
+                bytes_per_row: Some(bytes_per_row),
+                rows_per_image: Some(std::num::NonZeroU32::new(self.height).unwrap()),
             },
             texture_extent,
         );

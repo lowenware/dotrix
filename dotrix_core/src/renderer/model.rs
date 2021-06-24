@@ -170,8 +170,8 @@ impl Model {
 
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &frame.view,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &frame.view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load, 
@@ -179,8 +179,8 @@ impl Model {
                     },
                 }],
                 depth_stencil_attachment: Some(
-                    wgpu::RenderPassDepthStencilAttachmentDescriptor {
-                        attachment: depth_buffer,
+                    wgpu::RenderPassDepthStencilAttachment {
+                        view: depth_buffer,
                         depth_ops: Some(wgpu::Operations {
                             load: wgpu::LoadOp::Load,
                             store: true,

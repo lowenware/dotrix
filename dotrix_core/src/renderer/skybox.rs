@@ -106,7 +106,7 @@ impl SkyBox {
                 let extent = wgpu::Extent3d {
                     width: faces[0].width,
                     height: faces[0].height,
-                    depth: 6,
+                    depth_or_array_layers: 6,
                 };
 
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -121,7 +121,7 @@ impl SkyBox {
 
                 for (i, image) in faces.iter().enumerate() {
                     queue.write_texture(
-                        wgpu::TextureCopyView {
+                        wgpu::ImageCopyTexture {
                             texture: &texture,
                             mip_level: 0,
                             origin: wgpu::Origin3d {
@@ -131,15 +131,15 @@ impl SkyBox {
                             },
                         },
                         &image.data,
-                        wgpu::TextureDataLayout {
+                        wgpu::ImageDataLayout {
                             offset: 0,
-                            bytes_per_row: 4 * image.width,
-                            rows_per_image: 0,
+                            bytes_per_row: Some(std::num::NonZeroU32::new(4 * image.width).unwrap()),
+                            rows_per_image: None,
                         },
                         wgpu::Extent3d {
                             width: faces[i].width,
                             height: faces[i].height,
-                            depth: 1,
+                            depth_or_array_layers: 1,
                         },
                     );
                 }
@@ -211,8 +211,8 @@ impl SkyBox {
 
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &frame.view,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &frame.view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
