@@ -67,7 +67,10 @@ impl Manager {
                 let world_y = self.heightmap.value(map_x as usize, map_z as usize);
                 // println!("    world {}({}):{}({}) -> {}", world_x, map_x, world_z, map_z, world_y);
                 positions.push([world_x as f32, world_y, world_z as f32]);
-                uvs.push(self.uv_from_height(world_y));
+                uvs.push([
+                    (x + offset) as f32 / 2.0 / offset as f32,
+                    (z + offset) as f32 / 2.0 / offset as f32,
+                ]);
             }
         }
 

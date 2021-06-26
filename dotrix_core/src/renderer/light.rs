@@ -94,7 +94,7 @@ impl LightUniform {
 impl Default for LightUniform {
     fn default() -> Self {
         Self {
-            ambient: Color::black(),
+            ambient: Color::white(),
             count: [0; 4],
             dir_lights: [RawDirLight {..Default::default()}; MAX_LIGHTS],
             point_lights: [RawPointLight {..Default::default()}; MAX_LIGHTS],

@@ -300,14 +300,16 @@ pub fn world_renderer(
         let static_model = renderer.add_static_model_pipeline();
         let skinned_model = renderer.add_skinned_model_pipeline();
         let overlay = renderer.add_overlay_pipeline();
-        let wire_frame = renderer.add_wire_frame_pipeline();
+        // let wire_frame = renderer.add_wire_frame_pipeline();
+
         ctx.pipelines = Some(
             Pipelines {
                 skybox,
                 static_model,
                 skinned_model,
                 overlay,
-                wire_frame,
+                // TODO: fix after shader rewriting
+                wire_frame: Id::default(),
             }
         );
     }
@@ -322,9 +324,9 @@ pub fn world_renderer(
     // Prepare sampler
     if ctx.sampler.is_none() {
         ctx.sampler = Some(device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Linear,
             mipmap_filter: wgpu::FilterMode::Nearest,

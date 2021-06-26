@@ -581,7 +581,7 @@ impl Pipeline {
             _ => (),
         }
         let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: None,
+            label: Some("wireframe"),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shaders/wires.wgsl"))),
             flags,
         });
