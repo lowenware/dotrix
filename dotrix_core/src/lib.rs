@@ -4,54 +4,56 @@
 #![warn(missing_docs)]
 
 mod application;
-pub mod animation;
-pub mod assets;
-mod camera;
-pub mod ecs;
+mod color;
+mod cubemap;
 mod frame;
-pub mod input;
-pub mod renderer;
-mod scheduler;
-pub mod window;
+mod globals;
+mod id;
+mod pipeline;
+mod pose;
 mod world;
 
-pub use application::{ Application, Service };
+pub mod animation;
+pub mod assets;
+pub mod camera;
+pub mod ecs;
+pub mod input;
+pub mod ray;
+pub mod renderer;
+pub mod transform;
+pub mod window;
 
+pub use animation::Animator;
+pub use application::{ Application, IntoService, Service };
+pub use assets::Assets;
+pub use camera::Camera;
+pub use color::Color;
+pub use cubemap::CubeMap;
+pub use frame::Frame;
+pub use globals::Globals;
+pub use id::Id;
+pub use pipeline::Pipeline;
+pub use pose::Pose;
+pub use transform::Transform;
+pub use ecs::{ System, Priority, RunLevel };
+pub use input::Input;
+pub use ray::Ray;
+pub use renderer::Renderer;
+pub use window::{ Window, Monitor, VideoMode };
+pub use world::World;
+
+#[deprecated(since="0.5.0", note="Please use components from dotrix crate instead")]
 pub mod components {
-//! Component usually is just a data structure with or without associated methods. In ECS
-//! pattern components represent properties of entities: velocity, weight, model, rigid body, color
-//! etc.
-//!
-//! Set of components in the entity defines an Archetype. Entities of the same
-//! Archetype are being grouped together in the [`crate::services::World`] storage, that
-//! makes search fast and linear.
-//!
-//! When planning the architecture of your game, developer should think about components not only
-//! as of properties, but also as of search tags. For example, if you are making physics for your
-//! game, and you have a `Car` and a `SpringBoard`, you may want to have the same named components,
-//! so you can easily query all `Cars` or all `SpringBoards`. But as soon as you will need to
-//! calculate physics for entities of the both types, you should add some component like 
-//! `RigidBody` to the entities, so you can calculate physics for all entities who have that
-//! component.
-//!
-//! ## Usefull references
-//! - To learn how to spawn and query entities, continue reading with [`crate::services::World`]
-//! - To learn how to implement systems [`crate::systems`]
+//! Dotrix core components
     pub use crate::{
         animation::Animator,
-        renderer::{
-            AmbientLight,
-            DirLight,
-            Model,
-            PointLight,
-            SimpleLight,
-            SkyBox,
-            SpotLight,
-            WireFrame,
-        },
+        color::Color,
+        pose::Pose,
+        transform::Transform,
     };
 }
 
+#[deprecated(since="0.5.0", note="Please use services from dotrix crate instead")]
 pub mod services {
 //! Services are very important part of Dotrix. Technicaly the service is a standard Rust
 //! structure with methods. Logically, services are providers of interfaces to various
@@ -60,189 +62,27 @@ pub mod services {
 //! Developer should explicitly create an instance of a service and add it to a game using the
 //! [`crate::Dotrix`] application builder:
 //!
-//! ```no_run
-//! use dotrix_core::{
-//!     Dotrix,
-//!     services::{ World },
-//! };
-//!
-//! // in fn main()
-//! Dotrix::application("My Game")
-//!     .with_service(World::default())
-//!     .run();
-//!
-//! ```
-//! After adding a service to your game you can access it inside of [`crate::systems`].
-//!
-
     pub use crate::{
         assets::Assets,
         camera::Camera,
+        globals::Globals,
         input::Input,
         frame::Frame,
-        input::Ray,
+        ray::Ray,
         renderer::Renderer,
         window::Window,
         world::World,
     };
 }
 
-pub mod systems {
-//! Systems implement logic of your game. A system take a set of [`crate::services`] as
-//! parameters and implements a feature. For example, here is a system that moves camera by X
-//! axis if Right mouse button is pressed:
-//!
-//! ```no_run
-//! use dotrix_core::{
-//!     Dotrix,
-//!     input::{ ActionMapper, Button, State as InputState, Mapper }, 
-//!     ecs::{ Const, Mut, System },
-//!     services::{ Camera, Frame, Input }, 
-//! };
-//!
-//! // camera moving system
-//! pub fn camera_move_x(mut camera: Mut<Camera>, input: Const<Input>, frame: Const<Frame>) {
-//!     let time_delta = frame.delta().as_secs_f32();
-//!
-//!     if input.button_state(Button::MouseRight) == Some(InputState::Hold) {
-//!         camera.target.x += 1.0 * time_delta;
-//!     }
-//! }
-//!
-//! fn main() {
-//!     Dotrix::application("My Game")
-//!         // add system to yout application
-//!         .with_system(System::from(camera_move_x))
-//!         // services should also be there
-//!         .with_service(Camera::default())
-//!         .with_service(Frame::default())
-//!         .with_service(Input::new(Box::new(Mapper::<Action>::new())))
-//!         .run();
-//! }
-//!
-//! // Mapping is required for the Input service
-//! #[derive(PartialEq, Eq, Clone, Copy, Hash)]
-//! enum Action {}
-//!
-//! impl ActionMapper<Action> for Input {
-//!     fn action_mapped(&self, action: Action) -> Option<&Button> {
-//!         let mapper = self.mapper::<Mapper<Action>>();
-//!         mapper.get_button(action)
-//!     }
-//! }
-//! ```
-//!
-//! [`crate::ecs::Mut`] and [`crate::ecs::Const`] are just the accessors for services to keep
-//! Rust mutability controls. The set of services that system takes as arguments is up to
-//! developer. It can be effortlessly extended at any time. The order of [`crate::services`] in
-//! arguments list does not matter.
-//!
-//! What is also important to mention here, is that all services used in systems must be added
-//! to your game using the application builder.
-//!
-//! ## Systems with context
-//!
-//! Sometimes it is usefull to preserve some data between system executions. It can be done using
-//! a [`crate::Service`], but it has sense only when the data has to be shared between different
-//! systems. Otherwise it is better to use the [`crate::ecs::Context`].
-//!
-//! System can have only one context and if it does, the context must be always passed as a first
-//! argument. Another requirement is that [`crate::ecs::Context`] structure must implement the
-//! `Default` trait.
-//!
-//! ## Example
-//! ```no_run
-//! use dotrix_core::{
-//!     ecs::Context,
-//! };
-//!
-//! #[derive(Default)]
-//! struct Counter {
-//!     value: usize,
-//! }
-//!
-//! fn count_up(mut counter: Context<Counter>) {
-//!     counter.value += 1;
-//!     println!("The `counter_up` system has been called {} times", counter.value);
-//! }
-//! ```
-//!
-//! ## System run levels
-//!
-//! Developer can affect the execution of systems by assigning them specific run levels.
-//! If [`crate::ecs::RunLevel`] is not set explicitly, the `RunLevel::Standard` will be used.
-//!
-//! ```no_run
-//! use dotrix_core::{
-//!     Dotrix,
-//!     services::Assets,
-//!     ecs::{ Mut, System, RunLevel },
-//! };
-//!
-//! fn init_game(mut assets: Mut<Assets>) {
-//!     println!("Starting my super game");
-//!     assets.import("/path/to/my/asset.png");
-//! }
-//!
-//! fn main() {
-//!     Dotrix::application("My Game")
-//!         .with_system(System::from(init_game).with(RunLevel::Startup))
-//!         .with_service(Assets::new())
-//!         .run();
-//! }
-//! ```
-
-    pub use crate::{
-        renderer::{
-            world_renderer,
-        },
-        renderer::overlay_update,
-        animation::skeletal_animation,
-        camera::camera_control,
-    };
-}
-
-use ecs::System;
 
 /// Application Builder
 ///
-/// This structure is supposed to be constructed only once and usually inside of a main function
-///
-/// ## Example
-///
-/// ```no_run
-/// use dotrix_core::{
-///     Dotrix,
-///     ecs::{ Mut, System, RunLevel },
-///     services::{ Assets, Camera, World },
-///     systems::{ world_renderer },
-/// };
-///
-/// use dotrix_math::Point3;
-///
-/// fn main() {
-///     Dotrix::application("My Game")
-///         .with_system(System::from(startup).with(RunLevel::Startup))
-///         .with_system(System::from(world_renderer).with(RunLevel::Render))
-///         .with_service(Assets::new())
-///         .with_service(Camera {
-///             y_angle: 0.0,
-///             xz_angle: 0.0,
-///             target: Point3::new(0.0, 10.0, 0.0),
-///             distance: 5.0,
-///             ..Default::default()
-///         })
-///         .with_service(World::new())
-///         .run();
-/// }
-///
-/// fn startup(mut assets: Mut<Assets>) {
-///     // initialize app and load assets
-/// }
-/// ```
+/// This structure is supposed to be constructed only once and usually inside of a main
+/// function
 ///
 /// You can also check full functional
-/// [Dotrix Demo](https://github.com/lowenware/dotrix/blob/main/examples/demo/demo.rs) example to
+/// [Dotrix Demo](https://github.com/lowenware/dotrix/blob/main/examples/demo/main.rs) example to
 /// learn more about the builder.
 pub struct Dotrix {
     app: Option<Application>,
@@ -260,15 +100,64 @@ pub struct Display {
 impl Dotrix {
     /// Initiates building of an application with specified name
     pub fn application(name: &'static str) -> Self {
+        let mut app = Application::new(name);
+        // Assets manager
+        app.add_service(assets::Assets::default());
+        // Camera service
+        app.add_service(camera::Camera::default());
+        // FPS and delta time counter
+        app.add_service(frame::Frame::default());
+        // Input manager
+        app.add_service(input::Input::default());
+        // Global buffers
+        app.add_service(globals::Globals::default());
+        // Render manager
+        app.add_service(renderer::Renderer::default());
+
+        // Window manager
+        app.add_service(window::Window::default());
+        // World manager
+        app.add_service(world::World::default());
+
+        // Renderer startup
+        app.add_system(System::from(renderer::startup));
+        app.add_system(System::from(camera::startup));
+
+        // Handle resize event
+        app.add_system(System::from(renderer::resize));
+        app.add_system(System::from(camera::resize));
+        // Bind to a new frame
+        app.add_system(System::from(renderer::bind));
+        // Recalculate FPS and delta time
+        app.add_system(System::from(frame::bind));
+        // load proj_view matrices
+        app.add_system(System::from(camera::bind));
+
+        // Calculate skeletal animations
+        app.add_system(System::from(animation::skeletal));
+
+        // Finalize frame by Renderer
+        app.add_system(System::from(renderer::release));
+        // Reset input events
+        app.add_system(System::from(input::release));
+
+        Self {
+            app: Some(app),
+        }
+    }
+
+    /// Initiates building of an application with specified name
+    pub fn bare(name: &'static str) -> Self {
         Self {
             app: Some(Application::new(name)),
         }
     }
 
-    /// Configures rendering output
-    pub fn with_display(&mut self, display: Display) -> &mut Self {
-        let app = self.app.as_mut().unwrap();
-        app.set_display(display.clear_color, display.fullscreen);
+    /// Adds system, service or extension to the application
+    pub fn with<T>(&mut self, engine_unit: T) -> &mut Self
+    where Self: ExtendWith<T>
+    {
+        self.extend_with(engine_unit);
         self
     }
 
@@ -279,7 +168,8 @@ impl Dotrix {
     }
 
     /// Adds a service to the application
-    pub fn with_service<T: Service>(&mut self, service: T) -> &mut Self
+
+    pub fn with_service<T: IntoService>(&mut self, service: T) -> &mut Self
     {
         self.app.as_mut().unwrap().add_service(service);
         self
@@ -289,6 +179,30 @@ impl Dotrix {
     pub fn run(&mut self) {
         let app = self.app.take().unwrap();
         app.run();
+    }
+}
+
+/// Trait providing extendablity
+pub trait ExtendWith<T> {
+    /// Extends self using the `extension` function
+    fn extend_with(&mut self, extension: T);
+}
+
+impl ExtendWith<System> for Dotrix {
+    fn extend_with(&mut self, extension: System) {
+        self.app.as_mut().unwrap().add_system(extension);
+    }
+}
+
+impl<T: IntoService> ExtendWith<Service<T>> for Dotrix {
+    fn extend_with(&mut self, extension: Service<T>) {
+        self.app.as_mut().unwrap().add_service(extension.node);
+    }
+}
+
+impl<T: FnOnce(&mut Application)> ExtendWith<T> for Dotrix {
+    fn extend_with(&mut self, extension: T) {
+        extension(self.app.as_mut().unwrap())
     }
 }
 

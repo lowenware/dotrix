@@ -1,63 +1,10 @@
 //! Animation components and systems
-//!
-//! ## Enabling animation
-//!
-//! To add skeletal animation support to your game you only need to add a [`skeletal_animation`]
-//! system using [`crate::Dotrix`] builder.
-//!
-//! ```no_run
-//! use dotrix_core::{
-//!     Dotrix,
-//!     ecs::System,
-//!     systems::skeletal_animation,
-//! };
-//!
-//! // in your main function
-//! Dotrix::application("My Game")
-//!     .with_system(System::from(skeletal_animation))
-//!     .run()
-//! 
-//! ```
-//!
-//! ## Spawning animated models
-//!
-//! Animated entities can be added to the [`World`] using [`crate::components::Model`] component 
-//! with configured [`crate::assets::Skin`] and [`Animator`] component constructed with
-//! [`Animation`] asset.
-//!
-//! ```no_run
-//! use dotrix_core::{
-//!     ecs::Mut,
-//!     components::{ Model, Animator },
-//!     services::{ Assets, World }
-//! };
-//!
-//! fn my_system(mut world: Mut<World>, mut assets: Mut<Assets>) {
-//!
-//!     assets.import("assets/MyFile.gltf");
-//!
-//!     let mesh = assets.register("MyFile::model::mesh");
-//!     let skin = assets.register("MyFile::model::skin");
-//!     let texture = assets.register("MyFile::model::texture");
-//!     let animation = assets.register("MyFile::animation");
-//!
-//!     world.spawn(Some((
-//!         Model { mesh, texture, skin, ..Default::default() },
-//!         Animator::looped(animation),
-//!     )));
-//! }
-//! ```
-//!
-
 use std::time::{ Duration };
 use dotrix_math::{ SquareMatrix, Mat4 };
 
-use crate::{
-    assets::{ Animation, Id },
-    components::Model,
-    ecs::{ Const },
-    services::{ Assets, Frame, World },
-};
+use crate::{ Pose, Id, Assets, Frame, World };
+use crate::assets::Animation;
+use crate::ecs::Const;
 
 /// Animation playback state
 ///
@@ -172,10 +119,10 @@ impl Animator {
 }
 
 /// System handling skeletal animation
-pub fn skeletal_animation(frame: Const<Frame>, world: Const<World>, assets: Const<Assets>) {
-    for (model, animator) in world.query::<(&mut Model, &mut Animator)>() {
+pub fn skeletal(frame: Const<Frame>, world: Const<World>, assets: Const<Assets>) {
+    for (animator, pose) in world.query::<(&mut Animator, &mut Pose)>() {
         let global_transform = Mat4::identity(); // model.transform.matrix();
-        if let Some(skin) = assets.get(model.skin) {
+        if let Some(skin) = assets.get(pose.skin) {
 
             let mut local_transforms = None;
 
@@ -185,9 +132,7 @@ pub fn skeletal_animation(frame: Const<Frame>, world: Const<World>, assets: Cons
                 }
             }
 
-            if let Some(pose) = model.pose.as_mut() {
-                skin.transform(pose, &global_transform, local_transforms);
-            }
+            skin.transform(pose, &global_transform, local_transforms);
         }
     }
 }

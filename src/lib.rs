@@ -5,8 +5,6 @@
 //! The best place to see what can be done with Dotrix is our
 //! [YouTube](https://www.youtube.com/channel/UCdriNXRizbBFQhqZefaw44A) channel.
 //!
-//! We are also working on the editor application](https://github.com/lowenware/dotrix-editor).
-//!
 //! ## Getting Started
 //!
 //! If you are more into a practice and looking for an example code, we've prepared a good
@@ -25,11 +23,11 @@
 //! }
 //! ```
 //!
-//! It is also a tool to say the engine where should be rendered the output and what [`services`]
-//! and [`systems`] has to be enabled.
+//! It is also a tool to say the engine where should be rendered the output and what services
+//! and systems has to be enabled.
 
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
-#![warn(missing_docs)]
+// #![warn(missing_docs)]
 
 pub use dotrix_core::*;
 pub use dotrix_math as math;
@@ -37,5 +35,20 @@ pub use dotrix_math as math;
 #[cfg(feature = "egui")]
 pub use dotrix_egui as egui;
 
+#[cfg(feature = "overlay")]
+pub use dotrix_overlay as overlay;
+
+#[cfg(feature = "pbr")]
+pub use dotrix_pbr as pbr;
+
+#[cfg(feature = "sky")]
+pub use dotrix_sky as sky;
+
 #[cfg(feature = "terrain")]
 pub use dotrix_terrain as terrain;
+
+pub mod prelude {
+    pub use dotrix_core::Dotrix;
+    pub use dotrix_core::ecs::{ Mut, Const, Context, System };
+    pub use dotrix_core::Service;
+}

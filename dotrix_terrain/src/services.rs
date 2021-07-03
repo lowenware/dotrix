@@ -1,13 +1,12 @@
-use crate::{ Heightmap, Generator, Terrain };
-use dotrix_core::{
-    assets::{ Id, Texture, Mesh },
-    renderer::{ Pipeline },
-};
-use dotrix_math::{Vec3, InnerSpace};
+use dotrix_core::{ Id };
+use dotrix_core::assets::{ Texture, Mesh };
 
-// Consider name it a Landmass
+use dotrix_math::{ Vec3, InnerSpace };
+
+use crate::{ Heightmap, Generator };
+
 /// Terrain manager (configuration)
-pub struct Manager {
+pub struct Terrain {
     /// How far the terrain chunks should be spawned (default 500.0)
     pub view_distance: f32,
     /// The lowest lod number (default 4)
@@ -24,11 +23,9 @@ pub struct Manager {
     pub texture: Id<Texture>,
     /// List of the terrain heights to determine UV of the texture
     pub texture_heights: Vec<f32>,
-    /// Terrain Pipeline ID
-    pub pipeline: Id<Pipeline>,
 }
 
-impl Manager {
+impl Terrain {
     /// Constructs new terrain manager
     pub fn new(heightmap: Box<dyn Heightmap>, texture_heights: Vec<f32>) -> Self {
         Self {
@@ -40,16 +37,15 @@ impl Manager {
             heightmap,
             texture: Id::default(),
             texture_heights,
-            pipeline: Id::default(),
         }
     }
 
     /// Generates terrain mesh
-    pub fn generate_mesh(&self, terrain: &Terrain) -> Mesh {
+    pub fn generate_tile_mesh(&self, tile_x: i32, tile_z: i32, lod: usize) -> Mesh {
         let tile_size = self.tile_size;
         let vertices_per_side = tile_size + 1;
         let offset = self.tile_size as i32 / 2;
-        let scale = 2_i32.pow(terrain.lod as u32);
+        let scale = 2_i32.pow(lod as u32);
 
         let capacity = vertices_per_side * vertices_per_side;
         let mut positions = Vec::with_capacity(capacity);
@@ -59,13 +55,12 @@ impl Manager {
         let half_world_size = ((self.heightmap.size() - 1) / 2) as i32;
 
         for z in -offset..=offset {
-            let world_z = terrain.z + z * scale;
+            let world_z = tile_z + z * scale;
             let map_z = if world_z < -half_world_size { 0 } else { world_z + half_world_size };
             for x in -offset..=offset {
-                let world_x = terrain.x + x * scale;
+                let world_x = tile_x + x * scale;
                 let map_x = if world_x < -half_world_size { 0 } else { world_x + half_world_size};
                 let world_y = self.heightmap.value(map_x as usize, map_z as usize);
-                // println!("    world {}({}):{}({}) -> {}", world_x, map_x, world_z, map_z, world_y);
                 positions.push([world_x as f32, world_y, world_z as f32]);
                 uvs.push([
                     (x + offset) as f32 / 2.0 / offset as f32,
@@ -116,18 +111,17 @@ impl Manager {
             normal[2] = normalized.z;
         }
 
-        Mesh {
-            positions,
-            normals: Some(normals),
-            uvs: Some(uvs),
-            indices: Some(indices),
-            ..Default::default()
-        }
+        let mut mesh = Mesh::default();
+        mesh.with_vertices(&positions);
+        mesh.with_vertices(&normals);
+        mesh.with_vertices(&uvs);
+        mesh.with_indices(&indices);
+
+        mesh
     }
 
     /// Calculates texture UV for specific height value
     pub fn uv_from_height(&self, height: f32) -> [f32; 2] {
-        return [0.0, 0.0];
         let mut i = 0.0;
         for (idx, &tx_height) in self.texture_heights.iter().enumerate() {
             if height > tx_height {
@@ -141,7 +135,7 @@ impl Manager {
     }
 }
 
-impl Default for Manager {
+impl Default for Terrain {
     fn default() -> Self {
         let texture_heights = vec![-1024.0, -128.0, -100.0, 0.0, 32.0];
         Self::new(Box::new(Generator::default()), texture_heights)

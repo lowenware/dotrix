@@ -1,47 +1,32 @@
 //! Assets and management service
-mod animation;
-mod id;
-mod loader;
+pub mod animation;
+pub mod loader;
 mod load_gltf;
-mod mesh;
-mod skin;
-mod resource;
-mod texture;
-mod wires;
+pub mod mesh;
+pub mod shader;
+pub mod skin;
+pub mod resource;
+pub mod texture;
 
-pub use id::*;
 pub use loader::*;
 pub use animation::Animation;
 pub use mesh::*;
-pub use skin::{ Skin, Pose }; // TODO: consider moving of Pose to some shared place
+pub use shader::Shader;
+pub use skin::Skin;
 pub use resource::*;
 pub use texture::*;
-pub use wires::*;
 
 use std::{
-    collections::HashMap,
+    collections::{ HashMap, hash_map },
     sync::{Arc, mpsc, Mutex},
     vec::Vec,
 };
 
+use crate::id::Id;
+
 const THREADS_COUNT: usize = 4;
 
 /// Assets management service
-///
-/// To enable assets management in your game, add the service service using [`crate::Dotrix`]
-/// builder, so it can be accessed in [`crate::systems`].
-///
-/// ```no_run
-/// use dotrix_core::{
-///     Dotrix,
-///     services::Assets,
-/// };
-///
-/// // in fn main()
-/// Dotrix::application("My Game")
-///     .with_service(Assets::new())
-///     .run()
-/// ```
 ///
 /// Stored asset can be identified by its [`Id`]. The [`Id`] is being assigned to an asset, once 
 /// the asset is stored.
@@ -53,17 +38,17 @@ const THREADS_COUNT: usize = 4;
 /// There is a way to aquire asset [`Id`] immediately without awaiting using [`Assets::register`]
 /// method.
 pub struct Assets {
-    registry: HashMap<String, RawId>,
+    registry: HashMap<String, u64>,
     resources: HashMap<Id<Resource>, Resource>,
     animations: HashMap<Id<Animation>, Animation>,
     textures: HashMap<Id<Texture>, Texture>,
     meshes: HashMap<Id<Mesh>, Mesh>,
+    shaders: HashMap<Id<Shader>, Shader>,
     skins: HashMap<Id<Skin>, Skin>,
-    wires: HashMap<Id<Wires>, Wires>,
     loaders: Vec<Loader>,
     sender: mpsc::Sender<Request>,
     receiver: mpsc::Receiver<Response>,
-    id_generator: RawId,
+    id_generator: u64,
 }
 
 impl Assets {
@@ -87,8 +72,8 @@ impl Assets {
             animations: HashMap::new(),
             textures: HashMap::new(),
             meshes: HashMap::new(),
+            shaders: HashMap::new(),
             skins: HashMap::new(),
-            wires: HashMap::new(),
             loaders,
             sender,
             receiver,
@@ -177,7 +162,19 @@ impl Assets {
         self.map_mut().remove(&handle)
     }
 
-    fn next_id(&mut self) -> RawId {
+    /// Returns iterator over assets by its type
+    pub fn iter<T>(&mut self) -> hash_map::Iter<'_, Id<T>, T>
+    where Self: AssetMapGetter<T> {
+        self.map().iter()
+    }
+
+    /// Returns mutable iterator over assets by its type
+    pub fn iter_mut<T>(&mut self) -> hash_map::IterMut<'_, Id<T>, T>
+    where Self: AssetMapGetter<T> {
+        self.map_mut().iter_mut()
+    }
+
+    fn next_id(&mut self) -> u64 {
         let result = self.id_generator;
         self.id_generator += 1;
         result
@@ -188,23 +185,18 @@ impl Assets {
             match response {
                 Response::Animation(animation) => {
                     self.store_as(*animation.asset, &animation.name);
-                    //let id = self.find::<Animation>(animation.name.as_str());
-                    //self.map_mut().insert(id, animation.asset);
                 },
                 Response::Mesh(mesh) => {
                     self.store_as(*mesh.asset, &mesh.name);
-                    //let id = self.find::<Mesh>(mesh.name.as_str());
-                    //self.map_mut().insert(id, mesh.asset);
+                },
+                Response::Shader(shader) => {
+                    self.store_as(*shader.asset, &shader.name);
                 },
                 Response::Skin(skin) => {
                     self.store_as(*skin.asset, &skin.name);
-                    //let id = self.find::<Skin>(skin.name.as_str());
-                    //self.map_mut().insert(id, skin.asset);
                 },
                 Response::Texture(texture) => {
                     self.store_as(*texture.asset, &texture.name);
-                    //let id = self.find::<Texture>(texture.name.as_str());
-                    //self.map_mut().insert(id, texture.asset);
                 },
             };
         }
@@ -269,13 +261,13 @@ impl AssetMapGetter<Resource> for Assets {
     }
 }
 
-impl AssetMapGetter<Wires> for Assets {
-    fn map(&self) -> &HashMap<Id<Wires>, Wires> {
-        &self.wires
+impl AssetMapGetter<Shader> for Assets {
+    fn map(&self) -> &HashMap<Id<Shader>, Shader> {
+        &self.shaders
     }
 
-    fn map_mut(&mut self) -> &mut HashMap<Id<Wires>, Wires> {
-        &mut self.wires
+    fn map_mut(&mut self) -> &mut HashMap<Id<Shader>, Shader> {
+        &mut self.shaders
     }
 }
 

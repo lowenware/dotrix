@@ -21,13 +21,13 @@ jobs:
       run: sudo apt update; sudo apt install libegl1-mesa-dev 
 
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --release --verbose
 
     - name: Run tests
-      run: cargo test --workspace --verbose
+      run: cargo test --release --workspace --verbose
 
     - name: Build docs
       run: cargo doc
 
     - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --release --all-targets --all-features -- -D warnings

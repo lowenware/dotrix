@@ -1,67 +1,23 @@
 //! Rendering service and system, pipelines, abstractions for models, transformation, skybox,
 //! lights and overlay
-pub mod bind_group_layout;
-pub mod color;
-mod light;
-pub mod pipeline;
-pub mod skybox;
-mod model;
-mod overlay;
-mod widget;
-mod wireframe;
-pub mod transform;
+mod backend;
 
-pub use color::Color;
-pub use transform::Transform;
-pub use model::*;
-pub use skybox::*;
-pub use light::{ AmbientLight, DirLight, Light, LightUniform, PointLight, SimpleLight, SpotLight };
-pub use overlay::{ Overlay, overlay_update, Provider as OverlayProvider };
-pub use widget::{ Widget, WidgetVertex };
-pub use wireframe::*;
+use dotrix_math::Mat4;
+use backend::Context as Backend;
 
-pub use pipeline::Pipeline;
-use std::collections::HashMap;
-use wgpu::util::DeviceExt;
+use crate::{ Pipeline, Color, Assets, Globals, Window };
+use crate::assets::{ Mesh, Shader };
+use crate::ecs::{ Const, Mut };
 
-use dotrix_math::{ Mat4, Rad, perspective };
-
-use crate::{
-    assets::Id,
-    ecs::{ Const, Mut, Context },
-    services::{ Assets, Camera, World },
-    window::Window,
+pub use backend::{
+    Bindings,
+    PipelineBackend,
+    Sampler,
+    ShaderModule,
+    TextureBuffer,
+    UniformBuffer,
+    VertexBuffer,
 };
-
-/// Service providing an interface to `WGPU` and `WINIT`
-///
-/// Renderer is the only service added by default by the engine. It may change in future.
-pub struct Renderer {
-    /// `WGPU` adapter instance
-    pub adapter: wgpu::Adapter,
-    /// `WGPU` device instance
-    pub device: wgpu::Device,
-    /// `WGPU` queue instance
-    pub queue: wgpu::Queue,
-    /// `WGPU` surface instance
-    pub surface: wgpu::Surface,
-    /// Depth buffer instance
-    pub depth_buffer: wgpu::TextureView,
-    /// `WGPU` swap chain descriptor
-    pub sc_desc: wgpu::SwapChainDescriptor,
-    /// `WGPU` swap chain instance
-    pub swap_chain: wgpu::SwapChain,
-    /// Color for background if nothing is rendered there
-    pub clear_color: wgpu::Color,
-    /// `WGPU` swap chain frame instance
-    pub frame: Option<wgpu::SwapChainFrame>,
-    /// Current projection matrix
-    pub projection: Mat4,
-    /// Pipelines storage
-    pub pipelines: HashMap<Id<Pipeline>, Pipeline>,
-    /// Overlay providers storageOverlay providers storage
-    pub overlay: Vec<Overlay>,
-}
 
 /// Conversion matrix
 pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
@@ -71,429 +27,314 @@ pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
     0.0, 0.0, 0.5, 1.0,
 );
 
-impl Renderer {
-    /// Constructs new instance of the service
-    pub fn new(
-        adapter: wgpu::Adapter,
-        device: wgpu::Device,
-        queue: wgpu::Queue,
-        surface: wgpu::Surface,
-        window: &Window,
-        clear_color: [f64; 4],
-    ) -> Self {
-        let size = window.inner_size();
+const RENDERER_STARTUP: &str =
+    "Please, use `renderer::startup` as a first system on the `startup` run level";
 
-        let sc_desc = wgpu::SwapChainDescriptor {
-            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb,
-            width: size.x,
-            height: size.y,
-            present_mode: wgpu::PresentMode::Mailbox,
-        };
-
-        let depth_buffer = Self::create_depth_buffer(&device, size.x, size.y);
-        let swap_chain = device.create_swap_chain(&surface, &sc_desc);
-        let clear_color = wgpu::Color {
-            r: clear_color[0],
-            g: clear_color[1],
-            b: clear_color[2],
-            a: clear_color[3],
-        };
-
-        Self {
-            adapter,
-            device,
-            queue,
-            surface,
-            depth_buffer,
-            sc_desc,
-            swap_chain,
-            clear_color,
-            frame: None,
-            projection: Self::frustum(size.x as f32 / size.y as f32),
-            pipelines: HashMap::new(),
-            overlay: Vec::new(),
-        }
-    }
-
-    /// Adds an [`OverlayProvider`] to the service
-    pub fn add_overlay(&mut self, overlay_provider: Box<dyn OverlayProvider>) {
-        self.overlay.push(Overlay::new(overlay_provider));
-    }
-
-    /// Returns the [`OverlayProvider`] previously added to the service, by it's type
-    pub fn overlay_provider<T: 'static + Send + Sync>(&self) -> Option<&T> {
-        for overlay in &self.overlay {
-            let provider = overlay.provider::<T>();
-            if provider.is_some() {
-                return provider;
-            }
-        }
-        None
-    }
-
-    /// Adds rendering [`Pipeline`] to the service and returns [`Id`] of it
-    pub fn add_pipeline(&mut self, pipeline: Pipeline) -> Id<Pipeline> {
-        let id = Id::new(self.pipelines.len() as u64 + 1);
-        self.pipelines.insert(id, pipeline);
-        id
-    }
-
-    /// Returns reference to a [`Pipeline`] by its [`Id`]
-    pub fn pipeline(&self, id: Id<Pipeline>) -> &Pipeline {
-        self.pipelines.get(&id).expect("Pipeline has to be registered with `add_pipeline` method")
-    }
-
-    /// Adds a skybox [`Pipeline`] to the service and returns [`Id`] of it
-    pub fn add_skybox_pipeline(&mut self) -> Id<Pipeline> {
-        let pipeline = Pipeline::default_for_skybox(&self.device, &self.sc_desc);
-        self.add_pipeline(pipeline)
-    }
-
-    /// Adds a non animated model [`Pipeline`] to the service and returns [`Id`] of it
-    pub fn add_static_model_pipeline(&mut self) -> Id<Pipeline> {
-        let pipeline = Pipeline::default_for_static_model(&self.device, &self.sc_desc);
-        self.add_pipeline(pipeline)
-    }
-
-    /// Adds a skinned model [`Pipeline`] to the service and returns [`Id`] of it
-    pub fn add_skinned_model_pipeline(&mut self) -> Id<Pipeline> {
-        let pipeline = Pipeline::default_for_skinned_model(&self.device, &self.sc_desc);
-        self.add_pipeline(pipeline)
-    }
-
-    /// Adds an overlay [`Pipeline`] to the service and returns [`Id`] of it
-    pub fn add_overlay_pipeline(&mut self) -> Id<Pipeline> {
-        let pipeline = Pipeline::default_for_overlay(&self.device, &self.sc_desc);
-        self.add_pipeline(pipeline)
-    }
-
-    /// Adds a wire frame [`Pipeline`] to the service and returns [`Id`] of it
-    pub fn add_wire_frame_pipeline(&mut self) -> Id<Pipeline> {
-        let pipeline = Pipeline::default_for_wire_frame(
-            &self.adapter,
-            &self.device,
-            &self.sc_desc
-        );
-        self.add_pipeline(pipeline)
-    }
-
-    /// Handler of the window resize event
-    pub fn resize(&mut self, width: u32, height: u32) {
-        if width > 0 && height > 0 {
-            self.sc_desc.width = width;
-            self.sc_desc.height = height;
-
-            self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
-            self.depth_buffer = Self::create_depth_buffer(&self.device, width, height);
-
-            let aspect_ratio = width as f32 / height as f32;
-            let projection = Self::frustum(aspect_ratio);
-            self.projection = projection;
-        }
-    }
-
-    /// Returns current swap chain frame instance
-    pub fn frame(&self) -> Option<&wgpu::SwapChainFrame> {
-        self.frame.as_ref()
-    }
-
-    /// Triggers swap chain of the frame
-    pub fn next_frame(&mut self) {
-        let frame = match self.swap_chain.get_current_frame() {
-            Ok(frame) => frame,
-            Err(_) => {
-                self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
-                self.swap_chain
-                    .get_current_frame()
-                    .expect("Failed to acquire next swap chain texture!")
-            }
-        };
-        self.frame = Some(frame);
-    }
-
-    /// Finalizes frame rendering
-    pub fn finalize(&mut self) {
-        self.frame.take();
-    }
-
-    /// Returns a tuple of physical display size (width, height)
-    pub fn display_size(&self, window: &Window) -> (u32, u32) {
-        let size = window.inner_size();
-        ( size.x, size.y )
-    }
-
-    /// Returns a tuple of virtual (scaled) display size (width, height)
-    pub fn display_virtual_size(&self, window: &Window) -> (f32, f32) {
-        let size = window.inner_size();
-        let scale_factor = window.scale_factor() as f32;
-        ( size.x as f32 / scale_factor, size.y as f32 / scale_factor )
-    }
-
-    /// Returns current scale factor of the display
-    pub fn scale_factor(&self, window: &Window) -> f32 {
-        window.scale_factor() as f32
-    }
-
-    fn create_depth_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
-        let buffer_extent = wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        };
-
-        let texture = wgpu::TextureDescriptor {
-            label: Some("Depth Buffer"),
-            size: buffer_extent,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsage::SAMPLED
-                | wgpu::TextureUsage::COPY_DST
-                | wgpu::TextureUsage::RENDER_ATTACHMENT,
-        };
-
-        device
-            .create_texture(&texture)
-            .create_view(&wgpu::TextureViewDescriptor::default())
-    }
-
-    fn frustum(aspect_ratio: f32) -> Mat4 {
-        let fov = Rad(1.1);
-        let near_plane = 0.0625;
-        let far_plane = 524288.06;
-
-        perspective(fov, aspect_ratio, near_plane, far_plane)
-    }
+/// Scissors Rectangle
+pub struct ScissorsRect {
+    /// Minimal clip size by X axis
+    pub clip_min_x: u32,
+    /// Minimal clip size by Y axis
+    pub clip_min_y: u32,
+    /// widget width
+    pub width: u32,
+    /// widget height
+    pub height: u32,
 }
 
-/// Default render pipelines provided by the engine
-pub struct Pipelines {
-    skybox: Id<Pipeline>,
-    static_model: Id<Pipeline>,
-    skinned_model: Id<Pipeline>,
-    overlay: Id<Pipeline>,
-    wire_frame: Id<Pipeline>,
-}
-
-/// [`Context`] of the [`world_renderer`] system
+/// Pipeline options
 #[derive(Default)]
-pub struct WorldRenderer {
-    lights_buffer: Option<wgpu::Buffer>,
-    proj_view_buffer: Option<wgpu::Buffer>,
-    sampler: Option<wgpu::Sampler>,
-    pipelines: Option<Pipelines>,
+pub struct Options {
+    /// Scissors Rectangle
+    pub scissors_rect: Option<ScissorsRect>,
 }
 
-/// System to render models, skyboxes, wire frames and overlays
-pub fn world_renderer(
-    mut ctx: Context<WorldRenderer>,
-    mut renderer: Mut<Renderer>,
-    mut assets: Mut<Assets>,
-    camera: Const<Camera>,
-    window: Const<Window>,
-    world: Const<World>
-) {
-    if ctx.pipelines.is_none() {
-        let skybox = renderer.add_skybox_pipeline();
-        let static_model = renderer.add_static_model_pipeline();
-        let skinned_model = renderer.add_skinned_model_pipeline();
-        let overlay = renderer.add_overlay_pipeline();
-        // let wire_frame = renderer.add_wire_frame_pipeline();
+/// Service providing an interface to `WGPU` and `WINIT`
+pub struct Renderer {
+    clear_color: Color,
+    cycle: usize,
+    backend: Option<Backend>,
+    loaded: bool,
+}
 
-        ctx.pipelines = Some(
-            Pipelines {
-                skybox,
-                static_model,
-                skinned_model,
-                overlay,
-                // TODO: fix after shader rewriting
-                wire_frame: Id::default(),
-            }
+impl Renderer {
+    fn backend(&self) -> &Backend {
+        self.backend.as_ref().expect(RENDERER_STARTUP)
+    }
+
+    fn backend_mut(&mut self) -> &mut Backend {
+        self.backend.as_mut().expect(RENDERER_STARTUP)
+    }
+
+    /// Returns the rendering cycle number (Experimental)
+    pub fn cycle(&self) -> usize {
+        self.cycle
+    }
+
+    /// Laods the vertex buffer to GPU
+    pub fn load_vertex_buffer<'a>(
+        &self,
+        buffer: &mut VertexBuffer,
+        attributes: &'a [u8],
+        indices: Option<&'a [u8]>,
+        count: usize,
+    ) {
+        buffer.load(self.backend(), attributes, indices, count as u32);
+    }
+
+    /// Loads the texture buffer to GPU
+    pub fn load_texture_buffer<'a>(
+        &self,
+        buffer: &mut TextureBuffer,
+        width: u32,
+        height: u32,
+        layers: &'a[&'a [u8]],
+    ) {
+        buffer.load(self.backend(), width, height, layers);
+    }
+
+    /// Loads the uniform buffer to GPU
+    pub fn load_uniform_buffer<'a>(&self, buffer: &mut UniformBuffer, data: &'a [u8]) {
+        buffer.load(self.backend(), data);
+    }
+
+    /// Loads the sampler to GPU
+    pub fn load_sampler(&self, sampler: &mut Sampler) {
+        sampler.load(self.backend());
+    }
+
+    /// Loads the sahder module to GPU
+    pub fn load_shader_module(
+        &self,
+        shader_module: &mut ShaderModule,
+        name: &str,
+        code: &str
+    ) {
+        shader_module.load(self.backend(), name, code);
+    }
+
+    /// Forces engine to reload shaders
+    pub fn reload(&mut self) {
+        self.loaded = false;
+    }
+
+    /// Binds uniforms and other data to the pipeline
+    pub fn bind(&mut self, pipeline: &mut Pipeline, layout: PipelineLayout) {
+        if !self.backend().has_pipeline(pipeline.shader) {
+            let pipeline_backend = PipelineBackend::new(self.backend(), &layout);
+            self.backend_mut().add_pipeline(pipeline.shader, pipeline_backend);
+        }
+
+        let pipeline_backend = self.backend()
+            .pipeline(pipeline.shader)
+            .unwrap();
+
+        let mut bindings = Bindings::default();
+        bindings.load(self.backend(), pipeline_backend, layout.bindings);
+        pipeline.bindings = bindings;
+    }
+
+    /// Runs the pipeline for a mesh
+    pub fn run(&mut self, pipeline: &mut Pipeline, mesh: &Mesh) {
+        // TODO: it is not good to copy backend here, find another solution
+        // let mut backend = self.backend.take();
+        self.backend_mut().run_pipeline(
+            pipeline.shader,
+            &mesh.vertex_buffer,
+            &pipeline.bindings,
+            &pipeline.options,
         );
+        // self.backend = backend;
     }
-
-    let device = &renderer.device;
-    let queue = &renderer.queue;
-    let depth_buffer = &renderer.depth_buffer;
-    let frame = &renderer.frame()
-        .expect("Frame should be created before the rendering cycle")
-        .output;
-
-    // Prepare sampler
-    if ctx.sampler.is_none() {
-        ctx.sampler = Some(device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::Repeat,
-            address_mode_v: wgpu::AddressMode::Repeat,
-            address_mode_w: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            ..Default::default()
-        }));
-    }
-
-    // Prepare lights
-    let mut lights = LightUniform::default();
-
-	// TODO: consider a single component for all lights
-    let query = world.query::<(&AmbientLight,)>();
-    for (amb_light,) in query {
-        lights.ambient = amb_light.to_raw();
-    }
-
-    let query = world.query::<(&DirLight,)>();
-    for (dir_light,) in query {
-        if dir_light.enabled {
-            lights.push_dir_light(dir_light.to_raw());
-        }
-    }
-
-    let query = world.query::<(&PointLight,)>();
-    for (point_light,) in query {
-        if point_light.enabled {
-            lights.push_point_light(point_light.to_raw());
-        }
-    }
-
-    let query = world.query::<(&SimpleLight,)>();
-    for (simple_light,) in query {
-        if simple_light.enabled {
-            lights.push_simple_light(simple_light.to_raw());
-        }
-    }
-
-    let query = world.query::<(&SpotLight,)>();
-    for (spot_light,) in query {
-        if spot_light.enabled {
-            lights.push_spot_light(spot_light.to_raw());
-        }
-    }
-
-    if let Some(lights_buffer) = ctx.lights_buffer.as_ref() {
-        queue.write_buffer(lights_buffer, 0, bytemuck::cast_slice(&[lights]));
-    } else {
-        ctx.lights_buffer = Some(device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Light VB"),
-                contents: bytemuck::cast_slice(&[lights]),
-                usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
-            }
-        ));
-    }
-
-    // Prepare projection * view matrix
-    let proj_view_matrix = OPENGL_TO_WGPU_MATRIX * renderer.projection * camera.view();
-    let proj_view_slice = AsRef::<[f32; 16]>::as_ref(&proj_view_matrix);
-
-    if let Some(proj_view_buffer) = ctx.proj_view_buffer.as_ref() {
-        queue.write_buffer(proj_view_buffer, 0, bytemuck::cast_slice(proj_view_slice));
-    } else {
-        ctx.proj_view_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("ProjView Buffer"),
-            contents: bytemuck::cast_slice(proj_view_slice),
-            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
-        }));
-    }
-
-    // prepare the command encoder and clean the surface
-    let command_encoder_descriptor = wgpu::CommandEncoderDescriptor { label: None };
-    let mut encoder = device.create_command_encoder(&command_encoder_descriptor);
-    {
-        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[wgpu::RenderPassColorAttachment {
-                view: &frame.view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(renderer.clear_color),
-                    store: true,
-                },
-            }],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: depth_buffer,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: true,
-                }),
-                stencil_ops: None,
-            }),
-        });
-    }
-
-    let sampler = ctx.sampler.as_ref().unwrap();
-
-    // render skybox
-    let query = world.query::<(&mut SkyBox,)>();
-    for (skybox,) in query {
-        if skybox.pipeline.is_null() {
-            skybox.pipeline = ctx.pipelines.as_ref().unwrap().skybox;
-        }
-        let pipeline = renderer.pipeline(skybox.pipeline);
-        let proj_view = OPENGL_TO_WGPU_MATRIX * renderer.projection * camera.view_static();
-
-        skybox.load(&assets, device, queue, pipeline, sampler, &proj_view);
-        skybox.draw(&mut encoder, pipeline, frame);
-    }
-
-    // render static models
-    let query = world.query::<(&mut Model,)>();
-    for (model,) in query {
-        if model.disabled {
-            continue;
-        }
-
-        if model.pipeline.is_null() {
-            let pipelines = ctx.pipelines.as_ref().unwrap();
-            model.pipeline = if !model.skin.is_null() {
-                pipelines.skinned_model
-            } else {
-                pipelines.static_model
-            };
-        }
-        let pipeline = renderer.pipeline(model.pipeline);
-        let proj_view_buffer = ctx.proj_view_buffer.as_ref().unwrap();
-        let lights_buffer = ctx.lights_buffer.as_ref().unwrap();
-
-        model.load(&renderer, &mut assets, pipeline, sampler, proj_view_buffer, lights_buffer);
-        model.draw(&assets, &mut encoder, pipeline, frame, depth_buffer);
-    }
-
-    let query = world.query::<(&mut WireFrame,)>();
-    for (wire_frame,) in query {
-
-        if wire_frame.disabled {
-            continue;
-        }
-
-        if wire_frame.pipeline.is_null() {
-            let pipelines = ctx.pipelines.as_ref().unwrap();
-            wire_frame.pipeline = pipelines.wire_frame;
-        }
-        let pipeline = renderer.pipeline(wire_frame.pipeline);
-        let proj_view_buffer = ctx.proj_view_buffer.as_ref().unwrap();
-
-        wire_frame.load(&renderer, &mut assets, pipeline, proj_view_buffer);
-        wire_frame.draw(&assets, &mut encoder, pipeline, frame, depth_buffer);
-    }
-
-    for overlay in &renderer.overlay {
-        let scale_factor = window.scale_factor() as f32;
-        let size = window.inner_size();
-
-        for widget in &mut overlay.widgets(scale_factor, size.x as f32, size.y as f32) {
-            if widget.pipeline.is_null() {
-                widget.pipeline = ctx.pipelines.as_ref().unwrap().overlay;
-            }
-            let pipeline = renderer.pipeline(widget.pipeline);
-            widget.load(&renderer, &mut assets, pipeline, sampler, &window);
-            widget.draw(&mut encoder, pipeline, frame);
-        }
-    }
-
-    // submit rendering
-    queue.submit(Some(encoder.finish()));
 }
 
+impl Default for Renderer {
+    /// Constructs new instance of the service
+    fn default() -> Self {
+        Renderer {
+            clear_color: Color::from([0.1, 0.2, 0.3, 1.0]),
+            cycle: 1,
+            backend: None,
+            loaded: false,
+        }
+    }
+}
+
+unsafe impl Send for Renderer {}
+unsafe impl Sync for Renderer {}
+
+/// Startup system
+pub fn startup(mut renderer: Mut<Renderer>, mut globals: Mut<Globals>, window: Mut<Window>) {
+    // Init backend backend
+    if renderer.backend.is_none() {
+        renderer.backend = Some(futures::executor::block_on(backend::init(window.get())));
+    }
+
+    // Create texture sampler and store it with Globals
+    let mut sampler = Sampler::default();
+    renderer.load_sampler(&mut sampler);
+    globals.set(sampler);
+}
+
+/// Frame binding system
+pub fn bind(mut renderer: Mut<Renderer>, mut assets: Mut<Assets>) {
+    let clear_color = renderer.clear_color;
+    renderer.backend_mut().bind_frame(&clear_color);
+
+    if renderer.loaded {
+        return;
+    }
+
+    let mut loaded = true;
+
+    for (_id, shader) in assets.iter_mut::<Shader>() {
+        shader.load(&renderer);
+        if !shader.loaded() {
+            loaded = false;
+        }
+    }
+
+    renderer.loaded = loaded;
+}
+
+/// Frame release system
+pub fn release(mut renderer: Mut<Renderer>) {
+    renderer.backend_mut().release_frame();
+    renderer.cycle += 1;
+    if renderer.cycle == 0 {
+        renderer.cycle = 1;
+    }
+}
+
+/// Resize handling system
+pub fn resize(mut renderer: Mut<Renderer>, window: Const<Window>) {
+    let size = window.inner_size();
+    renderer.backend_mut().resize(size.x, size.y);
+}
+
+/// Pipeline options
+pub struct PipelineOptions {
+    /// Depth buffer mode
+    pub depth_buffer_mode: DepthBufferMode,
+    /// Disable cull mode
+    pub disable_cull_mode: bool,
+}
+
+impl Default for PipelineOptions {
+    fn default() -> Self {
+        Self {
+            depth_buffer_mode: DepthBufferMode::Write,
+            disable_cull_mode: false,
+        }
+    }
+}
+
+/// Pipeline layout
+pub struct PipelineLayout<'a> {
+    /// Name of the Pipeline
+    pub label: String,
+    /// Mesh object to construct the pipeline
+    pub mesh: &'a Mesh,
+    /// Shader module
+    pub shader: &'a Shader,
+    /// Pipeline bindings
+    pub bindings: &'a [BindGroup<'a>],
+    /// Pipeline options
+    pub options: PipelineOptions,
+}
+
+
+/// Mode of the depth buffer
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum DepthBufferMode {
+    /// Read Only mode
+    Read,
+    /// Read + Write mode
+    Write,
+    /// Depth buffer is disabled
+    Disabled
+}
+
+/// Vertex Attribute Format
+#[derive(Debug)]
+pub enum AttributeFormat {
+    /// 32 bit float attribute
+    Float32,
+    /// 2 x 32 bit float attribute
+    Float32x2,
+    /// 3 x 32 bit float attribute
+    Float32x3,
+    /// 4 x 32 bit float attribute
+    Float32x4,
+    /// 2 x 16 bit unsigned integer attribute
+    Uint16x2,
+    /// 4 x 16 bit unsigned integer attribute
+    Uint16x4,
+    /// 32 bit unsigned integer attribute
+    Uint32,
+    /// 2 x 32 bit unsigned integer attribute
+    Uint32x2,
+    /// 3 x 32 bit unsigned integer attribute
+    Uint32x3,
+    /// 4 x 32 bit unsigned integer attribute
+    Uint32x4,
+}
+
+impl AttributeFormat {
+    /// Returns the actual attribute size in bytes
+    pub fn size(&self) -> usize {
+        match self {
+            AttributeFormat::Float32 => 4,
+            AttributeFormat::Float32x2 => 4 * 2,
+            AttributeFormat::Float32x3 => 4 * 3,
+            AttributeFormat::Float32x4 => 4 * 4,
+            AttributeFormat::Uint16x2 => 2 * 2,
+            AttributeFormat::Uint16x4 => 2 * 4,
+            AttributeFormat::Uint32 => 4,
+            AttributeFormat::Uint32x2 => 4 * 2,
+            AttributeFormat::Uint32x3 => 4 * 3,
+            AttributeFormat::Uint32x4 => 4 * 4,
+        }
+    }
+}
+
+/// Binding types (Label, Stage, Buffer)
+pub enum Binding<'a> {
+    /// Uniform binding
+    Uniform(&'a str, Stage, &'a UniformBuffer),
+    /// Texture binding
+    Texture(&'a str, Stage, &'a TextureBuffer),
+    /// 3D Texture binding
+    Texture3D(&'a str, Stage, &'a TextureBuffer),
+    /// Texture sampler binding
+    Sampler(&'a str, Stage, &'a Sampler),
+}
+
+/// Rendering stage
+pub enum Stage {
+    /// Vertex shader stage
+    Vertex,
+    /// Fragment shader stage
+    Fragment,
+    /// Compute shader stage
+    Compute,
+    /// Any stage
+    All
+}
+
+/// Bind Group holding bindings
+pub struct BindGroup<'a> {
+    label: &'a str,
+    bindings: Vec<Binding<'a>>,
+}
+
+impl<'a> BindGroup<'a> {
+    /// Constructs new Bind Group
+    pub fn new(label: &'a str, bindings: Vec<Binding<'a>>) -> Self {
+        Self {
+            label,
+            bindings,
+        }
+    }
+}
 

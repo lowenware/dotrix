@@ -1,6 +1,6 @@
 [package]
 name = "dotrix"
-version = "0.4.0"
+version = "0.5.0"
 authors = [
   "Elias Kartashov <elias@lowenware.com>",
   "Štěpán Wünsch <sw@lowenware.com>",
@@ -15,8 +15,11 @@ name = "dotrix"
 path = "src/lib.rs"
 
 [features]
-default = [ "egui", "terrain" ]
+default = [ "egui", "overlay", "pbr", "sky", "terrain" ]
 
+overlay = ["dotrix_overlay"]
+sky = ["dotrix_sky"]
+pbr = ["dotrix_pbr"]
 egui = ["dotrix_egui"]
 terrain = ["dotrix_terrain"]
 
@@ -24,11 +27,14 @@ terrain = ["dotrix_terrain"]
 members = [
   "dotrix_core",
   "dotrix_egui",
+  "dotrix_overlay",
+  "dotrix_pbr",
+  "dotrix_sky",
   "dotrix_terrain",
 ]
 
 [dependencies.dotrix_core]
-version = "0.3"
+version = "0.5"
 path = "./dotrix_core"
 
 [dependencies.dotrix_math]
@@ -37,13 +43,28 @@ path = "./dotrix_math"
 
 # Optional dependencies
 
+[dependencies.dotrix_overlay]
+version = "0.1"
+path = "./dotrix_overlay"
+optional = true
+
 [dependencies.dotrix_egui]
-version = "0.3"
+version = "0.5"
 path = "./dotrix_egui"
 optional = true
 
+[dependencies.dotrix_pbr]
+version = "0.1"
+path = "./dotrix_pbr"
+optional = true
+
+[dependencies.dotrix_sky]
+version = "0.1"
+path = "./dotrix_sky"
+optional = true
+
 [dependencies.dotrix_terrain]
-version = "0.4"
+version = "0.5"
 path = "./dotrix_terrain"
 optional = true
 
@@ -55,28 +76,20 @@ version = "0.7"
 
 [[example]]
 name = "demo"
-path = "examples/demo/demo.rs"
+path = "examples/demo/main.rs"
 
 [[example]]
-name = "egui"
-path = "examples/egui/egui.rs"
-
-[[example]]
-name = "fox"
-path = "examples/animation/fox.rs"
+name = "animation"
+path = "examples/animation/main.rs"
 
 [[example]]
 name = "light"
-path = "examples/light/light.rs"
-
-#[[example]]
-#name = "marching_cubes"
-#path = "examples/marching_cubes/marching_cubes.rs"
+path = "examples/light/main.rs"
 
 [[example]]
 name = "skybox"
-path = "examples/skybox/skybox.rs"
+path = "examples/skybox/main.rs"
 
 [[example]]
 name = "window"
-path = "examples/window/window.rs"
+path = "examples/window/main.rs"

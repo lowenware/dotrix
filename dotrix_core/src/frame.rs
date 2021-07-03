@@ -1,5 +1,5 @@
-use std::time::{Duration, Instant};
-use log::info;
+use std::time::{ Duration, Instant };
+use crate::ecs::Mut;
 
 /// Frame tracking service
 ///
@@ -7,9 +7,9 @@ use log::info;
 pub struct Frame {
     first: Option<Instant>,
     current: Option<Instant>,
-    counter_start: Option<Instant>,
+    counter_start: Instant,
     counter: u32,
-    fps: Option<u32>,
+    fps: Option<f32>,
     delta: Duration,
     time: Duration,
 }
@@ -20,7 +20,7 @@ impl Frame {
         Self {
             first: None,
             current: None,
-            counter_start: None,
+            counter_start: Instant::now(),
             counter: 0,
             fps: None,
             delta: Duration::from_secs(0),
@@ -34,6 +34,7 @@ impl Frame {
             self.time = now - first;
         } else {
             self.first = Some(now);
+            self.counter_start = now;
         }
 
         if let Some(current) = self.current {
@@ -41,16 +42,11 @@ impl Frame {
         }
         self.current = Some(now);
 
-        if let Some(counter_start) = self.counter_start {
-            if now - counter_start > Duration::from_secs(1) {
-                let fps = self.counter;
-                self.fps = Some(fps);
-                self.counter = 0;
-                info!("FPS: {}", fps);
-                self.counter_start = Some(now);
-            }
-        } else {
-            self.counter_start = Some(now);
+        let duration = now - self.counter_start;
+        if duration > Duration::from_secs(1) {
+            self.fps = Some(self.counter as f32 / duration.as_secs_f32());
+            self.counter = 0;
+            self.counter_start = now;
         }
 
         self.counter += 1;
@@ -62,8 +58,11 @@ impl Frame {
     }
 
     /// Returns FPS
-    pub fn fps(&self) -> u32 {
-        if let Some(fps) = self.fps { fps } else { self.counter }
+    pub fn fps(&self) -> f32 {
+        self.fps.unwrap_or_else(|| {
+            let duration = Instant::now() - self.counter_start;
+            self.counter as f32 / duration.as_secs_f32()
+        })
     }
 
     /// Returns [`Duration`] from previous rendering
@@ -76,4 +75,10 @@ impl Default for Frame {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Frame bind system
+/// Calculates FPS and delta time between frame renderings
+pub fn bind(mut frame: Mut<Frame>) {
+    frame.next();
 }

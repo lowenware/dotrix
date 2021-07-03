@@ -1,15 +1,19 @@
+//! Skeletal Animation Asset
 use std::time::Duration;
 use std::collections::HashMap;
 use super::skin::JointId;
 
-use crate::renderer::transform::TransformBuilder;
+use crate::transform::{ Transform, Builder as TransformBuilder };
 use dotrix_math::{ slerp, Vec3, Quat, VectorSpace };
 
 /// Interpolation types
 #[derive(Debug)]
 pub enum Interpolation {
+    /// Linear interpolation
     Linear,
+    /// Step Interpolation
     Step,
+    /// Cubic Interpolation
     CubicSpline,
 }
 
@@ -167,7 +171,7 @@ impl Animation {
 
         for channel in &self.translation_channels {
             if let Some(transform) = channel.sample(keyframe) {
-                result.insert(channel.joint_id, TransformBuilder::from_translation(transform));
+                result.insert(channel.joint_id, Transform::builder().with_translate(transform));
             }
         }
 
@@ -176,7 +180,7 @@ impl Animation {
                 if let Some(t) = result.get_mut(&channel.joint_id) {
                     t.rotate = Some(transform);
                 } else {
-                    result.insert(channel.joint_id, TransformBuilder::from_rotation(transform));
+                    result.insert(channel.joint_id, Transform::builder().with_rotate(transform));
                 }
             }
         }
@@ -185,7 +189,7 @@ impl Animation {
                 if let Some(t) = result.get_mut(&channel.joint_id) {
                     t.scale = Some(transform);
                 } else {
-                    result.insert(channel.joint_id, TransformBuilder::from_scale(transform));
+                    result.insert(channel.joint_id, Transform::builder().with_scale(transform));
                 }
             }
         }

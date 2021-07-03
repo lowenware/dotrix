@@ -4,43 +4,34 @@
 
 use std::any::Any;
 
-use dotrix_core::renderer::Color;
+use dotrix_core::{ Application, Id, System };
+use dotrix_core::assets::Mesh;
 
 mod generator;
 mod services;
 mod systems;
-mod pipeline;
+mod layers;
 
 pub use generator::{ Falloff, Generator, Noise };
-pub use services::Manager;
-pub use systems::{ startup, spawn };
-pub use pipeline::new_pipeline;
+pub use services::Terrain;
+pub use systems::{ startup, render, spawn };
+pub use layers::{ Layers, Layer };
 
-/// Terrain chunk (tile) component
-pub struct Terrain {
+
+/// Terrain tile component
+pub struct Tile {
     /// Terrain position by X axis (center of the chunk)
     pub x: i32,
     /// Terrain position by Z axis (center of the chunk)
     pub z: i32,
     /// Terrain chunk level of details (0 is the highest)
     pub lod: usize,
+    /// Terrain chunk mesh ID
+    pub mesh: Id<Mesh>,
+    /// Is loaded by GPU
+    pub loaded: bool,
 }
 
-/// Terrain layer
-pub struct Layer {
-    /// Terrain layer color
-    pub color: Color,
-    /// Terrain layer height base 0.0..1.0
-    pub base: f32,
-    /// Terrain layer blend
-    pub blend: f32,
-}
-
-impl Default for Layer {
-    fn default() -> Self {
-        Self { color: Color::rgb(0.18, 0.62, 0.24), base: -1.0, blend: 0.1 }
-    }
-}
 
 /// Trait for the terrain heights source
 pub trait Heightmap: Any + Sync + Send {
@@ -83,4 +74,12 @@ impl dyn Heightmap {
     fn is<T: Any>(&self) -> bool {
         std::any::TypeId::of::<T>() == self.type_id()
     }
+}
+
+/// Enables the terrain extension in Dotrix application
+pub fn extension(app: &mut Application) {
+    app.add_system(System::from(startup));
+    app.add_system(System::from(spawn));
+    app.add_system(System::from(render));
+    app.add_service(Terrain::default());
 }

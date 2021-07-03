@@ -2,20 +2,32 @@ use std::{
     collections::HashMap,
 };
 
-use dotrix_core::{
-    components::Model,
-    ecs::{ Const, Mut, Context },
-    services::{ Assets, Camera, Renderer, World },
+use dotrix_core::{ Color, Id, Pipeline, Camera, Globals, World };
+use dotrix_core::assets::{ Assets, Mesh, Shader };
+use dotrix_core::ecs::{ Entity, Mut, Const, Context };
+use dotrix_core::camera::ProjView;
+use dotrix_core::renderer::{
+    BindGroup,
+    Binding,
+    PipelineLayout,
+    PipelineOptions,
+    Renderer,
+    Sampler,
+    Stage,
 };
 
-use crate::{ Terrain, Manager };
-use crate::pipeline::default_pipeline;
+use dotrix_pbr::{ Material, Lights };
+
+use crate::{ Terrain, Tile, Layers };
+
+const PIPELINE_LABEL: &str = "dotrix::terrain";
 
 /// Terrain spawn system context
 #[derive(Default)]
 pub struct Spawner {
     tiles: HashMap<TileIndex, TileState>,
     last_viewer_position: Option<[f32; 2]>,
+    to_exile: Vec<(Entity, Id<Mesh>)>,
 }
 
 #[derive(Default)]
@@ -38,27 +50,36 @@ struct Viewer {
 
 /// Terrain Startup System
 pub fn startup(
-    mut renderer: Mut<Renderer>,
-    mut manager: Mut<Manager>,
+    mut assets: Mut<Assets>,
+    mut globals: Mut<Globals>,
+    renderer: Const<Renderer>,
 ) {
-    if manager.pipeline.is_null() {
-        let pipeline = default_pipeline(&renderer.adapter, &renderer.device, &renderer.sc_desc);
-        manager.pipeline = renderer.add_pipeline(pipeline);
-    }
+    // prepare layers
+    let mut layers = Layers::default();
+    layers.load(&renderer);
+    globals.set(layers);
 
+    // prepare shader
+    let mut shader = Shader {
+        name: String::from(PIPELINE_LABEL),
+        code: Lights::add_to_shader(include_str!("shaders/terrain.wgsl"), 0, 2),
+        ..Default::default()
+    };
+    shader.load(&renderer);
+    assets.store_as(shader, PIPELINE_LABEL);
 }
 
 /// Terrain spawn system
 /// Controls presense of terrain tiles, generation of meshes, and resource releasing
 pub fn spawn(
     mut ctx: Context<Spawner>,
-    mut manager: Mut<Manager>,
+    mut terrain: Mut<Terrain>,
     camera: Const<Camera>,
     mut assets: Mut<Assets>,
     mut world: Mut<World>,
 ) {
 
-    let view_distance = manager.view_distance;
+    let view_distance = terrain.view_distance;
     // get viewer
     let viewer = Viewer {
         view_distance_sq: view_distance * view_distance,
@@ -69,21 +90,21 @@ pub fn spawn(
     if let Some(last_viewer_position) = ctx.last_viewer_position.as_ref() {
         let dx = viewer.position[0] - last_viewer_position[0];
         let dz = viewer.position[1] - last_viewer_position[1];
-        if  !manager.force_spawn && dx * dx + dz * dz < manager.spawn_if_moved_by {
+        if  !terrain.force_spawn && dx * dx + dz * dz < terrain.spawn_if_moved_by {
             return;
         }
     }
     ctx.last_viewer_position = Some(viewer.position);
 
-    if manager.force_spawn {
+    if terrain.force_spawn {
         ctx.tiles.clear();
 
-        let query = world.query::<(&Terrain, &mut Model)>();
-        for (_, model) in query {
-            model.disabled = true;
+        let query = world.query::<(&Tile, &mut Pipeline)>();
+        for (_, pipeline) in query {
+            pipeline.disabled = true;
         }
 
-        manager.force_spawn = false;
+        terrain.force_spawn = false;
     }
 
     // mark all tiles non visible
@@ -92,8 +113,8 @@ pub fn spawn(
     }
 
     // calculate terrain tiles that has to be visible
-    let max_lod = manager.max_lod;
-    let tile_size = manager.tile_size as f32 * (2.0_f32).powf(max_lod as f32);
+    let max_lod = terrain.max_lod;
+    let tile_size = terrain.tile_size as f32 * (2.0_f32).powf(max_lod as f32);
     let tiles_per_view_distance = (view_distance / tile_size as f32).ceil() as i32;
     let half_tile_size = tile_size as i32 / 2;
     let from_x = ((viewer.position[0] / tile_size).floor() * tile_size) as i32;
@@ -109,55 +130,57 @@ pub fn spawn(
     }
 
     // exile tiles
-    /*
-    let query = world.query::<(Terrain, Entity)>();
-    for (terrain, entity) in query {
-        let index = TileIndex { x: terrain.x, z: terrain.z };
-        if let Some(tile) = ctx.tiles.get(&index) {
-            if !tile.visible {
-                world.exile(entity);
-            }
+    let query = world.query::<(&Tile, &Entity)>();
+    for (tile, entity) in query {
+        let index = TileIndex { x: tile.x, z: tile.z };
+        let do_exile = if let Some(tile) = ctx.tiles.get_mut(&index) {
+            !tile.visible
+        } else {
+            true
+        };
+        if do_exile {
+            ctx.to_exile.push((*entity, tile.mesh));
         }
     }
+
+    for (entity, mesh) in ctx.to_exile.iter() {
+        world.exile(*entity);
+        assets.remove(*mesh);
+    }
+    ctx.to_exile.clear();
 
     // cleanup tiles registry of the exiled tiles
     ctx.tiles.retain(|_, tile| tile.visible);
-    */
 
     // spawn missing tiles
-    for (index, tile) in ctx.tiles.iter_mut() {
-        if tile.spawned {
+    for (index, tile_state) in ctx.tiles.iter_mut() {
+        if tile_state.spawned {
             continue;
         }
 
-        let terrain = Terrain {
-            x: index.x,
-            z: index.z,
-            lod: tile.lod,
-        };
-        let mesh = manager.generate_mesh(&terrain);
-        let model = Model {
+        let x = index.x;
+        let z = index.z;
+        let lod = tile_state.lod;
+
+        let mesh = terrain.generate_tile_mesh(x, z, lod);
+        let tile = Tile {
+            x,
+            z,
+            lod,
             mesh: assets.store(mesh),
-            texture: manager.texture,
-            pipeline: manager.pipeline,
+            loaded: false
+        };
+        let material = Material {
+            texture: terrain.texture,
+            albedo: Color::white(),
             ..Default::default()
         };
+        let pipeline = Pipeline::default();
 
-        world.spawn(Some((model, terrain)));
+        world.spawn(Some((tile, material, pipeline)));
 
-        tile.spawned = true;
+        tile_state.spawned = true;
     }
-
-
-
-    /*
-     * println!("Tiles to spawn: {}", ctx.tiles.len());
-    for (index, tile) in ctx.tiles.iter() {
-        println!("   - Tile({}) @ {}:{}, flags = {}/{}", tile.lod, index.x, index.z, tile.visible, tile.spawned);
-    }
-    */
-
-
 }
 
 fn queue_tiles_to_spawn(
@@ -199,5 +222,82 @@ fn queue_tiles_to_spawn(
         for tile in higher_lod_tiles.iter() {
             queue_tiles_to_spawn(ctx, viewer, half_tile_size, lod - 1, *tile);
         }
+    }
+}
+
+/// Terrain rendering system
+pub fn render(
+    mut renderer: Mut<Renderer>,
+    mut assets: Mut<Assets>,
+    globals: Const<Globals>,
+    world: Const<World>,
+) {
+    let query = world.query::<(
+        &mut Tile,
+        &mut Material,
+        &mut Pipeline
+    )>();
+
+    for (tile, material, pipeline) in query {
+
+        if pipeline.shader.is_null() {
+            pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL)
+                .unwrap_or_else(Id::default);
+        }
+
+        // check if model is disabled or already rendered
+        if !pipeline.cycle(&renderer) { continue; }
+
+        if !tile.loaded {
+            if let Some(mesh) = assets.get_mut(tile.mesh) {
+                mesh.load(&renderer);
+            }
+            tile.loaded = true;
+        }
+
+        if !material.load(&renderer, &mut assets) { continue; }
+
+        let mesh = assets.get(tile.mesh).unwrap();
+
+        if !pipeline.ready() {
+            if let Some(shader) = assets.get(pipeline.shader) {
+                if !shader.loaded() { continue; }
+
+                let texture = assets.get(material.texture).unwrap();
+
+                let proj_view = globals.get::<ProjView>()
+                    .expect("ProjView buffer must be loaded");
+
+                let sampler = globals.get::<Sampler>()
+                    .expect("ProjView buffer must be loaded");
+
+                let lights = globals.get::<Lights>()
+                    .expect("Lights buffer must be loaded");
+
+                let layers = globals.get::<Layers>()
+                    .expect("Terrain layers must be loaded");
+
+                renderer.bind(pipeline, PipelineLayout {
+                    label: String::from(PIPELINE_LABEL),
+                    mesh,
+                    shader,
+                    bindings: &[
+                        BindGroup::new("Globals", vec![
+                            Binding::Uniform("ProjView", Stage::Vertex, &proj_view.uniform),
+                            Binding::Sampler("Sampler", Stage::Fragment, sampler),
+                            Binding::Uniform("Lights", Stage::Fragment, &lights.uniform),
+                            Binding::Uniform("Layers", Stage::Fragment, &layers.uniform),
+                        ]),
+                        BindGroup::new("Locals", vec![
+                            Binding::Uniform("Material", Stage::Vertex, &material.uniform),
+                            Binding::Texture("Texture", Stage::Fragment, &texture.buffer),
+                        ])
+                    ],
+                    options: PipelineOptions::default()
+                });
+            }
+        }
+
+        renderer.run(pipeline, mesh);
     }
 }

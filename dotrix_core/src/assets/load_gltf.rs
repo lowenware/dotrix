@@ -1,6 +1,6 @@
 use std::{
     path::Path,
-    sync::{Arc, mpsc, Mutex},
+    sync::{ Arc, mpsc, Mutex },
 };
 
 use gltf::{
@@ -11,14 +11,14 @@ use gltf::{
 
 use log::info;
 
-use super::super::renderer::transform::Transform;
-use dotrix_math::{Mat4, Vec3, Quat};
+use crate::transform::Transform;
+use dotrix_math::{ Mat4, Vec3, Quat };
 
 use super::{
-    animation::{Animation, Interpolation},
-    loader::{Asset, ImportError, Response, load_image},
+    animation::{ Animation, Interpolation },
+    loader::{ Asset, ImportError, Response, load_image },
     mesh::Mesh,
-    skin::{Skin, JointId, Joint, JointIndex},
+    skin::{ Skin, JointId, Joint, JointIndex },
 };
 
 pub fn load_gltf(
@@ -158,28 +158,43 @@ fn load_mesh(
         return Err(ImportError::NotImplemented("primitive mode", Some(mode_to_string(mode))));
     }
 
-    let positions = reader.read_positions().map(|p| p.collect::<Vec<[f32; 3]>>());
-    let normals = reader.read_normals().map(|n| n.collect::<Vec<[f32; 3]>>());
-    let uvs = reader.read_tex_coords(0).map(|t| t.into_f32().collect());
+    let mut mesh = Mesh::default();
+
     let indices = reader.read_indices().map(|i| i.into_u32().collect::<Vec<u32>>());
-    let weights = reader.read_weights(0).map(|w| w.into_f32().collect::<Vec<[f32; 4]>>());
-    let joints = reader.read_joints(0).map(|j| j.into_u16().collect::<Vec<[u16; 4]>>());
+
+    if let Some(indices_ref) = indices.as_ref() {
+        mesh.with_indices(indices_ref);
+    }
+
+    let positions = reader.read_positions()
+        .map(|p| p.collect::<Vec<[f32; 3]>>())
+        .expect("Mesh must contain some vertices positions");
+
+    mesh.with_vertices(&positions);
+
+    let normals = reader.read_normals()
+        .map(|n| n.collect::<Vec<[f32; 3]>>())
+        .unwrap_or_else(
+            || Mesh::calculate_normals(&positions, indices.as_deref())
+        );
+
+    mesh.with_vertices(&normals);
+
+    if let Some(uvs) = reader.read_tex_coords(0) {
+        mesh.with_vertices(uvs.into_f32().collect::<Vec<_>>().as_slice());
+    }
+
+    if let Some(weights) = reader.read_weights(0) {
+        mesh.with_vertices(weights.into_f32().collect::<Vec<[f32; 4]>>().as_slice());
+    }
+
+    if let Some(joints) = reader.read_joints(0) {
+        mesh.with_vertices(joints.into_u16().collect::<Vec<[u16; 4]>>().as_slice());
+    }
 
     let name = [name, "mesh"].join("::");
 
-    info!("importing mesh as `{}`", name);
-
-    let mut mesh = Mesh {
-        positions: positions.expect("Mesh should has some vertices"),
-        normals,
-        uvs,
-        indices,
-        joints,
-        weights,
-        ..Default::default()
-    };
-
-    mesh.calculate();
+    info!("import mesh as `{}`", name);
 
     sender.lock().unwrap().send(Response::Mesh(
         Asset {

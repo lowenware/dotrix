@@ -1,30 +1,31 @@
-use dotrix::{
-    ecs::Mut,
-    renderer::SkyBox,
-    services::{ Assets, World }
-};
+use dotrix::{ CubeMap, Pipeline, Assets, World };
+use dotrix::ecs::Mut;
+use dotrix::sky::SkyBox;
 
-pub fn init(mut world: Mut<World>, mut assets: Mut<Assets>) {
+pub fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     // Import skybox textures
-    assets.import("examples/light/assets/skybox_right.png");
-    assets.import("examples/light/assets/skybox_left.png");
-    assets.import("examples/light/assets/skybox_top.png");
-    assets.import("examples/light/assets/skybox_bottom.png");
-    assets.import("examples/light/assets/skybox_back.png");
-    assets.import("examples/light/assets/skybox_front.png");
-
-    // Get slice with textures
-    let primary_texture = [
-        assets.register("skybox_right"),
-        assets.register("skybox_left"),
-        assets.register("skybox_top"),
-        assets.register("skybox_bottom"),
-        assets.register("skybox_back"),
-        assets.register("skybox_front"),
-    ];
+    assets.import("assets/skybox-night/skybox_right.png");
+    assets.import("assets/skybox-night/skybox_left.png");
+    assets.import("assets/skybox-night/skybox_top.png");
+    assets.import("assets/skybox-night/skybox_bottom.png");
+    assets.import("assets/skybox-night/skybox_back.png");
+    assets.import("assets/skybox-night/skybox_front.png");
 
     // Spawn skybox
-    world.spawn(Some(
-        (SkyBox { primary_texture, ..Default::default() },),
-    ));
+    world.spawn(Some((
+        SkyBox {
+            view_range: 500.0,
+            ..Default::default()
+        },
+        CubeMap {
+            right: assets.register("skybox_right"),
+            left: assets.register("skybox_left"),
+            top: assets.register("skybox_top"),
+            bottom: assets.register("skybox_bottom"),
+            back: assets.register("skybox_back"),
+            front: assets.register("skybox_front"),
+            ..Default::default()
+        },
+        Pipeline::default()
+    )));
 }

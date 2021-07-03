@@ -1,21 +1,21 @@
 use crate::match_finder::{ MatchFinder, MatchFinderState };
-use dotrix::{
-    assets:: { Assets, Id, Texture },
-    ecs::{ Const, Mut },
-    egui::{
-        CollapsingHeader,
-        combo_box,
-        Egui,
-        Grid,
-        ScrollArea,
-        SidePanel,
-        Slider,
-        TopPanel,
-    },
-    math::{ Vec2i, Vec2u },
-    services::{ Frame, Input, Renderer, Window },
-    window::{ CursorIcon, Fullscreen, UserAttentionType, VideoMode },
+use dotrix::ecs::{ Const, Mut };
+use dotrix::assets:: { Assets, Texture };
+use dotrix::{ Id, Frame, Input, Window };
+use dotrix::egui::{
+    CollapsingHeader,
+    ComboBox,
+    Egui,
+    Grid,
+    ScrollArea,
+    SidePanel,
+    Slider,
+    TopBottomPanel,
 };
+use dotrix::overlay::Overlay;
+use dotrix::math::{ Vec2i, Vec2u };
+use dotrix::window::{ CursorIcon, Fullscreen, UserAttentionType, VideoMode };
+
 use std::collections::hash_map::HashMap;
 
 pub struct Settings {
@@ -47,30 +47,30 @@ pub fn ui(
     frame: Const<Frame>,
     input: Const<Input>,
     mut match_finder: Mut<MatchFinder>,
-    renderer: Const<Renderer>,
+    overlay: Const<Overlay>,
     mut settings: Mut<Settings>,
     mut window: Mut<Window>,
 ) {
-    let egui = renderer.overlay_provider::<Egui>()
+    let egui = overlay.get::<Egui>()
         .expect("Renderer does not contain an Overlay instance");
 
-    TopPanel::top("top_panel").show(&egui.ctx, |ui| {
+    TopBottomPanel::top("top_panel").show(&egui.ctx, |ui| {
         ui.horizontal(|ui| {
-            if ui.button("🗙").clicked { window.close(); }
-            if ui.button("🗕").clicked { window.set_minimized(true); }
+            if ui.button("🗙").clicked() { window.close(); }
+            if ui.button("🗕").clicked() { window.set_minimized(true); }
             if window.maximized() {
-                if ui.button("Ｓ").clicked { window.set_maximized(false); }
-            } else if ui.button("🗖").clicked { window.set_maximized(true); }
+                if ui.button("Ｓ").clicked() { window.set_maximized(false); }
+            } else if ui.button("🗖").clicked() { window.set_maximized(true); }
 
             ui.horizontal(|ui| {
-                if ui.text_edit_singleline(&mut settings.title).lost_kb_focus {
+                if ui.text_edit_singleline(&mut settings.title).lost_focus() {
                     window.set_title(settings.title.as_str());
                 };
             });
         });
     });
 
-    SidePanel::left("side_panel", 300.0)
+    SidePanel::left("side_panel")
     .show(&egui.ctx, |ui| {
         ScrollArea::auto_sized().show(ui, |ui| {
             CollapsingHeader::new("ℹ Info")
@@ -175,15 +175,16 @@ pub fn ui(
             .show(ui, |ui| {
                 Grid::new("grid_cursor").show(ui, |ui| {
                     ui.label("Icon");
-                    let id = ui.make_persistent_id("cur_icon_combo_box");
                     let cur_icon = window.cursor_icon();
                     let mut new_cur_icon = cur_icon;
 
-                    combo_box(ui, id, format!("{:?}", new_cur_icon), |ui| {
-                        for icon in CURSOR_ICONS.iter() {
-                            ui.selectable_value(&mut new_cur_icon, *icon, format!("{:?}", icon));
-                        }
-                    });
+                    ComboBox::from_id_source("Icon")
+                        .selected_text(format!("{:?}", new_cur_icon))
+                        .show_ui(ui, |ui| {
+                            for icon in CURSOR_ICONS.iter() {
+                                ui.selectable_value(&mut new_cur_icon, *icon, format!("{:?}", icon));
+                            }
+                        });
 
                     if cur_icon != new_cur_icon {
                         window.set_cursor_icon(new_cur_icon);
@@ -192,10 +193,10 @@ pub fn ui(
 
                     ui.label("set Cursor visible");
                     ui.horizontal(|ui| {
-                        if ui.selectable_label(window.cursor_visible(), "true").clicked {
+                        if ui.selectable_label(window.cursor_visible(), "true").clicked() {
                             window.set_cursor_visible(true);
                         }
-                        if ui.selectable_label(!window.cursor_visible(), "false").clicked {
+                        if ui.selectable_label(!window.cursor_visible(), "false").clicked() {
                             window.set_cursor_visible(false);
                         }
                     });
@@ -203,10 +204,10 @@ pub fn ui(
 
                     ui.label("set Cursor grab");
                     ui.horizontal(|ui| {
-                        if ui.selectable_label(window.cursor_grab(), "true").clicked {
+                        if ui.selectable_label(window.cursor_grab(), "true").clicked() {
                             window.set_cursor_grab(true);
                         }
-                        if ui.selectable_label(!window.cursor_grab(), "false").clicked {
+                        if ui.selectable_label(!window.cursor_grab(), "false").clicked() {
                             window.set_cursor_grab(false);
                         }
                     });
@@ -220,12 +221,13 @@ pub fn ui(
                 Grid::new("window").show(ui, |ui| {
                     ui.label("Display mode");
 
-                    let id = ui.make_persistent_id("win_mode_combo_box");
-                    combo_box(ui, id, format!("{:?}", settings.window_mode), |ui| {
-                        for mode in WINDOW_MODES.iter() {
-                            ui.selectable_value(&mut settings.window_mode, *mode, format!("{:?}", mode));
-                        }
-                    });
+                    ComboBox::from_id_source("Display mode")
+                        .selected_text(format!("{:?}", settings.window_mode))
+                        .show_ui(ui, |ui| {
+                            for mode in WINDOW_MODES.iter() {
+                                ui.selectable_value(&mut settings.window_mode, *mode, format!("{:?}", mode));
+                            }
+                        });
                     ui.end_row();
 
                     if WindowMode::BorderlessFullscreen == settings.window_mode
@@ -233,13 +235,14 @@ pub fn ui(
                         let mut current_monitor_number = settings.current_monitor_number;
                         let mut current_monitor = &window.monitors()[current_monitor_number];
 
-                        let id = ui.make_persistent_id("win_monitor_combo_box");
                         ui.label("Monitor");
-                        combo_box(ui, id, &current_monitor.name, |ui| {
-                            for (i, monitor) in window.monitors().iter().enumerate() {
-                                ui.selectable_value(&mut current_monitor_number, i, &monitor.name);
-                            }
-                        });
+                        ComboBox::from_id_source("Monitor")
+                            .selected_text(format!("{:?}", current_monitor.name))
+                            .show_ui(ui, |ui| {
+                                for (i, monitor) in window.monitors().iter().enumerate() {
+                                    ui.selectable_value(&mut current_monitor_number, i, &monitor.name);
+                                }
+                            });
                         if current_monitor_number != settings.current_monitor_number {
                             settings.current_monitor_number = current_monitor_number;
                             settings.current_video_mode = None;
@@ -249,25 +252,26 @@ pub fn ui(
 
                         if WindowMode::Fullscreen == settings.window_mode {
                             let video_modes = &current_monitor.video_modes;
-                            let id = ui.make_persistent_id("win_video_mode_combo_box");
                             ui.label("Video mode");
                             if settings.current_video_mode.is_none() {
                                 settings.current_video_mode = Some(video_modes[0]);
                             }
                             let mut video_mode = settings.current_video_mode;
 
-                            combo_box(ui, id, format!("{}", video_mode.unwrap()), |ui| {
-                                for mode in video_modes {
-                                    ui.selectable_value(&mut video_mode, Some(*mode), mode.to_string());
-                                }
-                            });
+                            ComboBox::from_id_source("Video mode")
+                                .selected_text(format!("{:?}", video_mode.unwrap()))
+                                .show_ui(ui, |ui| {
+                                    for mode in video_modes {
+                                        ui.selectable_value(&mut video_mode, Some(*mode), mode.to_string());
+                                    }
+                                });
                             settings.current_video_mode = video_mode;
                             ui.end_row();
                         }
                     }
 
                     ui.label("");
-                    if ui.button("Apply").clicked {
+                    if ui.button("Apply").clicked() {
                         match settings.window_mode {
                             WindowMode::Fullscreen => window.set_fullscreen(
                                 Some(Fullscreen::Exclusive(settings.current_video_mode.unwrap()))
@@ -282,15 +286,17 @@ pub fn ui(
                     ui.end_row();
 
                     ui.label("Icon");
-                    let id = ui.make_persistent_id("win_icon_combo_box");
 
                     let win_icon = String::from(settings.icon.as_str());
-                    combo_box(ui, id, settings.icon.to_string(), |ui| {
-                        ui.selectable_value(&mut settings.icon, String::from("dotrix"), "Dotrix");
-                        ui.selectable_value(&mut settings.icon, String::from("lowenware"), "Lowenware");
-                        ui.selectable_value(&mut settings.icon, String::from("rustacean"), "Rustacean");
-                        ui.selectable_value(&mut settings.icon, String::from("None"), "None");
-                    });
+
+                    ComboBox::from_id_source("Icon")
+                        .selected_text(settings.icon.to_string())
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut settings.icon, String::from("dotrix"), "Dotrix");
+                            ui.selectable_value(&mut settings.icon, String::from("lowenware"), "Lowenware");
+                            ui.selectable_value(&mut settings.icon, String::from("rustacean"), "Rustacean");
+                            ui.selectable_value(&mut settings.icon, String::from("None"), "None");
+                        });
 
                     if win_icon != settings.icon {
                         if let Some(id) = settings.icons.get(&settings.icon) {
@@ -304,7 +310,7 @@ pub fn ui(
                     window.set_minimized(false);
                     ui.label("set Minimized");
                     ui.horizontal(|ui| {
-                        if ui.button("true").clicked {
+                        if ui.button("true").clicked() {
                             window.set_minimized(true);
                         }
                     });
@@ -312,10 +318,10 @@ pub fn ui(
 
                     ui.label("set Maximized");
                     ui.horizontal(|ui| {
-                        if ui.selectable_label(window.maximized(), "true").clicked {
+                        if ui.selectable_label(window.maximized(), "true").clicked() {
                             window.set_maximized(true);
                         }
-                        if ui.selectable_label(!window.maximized(), "false").clicked {
+                        if ui.selectable_label(!window.maximized(), "false").clicked() {
                             window.set_maximized(false);
                         }
                     });
@@ -323,10 +329,10 @@ pub fn ui(
 
                     ui.label("set Decorations");
                     ui.horizontal(|ui| {
-                        if ui.selectable_label(window.decorations(), "true").clicked {
+                        if ui.selectable_label(window.decorations(), "true").clicked() {
                             window.set_decorations(true);
                         }
-                        if ui.selectable_label(!window.decorations(), "false").clicked {
+                        if ui.selectable_label(!window.decorations(), "false").clicked() {
                             window.set_decorations(false);
                         }
                     });
@@ -334,10 +340,10 @@ pub fn ui(
 
                     ui.label("set Resizable");
                     ui.horizontal(|ui| {
-                        if ui.selectable_label(window.resizable(), "true").clicked {
+                        if ui.selectable_label(window.resizable(), "true").clicked() {
                             window.set_resizable(true);
                         }
-                        if ui.selectable_label(!window.resizable(), "false").clicked {
+                        if ui.selectable_label(!window.resizable(), "false").clicked() {
                             window.set_resizable(false);
                         }
                     });
@@ -345,22 +351,22 @@ pub fn ui(
 
                     ui.label("set Always on Top");
                     ui.horizontal(|ui| {
-                        if ui.selectable_label(window.always_on_top(), "true").clicked {
+                        if ui.selectable_label(window.always_on_top(), "true").clicked() {
                             window.set_always_on_top(true);
                         }
-                        if ui.selectable_label(!window.always_on_top(), "false").clicked {
+                        if ui.selectable_label(!window.always_on_top(), "false").clicked() {
                             window.set_always_on_top(false);
                         }
                     });
                     ui.end_row();
 
                     ui.label("set Min Inner Size - x");
-                    ui.add(Slider::u32(&mut settings.min_inner_size.x, 100..=window.screen_size().x)
+                    ui.add(Slider::new(&mut settings.min_inner_size.x, 100..=window.screen_size().x)
                         .text(""));
                     ui.end_row();
 
                     ui.label("set Min Inner Size - y");
-                    ui.add(Slider::u32(&mut settings.min_inner_size.y, 100..=window.screen_size().y)
+                    ui.add(Slider::new(&mut settings.min_inner_size.y, 100..=window.screen_size().y)
                         .text(""));
                     ui.end_row();
 
@@ -370,12 +376,12 @@ pub fn ui(
 
                     let mut inner_size = window.inner_size();
                     ui.label("set Inner Size - x");
-                    ui.add(Slider::u32(&mut inner_size.x, 100..=window.screen_size().x)
+                    ui.add(Slider::new(&mut inner_size.x, 100..=window.screen_size().x)
                         .text(""));
                     ui.end_row();
 
                     ui.label("set Inner Size - y");
-                    ui.add(Slider::u32(&mut inner_size.y, 100..=window.screen_size().y)
+                    ui.add(Slider::new(&mut inner_size.y, 100..=window.screen_size().y)
                         .text(""));
                     ui.end_row();
 
@@ -389,7 +395,7 @@ pub fn ui(
                     Grid::new("window_movement_grid").show(ui, |ui| {
                         ui.label("");
                         ui.vertical_centered(|ui| {
-                            if ui.button("Top").clicked {
+                            if ui.button("Top").clicked() {
                                 move_window_top(&window);
                             };
                         });
@@ -397,22 +403,22 @@ pub fn ui(
                         ui.end_row();
 
                         ui.end_row();
-                        if ui.button("Left").clicked {
+                        if ui.button("Left").clicked() {
                             move_window_left(&window);
                         };
                         ui.vertical_centered(|ui| {
-                            if ui.button("Center").clicked {
+                            if ui.button("Center").clicked() {
                                 move_window_center(&window);
                             };
                         });
-                        if ui.button("Right").clicked {
+                        if ui.button("Right").clicked() {
                             move_window_right(&window);
                         };
                         ui.end_row();
 
                         ui.label("");
                         ui.vertical_centered(|ui| {
-                            if ui.button("Bottom").clicked {
+                            if ui.button("Bottom").clicked() {
                                 move_window_bottom(&window);
                             };
                         });
@@ -429,21 +435,22 @@ pub fn ui(
                 ui.label("Click \"Search for game\" button, then switch to other program. App will request attention after 10 seconds (on windows - icon on taskbar starts blinking).");
                 Grid::new("match_finder").show(ui, |ui| {
                     ui.label("User Attention Type");
-                    let id = ui.make_persistent_id("attention_combo_box");
-                    combo_box(ui, id, format!("{:?}", match_finder.attention_type), |ui| {
-                        for a_type in [UserAttentionType::Informational, UserAttentionType::Critical].iter() {
-                            ui.selectable_value(
-                                &mut match_finder.attention_type,
-                                *a_type,
-                                format!("{:?}", a_type)
-                            );
-                        }
-                    });
+                    ComboBox::from_id_source("match_finder")
+                        .selected_text(format!("{:?}", match_finder.attention_type))
+                        .show_ui(ui, |ui| {
+                            for a_type in [UserAttentionType::Informational, UserAttentionType::Critical].iter() {
+                                ui.selectable_value(
+                                    &mut match_finder.attention_type,
+                                    *a_type,
+                                    format!("{:?}", a_type)
+                                );
+                            }
+                        });
                     ui.end_row();
 
                     match match_finder.state {
                         MatchFinderState::Idle => {
-                            if ui.button("Search for game").clicked {
+                            if ui.button("Search for game").clicked() {
                                 match_finder.start_searching();
                             }
                         },
@@ -457,7 +464,7 @@ pub fn ui(
                                 ui.label(format!("Search time: {:.0}s", search_time_secs));
                                 ui.end_row();
                             }
-                            if ui.button("Stop searching").clicked {
+                            if ui.button("Stop searching").clicked() {
                                 match_finder.stop_searching();
                             }
                         },
@@ -467,7 +474,7 @@ pub fn ui(
                             let remaining_time_secs = (until - frame.time()).as_secs_f32();
                             ui.label(format!("You have {:.0}s to enter the game!", remaining_time_secs));
                                 ui.end_row();
-                            if ui.button("Enter the game").clicked {
+                            if ui.button("Enter the game").clicked() {
                                 match_finder.stop_searching();
                             }
                         },
@@ -481,17 +488,15 @@ pub fn ui(
 
 pub fn startup(
     mut assets: Mut<Assets>,
-    mut renderer: Mut<Renderer>,
     mut settings: Mut<Settings>,
     window: Const<Window>,
 ) {
-    renderer.add_overlay(Box::new(Egui::default()));
     settings.title = String::from(window.title());
 
     // Load icons
     for name in ["dotrix", "lowenware", "rustacean"].iter() {
         settings.icons.insert(String::from(*name), assets.register::<Texture>(name));
-        assets.import(format!("examples/window/assets/{}.png", name).as_str());
+        assets.import(format!("assets/{}.png", name).as_str());
     }
 }
 

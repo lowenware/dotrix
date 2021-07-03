@@ -1,47 +1,106 @@
 //! Entity Component System
-use core::ops::{Deref, DerefMut};
 
-use crate::application::{
-    services::Services,
-    Service
-};
+use std::hash::Hash;
+
+use core::ops::{ Deref, DerefMut };
+
+use crate::application::{ Services, IntoService };
 
 /// Entity structure has only id field and represent an agregation of components
+#[derive(Eq, PartialEq, Debug, Hash, Clone, Copy)]
 pub struct Entity(u64);
+
+impl From<u64> for Entity {
+    fn from(id: u64) -> Self {
+        Entity(id)
+    }
+}
 
 /// Any data structure can be a component
 pub trait Component: Send + Sync + 'static {}
 impl<T: Send + Sync + 'static> Component for T {}
 
+/// System Priority
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Priority {
+    /// Low priority (1024)
+    Low,
+    /// Normal priority (2048)
+    Normal,
+    /// High priority (4096)
+    High,
+    /// User defined value
+    Custom(u32),
+}
+
+impl From<Priority> for u32 {
+    fn from(priority: Priority) -> u32 {
+        match priority {
+            Priority::Low => 1024,
+            Priority::Normal => 2048,
+            Priority::High => 4096,
+            Priority::Custom(value) => value,
+        }
+    }
+}
+
 /// Wrapper for system functions
-///
-/// Read [`crate::systems`] for more information
 pub struct System {
-    data: Box<dyn Systemized>,
-    run_level: RunLevel,
+    /// Boxed system data
+    pub data: Box<dyn Systemized>,
+    /// System run level
+    pub run_level: RunLevel,
 }
 
 /// Defines when and how often a system should run.
+#[derive(Debug, Eq, PartialEq)]
 pub enum RunLevel {
-    /// Before rendering stage
-    Standard,
     /// Only once on application startup
     Startup,
+    /// Begin of rendering request handling
+    Bind,
+    /// Before rendering stage
+    Standard,
     /// Rendering stage
     Render,
+    /// End of the rendering request handling
+    Release,
+    /// Execution after window resizing
+    Resize,
+}
+
+impl From<&str> for RunLevel {
+    fn from(name: &str) -> Self {
+        if name.ends_with("::startup") {
+            RunLevel::Startup
+        } else if name.ends_with("::bind") {
+            RunLevel::Bind
+        } else if name.ends_with("::render") {
+            RunLevel::Render
+        } else if name.ends_with("::release") {
+            RunLevel::Release
+        } else if name.ends_with("::resize") {
+            RunLevel::Resize
+        } else {
+            RunLevel::Standard
+        }
+    }
 }
 
 impl System {
-    /// Constructs a system from function
+    /// Constructs a system from function at default runlevel
     pub fn from<Fun, Ctx, Srv>(func: Fun) -> Self
     where
         Fun: IntoSystem<Ctx, Srv> + Sync + Send,
         Ctx: Sync + Send,
         Srv: Sync + Send,
     {
+        let data = func.into_system();
+        let run_level = RunLevel::from(data.name());
+
         Self {
-            data: func.into_system(),
-            run_level: RunLevel::Standard,
+            data,
+            run_level,
         }
     }
 
@@ -52,10 +111,6 @@ impl System {
     {
         self.set_option(option);
         self
-    }
-
-    pub(crate) fn tuple(self) -> (Box<dyn Systemized>, RunLevel) {
-        (self.data, self.run_level)
     }
 }
 
@@ -72,6 +127,13 @@ impl SystemOption<RunLevel> for System {
     }
 }
 
+/// [`RunLevel`] option implementation
+impl SystemOption<Priority> for System {
+    fn set_option(&mut self, option: Priority) {
+        self.data.set_priority(option);
+    }
+}
+
 struct SystemData<Run, Ctx> 
 where
     Run: FnMut(&mut Ctx, &mut Services) + Send + Sync,
@@ -79,14 +141,19 @@ where
     name: &'static str,
     run: Run,
     ctx: Ctx,
+    priority: Priority,
 }
 
 /// Abstraction for [`System`] prepared to be integrated into engine
 pub trait Systemized: Send + Sync {
     /// Returns name of the system
-    fn name(&mut self) -> &'static str;
+    fn name(&self) -> &'static str;
     /// Executes system cylce
     fn run(&mut self, app: &mut Services);
+    /// Returns priority of the system
+    fn priority(&self) -> Priority;
+    /// Sets priority for the system
+    fn set_priority(&mut self, priority: Priority);
 }
 
 impl<Run, Ctx> Systemized for SystemData<Run, Ctx>
@@ -94,12 +161,20 @@ where
     Run: FnMut(&mut Ctx, &mut Services) + Send + Sync,
     Ctx: SystemContext,
 {
-    fn name(&mut self) -> &'static str {
+    fn name(&self) -> &'static str {
         self.name
     }
 
     fn run(&mut self, app: &mut Services) {
         (self.run)(&mut self.ctx, app);
+    }
+
+    fn priority(&self) -> Priority {
+        self.priority
+    }
+
+    fn set_priority(&mut self, priority: Priority) {
+        self.priority = priority;
     }
 }
 
@@ -135,6 +210,7 @@ macro_rules! impl_into_system {
                         )*
                         (self)($($context,)* $($i,)*);
                     },
+                    priority: Priority::Normal,
                     ctx: ($($context::default())*),
                 };
                 Box::new(data)
@@ -202,17 +278,17 @@ where
     }
 }
 
-/// Mutable accessor for [`Service`] instance
+/// Mutable accessor for [`IntoService`] instance
 pub struct Mut<T>
 where
-    T: Service
+    T: IntoService
 {
     value: *mut T,
 }
 
 impl<T> Deref for Mut<T>
 where
-    T: Service,
+    T: IntoService,
 {
     type Target = T;
     fn deref(&self) -> &Self::Target {
@@ -224,7 +300,7 @@ where
 
 impl<T> DerefMut for Mut<T>
 where
-    T: Service,
+    T: IntoService,
 {
     fn deref_mut(&mut self) -> &mut T {
         unsafe {
@@ -233,17 +309,17 @@ where
     }
 }
 
-unsafe impl<T: Service> Send for Mut<T> {}
-unsafe impl<T: Service> Sync for Mut<T> {}
+unsafe impl<T: IntoService> Send for Mut<T> {}
+unsafe impl<T: IntoService> Sync for Mut<T> {}
 
-/// Imutable accessor for [`Service`] instance
+/// Imutable accessor for a Service instance
 pub struct Const<T> {
     value: *const T,
 }
 
 impl<T> Deref for Const<T>
 where
-    T: Service,
+    T: IntoService,
 {
     type Target = T;
     fn deref(&self) -> &Self::Target {
@@ -253,20 +329,20 @@ where
     }
 }
 
-unsafe impl<T: Service> Send for Const<T> {}
-unsafe impl<T: Service> Sync for Const<T> {}
+unsafe impl<T: IntoService> Send for Const<T> {}
+unsafe impl<T: IntoService> Sync for Const<T> {}
 
-/// Abstraction to access [`Service`] in their storage
+/// Abstraction to access Service in the storage
 pub trait Accessor: Send + Sync {
-    /// Type of [`Service`] to be accessed
-    type Item: Service;
-    /// Fetches the [`Service`] from the storage
+    /// Type of Service to be accessed
+    type Item: IntoService;
+    /// Fetches the Service from the storage
     fn fetch(services: &mut Services) -> Self;
 }
 
 impl<T> Accessor for Mut<T>
 where
-    T: Service,
+    T: IntoService,
 {
     type Item = T;
     fn fetch(services: &mut Services) -> Self {
@@ -280,7 +356,7 @@ where
 
 impl<T> Accessor for Const<T>
 where
-    T: Service,
+    T: IntoService,
 {
     type Item = T;
     fn fetch(service: &mut Services) -> Self {
@@ -295,12 +371,8 @@ where
 #[cfg(test)]
 mod tests {
     use crate::{
-        application::services::Services,
-        ecs::{
-            Context,
-            System,
-            Mut,
-        },
+        application::Services,
+        ecs::{ Context, System, Const, Mut, RunLevel },
         world::World,
     };
 
@@ -339,4 +411,30 @@ mod tests {
         assert_eq!(services.get::<MyService>().unwrap().data, 0);
     }
 
+    fn startup(_service: Const<MyService>) {}
+    fn bind(_service: Const<MyService>) {}
+    fn render(_service: Const<MyService>) {}
+    fn release(_service: Const<MyService>) {}
+    fn resize(_service: Const<MyService>) {}
+
+    #[test]
+    fn system_runlevel_autodetect() {
+        let system = System::from(startup);
+        assert_eq!(system.run_level, RunLevel::Startup);
+
+        let system = System::from(bind);
+        assert_eq!(system.run_level, RunLevel::Bind);
+
+        let system = System::from(render);
+        assert_eq!(system.run_level, RunLevel::Render);
+
+        let system = System::from(release);
+        assert_eq!(system.run_level, RunLevel::Release);
+
+        let system = System::from(resize);
+        assert_eq!(system.run_level, RunLevel::Resize);
+
+        let system = System::from(my_system_with_context);
+        assert_eq!(system.run_level, RunLevel::Standard);
+    }
 }

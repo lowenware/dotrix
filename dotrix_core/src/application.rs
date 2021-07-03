@@ -1,6 +1,6 @@
-pub mod services;
-
 use std::{
+    any::TypeId,
+    collections::HashMap,
     time::{ Duration, Instant },
 };
 
@@ -12,15 +12,10 @@ use winit::{
 
 use crate::{
     assets::Assets,
-    ecs::System,
-    frame::Frame,
-    input::Input,
-    renderer::Renderer,
-    scheduler::Scheduler,
+    ecs::{ RunLevel, System, Systemized },
     window::Window,
+    input::Input,
 };
-
-use services::Services;
 
 /// Application data to maintain the process
 ///
@@ -29,8 +24,6 @@ pub struct Application {
     name: &'static str,
     scheduler: Scheduler,
     services: Services,
-    clear_color: [f64; 4],
-    fullscreen: bool,
 }
 
 impl Application {
@@ -40,15 +33,7 @@ impl Application {
             name,
             scheduler: Scheduler::new(),
             services: Services::new(),
-            clear_color: [0.1, 0.2, 0.3, 1.0],
-            fullscreen: false,
         }
-    }
-
-    /// Sets parameters for rendering output
-    pub fn set_display(&mut self, clear_color: [f64; 4], fullscreen: bool) {
-        self.clear_color = clear_color;
-        self.fullscreen = fullscreen;
     }
 
     /// Adds a system to the [`Application`]
@@ -57,12 +42,12 @@ impl Application {
     }
 
     /// Adds a service to the [`Application`]
-    pub fn add_service<T: Service>(&mut self, service: T) {
+    pub fn add_service<T: IntoService>(&mut self, service: T) {
         self.services.add(service);
     }
 
     /// Returns a service of the [`Application`]
-    pub fn service<T: Service>(&mut self) -> &mut T
+    pub fn service<T: IntoService>(&mut self) -> &mut T
     {
         self.services.get_mut::<T>().expect("Application services does not exist")
     }
@@ -79,26 +64,46 @@ impl Application {
     }
 }
 
+/// Service wrapper
+pub struct Service<T> {
+    /// Service instance
+    pub node: T
+}
+
+impl<T: IntoService> Service<T> {
+    /// Wraps service data
+    pub fn from(node: T) -> Self
+    {
+        Service {
+            node
+        }
+    }
+}
+
 /// Service abstraction
 ///
 /// More info about [`crate::services`]
-pub trait Service: Send + Sync + 'static {}
-impl<T: Send + Sync + 'static> Service for T {}
+pub trait IntoService: Sized + Send + Sync + 'static {
+    /// Constructs wrapped service
+    fn service(self) -> Service<Self> {
+        Service {
+            node: self
+        }
+    }
+}
+impl<T: Sized + Send + Sync + 'static> IntoService for T {}
 
 /// Application run cycle
 fn run(
     event_loop: EventLoop<()>,
-    window: WinitWindow,
+    winit_window: WinitWindow,
     Application {
-        clear_color,
         name,
         mut scheduler,
         mut services,
         ..
     }: Application
 ) {
-    // initalize WGPU and surface
-    let (adapter, device, queue, surface) = futures::executor::block_on(init_surface(&window));
 
     let (mut pool, _spawner) = {
         let local_pool = futures::executor::LocalPool::new();
@@ -107,19 +112,16 @@ fn run(
     };
     let mut last_update_inst = Instant::now();
 
-    // Window service
-    let mut win_service = Window::new(window);
-    win_service.set_title(name);
-    services.add(win_service);
+    // !!! DO NOT CREATE SERVICES HERE !!!
 
-    // Renderer service
-    services.add(Renderer::new(adapter, device, queue, surface, services.get::<Window>().unwrap() ,clear_color));
+    if let Some(window) = services.get_mut::<Window>() {
+        window.set(winit_window);
+        window.set_title(name);
+    }
 
     scheduler.run_startup(&mut services);
 
     event_loop.run(move |event, _, control_flow| {
-        // TODO: other possibilities?
-        // *control_flow = ControlFlow::Poll;
         *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(10));
 
         if let Some(input) = services.get_mut::<Input>() {
@@ -144,74 +146,141 @@ fn run(
                 }
                 pool.run_until_stalled();
             }
-            Event::WindowEvent {
-                event: WindowEvent::Resized(size),
-                ..
-            } => {
-                // Recreate the swap chain with the new size
-                if let Some(renderer) = services.get_mut::<Renderer>() {
-                    renderer.resize(size.width, size.height)
-                }
+            Event::WindowEvent { event: WindowEvent::Resized(_), .. } => {
+                scheduler.run_resize(&mut services);
             }
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => {
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                 *control_flow = ControlFlow::Exit;
             },
             Event::RedrawRequested(_) => {
-                if let Some(frame) = services.get_mut::<Frame>() {
-                    frame.next();
-                }
+                // if let Some(frame) = services.get_mut::<Frame>() {
+                //    frame.next();
+                // }
+                scheduler.run_bind(&mut services);
                 scheduler.run_standard(&mut services);
-                if let Some(renderer) = services.get_mut::<Renderer>() {
-                    renderer.next_frame();
-                }
+                // if let Some(renderer) = services.get_mut::<Renderer>() {
+                //     renderer.next_frame();
+                // }
                 scheduler.run_render(&mut services);
-                if let Some(renderer) = services.get_mut::<Renderer>() {
-                    renderer.finalize();
-                }
-                if let Some(input) = services.get_mut::<Input>() {
-                    input.reset();
-                }
+                scheduler.run_release(&mut services);
+                // if let Some(renderer) = services.get_mut::<Renderer>() {
+                //     renderer.finalize();
+                // }
+                // if let Some(input) = services.get_mut::<Input>() {
+                //     input.reset();
+                // }
             }
             _ => {}
         }
     });
 }
 
+/// Services manager
+pub struct Services {
+    storage: HashMap<TypeId, Box<dyn std::any::Any>>,
+}
 
-async fn init_surface(
-    window: &WinitWindow
-) -> (
-    wgpu::Adapter,
-    wgpu::Device,
-    wgpu::Queue,
-    wgpu::Surface,
-) {
-    let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
-    let surface = unsafe { instance.create_surface(window) };
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
-            // Request an adapter which can render to our surface
-            compatible_surface: Some(&surface),
-        })
-        .await
-        .expect("Failed to find an appropiate adapter");
+impl Services {
 
-    // Create the logical device and command queue
-    let (device, queue) = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: None,
-                features: wgpu::Features::empty(),
-                limits: wgpu::Limits::default(),
-            },
-            None, // Some(&std::path::Path::new("./wgpu-trace/")),
-        )
-        .await
-        .expect("Failed to create device");
+    pub(crate) fn new() -> Self {
+        Self {
+            storage: HashMap::new(),
+        }
+    }
 
-    ( adapter, device, queue, surface )
+    pub(crate) fn add<T: IntoService>(&mut self, service: T) {
+        self.storage.insert(TypeId::of::<T>(), Box::new(service));
+    }
+
+    pub(crate) fn get<T: IntoService>(&self) -> Option<&T> {
+        self.storage
+            .get(&TypeId::of::<T>())
+            .map(|srv| srv.downcast_ref::<T>().unwrap())
+    }
+
+    pub(crate) fn get_mut<T: IntoService>(&mut self) -> Option<&mut T> {
+        self.storage
+            .get_mut(&TypeId::of::<T>())
+            .map(|srv| srv.downcast_mut::<T>().unwrap())
+    }
+}
+
+/// Systems scheduler
+struct Scheduler {
+    render: Vec<Box<dyn Systemized>>,
+    standard: Vec<Box<dyn Systemized>>,
+    startup: Vec<Box<dyn Systemized>>,
+    bind: Vec<Box<dyn Systemized>>,
+    release: Vec<Box<dyn Systemized>>,
+    resize: Vec<Box<dyn Systemized>>,
+}
+
+impl Scheduler {
+    pub fn new() -> Self {
+        Self {
+            render: Vec::new(),
+            standard: Vec::new(),
+            startup: Vec::new(),
+            bind: Vec::new(),
+            release: Vec::new(),
+            resize: Vec::new(),
+        }
+    }
+
+    pub fn add(&mut self, system: System) {
+
+        let System { data, run_level } = system;
+
+        let storage = match run_level {
+            RunLevel::Render => &mut self.render,
+            RunLevel::Standard => &mut self.standard,
+            RunLevel::Startup => &mut self.startup,
+            RunLevel::Bind => &mut self.bind,
+            RunLevel::Release => &mut self.release,
+            RunLevel::Resize => &mut self.resize,
+        };
+
+        storage.push(data);
+        storage.sort_by(|s1, s2| {
+            let p1: u32 = s1.priority().into();
+            let p2: u32 = s2.priority().into();
+            p2.cmp(&p1)
+        });
+    }
+
+    pub fn run_render(&mut self, services: &mut Services) {
+        for system in &mut self.render {
+            system.run(services);
+        }
+    }
+
+    pub fn run_standard(&mut self, services: &mut Services) {
+        for system in &mut self.standard {
+            system.run(services);
+        }
+    }
+
+    pub fn run_startup(&mut self, services: &mut Services) {
+        for system in &mut self.startup {
+            system.run(services);
+        }
+    }
+
+    pub fn run_bind(&mut self, services: &mut Services) {
+        for system in &mut self.bind {
+            system.run(services);
+        }
+    }
+
+    pub fn run_release(&mut self, services: &mut Services) {
+        for system in &mut self.release {
+            system.run(services);
+        }
+    }
+
+    pub fn run_resize(&mut self, services: &mut Services) {
+        for system in &mut self.resize {
+            system.run(services);
+        }
+    }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "dotrix_core"
-version = "0.3.0"
+version = "0.5.0"
 authors = [
   "Elias Kartashov <elias@lowenware.com>",
   "Štěpán Wünsch <sw@lowenware.com>",
@@ -54,9 +54,7 @@ features = ["trace"]
 version = "0.1.0"
 
 [dependencies.winit]
-git = "https://github.com/rust-windowing/winit/"
-rev = "ba704c4eb49638da7516250d26adee35ee0bc9a4"
-# TODO: update winit to version 0.25 when released
+version = "0.25.0"
 features = ["serde"]
 
 # Optional dependencies
