@@ -1,10 +1,7 @@
 //! Input service, ray casting service and utils
-mod ray;
-
+use crate::ecs::Mut;
 use dotrix_math::{Vec2, clamp};
 use std::collections::HashMap;
-
-pub use ray::{ Ray, mouse_ray };
 
 use winit::event::{
     ElementState,
@@ -84,21 +81,20 @@ pub struct Input {
     pub modifiers: Modifiers,
 }
 
-impl Input {
-    /// Service constructor from [`ActionMapper`]
-    pub fn new(mapper: Box<dyn std::any::Any + Send + Sync>) -> Self {
-        Self {
-            mapper,
-            states: HashMap::new(),
-            mouse_scroll_delta: 0.0,
-            mouse_position: None,
-            mouse_delta: Vec2::new(0.0, 0.0),
-            window_size: Vec2::new(0.0, 0.0),
-            events: Vec::with_capacity(8),
-            modifiers: Modifiers::empty()
-        }
-    }
+/// Sample input Actions enumeration
+#[derive(Hash, Eq, PartialEq, Clone, Copy)]
+pub enum Action {
+    /// Move forward
+    MoveForward,
+    /// Move Backward
+    MoveBackward,
+    /// Move Left
+    MoveLeft,
+    /// Move Right
+    MoveRight
+}
 
+impl Input {
     /// Returns the status of the mapped action.
     pub fn action_state<T>(&self, action: T) -> Option<State>
     where
@@ -149,6 +145,11 @@ impl Input {
         self.action_state(action)
             .map(|state| state == State::Hold || state == State::Activated)
             .unwrap_or(false)
+    }
+
+    /// Set custom [`ActionMapper`]
+    pub fn set_mapper(&mut self, mapper: Box<dyn std::any::Any + Send + Sync>) {
+        self.mapper = mapper;
     }
 
     /// Get input mapper reference
@@ -225,7 +226,7 @@ impl Input {
                 WindowEvent::MouseInput { state, button, .. } =>
                     self.on_mouse_click_event(*state, *button),
                 WindowEvent::CursorMoved { position, .. } => self.on_cursor_moved_event(position),
-                WindowEvent::MouseWheel { delta, .. } => self.on_mouse_wheel_event(&delta),
+                WindowEvent::MouseWheel { delta, .. } => self.on_mouse_wheel_event(delta),
                 WindowEvent::Resized(size) =>
                     self.window_size = Vec2::new(size.width as f32, size.height as f32),
                 WindowEvent::ModifiersChanged(input) => self.modifiers = *input,
@@ -306,79 +307,30 @@ impl Input {
     }
 }
 
+impl Default for Input {
+    /// [`Input`] service constructor
+    fn default() -> Self {
+        let mapper = Box::new(Mapper::<Action>::new());
+        Self {
+            mapper,
+            states: HashMap::new(),
+            mouse_scroll_delta: 0.0,
+            mouse_position: None,
+            mouse_delta: Vec2::new(0.0, 0.0),
+            window_size: Vec2::new(0.0, 0.0),
+            events: Vec::with_capacity(8),
+            modifiers: Modifiers::empty()
+        }
+    }
+}
+
 /// Game action to input mapping
 pub trait ActionMapper<T: Copy + Eq + std::hash::Hash> {
     /// Checks if action is mapped and returns an appropriate button
     fn action_mapped(&self, action: T) -> Option<&Button>;
 }
 
-/// Default implementation of [`ActionMapper`]
-///
-/// It is quite flexible and should be enough for many use cases. To use it, you need to prepare
-/// enumeration of actions for your game. Once initialized and [`Input`] service constructed,
-/// all you need is to populate the mappings.
-///
-/// ## Example
-///
-/// ```no_run
-/// use dotrix_core::{
-///     Dotrix,
-///     ecs::{ Const, Mut, RunLevel, System },
-///     input::{ ActionMapper, Button, Mapper, KeyCode },
-///     services::Input,
-/// };
-///
-/// #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-/// pub enum Action {
-///     MoveForward,
-///     MoveBackward,
-///     MoveLeft,
-///     MoveRight,
-/// }
-///
-/// fn main() {
-///     Dotrix::application("My Game")
-///         .with_service(Input::new(Box::new(Mapper::<Action>::new())))
-///         .with_system(System::from(startup).with(RunLevel::Startup))
-///         .with_system(System::from(test_inputs))
-///         .run();
-/// }
-///
-/// // Initialize mappings
-/// fn startup(mut input: Mut<Input>) {
-///     input.mapper_mut::<Mapper<Action>>()
-///         .set(vec![
-///             (Action::MoveForward, Button::Key(KeyCode::W)),
-///             (Action::MoveBackward, Button::Key(KeyCode::S)),
-///             (Action::MoveLeft, Button::Key(KeyCode::A)),
-///             (Action::MoveRight, Button::Key(KeyCode::D)),
-///         ]);
-/// }
-///
-/// // handle inputs in system
-/// fn test_inputs(input: Const<Input>) {
-///     if input.is_action_hold(Action::MoveForward) {
-///         println!("Move Forward");
-///     }
-///     if input.is_action_hold(Action::MoveBackward) {
-///         println!("Move Backward");
-///     }
-///     if input.is_action_hold(Action::MoveLeft) {
-///         println!("Move Left");
-///     }
-///     if input.is_action_hold(Action::MoveRight) {
-///         println!("Move Right");
-///     }
-/// }
-///
-/// // Turn Input service into a Mapper
-/// impl ActionMapper<Action> for Input {
-///     fn action_mapped(&self, action: Action) -> Option<&Button> {
-///         let mapper = self.mapper::<Mapper<Action>>();
-///         mapper.get_button(action)
-///     }
-/// }
-/// ```
+/// Standard Mapper
 pub struct Mapper<T> {
     map: HashMap<T, Button>,
 }
@@ -443,4 +395,9 @@ fn is_printable(chr: char) -> bool {
         || ('\u{100000}'..='\u{10fffd}').contains(&chr);
 
     !is_in_private_use_area && !chr.is_ascii_control()
+}
+
+/// Input release system
+pub fn release(mut input: Mut<Input>) {
+    input.reset();
 }

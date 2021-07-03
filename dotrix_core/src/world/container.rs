@@ -1,5 +1,5 @@
 use std::{
-    any::{Any, TypeId},
+    any::{ Any, TypeId },
     collections::HashMap,
 };
 
@@ -7,7 +7,25 @@ use super::Archetype;
 use crate::ecs::Component;
 
 pub struct Container {
-    components: HashMap<TypeId, Box<dyn Any>>,
+    components: HashMap<TypeId, Box<dyn Stripe>>,
+}
+
+trait Stripe: Any {
+    fn remove_by_index(&mut self, index: usize);
+    fn as_any_ref(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+impl<T: 'static> Stripe for Vec<T> {
+    fn remove_by_index(&mut self, index: usize) {
+        self.remove(index);
+    }
+    fn as_any_ref(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
 
 impl Container {
@@ -21,16 +39,8 @@ impl Container {
 
     pub fn push<T: Component>(&mut self, component: T) {
         if let Some(v) = self.components.get_mut(&TypeId::of::<T>()) {
-            v.downcast_mut::<Vec<T>>().unwrap().push(component)
+            v.as_any_mut().downcast_mut::<Vec<T>>().unwrap().push(component)
         }
-        /* TODO: remove this:
-        self.components
-            .get_mut(&TypeId::of::<T>())
-            .map(|v| {
-                v.downcast_mut::<Vec<T>>()
-                    .unwrap()
-                    .push(component)
-            });*/
     }
 
     pub fn init<T: Component>(&mut self) {
@@ -44,7 +54,7 @@ impl Container {
             .get(&TypeId::of::<T>())
             .map(|v| {
                 unsafe {
-                    let vec_ref = v.downcast_ref::<Vec<T>>().unwrap();
+                    let vec_ref = v.as_any_ref().downcast_ref::<Vec<T>>().unwrap();
                     let vec_ptr = vec_ref as *const Vec<T>;
                     let mut_ptr = vec_ptr as *mut Vec<T>;
                     &mut *mut_ptr
@@ -57,26 +67,8 @@ impl Container {
     {
         self.components
             .get(&TypeId::of::<T>())
-            .map(|v| v.downcast_ref::<Vec<T>>().unwrap())
+            .map(|v| v.as_any_ref().downcast_ref::<Vec<T>>().unwrap())
     }
-
-    /*
-    pub fn select<A, B, C>(&mut self) -> (std::slice::Iter<A>, std::slice::IterMut<B>, std::slice::IterMut<C>)
-    where
-        A: Component,
-        B: Component,
-        C: Component,
-    {
-        self.components.into_iter()
-            .filter(|k| k.0 == TypeId::of::<A>() || k.0 == TypeId::of::<C>() || k.0 == TypeId::of::<B>())
-            .map(|v| match v.0 {
-                TypeId::of::<A>() => v.1.downcast_mut::<Vec<A>>().unwrap(),
-                TypeId::of::<B>() => v.1.downcast_mut::<Vec<B>>().unwrap(),
-                TypeId::of::<C>() => v.1.downcast_mut::<Vec<C>>().unwrap(),
-            })
-            .flatten()
-    }
-    */
 
     pub fn has(&self, key: TypeId) -> bool {
         self.components.contains_key(&key)
@@ -84,6 +76,12 @@ impl Container {
 
     pub fn len(&self) -> usize {
         self.components.len()
+    }
+
+    pub fn remove(&mut self, index: usize) {
+        for stripe in self.components.values_mut() {
+            stripe.remove_by_index(index);
+        }
     }
 }
 

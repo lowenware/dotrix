@@ -1,10 +1,7 @@
-use dotrix::{
-    ecs::{ Const, Mut },
-    input::{ Button, State as InputState },
-    math::{ Vec2 },
-    services::{ Camera, Frame, Input, Window },
-    systems::camera_control,
-};
+use dotrix::prelude::*;
+use dotrix::{ Camera, Frame, Input, Window };
+use dotrix::input::{ Button, State as InputState };
+use dotrix::math::{ Vec2 };
 
 pub struct CameraMemory {
     cursor_position: Vec2,
@@ -34,7 +31,7 @@ pub fn camera_update(
                 window.set_cursor_visible(false);
             },
             InputState::Hold => {
-                camera_control(camera, input, frame);
+                dotrix::camera::control(camera, input, frame);
             },
             InputState::Deactivated => {
                 window.set_cursor_position(memory.cursor_position);

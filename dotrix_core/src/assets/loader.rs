@@ -1,3 +1,4 @@
+//! Assets loader
 use std::{
     fs::File,
     path::PathBuf,
@@ -11,6 +12,7 @@ use super::{
     animation::Animation,
     mesh::Mesh,
     skin::Skin,
+    shader::Shader,
     texture::Texture,
     load_gltf::load_gltf,
 };
@@ -47,6 +49,8 @@ pub enum Response {
     Texture(Asset<Texture>),
     /// Mesh asset loaded
     Mesh(Asset<Mesh>),
+    /// Sshader asset loaded
+    Shader(Asset<Shader>),
     /// Skin asset loaded
     Skin(Asset<Skin>),
 }
@@ -130,6 +134,7 @@ fn import_resource(
                 buffer,
                 image::ImageFormat::from_extension(extension).unwrap(),
             ),
+            "wgsl" => load_wgsl(sender, name, buffer),
             "gltf" | "gltb" => load_gltf(sender, name, buffer, &task.path),
             _ => Err(ImportError::NotImplemented("extension", None)),
         }
@@ -163,6 +168,24 @@ pub(crate) fn load_image(
     sender.lock().unwrap().send(Response::Texture(texture)).unwrap();
     Ok(())
 }
+
+pub(crate) fn load_wgsl(
+    sender: &Arc<Mutex<mpsc::Sender<Response>>>,
+    name: String,
+    data: Vec<u8>,
+) -> Result<(), ImportError> {
+    let shader = Asset {
+        name: String::from(&name),
+        asset: Box::new(Shader {
+            name,
+            code: String::from_utf8_lossy(&data).to_string(),
+            ..Default::default()
+        })
+    };
+    sender.lock().unwrap().send(Response::Shader(shader)).unwrap();
+    Ok(())
+}
+
 
 impl std::error::Error for ImportError {}
 

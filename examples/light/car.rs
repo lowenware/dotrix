@@ -1,21 +1,12 @@
-use dotrix::{
-    assets::{ Mesh, Texture },
-    components::{ Model, PointLight, SpotLight },
-    ecs::{ Const, Mut },
-    math::{ Vec3 },
-    renderer::{ Color },
-    services::{ Assets, Frame, World },
-};
-use std::vec;
+use dotrix::{ Assets, Color, Frame, World };
+use dotrix::assets::{ Mesh, Texture };
+use dotrix::ecs::{ Const, Mut };
+use dotrix::pbr::{ self, Light };
+use dotrix::math::{ Vec3 };
+
+use crate::settings::Settings;
 
 pub struct CarLight;
-
-#[derive(Clone)]
-pub struct CarSettings {
-    pub animate: bool,
-    pub point_lights: bool,
-    pub spot_lights: bool,
-}
 
 struct LightController {
     increasing: bool,
@@ -25,9 +16,9 @@ struct LightController {
     speed: f32,
 }
 
-pub fn init(mut world: Mut<World>, mut assets: Mut<Assets>) {
+pub fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
 
-    assets.import("examples/light/assets/car.gltf");
+    assets.import("assets/models/car.gltf");
     let car_mesh = assets.register::<Mesh>("car::mesh");
     // In real game, use one shared mesh with different transform
     let wh1_mesh = assets.register::<Mesh>("car::wheel-1::mesh");
@@ -37,27 +28,24 @@ pub fn init(mut world: Mut<World>, mut assets: Mut<Assets>) {
     let texture = assets.register::<Texture>("car::texture");
 
     world.spawn(vec![
-        ( Model { mesh: car_mesh, texture, ..Default::default() }, ),
-        ( Model { mesh: wh1_mesh, texture, ..Default::default() }, ),
-        ( Model { mesh: wh2_mesh, texture, ..Default::default() }, ),
-        ( Model { mesh: wh3_mesh, texture, ..Default::default() }, ),
-        ( Model { mesh: wh4_mesh, texture, ..Default::default() }, ),
-    ],);
-
-    world.spawn(Some((CarSettings {
-        animate: true,
-        point_lights: true,
-        spot_lights: true,
-    },)));
+        (pbr::solid::Entity { mesh: car_mesh, texture, ..Default::default() }).tuple(),
+        (pbr::solid::Entity { mesh: wh1_mesh, texture, ..Default::default() }).tuple(),
+        (pbr::solid::Entity { mesh: wh2_mesh, texture, ..Default::default() }).tuple(),
+        (pbr::solid::Entity { mesh: wh3_mesh, texture, ..Default::default() }).tuple(),
+        (pbr::solid::Entity { mesh: wh4_mesh, texture, ..Default::default() }).tuple(),
+    ]);
 
     // Spawn lights
     world.spawn(vec![
         (
-            PointLight {
+            Light::Point {
                 position: Vec3::new(0.28, 1.7, 0.487),
                 color: Color::rgb(0.0, 0.25, 0.94),
                 intensity: 3.0,
-                ..Default::default()
+                constant: 1.0,
+                linear: 0.35,
+                quadratic: 0.44,
+                enabled: true,
             },
             CarLight {},
             LightController {
@@ -69,11 +57,14 @@ pub fn init(mut world: Mut<World>, mut assets: Mut<Assets>) {
             },
         ),
         (
-            PointLight {
+            Light::Point {
                 position: Vec3::new(0.28, 1.7, -0.487),
                 color: Color::rgb(0.94, 0.0, 0.25),
                 intensity: 3.0,
-                ..Default::default()
+                constant: 1.0,
+                linear: 0.35,
+                quadratic: 0.44,
+                enabled: true,
             },
             CarLight {},
             LightController {
@@ -88,74 +79,71 @@ pub fn init(mut world: Mut<World>, mut assets: Mut<Assets>) {
 
     world.spawn(vec![
         (
-            SpotLight {
+            Light::Spot {
                 position: Vec3::new(-1.4, 0.68, 0.58),
                 direction: Vec3::new(-45.0, -5.0, 0.0),
                 color: Color::white(),
                 intensity: 0.9,
                 cut_off: 0.8,
                 outer_cut_off: 0.58,
-                ..Default::default()
+                enabled: true,
             },
             CarLight {},
         ),
         (
-            SpotLight {
+            Light::Spot {
                 position: Vec3::new(-1.4, 0.68, -0.58),
                 direction: Vec3::new(-45.0, -5.0, 0.0),
                 color: Color::white(),
                 intensity: 0.9,
                 cut_off: 0.8,
                 outer_cut_off: 0.58,
-                ..Default::default()
+                enabled: true,
             },
             CarLight {},
         ),
     ],);
 }
 
-pub fn update(world: Mut<World>, frame: Const<Frame>) {
+pub fn update(world: Mut<World>, frame: Const<Frame>, settings: Const<Settings>) {
 
-    // Get car settings
-    let mut query = world.query::<(&mut CarSettings,)>();
+    if settings.car.animate {
+        animate_lights(&world, &frame);
+    }
 
-    if let Some((settings,)) = query.next() {
-        // Light animation
-        if settings.animate {
-            animate_lights(&world, &frame);
-        }
-
-        // Enable/disable point lights
-        let query = world.query::<(&mut PointLight, &CarLight,)>();
-        for (point_lights, _) in query {
-            point_lights.enabled = settings.point_lights;
-        }
-
-        // Enable/disable spot lights
-        let query = world.query::<(&mut SpotLight, &CarLight,)>();
-        for (spot_light, _) in query {
-            spot_light.enabled = settings.spot_lights;
+    // Enable/disable point lights
+    let query = world.query::<(&mut Light, &CarLight,)>();
+    for (light, _) in query {
+        match light {
+            Light::Point { enabled, .. } => *enabled = settings.car.point_lights,
+            Light::Spot { enabled, .. } => *enabled = settings.car.spot_lights,
+            _ => continue
         }
     }
 }
 
 fn animate_lights(world: &World, frame: &Frame) {
-    let query = world.query::<(&mut PointLight, &mut LightController,)>();
+    let query = world.query::<(&mut Light, &mut LightController,)>();
     for (light, c) in query {
-        if c.increasing {
-            c.current += c.speed * frame.delta().as_secs_f32();
-        } else {
-            c.current -= c.speed * frame.delta().as_secs_f32();
-        }
+        match light {
+            Light::Point{ intensity, .. } => {
+                if c.increasing {
+                    c.current += c.speed * frame.delta().as_secs_f32();
+                } else {
+                    c.current -= c.speed * frame.delta().as_secs_f32();
+                }
 
-        if c.current > c.max {
-            c.current = c.max;
-            c.increasing = !c.increasing;
-        } else if c.current < c.min {
-            c.current = c.min;
-            c.increasing = !c.increasing;
-        }
+                if c.current > c.max {
+                    c.current = c.max;
+                    c.increasing = !c.increasing;
+                } else if c.current < c.min {
+                    c.current = c.min;
+                    c.increasing = !c.increasing;
+                }
 
-        light.intensity = c.current;
+                *intensity = c.current;
+            },
+            _ => continue
+        }
     }
 }

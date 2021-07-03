@@ -1,0 +1,19 @@
+[package]
+name = "dotrix_sky"
+version = "0.1.0"
+authors = ["Elias Kartashov <elias@lowenware.com>"]
+edition = "2018"
+
+description = "Sky for Dotrix 3D Game Engine"
+license = "MIT"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dotrix_core = { version = "0.5", path = "../dotrix_core" }
+dotrix_math = { version = "0.3", path = "../dotrix_math" }
+
+[dependencies.bytemuck]
+version = "1.4"
+features = ["derive"]
+

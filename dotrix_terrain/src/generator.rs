@@ -1,29 +1,37 @@
-use noise::{ Fbm, Seedable, MultiFractal, NoiseFn, Perlin };
-use num;
+use noise::{ NoiseFn, Perlin };
 use crate::Heightmap;
 
-use rand::{ Rng, SeedableRng, RngCore };
+use rand::{ SeedableRng, RngCore };
 use rand::rngs::SmallRng;
 
+/// Noise configuration
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
 pub struct Noise {
+    /// Noise frequency
     pub frequency: f32,
+    /// Number of octaves
     pub octaves: usize,
+    /// Noise persistence
     pub persistence: f32,
+    /// Noise Lacunarity
     pub lacunarity: f32,
+    /// Noise scale
     pub scale: f32,
+    /// Offset of the noise sampling
     pub offset: [f32; 2],
+    /// Noise seed
     pub seed: u32,
 }
 
 impl Noise {
+    /// Returns noise map of values
     pub fn map(&self, size: usize) -> Vec<f32> {
         let mut map = Vec::with_capacity(size * size);
         let noise = Perlin::new();
 
         let mut max_noise_height = 0.0;
         let mut amplitude = 1.0;
-        let mut frequency = 1.0; //self.frequency;
+        let mut frequency;
 
         let mut pseudo_rng = SmallRng::seed_from_u64(self.seed as u64);
 
@@ -36,14 +44,6 @@ impl Noise {
                 Self::randomize_offset(self.offset[1], &mut pseudo_rng)
             ]
         }).collect::<Vec<_>>();
-        /*
-            .set_octaves(self.octaves)
-            .set_frequency(self.frequency)
-            .set_lacunarity(self.lacunarity)
-            .set_persistence(self.persistence)
-            .set_seed(self.seed)
-            ;
-        */
 
         let mut min_noise_height = 0.0;
         let mut max_noise_height = 0.0;
@@ -56,11 +56,11 @@ impl Noise {
                 amplitude = 1.0;
                 frequency = 1.0;
 
-                for octave in 0..self.octaves {
-                    let xf = (x as f32 - half_size + octaves_offsets[octave][0])
+                for octave_offset in octaves_offsets.iter() {
+                    let xf = (x as f32 - half_size + octave_offset[0])
                         / self.scale
                         * frequency;
-                    let zf = (z as f32 - half_size + octaves_offsets[octave][1])
+                    let zf = (z as f32 - half_size + octave_offset[1])
                         / self.scale
                         * frequency;
 
@@ -87,8 +87,8 @@ impl Noise {
         let delta = max_noise_height - min_noise_height;
         let offset = min_noise_height + delta / 2.0;
 
-        for i in 0..map.len() {
-            map[i] = map[i] / delta - offset;
+        for m in &mut map {
+            *m = *m / delta - offset;
         }
 
         map
@@ -113,6 +113,7 @@ impl Default for Noise {
     }
 }
 
+/// Falloff settings
 #[derive(Clone, Copy)]
 pub struct Falloff {
     /// How rough should fall off
@@ -122,6 +123,7 @@ pub struct Falloff {
 }
 
 impl Falloff {
+    /// Returns falloff map
     pub fn map(&self, size: usize) -> Vec<f32> {
         let mut map = Vec::with_capacity(size * size);
         for x in 0..size {
@@ -153,9 +155,13 @@ impl Default for Falloff {
 /// Terrain heights generator from Pelin noise
 #[derive(Default)]
 pub struct Generator {
+    /// Amplitude of the heights generation
     pub amplitude: f32,
+    /// Size of the heightmap
     pub size: usize,
+    /// Noisemap values
     pub noise_map: Option<Vec<f32>>,
+    /// Falloff values
     pub falloff_map: Option<Vec<f32>>,
 }
 

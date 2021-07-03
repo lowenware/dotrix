@@ -1,3 +1,5 @@
+//! Generic asset resource
+
 /// Data structure representing an asset file
 pub struct Resource {
     name: String,

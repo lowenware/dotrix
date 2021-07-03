@@ -3,6 +3,7 @@ mod container;
 use std::{
     any::TypeId,
     vec::Vec,
+    collections::HashMap,
     marker::PhantomData
 };
 
@@ -10,30 +11,17 @@ use container::Container;
 
 use crate::{
     count,
-    ecs::Component,
+    ecs::{ Component, Entity },
     recursive,
 };
 
 
 /// Service to store and manage entities
-///
-/// To enable entities management in your game, add the service service using [`crate::Dotrix`]
-/// builder, so it can be accessed in [`crate::systems`].
-///
-/// ```no_run
-/// use dotrix_core::{
-///     Dotrix,
-///     services::World
-/// };
-///
-/// // in fn main()
-/// Dotrix::application("My Game")
-///     .with_service(World::new())
-///     .run()
-/// ```
 pub struct World {
     /// Entities container grouped by archetypes
     content: Vec<Container>,
+    /// Index of the container that holds Entity
+    index: HashMap<Entity, usize>,
     /// Spawn counter for Entity ID generation
     counter: u64,
 }
@@ -43,6 +31,7 @@ impl World {
     pub fn new() -> Self {
         Self {
             content: Vec::new(),
+            index: HashMap::new(),
             counter: 0,
         }
     }
@@ -83,19 +72,23 @@ impl World {
         T: Archetype + Pattern,
         I: IntoIterator<Item = T>
     {
-        let container = if let Some(container) = self.content
+        let (index, container) = if let Some((index, container)) = self.content
             .iter_mut()
-            .find(|s| T::matches(s) && s.len() == T::len())
+            .enumerate()
+            .find(|(_, s)| T::matches(s) && s.len() == T::len() + 1) // + Entity
         {
-           container
+            (index, container)
         } else {
             let container = Container::new::<T>();
+            let index = self.content.len();
             self.content.push(container);
-            self.content.last_mut().unwrap()
+            (index, self.content.last_mut().unwrap())
         };
 
         for entity in iter {
-            entity.store(container);
+            let entity_id = self.counter;
+            entity.store(container, entity_id);
+            self.index.insert(Entity::from(entity_id), index);
             self.counter += 1;
         }
     }
@@ -117,7 +110,6 @@ impl World {
     /// fn my_system(mut world: Mut<World>) {
     ///     let query = world.query::<(&Component1, &mut Component2)>();
     ///     for (cmp1, cmp2) in query {
-    ///         println!("Reset value of Component 2 for Component 1 of {}", cmp1.0);
     ///         cmp2.0 = 0;
     ///     }
     /// }
@@ -128,12 +120,65 @@ impl World {
     {
         let iter = self.content.iter()
             .filter(|&container| Q::matches(container))
-            .map(|container| Q::select(&container))
+            .map(|container| Q::select(container))
             .flatten();
 
         Matches {
             iter,
         }
+    }
+
+    /// Exiles an entity from the world
+    ///
+    /// ## Example:
+    /// ```no_run
+    /// use dotrix_core::{
+    ///     ecs::{Mut, Entity},
+    ///     services::World,
+    /// };
+    /// // First component
+    /// struct Component(u32);
+    ///
+    /// fn exile_system(mut world: Mut<World>) {
+    ///     let query = world.query::<(&Entity, &Component)>();
+    ///     let mut to_exile = Vec::new();
+    ///     for (entity, cmp) in query {
+    ///         if cmp.0 < 10 {
+    ///             to_exile.push(*entity);
+    ///         }
+    ///     }
+    ///     for entity in to_exile.into_iter() {
+    ///         world.exile(entity);
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Never exile entities inside of the query loop. Store them somewhere instead and exile
+    /// afterwards
+    pub fn exile(&mut self, entity: Entity) {
+        let index = if let Some(index) = self.index.get(&entity) {
+            *index
+        } else {
+            return;
+        };
+
+        if index >= self.content.len() {
+            return;
+        }
+
+        let entity_index = if let Some(entities) = self.content[index].get::<Entity>() {
+            if let Some((index, _)) = entities.iter()
+                .enumerate()
+                .find(|(_index, e)| **e == entity) {
+                    index
+                } else {
+                    return;
+                }
+        } else {
+            return;
+        };
+        self.content[index].remove(entity_index);
+        self.index.remove(&entity);
     }
 
     /// Returns current value of entities counter
@@ -154,7 +199,7 @@ impl Default for World {
 /// Abstraction for Entities with the same set of components
 pub trait Archetype {
     /// Stores archetype in a [`Container`]
-    fn store(self, container: &mut Container);
+    fn store(self, container: &mut Container, entity_id: u64);
     /// Prepares the [`Container`] to store the archetype
     fn map(container: &mut Container);
 }
@@ -179,6 +224,7 @@ pub trait Query<'w> {
 
 /// Iterator or Query result
 pub struct Matches<I> {
+
     iter: I,
 }
 
@@ -250,13 +296,16 @@ macro_rules! impl_tuples {
             )*
         {
             #[allow(non_snake_case)]
-            fn store(self, container: &mut Container) {
+            fn store(self, container: &mut Container, entity_id: u64) {
                 let ($($i,)*) = self;
+
+                container.push::<Entity>(Entity::from(entity_id));
                 $(
                     container.push::<$i>($i);
                 )*
             }
             fn map(container: &mut Container) {
+                container.init::<Entity>();
                 $(
                     container.init::<$i>();
                 )*
@@ -321,10 +370,11 @@ macro_rules! impl_tuples {
     }
 }
 
-recursive!(impl_tuples, A, B, C, D, E, F); //, E, F, G, H, I, J, K, L, M, N, O, P);
+recursive!(impl_tuples, A, B, C, D, E, F, G, H); //, E, F, G, H, I, J, K, L, M, N, O, P);
 
 #[cfg(test)]
 mod tests {
+    use crate::ecs::Entity;
     use super::World;
 
     struct Armor(u32);
@@ -383,9 +433,36 @@ mod tests {
         {
             let iter = world.query::<(&Speed,)>();
             for (speed,) in iter {
-                println!("speed is {}", speed.0);
                 assert_eq!(speed.0, 123);
             }
+        }
+    }
+
+    #[test]
+    fn spawn_and_exile() {
+        let mut world = spawn();
+        {
+            let iter = world.query::<(&Entity, &mut Armor,)>();
+            let mut entity_to_delete = None;
+            let mut entities_before = 0;
+            for (entity, armor,) in iter {
+                if armor.0 == 100 {
+                    entity_to_delete = Some(*entity);
+                }
+                entities_before += 1;
+            }
+            assert_eq!(entity_to_delete.is_some(), true);
+
+            world.exile(entity_to_delete.unwrap());
+
+            let iter = world.query::<(&Entity, &mut Armor,)>();
+            let mut entities_after = 0;
+            for (entity, _armor,) in iter {
+                assert_ne!(*entity, entity_to_delete.unwrap());
+                entities_after += 1;
+            }
+
+            assert_eq!(entities_before - 1, entities_after);
         }
     }
 }

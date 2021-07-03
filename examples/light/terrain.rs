@@ -1,25 +1,12 @@
-use dotrix::{
-    assets::{ Mesh },
-    components:: { Model },
-    ecs::{ Mut },
-    math::{ Vec3 },
-    renderer::{ Transform },
-    services::{ Assets, World },
-};
+use dotrix::{ Assets, World };
+use dotrix::assets::{ Mesh };
+use dotrix::ecs::Mut;
+use dotrix::pbr;
+use dotrix::math::Vec3;
 
 const TERRAIN_SIZE: usize = 128; // Number of sqaures per side
 
-pub fn init(mut world: Mut<World>, mut assets: Mut<Assets>) {
-    // Generate terrain mesh like this:
-    //   0   1
-    // 0 +---+---+---> x
-    //   | / | / |
-    // 1 +---+---+
-    //   | / | / |
-    //   +---+---+
-    //   |
-    //   z
-
+pub fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     let size = TERRAIN_SIZE;
     let mut positions = Vec::with_capacity(3 * 2 * size * size);
     let mut uvs = Vec::new();
@@ -46,31 +33,31 @@ pub fn init(mut world: Mut<World>, mut assets: Mut<Assets>) {
         }
     }
 
-    let mut mesh = Mesh {
-        positions,
-        uvs: Some(uvs),
-        ..Default::default()
-    };
-    // Calculate mesh normals
-    mesh.calculate();
+    let normals = Mesh::calculate_normals(&positions, None);
+
+    let mut mesh = Mesh::default();
+
+    mesh.with_vertices(&positions);
+    mesh.with_vertices(&normals);
+    mesh.with_vertices(&uvs);
 
     // Store mesh and get its ID
     let mesh = assets.store_as(mesh, "terrain");
 
     // import terrain texture and get its ID
-    assets.import("examples/demo/terrain.png");
+    assets.import("assets/textures/terrain.png");
     let texture = assets.register("terrain");
 
     // Center terrain tile at coordinate system center (0.0, 0.0, 0.0) by moving the tile on a
     // half of its size by X and Z axis
     let shift = (size / 2) as f32;
-    let transform = Transform {
-        translate: Vec3::new(-shift, 0.0, -shift),
-        ..Default::default()
-    };
 
-    // Spawn terrain in the world
-    world.spawn(Some(
-        (Model { mesh, texture, transform, ..Default::default() },)
-    ));
+    world.spawn(
+        (pbr::solid::Entity {
+            mesh,
+            texture,
+            translate: Vec3::new(-shift, 0.0, -shift),
+            ..Default::default()
+        }).some()
+    );
 }

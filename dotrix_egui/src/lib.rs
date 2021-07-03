@@ -1,62 +1,24 @@
 //! EGUI integration interface
 //!
-//! ## Usage
-//! ```no_run
-//! use dotrix_core::{
-//!     Dotrix,
-//!     ecs::{ Const, Mut, System, RunLevel },
-//!     services::Renderer,
-//!     systems::{ overlay_update, world_renderer },
-//! };
-//!
-//! use dotrix_egui::{
-//!     Egui,
-//!     SidePanel,
-//!     Label,
-//! };
-//!
-//! fn main() {
-//!     Dotrix::application("My Game with EGUI")
-//!         .with_system(System::from(startup).with(RunLevel::Startup))
-//!         .with_system(System::from(overlay_update))
-//!         .with_system(System::from(ui))
-//!         .with_system(System::from(world_renderer).with(RunLevel::Render))
-//!         .run();
-//! }
-//!
-//! fn startup(mut renderer: Mut<Renderer>) {
-//!     renderer.add_overlay(Box::new(Egui::default()));
-//! }
-//!
-//! fn ui(renderer: Const<Renderer>) {
-//!     let egui = renderer.overlay_provider::<Egui>()
-//!         .expect("Renderer does not contain an Overlay instance");
-//!
-//!     // use native EGUI API
-//!     SidePanel::left("side_panel", 300.0).show(&egui.ctx, |ui| {
-//!         ui.add(Label::new("Dotrix & Egui integration"))
-//!     });
-//! }
-//! ```
-//!
 //! Dotrix provides a simple
-//! [example](https://github.com/lowenware/dotrix/blob/main/examples/egui/egui.rs) demonstrating
-//! the EGUI.
+//! [example](https://github.com/lowenware/dotrix/blob/main/examples/egui/main.rs)
+//! demonstrating the EGUI integration.
+
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
 #![warn(missing_docs)]
 
-use dotrix_core::{
-    assets::{ Id, Texture },
-    input::{
-        Button,
-        Event as InputEvent,
-        KeyCode,
-        Modifiers,
-        State as InputState
-    },
-    renderer::{ WidgetVertex, OverlayProvider, Widget },
-    services::{ Assets, Input },
+use dotrix_core::{ Application, Id, Pipeline, Assets, Input, Window };
+use dotrix_core::assets::{ Mesh, Texture };
+use dotrix_core::ecs::{ Mut, System };
+use dotrix_core::input::{
+    Button,
+    Event as InputEvent,
+    KeyCode,
+    Modifiers,
+    State as InputState
 };
+
+use dotrix_overlay::{ Overlay, Ui, Widget };
 
 pub use egui::*;
 
@@ -67,42 +29,67 @@ const TEXTURE_NAME: &str = "egui::texture";
 pub struct Egui {
     /// EGUI context
     pub ctx: egui::CtxRef,
+    widgets: Vec<(Widget, Pipeline)>,
     texture: Option<Id<Texture>>,
     texture_version: Option<u64>,
+    scale_factor: f32,
+    surface_width: f32,
+    surface_height: f32,
 }
 
-impl OverlayProvider for Egui {
-
-    fn feed(
+impl Ui for Egui {
+    fn bind(
         &mut self,
         assets: &mut Assets,
         input: &Input,
-        scale_factor: f32,
-        surface_width: f32,
-        surface_height: f32,
+        window: &Window,
     ) {
-        let events = input.events.iter()
-                .map(|e| match e {
-                    InputEvent::Copy => Some(egui::Event::Copy),
-                    InputEvent::Cut => Some(egui::Event::Cut),
-                    InputEvent::Text(text) => Some(egui::Event::Text(String::from(text))),
-                    InputEvent::Key(event) => to_egui_key_code(event.key_code)
-                        .map(|key| egui::Event::Key {
-                            key,
-                            pressed: event.pressed,
-                            modifiers: to_egui_modifiers(event.modifiers),
-                        }),
-                })
-                .filter(|e| e.is_some())
-                .map(|e| e.unwrap())
-                .collect::<Vec<_>>();
+        let scale_factor = window.scale_factor();
+        let surface_size = window.inner_size();
+        let surface_width = surface_size.x as f32;
+        let surface_height = surface_size.y as f32;
+
+        self.scale_factor = scale_factor;
+        self.surface_width = surface_width;
+        self.surface_height = surface_height;
+
+        let mut events = input.events.iter()
+            .map(|e| match e {
+                InputEvent::Copy => Some(egui::Event::Copy),
+                InputEvent::Cut => Some(egui::Event::Cut),
+                InputEvent::Text(text) => Some(egui::Event::Text(String::from(text))),
+                InputEvent::Key(event) => to_egui_key_code(event.key_code)
+                    .map(|key| egui::Event::Key {
+                        key,
+                        pressed: event.pressed,
+                        modifiers: to_egui_modifiers(event.modifiers),
+                    }),
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+
+        let mouse_pos = input.mouse_position()
+            .map(|p| egui::math::Pos2::new(p.x / scale_factor, p.y / scale_factor))
+            .unwrap_or_else(|| egui::math::Pos2::new(0.0, 0.0));
+
+        let dotrix_to_egui = [
+            (Button::MouseLeft, egui::PointerButton::Primary),
+            (Button::MouseRight, egui::PointerButton::Secondary),
+            (Button::MouseMiddle, egui::PointerButton::Middle),
+        ];
+
+        for &(dotrix_button, egui_button) in dotrix_to_egui.iter() {
+            if let Some(button_state) = input.button_state(dotrix_button) {
+                events.push(egui::Event::PointerButton {
+                    pos: mouse_pos,
+                    button: egui_button,
+                    pressed: button_state == InputState::Hold,
+                    modifiers: Default::default(),
+                });
+            }
+        }
 
         self.ctx.begin_frame(egui::RawInput {
-            mouse_down: input.button_state(Button::MouseLeft)
-                .map(|state| state == InputState::Hold)
-                .unwrap_or(false),
-            mouse_pos: input.mouse_position()
-                .map(|p| egui::math::Pos2::new(p.x / scale_factor, p.y / scale_factor)),
             screen_rect: Some(egui::math::Rect::from_min_size(
                 Default::default(),
                 egui::math::vec2(surface_width as f32, surface_height as f32) / scale_factor
@@ -132,24 +119,25 @@ impl OverlayProvider for Egui {
                 height: texture.height as u32,
                 data: egui_texture_to_rgba(&texture),
                 depth: 1,
+                changed: true,
                 ..Default::default()
             }, TEXTURE_NAME));
         }
         self.texture_version = Some(texture.version);
     }
 
-    fn tessellate(
-        &self,
-        scale_factor: f32,
-        surface_width: f32,
-        surface_height: f32,
-    ) -> Vec<Widget> {
+    fn tessellate(&mut self) -> &mut [(Widget, Pipeline)] {
+        let scale_factor = self.scale_factor;
+        let surface_width = self.surface_width;
+        let surface_height = self.surface_height;
+
         let (_output, paint_commands) = self.ctx.end_frame();
         let paint_jobs = self.ctx.tessellate(paint_commands);
+
         let physical_width = surface_width * scale_factor;
         let physical_height = surface_height * scale_factor;
 
-        paint_jobs.into_iter().map(|(clip_rect, triangles)| {
+        self.widgets = paint_jobs.into_iter().map(|egui::ClippedMesh(clip_rect, egui_mesh)| {
             // Transform clip rect to physical pixels.
             let clip_min_x = scale_factor * clip_rect.min.x;
             let clip_min_y = scale_factor * clip_rect.min.y;
@@ -157,10 +145,10 @@ impl OverlayProvider for Egui {
             let clip_max_y = scale_factor * clip_rect.max.y;
 
             // Make sure clip rect can fit within an `u32`.
-            let clip_min_x = egui::clamp(clip_min_x, 0.0..=physical_width);
-            let clip_min_y = egui::clamp(clip_min_y, 0.0..=physical_height);
-            let clip_max_x = egui::clamp(clip_max_x, clip_min_x..=physical_width);
-            let clip_max_y = egui::clamp(clip_max_y, clip_min_y..=physical_height);
+            let clip_min_x = clip_min_x.clamp(0.0, physical_width);
+            let clip_min_y = clip_min_y.clamp(0.0, physical_height);
+            let clip_max_x = clip_max_x.clamp(clip_min_x, physical_width);
+            let clip_max_y = clip_max_y.clamp(clip_min_y, physical_height);
 
             let clip_min_x = clip_min_x.round() as u32;
             let clip_min_y = clip_min_y.round() as u32;
@@ -170,29 +158,50 @@ impl OverlayProvider for Egui {
             let width = (clip_max_x - clip_min_x).max(1);
             let height = (clip_max_y - clip_min_y).max(1);
 
-            let vertices = triangles.vertices.iter()
-                .map(|v| {
-                    WidgetVertex {
-                        position: [v.pos.x, v.pos.y],
-                        uv: [v.uv.x, v.uv.y],
-                        color: [
-                            v.color.r() as f32,
-                            v.color.g() as f32,
-                            v.color.b() as f32,
-                            v.color.a() as f32 / 255.0,
-                        ],
-                    }
-                })
-                .collect::<Vec<_>>();
+            let vertices_count = egui_mesh.vertices.len();
+            let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(vertices_count);
+            let mut colors: Vec<[f32; 4]> = Vec::with_capacity(vertices_count);
 
-            Widget {
-                vertices,
-                indices: Some(triangles.indices),
-                texture: self.texture.expect("texture for widget should be loaded"),
-                clip_min_x, clip_min_y, width, height,
-                ..Default::default()
+            let positions = egui_mesh.vertices.iter().map(|v| {
+                uvs.push([v.uv.x, v.uv.y]);
+                colors.push([
+                    v.color.r() as f32,
+                    v.color.g() as f32,
+                    v.color.b() as f32,
+                    v.color.a() as f32 / 255.0,
+                ]);
+                [v.pos.x, v.pos.y]
+            }).collect::<Vec<[f32; 2]>>();
+
+            let texture = match egui_mesh.texture_id {
+                TextureId::Egui => self.texture.expect("texture for widget should be loaded"),
+                TextureId::User(id) => Id::new(id),
+            };
+
+            let mut mesh = Mesh::default();
+            mesh.with_vertices(&positions);
+            mesh.with_vertices(&uvs);
+            mesh.with_vertices(&colors);
+
+            if !egui_mesh.indices.is_empty() {
+                mesh.with_indices(&egui_mesh.indices);
             }
-        }).collect()
+
+            (
+                Widget {
+                    mesh,
+                    texture,
+                },
+                Pipeline::default()
+                    .with_scissors_rect(
+                        clip_min_x,
+                        clip_min_y,
+                        width,
+                        height,
+                    )
+            )
+        }).collect();
+        self.widgets.as_mut_slice()
     }
 }
 
@@ -253,4 +262,14 @@ fn to_egui_modifiers(modifiers: Modifiers) -> egui::Modifiers {
         #[cfg(not(target_os = "macos"))]
         command: modifiers.ctrl(),
     }
+}
+
+/// EGUI overlay startup system
+pub fn startup(mut overlay: Mut<Overlay>) {
+    overlay.set(Egui::default());
+}
+
+/// Enables EGUI extension into Dotrix application
+pub fn extension(app: &mut Application) {
+    app.add_system(System::from(startup));
 }

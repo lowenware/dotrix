@@ -1,8 +1,7 @@
-use dotrix::{
-    ecs::{ Const, Mut },
-    services::{ Frame, Window },
-    window::{ UserAttentionType },
-};
+use dotrix::prelude::*;
+use dotrix::{ Frame, Window };
+use dotrix::window::UserAttentionType;
+
 use std::time::Duration;
 
 pub struct MatchFinder {

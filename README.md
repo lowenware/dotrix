@@ -24,7 +24,7 @@ features or access to global resources, like Assets, Input or Render management.
 
 ## Editor
 
-Editor application is under active development in the separate repository
+Editor application is under development in the separate repository
 [lowenware/dotrix-editor](https://github.com/lowenware/dotrix-editor).
 
 ## Getting started
@@ -41,19 +41,14 @@ Book for a quick start.
 cargo run --release --example demo
 ```
 
-**Features:** UI and EGUI integration, skeletal animation, light, camera control, transformation
+**Features:** Light, UI, camera control
 ```
-cargo run --release --example egui
+cargo run --release --example light
 ```
 
 **Features:** skeletal animation, light, camera control
 ```
-cargo run --release --example fox
-```
-
-**Features:** marching cubes, camera control, UI
-```
-cargo run --release --example marching_cubes
+cargo run --release --example animation
 ```
 
 **Features:** skybox, camera control
@@ -61,30 +56,16 @@ cargo run --release --example marching_cubes
 cargo run --release --example skybox
 ```
 
-## Shaders Compilation
-
-> __Migration to WGLS shaders is pending__
-
-Dotrix is distributed with both sources and precompiled to SPIR-V shaders. So until you make a
-change in a shader's code, you won't need to compile it. We are looking forward integration with
-[naga](https://github.com/gfx-rs/naga), but until it is not ready, there are two possibilities of
-how to deal with shaders.
-
-### Using glslang
-
-You can compile GLSL shaders into SPIR-V using
-[glslang](https://github.com/KhronosGroup/glslang/releases/tag/master-tot). This is the way how we
-compile them for releases.
-
-### Using shaderc
-
-You can also compile shaders at a runtime, which is very helpful during development using
-optional `shaderc` feature. To make it working, you will need a recent version of `shaderc`
-library which can be built using cargo or obtained as a part of the
-[Vulkan SDK](https://www.lunarg.com/vulkan-sdk/).
-
-Once you have it, don't forget to enable the feature during compilation:
-
+**Features:** window management
 ```
-cargo run --release --features shaderc --example demo
+cargo run --release --example window
 ```
+
+### 3rd Party Assets
+
+Following 3rd party assets are being used in examples
+
+* [Night SkyBox](https://www.vippng.com/preview/wmRTT_city-skyline-silhouette/)
+* [Car Model](https://free3d.com/3d-model/cartoon-vehicles-low-poly-cars-free-874937.html)
+* [Fox Model](https://github.com/KhronosGroup/glTF-Sample-Models/tree/master/2.0/Fox)
+* [Day Skybox](https://opengameart.org/content/elyvisions-skyboxes)
