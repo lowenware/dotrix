@@ -1,41 +1,9 @@
-use crate::{
-    assets::{ Id, Mesh, Skin, Pose, Texture },
-    services::{ Assets, Renderer },
-};
+pub mod solid;
 
-use super::pipeline::Pipeline;
-use super::transform::Transform;
+// impl Model {
 
-/// Pipeline buffers
-pub struct Buffers {
-    bind_group: wgpu::BindGroup,
-    transform: wgpu::Buffer,
-}
-
-/// 3D model component
-#[derive(Default)]
-pub struct Model {
-    /// [`Id`] of a [`Mesh`] asset
-    pub mesh: Id<Mesh>,
-    /// [`Id`] of a [`Texture`] asset
-    pub texture: Id<Texture>,
-    /// Model transformation
-    pub transform: Transform,
-    /// [`Id`] of a [`Skin`] asset
-    pub skin: Id<Skin>,
-    /// Skinned model pose
-    pub pose: Option<Pose>,
-    /// Pipeline buffers
-    pub buffers: Option<Buffers>,
-    /// [`Id`] of a rendering [`Pipeline`]
-    pub pipeline: Id<Pipeline>,
-    /// is rendering disabled
-    pub disabled: bool,
-}
-
-impl Model {
-
-    /// Returns loaded assets if they are all ready
+    // Returns loaded assets if they are all ready
+    /*
     fn get_assets<'a>(
         &self,
         assets: &'a mut Assets,
@@ -67,8 +35,9 @@ impl Model {
         }
         Err(())
     }
-
-    /// Loads the [`Model`] buffers
+    *   */
+    // Loads the [`Model`] buffers
+    /*
     pub(crate) fn load(
         &mut self,
         renderer: &Renderer,
@@ -148,8 +117,10 @@ impl Model {
             }
         }
     }
+    */
 
-    /// Renders the [`Model`]
+    // Renders the [`Model`]
+    /*
     pub(crate) fn draw(
         &self,
         assets: &Assets,
@@ -206,4 +177,51 @@ impl Model {
             }
         }
     }
+    */
+
+    /*
+    pub fn load(&mut self, renderer: &Renderer, assets: &mut Assets) {
+        if let Some(mesh) = assets.get_mut(self.mesh) {
+            mesh.load(renderer);
+        }
+
+        if let Some(texture) = assets.get_mut(self.texture) {
+            texture.load(renderer);
+        }
+
+        if let Some(skin) = assets.get_mut(self.skin) {
+            if let Some(pose) = self.pose.as_mut() {
+                pose.load(renderer, &skin.index);
+            }
+        }
+
+        let transform_matrix = self.transform.matrix();
+        let transform_raw = AsRef::<[f32; 16]>::as_ref(&transform_matrix);
+
+        renderer.load_uniform_buffer(
+            &mut self.transform_buffer,
+            bytemuck::cast_slice(transform_raw)
+        );
+    }
+    *
+*/
+
+// }
+/*
+        if model.pipeline.is_null() {
+            let pipelines = ctx.pipelines.as_ref().unwrap();
+            model.pipeline = if !model.skin.is_null() {
+                pipelines.skinned_model
+            } else {
+                pipelines.static_model
+            };
+        }
+        let pipeline = renderer.pipeline(model.pipeline);
+        let proj_view_buffer = ctx.proj_view_buffer.as_ref().unwrap();
+        let lights_buffer = ctx.lights_buffer.as_ref().unwrap();
+
+        model.load(&renderer, &mut assets, pipeline, sampler, proj_view_buffer, lights_buffer);
+        model.draw(&assets, &mut encoder, pipeline, frame, depth_buffer);
+    }
 }
+*/

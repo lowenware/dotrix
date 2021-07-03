@@ -14,11 +14,11 @@ license = "MIT"
 name = "dotrix"
 path = "src/lib.rs"
 
-[features]
-default = [ "egui", "terrain" ]
+#[features]
+#default = [ "egui", "terrain" ]
 
-egui = ["dotrix_egui"]
-terrain = ["dotrix_terrain"]
+# egui = ["dotrix_egui"]
+#terrain = ["dotrix_terrain"]
 
 [workspace]
 members = [
@@ -37,15 +37,15 @@ path = "./dotrix_math"
 
 # Optional dependencies
 
-[dependencies.dotrix_egui]
-version = "0.3"
-path = "./dotrix_egui"
-optional = true
+#[dependencies.dotrix_egui]
+#version = "0.3"
+#path = "./dotrix_egui"
+#optional = true
 
-[dependencies.dotrix_terrain]
-version = "0.4"
-path = "./dotrix_terrain"
-optional = true
+#[dependencies.dotrix_terrain]
+#version = "0.4"
+#path = "./dotrix_terrain"
+#optional = true
 
 [dev-dependencies.rand]
 version = "0.8"

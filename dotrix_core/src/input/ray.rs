@@ -76,16 +76,16 @@ pub fn mouse_ray(
     mut ray: Mut<Ray>,
     camera: Const<Camera>,
     input: Const<Input>,
-    renderer: Const<Renderer>,
     window: Const<Window>,
 ) {
     ray.direction = input.mouse_position().map(|mouse| {
-        let (viewport_width, viewport_height) = renderer.display_size(&window);
+        let viewport = window.inner_size();
         let ray = Ray::normalized_device_coords(
-            mouse, viewport_width as f32, viewport_height as f32);
+            mouse, viewport.x as f32, viewport.y as f32);
 
         // eye coordinates
-        let mut ray = renderer.projection.invert().unwrap() * ray;
+        let mut ray = camera.proj().invert().unwrap() * ray;
+
         ray.z = -1.0;
         ray.w = 0.0;
         // world coordinates

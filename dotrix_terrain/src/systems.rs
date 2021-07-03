@@ -9,7 +9,7 @@ use dotrix_core::{
 };
 
 use crate::{ Terrain, Manager };
-use crate::pipeline::default_pipeline;
+// use crate::pipeline::default_pipeline;
 
 /// Terrain spawn system context
 #[derive(Default)]
@@ -41,11 +41,12 @@ pub fn startup(
     mut renderer: Mut<Renderer>,
     mut manager: Mut<Manager>,
 ) {
+    /*
     if manager.pipeline.is_null() {
         let pipeline = default_pipeline(&renderer.adapter, &renderer.device, &renderer.sc_desc);
         manager.pipeline = renderer.add_pipeline(pipeline);
     }
-
+    */
 }
 
 /// Terrain spawn system

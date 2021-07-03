@@ -1,6 +1,15 @@
 use std::collections::HashMap;
-use super::super::renderer::transform::{ Transform, TransformBuilder };
-use dotrix_math::{Mat4, SquareMatrix};
+use crate::{
+    components::Pose,
+    generics::{ Transform, TransformBuilder },
+    renderer::{
+        Renderer,
+        UniformBuffer,
+    }
+};
+use dotrix_math::{ Mat4, SquareMatrix };
+
+pub const MAX_JOINTS: usize = 10;
 
 /// Joint identificator (unsigned integer)
 pub type JointId = usize;
@@ -42,6 +51,22 @@ impl Joint {
         JointTransform {
             id: self.id,
             global_transform: parent_transform * local_transform
+        }
+    }
+}
+
+/// Transformation of the joint
+#[derive(Debug, Clone)]
+pub struct JointTransform {
+    pub id: JointId,
+    pub global_transform: Mat4,
+}
+
+impl Default for JointTransform {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            global_transform: Mat4::identity(),
         }
     }
 }
@@ -111,71 +136,4 @@ impl Skin {
     }
 }
 
-/// Transformation of the joint
-#[derive(Debug, Clone)]
-pub struct JointTransform {
-    id: JointId,
-    global_transform: Mat4,
-}
-
-impl Default for JointTransform {
-    fn default() -> Self {
-        Self {
-            id: 0,
-            global_transform: Mat4::identity(),
-        }
-    }
-}
-
-/// Transformed [`Skin`] state
-pub struct Pose {
-    /// Transformations of the [`Skin`] joints
-    pub joints: Vec<JointTransform>,
-    /// Pipeline buffer
-    pub buffer: wgpu::Buffer,
-}
-
-impl Pose {
-    /// Constructs new [`Pose`]
-    pub fn new(device: &wgpu::Device) -> Self {
-        use wgpu::util::DeviceExt;
-        let joints_matrices: [[[f32; 4]; 4]; 32] = [Mat4::identity().into(); 32];
-        let buffer = device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("Pose Buffer"),
-                contents: bytemuck::cast_slice(&joints_matrices),
-                usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
-            }
-        );
-        Self {
-            joints: vec![JointTransform::default(); 32], // 32 -> MAX_JOINTS
-            buffer,
-        }
-    }
-
-    /// Loads buffers of the [`Pose`]
-    pub fn load(&self, index: &[JointIndex], queue: &wgpu::Queue) {
-        let joints_matrices = self.matrices(index);
-        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(joints_matrices.as_slice()));
-    }
-
-    /// Returns transformation matrices in proper order and packed to be used in shaders
-    pub fn matrices(&self, index: &[JointIndex]) -> Vec<[[f32; 4]; 4]> {
-        let mut result = index.iter().map(|i| {
-            let joint_transform = self.joints.iter().find(|j| j.id == i.id).unwrap();
-            let global_transform = &joint_transform.global_transform;
-            let inverse_bind_matrix = i.inverse_bind_matrix;
-            inverse_bind_matrix
-                .as_ref()
-                .map(|ibmx| global_transform * ibmx)
-                .unwrap_or(*global_transform)
-                .into()
-        }).collect::<Vec<_>>();
-
-        while result.len() < 32 {
-            result.push(Mat4::identity().into());
-        }
-        result
-    }
-}
 

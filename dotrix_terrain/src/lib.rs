@@ -14,7 +14,7 @@ mod pipeline;
 pub use generator::{ Falloff, Generator, Noise };
 pub use services::Manager;
 pub use systems::{ startup, spawn };
-pub use pipeline::new_pipeline;
+// pub use pipeline::new_pipeline;
 
 /// Terrain chunk (tile) component
 pub struct Terrain {
@@ -37,7 +37,7 @@ pub struct Layer {
 }
 
 impl Default for Layer {
-    fn default() -> Self {
+    fn default() -> Self {
         Self { color: Color::rgb(0.18, 0.62, 0.24), base: -1.0, blend: 0.1 }
     }
 }

@@ -1,7 +1,7 @@
 use crate::{ Heightmap, Generator, Terrain };
 use dotrix_core::{
     assets::{ Id, Texture, Mesh },
-    renderer::{ Pipeline },
+    pipelines::{ Pipeline },
 };
 use dotrix_math::{Vec3, InnerSpace};
 

@@ -11,7 +11,7 @@ use gltf::{
 
 use log::info;
 
-use super::super::renderer::transform::Transform;
+use crate::generics::Transform;
 use dotrix_math::{Mat4, Vec3, Quat};
 
 use super::{

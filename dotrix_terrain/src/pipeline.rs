@@ -7,7 +7,6 @@ use dotrix_core::{
         VertexAttributes,
     },
     renderer::{
-        Pipeline,
         bind_group_layout::{
             uniform_entry,
             texture2d_entry,
@@ -17,6 +16,7 @@ use dotrix_core::{
     },
 };
 
+/*
 /// Returns pipeline for [`crate::components::Model`] without a skin with default shaders
 pub fn default_pipeline(
     adapter: &wgpu::Adapter,
@@ -147,4 +147,4 @@ pub fn new_pipeline(
         wgpu_pipeline,
     }
 }
-
+*/

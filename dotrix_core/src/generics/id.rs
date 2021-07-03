@@ -5,19 +5,16 @@ use std::{
     marker::PhantomData,
 };
 
-/// Raw Identifier is a 64 bit integer
-pub type RawId = u64;
-
 /// Asset identifier
 pub struct Id<T> {
     /// Actual identifier value
-    pub id: RawId,
+    id: u64,
     phantom: PhantomData<T>
 }
 
 impl<T> Id<T> {
     /// Constructs an asset identifier from [`RawId`]
-    pub fn new(id: RawId) -> Self {
+    pub fn new(id: u64) -> Self {
         Self {
             id,
             phantom: PhantomData,

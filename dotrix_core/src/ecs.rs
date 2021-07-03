@@ -1,10 +1,7 @@
 //! Entity Component System
 use core::ops::{Deref, DerefMut};
 
-use crate::application::{
-    services::Services,
-    Service
-};
+use crate::application::{ Services, Service };
 
 /// Entity structure has only id field and represent an agregation of components
 pub struct Entity(u64);
@@ -23,12 +20,18 @@ pub struct System {
 
 /// Defines when and how often a system should run.
 pub enum RunLevel {
-    /// Before rendering stage
-    Standard,
     /// Only once on application startup
     Startup,
+    /// Begin of rendering request handling
+    Bind,
+    /// Before rendering stage
+    Standard,
     /// Rendering stage
     Render,
+    /// End of the rendering request handling
+    Release,
+    /// Execution after window resizing
+    Resize,
 }
 
 impl System {

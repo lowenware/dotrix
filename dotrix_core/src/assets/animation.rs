@@ -2,7 +2,7 @@ use std::time::Duration;
 use std::collections::HashMap;
 use super::skin::JointId;
 
-use crate::renderer::transform::TransformBuilder;
+use crate::generics::TransformBuilder;
 use dotrix_math::{ slerp, Vec3, Quat, VectorSpace };
 
 /// Interpolation types

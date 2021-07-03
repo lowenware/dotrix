@@ -48,7 +48,7 @@ pub struct WireFrame {
 }
 
 impl WireFrame {
-
+    /*
     /// Returns loaded assets if they are all ready
     fn get_assets<'a>(
         &self,
@@ -173,4 +173,5 @@ impl WireFrame {
             rpass.draw(0..wires.vertices_count(), 0..1);
         }
     }
+    */
 }

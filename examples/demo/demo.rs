@@ -1,13 +1,14 @@
 use dotrix::{
     Dotrix,
     assets::{ Mesh },
+    animation::skeletal as skeletal_animation,
     ecs::{ Const, Mut, RunLevel, System },
-    components::{ Animator, Model, SimpleLight, SkyBox },
-    services::{ Assets, Camera, Frame, Input, World },
-    systems::{ camera_control, skeletal_animation, world_renderer },
-    renderer::transform::Transform,
+    components::{ Animator, Light, Material, Model, Rendering, Transform },
+    generics::{ Color },
     input::{ ActionMapper, Button, KeyCode, Mapper },
     math::{ Point3, Quat, Rotation3, Vec3, Rad },
+    pbr,
+    services::{ Assets, Camera, Frame, Input, World },
 };
 
 use std::f32::consts::PI;
@@ -18,30 +19,10 @@ const TERRAIN_SIZE: usize = 128; // Number of sqaures per side
 fn main() {
 
     Dotrix::application("Demo")
-        // Rendering system draws models and skybox on a window surface
-        .with_system(System::from(world_renderer).with(RunLevel::Render))
         // Startup systems are being used to perform game initiation
         .with_system(System::from(startup).with(RunLevel::Startup))
-        // Built-in camera control system with mouse look and zoom function
-        .with_system(System::from(camera_control))
         // System controlling player's model
         .with_system(System::from(player_control))
-        // System animating skinned models using Animator control component
-        .with_system(System::from(skeletal_animation))
-        // Service responsible for assets load and storage
-        .with_service(Assets::new())
-        // Service implementing camera
-        .with_service(Camera {
-            y_angle: PI / 2.0,
-            xz_angle: 0.0,
-            target: Point3::new(0.0, CAMERA_HEIGHT, 0.0),
-            distance: 5.0,
-            ..Default::default()
-        })
-        // Frame measurement service
-        .with_service(Frame::new())
-        // Input service uses Mapper to bind Actions to buttons
-        .with_service(Input::new(Box::new(Mapper::<Action>::new())))
         // World service implements storage for game entities and query mechanism
         .with_service(World::new())
         // Start application
@@ -50,14 +31,24 @@ fn main() {
 
 /// Initial game routines
 fn startup(
-    mut world: Mut<World>,
     mut assets: Mut<Assets>,
+    mut camera: Mut<Camera>,
     mut input: Mut<Input>,
+    mut world: Mut<World>,
 ) {
-    init_skybox(&mut world, &mut assets);
+    input.set_mapper(Box::new(Mapper::<Action>::new()));
+//    init_skybox(&mut world, &mut assets);
+    init_camera(&mut camera);
     init_terrain(&mut world, &mut assets);
     init_light(&mut world);
     init_player(&mut world, &mut assets, &mut input);
+}
+
+fn init_camera(camera: &mut Camera) {
+    camera.y_angle = PI / 2.0;
+    camera.xz_angle = 0.0;
+    camera.target = Point3::new(0.0, CAMERA_HEIGHT, 0.0);
+    camera.distance = 5.0;
 }
 
 fn init_skybox(
@@ -72,6 +63,7 @@ fn init_skybox(
     assets.import("examples/demo/skybox_back.png");
     assets.import("examples/demo/skybox_front.png");
 
+    /*
     // Get slice with textures
     let primary_texture = [
         assets.register("skybox_right"),
@@ -86,6 +78,7 @@ fn init_skybox(
     world.spawn(Some(
         (SkyBox { primary_texture, ..Default::default() },),
     ));
+    */
 }
 
 fn init_terrain(
@@ -146,15 +139,15 @@ fn init_terrain(
     // Center terrain tile at coordinate system center (0.0, 0.0, 0.0) by moving the tile on a
     // half of its size by X and Z axis
     let shift = (size / 2) as f32;
-    let transform = Transform {
-        translate: Vec3::new(-shift, 0.0, -shift),
-        ..Default::default()
-    };
 
-    // Spawn terrain in the world
-    world.spawn(Some(
-        (Model { mesh, texture, transform, ..Default::default() },)
-    ));
+    world.spawn(
+        (pbr::solid::Entity {
+            mesh,
+            texture,
+            translate: Vec3::new(-shift, 0.0, -shift),
+            ..Default::default()
+        }).as_tuple()
+    );
 }
 
 fn init_player(
@@ -170,26 +163,28 @@ fn init_player(
     // animation
     assets.import("examples/demo/character.gltf");
     let mesh = assets.register("character::Cube::mesh");
-    let skin = assets.register("character::Cube::skin");
+    // let skin = assets.register("character::Cube::skin");
     let run = assets.register("character::run");
 
-    // shrink player's character model
-    let transform = Transform {
-        scale: Vec3::new(0.5, 0.5, 0.5),
-        translate: Vec3::new(0.0, 0.1, 0.0),
-        ..Default::default()
-    };
-
     // spawn model in the world
-    world.spawn(Some(
-        (
-            Model { mesh, texture, transform, skin, ..Default::default() },
-            Animator::new(run), // Animation control (stopped by default)
-            Player {
-                is_running: false,
-            }
-        ),
-    ));
+    world.spawn(Some((
+        Model { mesh },
+        Material {
+            texture,
+            albedo: Color::grey(),
+            ..Default::default()
+        },
+        Transform {
+            scale: Vec3::new(0.5, 0.5, 0.5),
+            translate: Vec3::new(0.0, 0.1, 0.0),
+            ..Default::default()
+        },
+        Animator::new(run), // Animation control (stopped by default)
+        Rendering::default(),
+        Player {
+            is_running: false,
+        }
+    )));
 
     // Map W key to Run Action
     input.mapper_mut::<Mapper<Action>>()
@@ -200,9 +195,21 @@ fn init_player(
 
 fn init_light(world: &mut World) {
     // spawn source of white light at (0.0, 100.0, 0.0)
-    world.spawn(Some((SimpleLight{
-        position: Vec3::new(0.0, 100.0, 0.0), ..Default::default()
-    },)));
+    world.spawn(Some((
+        Light::Directional {
+            direction: Vec3::new(0.3, -0.5, -0.6),
+            color: Color::white(),
+            intensity: 0.5,
+            enabled: true,
+        },
+    )));
+    // spawn source of white light at (0.0, 100.0, 0.0)
+    world.spawn(Some((
+        Light::Ambient {
+            color: Color::white(),
+            intensity: 0.5,
+        },
+    )));
 }
 
  // Component indentifying players's entity
@@ -219,9 +226,9 @@ fn player_control(
     const PLAYER_SPEED: f32 = 10.0;
 
     // Query player entity
-    let query = world.query::<(&mut Model, &mut Animator, &mut Player)>();
+    let query = world.query::<(&mut Model, &mut Transform, &mut Animator, &mut Player)>();
     // this loop will run only once, because Player component is assigned to only one entity
-    for (model, animator, player) in query {
+    for (model, transform, animator, player) in query {
         // calculate distance offset if W is pressed and control animation
         let distance = if input.is_action_hold(Action::Run) {
             if !player.is_running {
@@ -242,14 +249,14 @@ fn player_control(
         // get camera angle around Y axis
         let y_angle = camera.y_angle;
         // rotate model to the right direction
-        model.transform.rotate = Quat::from_angle_y(Rad(-(PI / 2.0 + y_angle)));
+        transform.rotate = Quat::from_angle_y(Rad(-(PI / 2.0 + y_angle)));
         if distance > 0.00001 {
             // calculate X and Z deltas if player is moving
             let dx = distance * y_angle.cos();
             let dz = distance * y_angle.sin();
             // calculate new model positions
-            let mut pos_x = model.transform.translate.x - dx;
-            let mut pos_z = model.transform.translate.z - dz;
+            let mut pos_x = transform.translate.x - dx;
+            let mut pos_z = transform.translate.z - dz;
             // check terrain boundaries, so player won't run away from the terrain tile
             let half_terrain = TERRAIN_SIZE as f32 / 2.0;
             if pos_x < -half_terrain {
@@ -263,12 +270,11 @@ fn player_control(
                 pos_z = half_terrain;
             }
             // apply translation
-            model.transform.translate.x = pos_x;
-            model.transform.translate.z = pos_z;
+            transform.translate.x = pos_x;
+            transform.translate.z = pos_z;
 
             // make camera following the player
             camera.target = Point3::new(pos_x, CAMERA_HEIGHT, pos_z);
-            camera.set_view();
         }
     }
 }

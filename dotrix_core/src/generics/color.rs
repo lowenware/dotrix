@@ -3,7 +3,7 @@ use std::convert::From;
 use std::ops::{ Index, IndexMut };
 
 /// RGBA Color.
-#[derive(Copy, Clone, Debug)]
+#[derive(Default, Copy, Clone, Debug)]
 pub struct Color {
     /// Red channel. Should be in range from 0 to 1.
     pub r: f32,
@@ -29,6 +29,11 @@ impl Color {
     /// Red color (r: 1.0, g: 0.0, b: 0.0)
     pub fn red() -> Self {
         Self::rgb(1.0, 0.0, 0.0)
+    }
+
+    /// Grey color
+    pub fn grey() -> Self {
+        Self::rgb(0.6, 0.6, 0.6)
     }
 
     /// Green color (r: 0.0, g: 1.0, b: 0.0)
@@ -70,40 +75,19 @@ impl Color {
     pub fn orange() -> Self {
         Self::rgb(1.0, 0.5, 0.0)
     }
+}
+
+impl std::ops::Mul<f32> for Color {
+    type Output = Self;
 
     /// Multiply Color by f32. Result is not clamped.
-    pub fn mul_f32(self, rhs: f32) -> Self {
+    fn mul(self, rhs: f32) -> Self::Output {
         Self {
             r: self.r * rhs,
             g: self.g * rhs,
             b: self.b * rhs,
             a: self.a * rhs,
         }
-    }
-
-    /// Create color from array
-    pub fn from_f32_3(rgb: [f32; 3]) -> Self {
-        Self::rgb(rgb[0], rgb[1], rgb[2])
-    }
-
-    /// Create color from array
-    pub fn from_f32_4(rgba: [f32; 4]) -> Self {
-        Self {
-            r: rgba[0],
-            g: rgba[1],
-            b: rgba[2],
-            a: rgba[3],
-        }
-    }
-
-    /// Convert color to array. Alpha is ignored.
-    pub fn to_f32_3(&self) -> [f32; 3] {
-        [self.r, self.g, self.b]
-    }
-
-    /// Convert color to array.
-    pub fn to_f32_4(&self) -> [f32; 4] {
-        [self.r, self.g, self.b, self.a]
     }
 }
 
@@ -135,26 +119,18 @@ impl IndexMut<i32> for Color {
 
 impl From<[f32; 3]> for Color {
     fn from(rgb: [f32; 3]) -> Self {
-        Self::from_f32_3(rgb)
+        Self { r: rgb[0], g: rgb[1], b: rgb[2], a: 1.0 }
     }
 }
 
 impl From<[f32; 4]> for Color {
     fn from(rgba: [f32; 4]) -> Self {
-        Self::from_f32_4(rgba)
+        Self { r: rgba[0], g: rgba[1], b: rgba[2], a: rgba[3] }
     }
 }
 
-/*
-impl Into<[f32; 3]> for Color {
-    fn into(self) -> [f32; 3] {
-        self.to_f32_3()
+impl From<Color> for [f32; 4] {
+    fn from(rgba: Color) -> Self {
+        [rgba.r, rgba.g, rgba.b, rgba.a]
     }
 }
-
-impl Into<[f32; 4]> for Color {
-    fn into(self) -> [f32; 4] {
-        self.to_f32_4()
-    }
-}
-*/

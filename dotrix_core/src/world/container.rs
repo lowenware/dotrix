@@ -1,5 +1,5 @@
 use std::{
-    any::{Any, TypeId},
+    any::{ Any, TypeId },
     collections::HashMap,
 };
 
@@ -23,14 +23,6 @@ impl Container {
         if let Some(v) = self.components.get_mut(&TypeId::of::<T>()) {
             v.downcast_mut::<Vec<T>>().unwrap().push(component)
         }
-        /* TODO: remove this:
-        self.components
-            .get_mut(&TypeId::of::<T>())
-            .map(|v| {
-                v.downcast_mut::<Vec<T>>()
-                    .unwrap()
-                    .push(component)
-            });*/
     }
 
     pub fn init<T: Component>(&mut self) {
@@ -59,24 +51,6 @@ impl Container {
             .get(&TypeId::of::<T>())
             .map(|v| v.downcast_ref::<Vec<T>>().unwrap())
     }
-
-    /*
-    pub fn select<A, B, C>(&mut self) -> (std::slice::Iter<A>, std::slice::IterMut<B>, std::slice::IterMut<C>)
-    where
-        A: Component,
-        B: Component,
-        C: Component,
-    {
-        self.components.into_iter()
-            .filter(|k| k.0 == TypeId::of::<A>() || k.0 == TypeId::of::<C>() || k.0 == TypeId::of::<B>())
-            .map(|v| match v.0 {
-                TypeId::of::<A>() => v.1.downcast_mut::<Vec<A>>().unwrap(),
-                TypeId::of::<B>() => v.1.downcast_mut::<Vec<B>>().unwrap(),
-                TypeId::of::<C>() => v.1.downcast_mut::<Vec<C>>().unwrap(),
-            })
-            .flatten()
-    }
-    */
 
     pub fn has(&self, key: TypeId) -> bool {
         self.components.contains_key(&key)

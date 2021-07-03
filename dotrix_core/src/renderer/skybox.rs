@@ -70,7 +70,7 @@ pub struct SkyBox {
 }
 
 impl SkyBox {
-
+    /*
     fn faces<'a>(&self, assets: &'a Assets) -> Option<Vec<&'a Texture>> {
         let mut faces = Vec::new();
         for texture_id in self.primary_texture.iter() {
@@ -236,4 +236,5 @@ impl SkyBox {
             rpass.draw_indexed(0..buffers.indices_count, 0, 0..1);
         }
     }
+    */
 }

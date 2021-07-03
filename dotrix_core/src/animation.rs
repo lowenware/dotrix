@@ -53,9 +53,10 @@ use std::time::{ Duration };
 use dotrix_math::{ SquareMatrix, Mat4 };
 
 use crate::{
-    assets::{ Animation, Id },
-    components::Model,
-    ecs::{ Const },
+    assets::{ Animation },
+    components::{ Model, Pose },
+    generics::Id,
+    ecs::{ Const, Mut },
     services::{ Assets, Frame, World },
 };
 
@@ -172,10 +173,10 @@ impl Animator {
 }
 
 /// System handling skeletal animation
-pub fn skeletal_animation(frame: Const<Frame>, world: Const<World>, assets: Const<Assets>) {
-    for (model, animator) in world.query::<(&mut Model, &mut Animator)>() {
+pub fn skeletal(frame: Const<Frame>, world: Const<World>, assets: Const<Assets>) {
+    for (model, animator, pose) in world.query::<(&mut Model, &mut Animator, &mut Pose)>() {
         let global_transform = Mat4::identity(); // model.transform.matrix();
-        if let Some(skin) = assets.get(model.skin) {
+        if let Some(skin) = assets.get(pose.skin) {
 
             let mut local_transforms = None;
 
@@ -185,9 +186,7 @@ pub fn skeletal_animation(frame: Const<Frame>, world: Const<World>, assets: Cons
                 }
             }
 
-            if let Some(pose) = model.pose.as_mut() {
-                skin.transform(pose, &global_transform, local_transforms);
-            }
+            skin.transform(pose, &global_transform, local_transforms);
         }
     }
 }

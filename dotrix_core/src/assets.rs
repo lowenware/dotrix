@@ -1,28 +1,30 @@
 //! Assets and management service
-mod animation;
-mod id;
-mod loader;
+pub mod animation;
+pub mod loader;
 mod load_gltf;
-mod mesh;
-mod skin;
-mod resource;
-mod texture;
-mod wires;
+pub mod mesh;
+pub mod shader;
+pub mod skin;
+pub mod resource;
+pub mod texture;
+pub mod wires;
 
-pub use id::*;
 pub use loader::*;
 pub use animation::Animation;
 pub use mesh::*;
-pub use skin::{ Skin, Pose }; // TODO: consider moving of Pose to some shared place
+pub use shader::Shader;
+pub use skin::Skin;
 pub use resource::*;
 pub use texture::*;
 pub use wires::*;
 
 use std::{
-    collections::HashMap,
+    collections::{ HashMap, hash_map },
     sync::{Arc, mpsc, Mutex},
     vec::Vec,
 };
+
+use crate::generics::Id;
 
 const THREADS_COUNT: usize = 4;
 
@@ -53,17 +55,18 @@ const THREADS_COUNT: usize = 4;
 /// There is a way to aquire asset [`Id`] immediately without awaiting using [`Assets::register`]
 /// method.
 pub struct Assets {
-    registry: HashMap<String, RawId>,
+    registry: HashMap<String, u64>,
     resources: HashMap<Id<Resource>, Resource>,
     animations: HashMap<Id<Animation>, Animation>,
     textures: HashMap<Id<Texture>, Texture>,
     meshes: HashMap<Id<Mesh>, Mesh>,
+    shaders: HashMap<Id<Shader>, Shader>,
     skins: HashMap<Id<Skin>, Skin>,
     wires: HashMap<Id<Wires>, Wires>,
     loaders: Vec<Loader>,
     sender: mpsc::Sender<Request>,
     receiver: mpsc::Receiver<Response>,
-    id_generator: RawId,
+    id_generator: u64,
 }
 
 impl Assets {
@@ -87,6 +90,7 @@ impl Assets {
             animations: HashMap::new(),
             textures: HashMap::new(),
             meshes: HashMap::new(),
+            shaders: HashMap::new(),
             skins: HashMap::new(),
             wires: HashMap::new(),
             loaders,
@@ -177,7 +181,17 @@ impl Assets {
         self.map_mut().remove(&handle)
     }
 
-    fn next_id(&mut self) -> RawId {
+    pub fn iter<T>(&mut self) -> hash_map::Iter<'_, Id<T>, T>
+    where Self: AssetMapGetter<T> {
+        self.map().iter()
+    }
+
+    pub fn iter_mut<T>(&mut self) -> hash_map::IterMut<'_, Id<T>, T>
+    where Self: AssetMapGetter<T> {
+        self.map_mut().iter_mut()
+    }
+
+    fn next_id(&mut self) -> u64 {
         let result = self.id_generator;
         self.id_generator += 1;
         result
@@ -276,6 +290,17 @@ impl AssetMapGetter<Wires> for Assets {
 
     fn map_mut(&mut self) -> &mut HashMap<Id<Wires>, Wires> {
         &mut self.wires
+    }
+}
+
+
+impl AssetMapGetter<Shader> for Assets {
+    fn map(&self) -> &HashMap<Id<Shader>, Shader> {
+        &self.shaders
+    }
+
+    fn map_mut(&mut self) -> &mut HashMap<Id<Shader>, Shader> {
+        &mut self.shaders
     }
 }
 

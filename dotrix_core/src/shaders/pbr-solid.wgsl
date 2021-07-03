@@ -19,7 +19,7 @@ var u_renderer: Renderer;
 struct Model {
     transform: mat4x4<f32>;
 };
-[[group(0), binding(1)]]
+[[group(1), binding(0)]]
 var u_model: Model;
 
 
@@ -73,10 +73,10 @@ struct SpotLight {
 };
 
 
-[[group(0), binding(3)]]
+[[group(1), binding(2)]]
 var r_texture: texture_2d<f32>;
 
-[[group(0), binding(4)]]
+[[group(0), binding(1)]]
 var r_sampler: sampler;
 
 [[block]]
@@ -88,7 +88,7 @@ struct Light {
     simple: [[stride(32)]] array<SimpleLight, 10u>;
     spot: [[stride(64)]] array<SpotLight, 10u>;
 };
-[[group(0), binding(5)]]
+[[group(0), binding(2)]]
 var u_light: Light;
 
 
