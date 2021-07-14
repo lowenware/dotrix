@@ -1,6 +1,9 @@
 use bytemuck::{ Pod, Zeroable };
 use wgpu::util::DeviceExt;
 use dotrix_math::{ Vec3, InnerSpace, VectorSpace };
+use crate::{
+    renderer::{ VertexBuffer, Renderer },
+};
 
 /// Asset with 3D model data
 #[derive(Default)]
@@ -17,16 +20,16 @@ pub struct Mesh {
     pub joints: Option<Vec<[u16; 4]>>,
     /// Indices of the vertices
     pub indices: Option<Vec<u32>>,
-    /// Vertices pipeline buffer
-    pub vertices_buffer: Option<wgpu::Buffer>,
-    /// Indices pipeline buffer
-    pub indices_buffer: Option<wgpu::Buffer>,
+
+    pub vertex_buffer: VertexBuffer,
+
+    pub changed: bool,
 }
 
 impl Mesh {
     /// Converts a mesh into a vector of vertices data, packed for static shadering
     /// (positions, normals, uvs)
-    pub fn as_static(&self) -> Option<Vec<StaticModelVertex>> {
+    fn as_static(&self) -> Option<Vec<StaticModelVertex>> {
         if let Some(normals) = self.normals.as_ref() {
             if let Some(uvs) = self.uvs.as_ref() {
                 return Some(
@@ -49,7 +52,7 @@ impl Mesh {
 
     /// Converts a mesh into a vector of vertices data, packed for skinned shadering
     /// (positions, normals, uvs, weights, affected joints)
-    pub fn as_skinned(&self) -> Option<Vec<SkinnedModelVertex>> {
+    fn as_skinned(&self) -> Option<Vec<SkinnedModelVertex>> {
         if let Some(normals) = self.normals.as_ref() {
             if let Some(uvs) = self.uvs.as_ref() {
                 if let Some(all_weights) = self.weights.as_ref() {
@@ -147,58 +150,6 @@ impl Mesh {
         }
     }
 
-    /// Loads vertices buffer
-    pub fn load_vertices_buffer(&mut self, device: &wgpu::Device, buffer: &[u8]) {
-        self.vertices_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Static Mesh Vertex Buffer"),
-            contents: bytemuck::cast_slice(buffer),
-            usage: wgpu::BufferUsage::VERTEX,
-        }));
-    }
-
-    /// Loads indices buffer
-    pub fn load_indices_buffer(&mut self, device: &wgpu::Device) {
-        self.indices_buffer = self.indices
-            .as_ref()
-            .map(|indices| {
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: Some("Index Buffer"),
-                    contents: bytemuck::cast_slice(indices),
-                    usage: wgpu::BufferUsage::INDEX,
-                })
-            });
-    }
-
-    /// Loads the [`Mesh`] buffers for static [`crate::components::Model`]
-    pub fn load_as_static(&mut self, device: &wgpu::Device) {
-        if self.vertices_buffer.is_some() {
-            return;
-        }
-        let vertices = self.as_static()
-            .expect("Mesh is not suitable for a static model");
-        self.vertices_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Static Mesh Vertex Buffer"),
-            contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsage::VERTEX,
-        }));
-        self.load_indices_buffer(device);
-    }
-
-    /// Loads the [`Mesh`] buffers for [`crate::components::Model`] with [`crate::assets::Skin`]
-    pub fn load_as_skinned(&mut self, device: &wgpu::Device) {
-        if self.vertices_buffer.is_some() {
-            return;
-        }
-        let vertices = self.as_skinned()
-            .expect("Mesh is not suitable for a skinned model");
-        self.vertices_buffer = Some(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Skinned Mesh Vertex Buffer"),
-            contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsage::VERTEX,
-        }));
-        self.load_indices_buffer(device);
-    }
-
     /// Calculates Mesh missing data (normals)
     pub fn calculate(&mut self) {
         if self.normals.is_none() {
@@ -230,10 +181,46 @@ impl Mesh {
         }
     }
 
-    /// Unloads the [`Mesh`] buffers
+    /// Load the [`Mesh`] buffer
+    pub fn load(&mut self, renderer: &Renderer) {
+        if !self.changed && !self.vertex_buffer.is_empty() {
+            return;
+        }
+
+        /// TODO: fix it, when pbr::skeletal is implemented
+        let is_skinned = false; // self.is_skinned();
+
+        let count = self.indices.as_ref()
+            .map(|indices| indices.len())
+            .unwrap_or_else(|| self.positions.len());
+
+        if !is_skinned {
+            let attributes = self.as_static()
+                .expect("Mesh is not suitable for a static model");
+
+            renderer.load_vertex_buffer(
+                &mut self.vertex_buffer,
+                bytemuck::cast_slice(&attributes),
+                self.indices.as_ref().map(|indices| bytemuck::cast_slice(indices)),
+                count
+            );
+        } else {
+            let attributes = self.as_skinned()
+                .expect("Mesh is not suitable for a skinned model");
+
+            renderer.load_vertex_buffer(
+                &mut self.vertex_buffer,
+                bytemuck::cast_slice(&attributes),
+                self.indices.as_ref().map(|indices| bytemuck::cast_slice(indices)),
+                count
+            );
+        }
+        self.changed = false;
+    }
+
+    /// Unloads the [`Mesh`] buffer
     pub fn unload(&mut self) {
-        self.vertices_buffer.take();
-        self.indices_buffer.take();
+        self.vertex_buffer.empty();
     }
 }
 

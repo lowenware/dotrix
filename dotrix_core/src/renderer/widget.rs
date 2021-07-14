@@ -38,14 +38,17 @@ pub struct Widget {
 
 /// Pipeline buffers
 pub struct Buffers {
+    /*
     bind_group: wgpu::BindGroup,
     vertices_buffer: wgpu::Buffer,
     indices_buffer: Option<wgpu::Buffer>,
     screen_size: wgpu::Buffer,
+    */
 }
 
 impl Widget {
-    /// Returns loaded assets if they are all ready
+    // Returns loaded assets if they are all ready
+    /*
     fn get_texture<'a>(
         &self,
         assets: &'a mut Assets,
@@ -158,8 +161,8 @@ impl Widget {
 
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &frame.view,
+                color_attachments: &[wgpu::RenderPassColorAttachment {
+                    view: &frame.view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,
@@ -187,6 +190,7 @@ impl Widget {
             }
         }
     }
+    */
 }
 
 impl Default for Widget {

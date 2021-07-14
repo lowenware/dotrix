@@ -1,5 +1,5 @@
 use std::{
-    path::PathBuf,
+    path::Path,
     sync::{Arc, mpsc, Mutex},
 };
 
@@ -11,7 +11,7 @@ use gltf::{
 
 use log::info;
 
-use super::super::renderer::transform::Transform;
+use crate::generics::Transform;
 use dotrix_math::{Mat4, Vec3, Quat};
 
 use super::{
@@ -25,7 +25,7 @@ pub fn load_gltf(
     sender: &Arc<Mutex<mpsc::Sender<Response>>>,
     name: String,
     data: Vec<u8>,
-    path: &PathBuf,
+    path: &Path,
 ) -> Result<(), ImportError>{
 
     let gltf = Gltf::from_slice(&data)?;
@@ -44,7 +44,7 @@ pub fn load_gltf(
     Ok(())
 }
 
-fn load_buffers(gltf: &Gltf, path: &PathBuf) -> Result<Vec<Vec<u8>>, ImportError> {
+fn load_buffers(gltf: &Gltf, path: &Path) -> Result<Vec<Vec<u8>>, ImportError> {
     const URI_BASE64: &str = "data:application/octet-stream;base64,";
     let mut buffers = Vec::new();
 

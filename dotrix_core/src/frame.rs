@@ -1,5 +1,5 @@
-use std::time::{Duration, Instant};
-use log::info;
+use std::time::{ Duration, Instant };
+use crate::ecs::Mut;
 
 /// Frame tracking service
 ///
@@ -46,7 +46,6 @@ impl Frame {
                 let fps = self.counter;
                 self.fps = Some(fps);
                 self.counter = 0;
-                info!("FPS: {}", fps);
                 self.counter_start = Some(now);
             }
         } else {
@@ -76,4 +75,10 @@ impl Default for Frame {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Frame bind system
+/// Calculates FPS and delta time between frame renderings
+pub fn bind(mut frame: Mut<Frame>) {
+    frame.next();
 }

@@ -6,51 +6,20 @@
 mod application;
 pub mod animation;
 pub mod assets;
-mod camera;
+pub mod camera;
 pub mod ecs;
+pub mod generics;
+mod globals;
 mod frame;
+pub mod pbr;
 pub mod input;
 pub mod renderer;
-mod scheduler;
 pub mod window;
 mod world;
 
 pub use application::{ Application, Service };
 
-pub mod components {
-//! Component usually is just a data structure with or without associated methods. In ECS
-//! pattern components represent properties of entities: velocity, weight, model, rigid body, color
-//! etc.
-//!
-//! Set of components in the entity defines an Archetype. Entities of the same
-//! Archetype are being grouped together in the [`crate::services::World`] storage, that
-//! makes search fast and linear.
-//!
-//! When planning the architecture of your game, developer should think about components not only
-//! as of properties, but also as of search tags. For example, if you are making physics for your
-//! game, and you have a `Car` and a `SpringBoard`, you may want to have the same named components,
-//! so you can easily query all `Cars` or all `SpringBoards`. But as soon as you will need to
-//! calculate physics for entities of the both types, you should add some component like 
-//! `RigidBody` to the entities, so you can calculate physics for all entities who have that
-//! component.
-//!
-//! ## Usefull references
-//! - To learn how to spawn and query entities, continue reading with [`crate::services::World`]
-//! - To learn how to implement systems [`crate::systems`]
-    pub use crate::{
-        animation::Animator,
-        renderer::{
-            AmbientLight,
-            DirLight,
-            Model,
-            PointLight,
-            SimpleLight,
-            SkyBox,
-            SpotLight,
-            WireFrame,
-        },
-    };
-}
+pub mod components;
 
 pub mod services {
 //! Services are very important part of Dotrix. Technicaly the service is a standard Rust
@@ -78,6 +47,7 @@ pub mod services {
     pub use crate::{
         assets::Assets,
         camera::Camera,
+        globals::Globals,
         input::Input,
         frame::Frame,
         input::Ray,
@@ -193,16 +163,13 @@ pub mod systems {
 //! ```
 
     pub use crate::{
-        renderer::{
-            world_renderer,
-        },
-        renderer::overlay_update,
-        animation::skeletal_animation,
-        camera::camera_control,
+        animation::skeletal,
+        camera::control,
     };
 }
 
-use ecs::System;
+use ecs::{ System, RunLevel };
+use assets::{ Shader };
 
 /// Application Builder
 ///
@@ -260,6 +227,72 @@ pub struct Display {
 impl Dotrix {
     /// Initiates building of an application with specified name
     pub fn application(name: &'static str) -> Self {
+        let mut app = Application::new(name);
+
+
+        // Assets manager
+        let mut assets = assets::Assets::default();
+        let pbr_solid_shader = assets.store_as(
+            Shader {
+                name: String::from(pbr::solid::PIPELINE_LABEL),
+                code: String::from(include_str!("shaders/pbr-solid.wgsl")),
+                ..Default::default()
+            },
+            pbr::solid::PIPELINE_LABEL
+        );
+        app.add_service(assets);
+
+        // Camera service
+        app.add_service(camera::Camera::default());
+        // FPS and delta time counter
+        app.add_service(frame::Frame::default());
+        // Input manager
+        app.add_service(input::Input::default());
+        // Global buffers
+        app.add_service(globals::Globals::default());
+        // Render manager
+        app.add_service(renderer::Renderer::default());
+
+        // Window manager
+        app.add_service(window::Window::default());
+        // World manager
+        app.add_service(world::World::default());
+
+        // Renderer startup
+        app.add_system(System::from(renderer::startup).with(RunLevel::Startup));
+        app.add_system(System::from(camera::startup).with(RunLevel::Startup));
+        app.add_system(System::from(components::startup_lights).with(RunLevel::Startup));
+
+        // Handle resize event by Renderer
+        app.add_system(System::from(renderer::resize).with(RunLevel::Resize));
+        // Bind to a new frame
+        app.add_system(System::from(renderer::bind).with(RunLevel::Bind));
+        // Recalculate FPS and delta time
+        app.add_system(System::from(frame::bind).with(RunLevel::Bind));
+        // Store lights into buffer
+        // TODO: rearrange it
+        app.add_system(System::from(components::load_lights).with(RunLevel::Bind));
+        // load proj_view matrices
+        app.add_system(System::from(camera::load).with(RunLevel::Bind));
+
+        // Calculate skeletal animations
+        app.add_system(System::from(animation::skeletal));
+
+        // Render Solid PBR models
+        app.add_system(System::from(pbr::solid::render).with(RunLevel::Render));
+
+        // Finalize frame by Renderer
+        app.add_system(System::from(renderer::release).with(RunLevel::Release));
+        // Reset input events
+        app.add_system(System::from(input::release).with(RunLevel::Release));
+
+        Self {
+            app: Some(app),
+        }
+    }
+
+    /// Initiates building of an application with specified name
+    pub fn bare(name: &'static str) -> Self {
         Self {
             app: Some(Application::new(name)),
         }

@@ -1,6 +1,6 @@
 [package]
 name = "dotrix"
-version = "0.3.0"
+version = "0.4.0"
 authors = [
   "Elias Kartashov <elias@lowenware.com>",
   "Štěpán Wünsch <sw@lowenware.com>",
@@ -14,11 +14,11 @@ license = "MIT"
 name = "dotrix"
 path = "src/lib.rs"
 
-[features]
-default = [ "egui", "terrain" ]
+#[features]
+#default = [ "egui", "terrain" ]
 
-egui = ["dotrix_egui"]
-terrain = ["dotrix_terrain"]
+# egui = ["dotrix_egui"]
+#terrain = ["dotrix_terrain"]
 
 [workspace]
 members = [
@@ -37,15 +37,15 @@ path = "./dotrix_math"
 
 # Optional dependencies
 
-[dependencies.dotrix_egui]
-version = "0.3"
-path = "./dotrix_egui"
-optional = true
+#[dependencies.dotrix_egui]
+#version = "0.3"
+#path = "./dotrix_egui"
+#optional = true
 
-[dependencies.dotrix_terrain]
-version = "0.3"
-path = "./dotrix_terrain"
-optional = true
+#[dependencies.dotrix_terrain]
+#version = "0.4"
+#path = "./dotrix_terrain"
+#optional = true
 
 [dev-dependencies.rand]
 version = "0.8"
@@ -69,9 +69,9 @@ path = "examples/animation/fox.rs"
 name = "light"
 path = "examples/light/light.rs"
 
-[[example]]
-name = "marching_cubes"
-path = "examples/marching_cubes/marching_cubes.rs"
+#[[example]]
+#name = "marching_cubes"
+#path = "examples/marching_cubes/marching_cubes.rs"
 
 [[example]]
 name = "skybox"

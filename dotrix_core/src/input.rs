@@ -1,6 +1,6 @@
 //! Input service, ray casting service and utils
 mod ray;
-
+use crate::ecs::Mut;
 use dotrix_math::{Vec2, clamp};
 use std::collections::HashMap;
 
@@ -84,20 +84,16 @@ pub struct Input {
     pub modifiers: Modifiers,
 }
 
+#[derive(Hash, Eq, PartialEq, Clone, Copy)]
+pub enum Action {
+    MoveForward,
+    MoveBackward,
+    MoveLeft,
+    MoveRight
+}
+
 impl Input {
-    /// Service constructor from [`ActionMapper`]
-    pub fn new(mapper: Box<dyn std::any::Any + Send + Sync>) -> Self {
-        Self {
-            mapper,
-            states: HashMap::new(),
-            mouse_scroll_delta: 0.0,
-            mouse_position: None,
-            mouse_delta: Vec2::new(0.0, 0.0),
-            window_size: Vec2::new(0.0, 0.0),
-            events: Vec::with_capacity(8),
-            modifiers: Modifiers::empty()
-        }
-    }
+
 
     /// Returns the status of the mapped action.
     pub fn action_state<T>(&self, action: T) -> Option<State>
@@ -149,6 +145,11 @@ impl Input {
         self.action_state(action)
             .map(|state| state == State::Hold || state == State::Activated)
             .unwrap_or(false)
+    }
+
+    /// Set custom [`ActionMapper`]
+    pub fn set_mapper(&mut self, mapper: Box<dyn std::any::Any + Send + Sync>) {
+        self.mapper = mapper;
     }
 
     /// Get input mapper reference
@@ -242,12 +243,10 @@ impl Input {
             }
         }
 
-        if let winit::event::Event::DeviceEvent { event, .. } = event {
-            match event {
-                winit::event::DeviceEvent::MouseMotion { delta } =>
-                    self.on_mouse_motion_event(delta),
-                _ => {},
-            }
+        if let winit::event::Event::DeviceEvent {
+            event: winit::event::DeviceEvent::MouseMotion { delta }, ..
+        } = event {
+            self.on_mouse_motion_event(delta)
         }
     }
 
@@ -305,6 +304,23 @@ impl Input {
         let (x, y) = *delta; // TODO: can descruct tuple as f32?
         self.mouse_delta.x += x as f32;
         self.mouse_delta.y += y as f32;
+    }
+}
+
+impl Default for Input {
+    /// [`Input`] service constructor
+    fn default() -> Self {
+        let mapper = Box::new(Mapper::<Action>::new());
+        Self {
+            mapper,
+            states: HashMap::new(),
+            mouse_scroll_delta: 0.0,
+            mouse_position: None,
+            mouse_delta: Vec2::new(0.0, 0.0),
+            window_size: Vec2::new(0.0, 0.0),
+            events: Vec::with_capacity(8),
+            modifiers: Modifiers::empty()
+        }
     }
 }
 
@@ -445,4 +461,9 @@ fn is_printable(chr: char) -> bool {
         || ('\u{100000}'..='\u{10fffd}').contains(&chr);
 
     !is_in_private_use_area && !chr.is_ascii_control()
+}
+
+/// Input release system
+pub fn release(mut input: Mut<Input>) {
+    input.reset();
 }
