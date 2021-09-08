@@ -1,0 +1,8 @@
+cd dotrix_math && cargo publish
+cd ../dotrix_core && cargo publish
+cd ../dotrix_pbr && cargo publish
+cd ../dotrix_sky && cargo publish
+cd ../dotrix_overlay && cargo publish
+cd ../dotrix_egui && cargo publish
+cd ../dotrix_terrain && cargo publish
+cd ../ && cargo publish
