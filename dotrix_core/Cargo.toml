@@ -21,7 +21,7 @@ version = "1.4"
 features = ["derive"]
 
 [dependencies.dotrix_math]
-version = "0.3"
+version = "0.4"
 path = "../dotrix_math"
 
 [dependencies.futures]

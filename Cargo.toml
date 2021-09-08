@@ -38,7 +38,7 @@ version = "0.5"
 path = "./dotrix_core"
 
 [dependencies.dotrix_math]
-version = "0.3"
+version = "0.4"
 path = "./dotrix_math"
 
 # Optional dependencies
