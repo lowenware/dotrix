@@ -51,10 +51,7 @@ pub struct Entity {
 impl Entity {
     pub fn some(self) -> Option<(Model, Pose, Material, Transform, Pipeline)> {
         Some((
-            Model {
-                mesh: self.mesh,
-                ..Default::default()
-            },
+            Model::from(self.mesh),
             Pose::from(self.skin),
             Material {
                 albedo: self.albedo,
