@@ -91,6 +91,13 @@ fn vs_main(
 
 
 // STAGE: FRAGMENT -------------------------------------------------------------------------------
+[[block]]
+struct Material {
+    albedo: vec4<f32>;
+    has_texture: u32;
+};
+[[group(1), binding(1)]]
+var u_material: Material;
 
 [[group(1), binding(2)]]
 var r_texture: texture_2d<f32>;
@@ -102,13 +109,16 @@ var r_sampler: sampler;
 
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
-    let texture_color: vec4<f32> = textureSample(r_texture, r_sampler, in.tex_uv);
+    var albedo_color: vec4<f32>;
+
+    if (u_material.has_texture != 0u) {
+        albedo_color = textureSample(r_texture, r_sampler, in.tex_uv);
+    } else {
+        albedo_color = u_material.albedo;
+    }
     let light_color = calculate_light(in.world_position.xyz, in.normal);
 
-    return texture_color * light_color;
-
-    //mag: f32 = length(v_TexCoord-vec2(0.5));
-    // o_Target = vec4(mix(result_color.xyz, vec3(0.0), mag*mag), 1.0);
+    return albedo_color * light_color;
 }
 
 

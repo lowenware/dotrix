@@ -10,7 +10,7 @@ license = "MIT"
 [dependencies]
 dotrix_core = { version = "0.5", path = "../dotrix_core" }
 dotrix_math = { version = "0.3", path = "../dotrix_math" }
-dotrix_pbr = { version = "0.1", path = "../dotrix_pbr" }
+dotrix_pbr = { version = "0.2", path = "../dotrix_pbr" }
 rayon = "1.5"
 
 [dependencies.noise]

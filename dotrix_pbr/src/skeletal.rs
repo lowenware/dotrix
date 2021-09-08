@@ -148,7 +148,7 @@ pub fn render(
                         ]),
                         BindGroup::new("Locals", vec![
                             Binding::Uniform("Transform", Stage::Vertex, &model.transform),
-                            Binding::Uniform("Material", Stage::Vertex, &material.uniform),
+                            Binding::Uniform("Material", Stage::Fragment, &material.uniform),
                             Binding::Texture("Texture", Stage::Fragment, &texture.buffer),
                             Binding::Uniform("Joints", Stage::Vertex, &pose.uniform),
                         ])
