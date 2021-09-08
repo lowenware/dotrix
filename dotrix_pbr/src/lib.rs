@@ -19,6 +19,7 @@ pub use model::Model;
 
 /// Enables PBR Dotrix Extension
 pub fn extension(app: &mut Application) {
+    app.add_system(System::from(material::startup));
     app.add_system(System::from(light::startup));
     app.add_system(System::from(light::bind));
 

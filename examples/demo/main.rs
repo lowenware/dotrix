@@ -170,10 +170,6 @@ fn init_player(
     assets: &mut Assets,
     input: &mut Input,
 ) {
-    // Import texture and store its ID in a variable
-    assets.import("assets/textures/gray.png");
-    let texture = assets.register("gray");
-
     // Import character model from GLTF file, it provides several assets: mesh, skin, and run
     // animation
     assets.import("assets/models/character.gltf");
@@ -186,7 +182,6 @@ fn init_player(
         Model::from(mesh),
         Pose::from(skin),
         Material {
-            texture,
             albedo: Color::grey(),
             ..Default::default()
         },

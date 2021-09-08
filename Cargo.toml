@@ -1,6 +1,6 @@
 [package]
 name = "dotrix"
-version = "0.5.0"
+version = "0.5.1"
 authors = [
   "Elias Kartashov <elias@lowenware.com>",
   "Štěpán Wünsch <sw@lowenware.com>",
@@ -54,7 +54,7 @@ path = "./dotrix_egui"
 optional = true
 
 [dependencies.dotrix_pbr]
-version = "0.1"
+version = "0.2"
 path = "./dotrix_pbr"
 optional = true
 

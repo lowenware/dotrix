@@ -617,7 +617,7 @@ dependencies = [
 
 [[package]]
 name = "dotrix"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "dotrix_core",
  "dotrix_egui",
@@ -676,7 +676,7 @@ dependencies = [
 
 [[package]]
 name = "dotrix_pbr"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "bytemuck",
  "dotrix_core",

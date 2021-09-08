@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.5.1 / 2021-09-08
+
+* **NEW:** Added support for textureless colored materials
+
 ## v0.5.0 / 2021-09-07
 
 * **NEW:** Added prelude module. Add `use dotrix::prelude::*` to include `Dotrix`,
