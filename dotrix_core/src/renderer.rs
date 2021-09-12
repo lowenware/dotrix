@@ -66,6 +66,16 @@ impl Renderer {
         self.backend.as_mut().expect(RENDERER_STARTUP)
     }
 
+    /// Gets current surface clear color
+    pub fn clear_color(&self) -> Color {
+        self.clear_color
+    }
+
+    /// Sets surface clear color
+    pub fn set_clear_color(&mut self, color: Color) {
+        self.clear_color = color;
+    }
+
     /// Returns the rendering cycle number (Experimental)
     pub fn cycle(&self) -> usize {
         self.cycle
