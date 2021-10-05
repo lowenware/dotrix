@@ -23,6 +23,7 @@ use dotrix_overlay::{ Overlay, Ui, Widget };
 pub use egui::*;
 
 const TEXTURE_NAME: &str = "egui::texture";
+const SCROLL_SENSITIVITY: f32 = 10.0;
 
 /// EGUI overlay provider
 #[derive(Default)]
@@ -89,6 +90,15 @@ impl Ui for Egui {
             }
         }
 
+        if input.mouse_moved() {
+            events.push(egui::Event::PointerMoved(
+                Pos2{
+                    x: mouse_pos.x,
+                    y: mouse_pos.y,
+                }
+            ));
+        }
+
         self.ctx.begin_frame(egui::RawInput {
             screen_rect: Some(egui::math::Rect::from_min_size(
                 Default::default(),
@@ -96,6 +106,7 @@ impl Ui for Egui {
             )),
             pixels_per_point: Some(scale_factor),
             events,
+            scroll_delta: egui::math::vec2(0.0, input.mouse_scroll() * SCROLL_SENSITIVITY),
             ..Default::default()
         });
 

@@ -74,6 +74,7 @@ pub struct Input {
     mouse_scroll_delta: f32,
     mouse_position: Option<Vec2>,
     mouse_delta: Vec2,
+    mouse_moved: bool,
     window_size: Vec2, // TODO: move to other struct or service
     /// events collector
     pub events: Vec<Event>,
@@ -169,7 +170,7 @@ impl Input {
 
     /// Mouse scroll delta
     ///
-    /// Value should can be positive (up) or negative (down)
+    /// Value can be positive (up) or negative (down)
     pub fn mouse_scroll(&self) -> f32 {
         self.mouse_scroll_delta
     }
@@ -184,6 +185,13 @@ impl Input {
     /// The top-left of the window is at (0, 0).
     pub fn mouse_delta(&self) -> Vec2 {
         self.mouse_delta
+    }
+
+    /// Returns true if mouse was moved this frame.
+    ///
+    /// This can be handy to do quick check before doing some performance costly operation.
+    pub fn mouse_moved(&self) -> bool {
+        self.mouse_moved
     }
 
     /// Normalized mouse position
@@ -203,6 +211,7 @@ impl Input {
 
     /// This method must be called periodically to update states from events
     pub(crate) fn reset(&mut self) {
+        self.mouse_moved = false;
         self.mouse_delta = Vec2 { x: 0.0, y: 0.0 };
         self.mouse_scroll_delta = 0.0;
 
@@ -251,6 +260,7 @@ impl Input {
     }
 
     fn on_cursor_moved_event(&mut self, position: &winit::dpi::PhysicalPosition<f64>) {
+        self.mouse_moved = true;
         self.mouse_position = Some(Vec2 {
             x: position.x as f32,
             y: position.y as f32,
@@ -317,6 +327,7 @@ impl Default for Input {
             mouse_scroll_delta: 0.0,
             mouse_position: None,
             mouse_delta: Vec2::new(0.0, 0.0),
+            mouse_moved: false,
             window_size: Vec2::new(0.0, 0.0),
             events: Vec::with_capacity(8),
             modifiers: Modifiers::empty()
