@@ -15,10 +15,9 @@ fn main() {
         .with(System::from(startup))
         .with(System::from(settings::startup))
 
-        .with(System::from(settings::ui))
-
-        .with(System::from(camera_update))
         .with(System::from(match_finder::update))
+        .with(System::from(settings::ui))
+        .with(System::from(camera_update))
 
         .with(Service::from(MatchFinder::new()))
         .with(Service::from(Settings::default()))

@@ -182,7 +182,7 @@ impl Window {
         self.get().fullscreen().is_some()
     }
 
-    ///
+    /// Returns true if window was requested to be closed
     pub fn close_request(&self) -> bool {
         self.close_request
     }

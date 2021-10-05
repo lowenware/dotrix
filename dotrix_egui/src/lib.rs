@@ -7,6 +7,9 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
 #![warn(missing_docs)]
 
+/// Extra widgets provided by dotrix.
+pub mod extras;
+
 use dotrix_core::{ Application, Id, Pipeline, Assets, Input, Window };
 use dotrix_core::assets::{ Mesh, Texture };
 use dotrix_core::ecs::{ Mut, System };
@@ -52,7 +55,7 @@ impl Ui for Egui {
     fn bind(
         &mut self,
         assets: &mut Assets,
-        input: &Input,
+        input: &mut Input,
         window: &Window,
     ) {
         let scale_factor = self.scale_factor * window.scale_factor();
@@ -105,6 +108,23 @@ impl Ui for Egui {
             ));
         }
 
+        let dropped_files = input.dropped_files.take()
+            .map(|dropped_files| dropped_files.into_iter()
+                .map(|path| DroppedFile {
+                    path: Some(path),
+                    ..Default::default()
+                })
+                .collect::<Vec<_>>()
+            )
+            .unwrap_or_default();
+
+        let hovered_files = input.hovered_files.iter().map(|path| {
+            HoveredFile{
+                path: Some(path.to_owned()),
+                ..Default::default()
+            }
+        }).collect::<Vec<_>>();
+
         self.ctx.begin_frame(egui::RawInput {
             screen_rect: Some(egui::math::Rect::from_min_size(
                 Default::default(),
@@ -112,6 +132,8 @@ impl Ui for Egui {
             )),
             pixels_per_point: Some(scale_factor),
             events,
+            dropped_files,
+            hovered_files,
             scroll_delta: egui::math::vec2(0.0, input.mouse_scroll() * SCROLL_SENSITIVITY),
             ..Default::default()
         });
