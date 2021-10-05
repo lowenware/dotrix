@@ -1,7 +1,11 @@
 //! Input service, ray casting service and utils
 use crate::ecs::Mut;
 use dotrix_math::{Vec2, clamp};
-use std::collections::HashMap;
+
+use std::{
+    collections::HashMap,
+    path::{ Path, PathBuf },
+};
 
 use winit::event::{
     ElementState,
@@ -80,6 +84,10 @@ pub struct Input {
     pub events: Vec<Event>,
     /// modifiers collector
     pub modifiers: Modifiers,
+    /// Currently dropped files. Used for drag & drop.
+    pub dropped_files: Option<Vec<PathBuf>>,
+    /// Currently held files above the window.
+    pub hovered_files: Vec<PathBuf>,
 }
 
 /// Sample input Actions enumeration
@@ -247,7 +255,10 @@ impl Input {
                             self.events.push(Event::Text(chr.to_string()));
                         }
                     }
-                }
+                },
+                WindowEvent::HoveredFile(buffer) => self.on_hovered_file_event(buffer),
+                WindowEvent::HoveredFileCancelled => self.on_hovered_file_canceled_event(),
+                WindowEvent::DroppedFile(buffer) => self.on_dropped_file_event(buffer),
                 _ => {},
             }
         }
@@ -315,6 +326,24 @@ impl Input {
         self.mouse_delta.x += x as f32;
         self.mouse_delta.y += y as f32;
     }
+
+    fn on_hovered_file_event(&mut self, path: &Path) {
+        self.hovered_files.push(path.to_owned());
+    }
+
+    fn on_hovered_file_canceled_event(&mut self) {
+        self.hovered_files.clear();
+    }
+
+    fn on_dropped_file_event(&mut self, path: &Path) {
+        let path = path.to_owned();
+        if let Some(dropped_files) = self.dropped_files.as_mut() {
+            dropped_files.push(path);
+        } else {
+            self.dropped_files = Some(vec![path]);
+        }
+        self.hovered_files.clear();
+    }
 }
 
 impl Default for Input {
@@ -330,7 +359,9 @@ impl Default for Input {
             mouse_moved: false,
             window_size: Vec2::new(0.0, 0.0),
             events: Vec::with_capacity(8),
-            modifiers: Modifiers::empty()
+            modifiers: Modifiers::empty(),
+            dropped_files: None,
+            hovered_files: Vec::new(),
         }
     }
 }

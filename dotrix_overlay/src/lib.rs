@@ -85,7 +85,7 @@ impl Overlay {
 
 pub trait Ui: Any + Send + Sync {
     /// Feeds the [`Ui`] with inputs
-    fn bind(&mut self, assets: &mut Assets, input: &Input, window: &Window);
+    fn bind(&mut self, assets: &mut Assets, input: &mut Input, window: &Window);
 
     /// Returns tessellated widgets for current frame
     fn tessellate(&mut self, window: &Window) -> &mut [(Widget, Pipeline)];
@@ -138,11 +138,11 @@ pub fn startup(mut assets: Mut<Assets>, renderer: Const<Renderer>) {
 pub fn bind(
     mut overlay: Mut<Overlay>,
     mut assets: Mut<Assets>,
-    input: Mut<Input>,
+    mut input: Mut<Input>,
     window: Const<Window>,
 ) {
     for provider in overlay.providers() {
-        provider.bind(&mut assets, &input, &window);
+        provider.bind(&mut assets, &mut input, &window);
     }
 }
 

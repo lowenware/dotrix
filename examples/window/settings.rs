@@ -12,11 +12,17 @@ use dotrix::egui::{
     Slider,
     TopBottomPanel,
 };
+use dotrix::egui::extras::{
+    file_dialog::FileDialog,
+};
 use dotrix::overlay::Overlay;
 use dotrix::math::{ Vec2i, Vec2u };
 use dotrix::window::{ CursorIcon, Fullscreen, UserAttentionType, VideoMode };
 
-use std::collections::hash_map::HashMap;
+use std::{
+    collections::hash_map::HashMap,
+    path::PathBuf,
+};
 
 pub struct Settings {
     current_monitor_number: usize,
@@ -24,6 +30,9 @@ pub struct Settings {
     icon: String,
     icons: HashMap<String, Id<Texture>>,
     min_inner_size: Vec2u,
+    opened_file: Option<PathBuf>,
+    open_file_dialog: Option<FileDialog>,
+    save_file_dialog: Option<FileDialog>,
     title: String,
     window_mode: WindowMode,
 }
@@ -36,6 +45,9 @@ impl Default for Settings {
             icon: String::from("none"),
             icons: HashMap::new(),
             min_inner_size: Vec2u::new(640, 480),
+            opened_file: None,
+            open_file_dialog: None,
+            save_file_dialog: None,
             title: String::new(),
             window_mode: WindowMode::Windowed,
         }
@@ -505,8 +517,73 @@ pub fn ui(
                     }
                 });
             });
+
+            CollapsingHeader::new("📂 File handling")
+            .default_open(true)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    let file_name = match &settings.opened_file {
+                        Some(_) => file_path_to_string(&settings.opened_file),
+                        None => String::from("[DROP FILE HERE]"),
+                    };
+
+                    if ui.button(file_name).hovered() {
+                        if let Some(file) = egui.ctx.input().raw.dropped_files.first() {
+                            settings.opened_file = file.path.clone();
+                        }
+                    }
+
+                    if (ui.button("Open")).clicked() {
+                        let mut dialog = FileDialog::open_file(settings.opened_file.clone());
+                        dialog.open();
+                        settings.open_file_dialog = Some(dialog);
+                    }
+
+                    if let Some(dialog) = &mut settings.open_file_dialog {
+                        if dialog.show(&egui.ctx).selected() {
+                            if let Some(file) = dialog.path() {
+                                settings.opened_file = Some(file);
+                            }
+                        }
+                    }
+
+                    if (ui.button("❌")).clicked() {
+                        settings.opened_file = None;
+                    }
+                });
+
+                ui.label("Hovering files:");
+                let hovered_files = &egui.ctx.input().raw.hovered_files;
+                if !hovered_files.is_empty() {
+                    for file in hovered_files.iter() {
+                        ui.label(format!("File: {}", file_path_to_string(&file.path)));
+                    }
+                } else {
+                    ui.label("Nothing");
+                }
+                if (ui.button("Save")).clicked() {
+                    let mut dialog = FileDialog::save_file(settings.opened_file.clone());
+                    dialog.open();
+                    settings.save_file_dialog = Some(dialog);
+                }
+
+                if let Some(dialog) = &mut settings.save_file_dialog {
+                    if dialog.show(&egui.ctx).selected() {
+                        if let Some(file) = dialog.path() {
+                            println!("Should save {:?}", file);
+                        }
+                    }
+                }
+            });
         });
     });
+}
+
+fn file_path_to_string(buf: &Option<std::path::PathBuf>) -> String {
+    match buf {
+        Some(path) => path.display().to_string(),
+        None => String::from(""),
+    }
 }
 
 pub fn startup(
