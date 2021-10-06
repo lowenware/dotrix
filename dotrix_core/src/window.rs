@@ -192,8 +192,12 @@ impl Window {
     /// The client area is the content of the window, excluding the title bar and
     /// borders.
     pub fn inner_size(&self) -> Vec2u {
-        let size = self.get().inner_size();
-        Vec2u { x: size.width, y: size.height }
+        let PhysicalSize { width, height } = self.get().inner_size();
+
+        Vec2u {
+            x: if width == 0 { 1 } else { width },
+            y: if height == 0 { 1 } else { height },
+        }
     }
 
     /// Returns current window aspect ratio
