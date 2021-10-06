@@ -26,6 +26,12 @@ features or access to global resources, like Assets, Input or Render management.
 
 Editor application is under development in the separate [branch](https://github.com/lowenware/dotrix/tree/feat/editor)
 
+```
+cargo run --release --bin editor
+```
+
+![Dotrix Editor](https://github.com/lowenware/dotrix/blob/feat/editor/editor-screenshot.png)
+
 ## Getting started
 
 The best place to start is to review examples distributed with the engine. All examples are grouped
