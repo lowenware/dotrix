@@ -24,8 +24,7 @@ features or access to global resources, like Assets, Input or Render management.
 
 ## Editor
 
-Editor application is under development in the separate repository
-[lowenware/dotrix-editor](https://github.com/lowenware/dotrix-editor).
+Editor application is under development in the separate [branch](https://github.com/lowenware/dotrix/tree/feat/editor)
 
 ## Getting started
 
