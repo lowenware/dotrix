@@ -14,6 +14,10 @@ license = "MIT"
 name = "dotrix"
 path = "src/lib.rs"
 
+[[bin]]
+name = "editor"
+path = "editor/main.rs"
+
 [features]
 default = [ "egui", "overlay", "pbr", "sky", "terrain" ]
 
