@@ -694,11 +694,13 @@ dependencies = [
 
 [[package]]
 name = "dotrix_terrain"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "bytemuck",
  "dotrix_core",
+ "dotrix_egui",
  "dotrix_math",
+ "dotrix_overlay",
  "dotrix_pbr",
  "noise",
  "num",
