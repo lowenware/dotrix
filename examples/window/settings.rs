@@ -307,7 +307,6 @@ pub fn ui(
                     }
                     ui.end_row();
 
-                    window.set_minimized(false);
                     ui.label("set Minimized");
                     ui.horizontal(|ui| {
                         if ui.button("true").clicked() {
