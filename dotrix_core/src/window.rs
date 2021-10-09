@@ -273,10 +273,9 @@ impl Window {
 
     /// Returns the resolution of monitor on which the window currently resides.
     pub fn screen_size(&self) -> Vec2u {
-        // let monitor = self.get().current_monitor().expect(NOT_SUPPORTED_ERROR);
-        //let size = monitor.size();
-        //Vec2u { x: size.width, y: size.height }
-        Vec2u { x: 1920, y: 1080 }
+        let monitor = self.get().current_monitor().expect(NOT_SUPPORTED_ERROR);
+        let size = monitor.size();
+        Vec2u { x: size.width, y: size.height }
     }
 
     /// Change whether or not the window will always be on top of other windows.
