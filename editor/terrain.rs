@@ -145,6 +145,9 @@ pub fn startup(
         ..Default::default()
     });
 
+    println!("Logo texture: {:?}", assets.register::<Texture>("lowenware"));
+
+    assets.import("assets/lowenware.png");
     assets.import("assets/terrain/heightmap.png");
 
     // terrain.heightmap = Box::new(HeightMap::new(8129));

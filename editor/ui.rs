@@ -1,5 +1,5 @@
 use dotrix::prelude::*;
-use dotrix::{ Color, Frame, Renderer, Window };
+use dotrix::{ Assets, Color, Frame, Renderer, Window };
 use dotrix::egui::{ Egui, native as egui };
 use dotrix::overlay::Overlay;
 
@@ -8,6 +8,7 @@ mod objects;
 mod widgets;
 
 pub use widgets::*;
+
 
 #[derive(Eq, PartialEq)]
 enum Mode {
@@ -32,7 +33,13 @@ impl Default for Controls {
     }
 }
 
-pub fn startup(mut renderer: Mut<Renderer>, window: Const<Window>) {
+pub fn startup(
+    mut assets: Mut<Assets>,
+    mut controls: Mut<Controls>,
+    mut renderer: Mut<Renderer>,
+    window: Const<Window>,
+) {
+    controls.terrain.set_brush_texture(assets.register("dotrix::editor::brush"));
     renderer.set_clear_color(Color::rgb(0.02, 0.02, 0.02));
     window.set_maximized(true);
 }

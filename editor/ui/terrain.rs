@@ -1,4 +1,6 @@
 use dotrix::egui::native as egui;
+use dotrix::Id;
+use dotrix::assets::Texture;
 use dotrix::math::Vec2u;
 use dotrix::terrain::{ Component, Noise };
 
@@ -21,7 +23,13 @@ pub struct Controls {
     brush_elevate: i8,
     brush_flatten: i8,
     noise: Noise,
+    brush_texture: Id<Texture>,
+}
 
+impl Controls {
+    pub fn set_brush_texture(&mut self, brush_texture: Id<Texture>) {
+        self.brush_texture = brush_texture;
+    }
 }
 
 impl Default for Controls {
@@ -38,6 +46,7 @@ impl Default for Controls {
             brush_elevate: 1,
             brush_flatten: 1,
             noise: Noise::default(),
+            brush_texture: Id::default(),
         }
     }
 }
@@ -179,6 +188,10 @@ fn show_brush(ui: &mut egui::Ui, controls: &mut Controls) {
                 ui.end_row();
             },
         };
+
+        ui.label("Preview");
+        ui.image(egui::TextureId::User(controls.brush_texture.id), [100.0, 100.0]);
+        ui.end_row();
     });
 }
 

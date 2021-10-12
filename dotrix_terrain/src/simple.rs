@@ -1,6 +1,7 @@
 /// Simple terrain generator
 
 use dotrix_core::assets::Mesh;
+use dotrix_core::ray::Ray;
 use dotrix_math::{ InnerSpace, Vec3 };
 
 use crate::{ Component, Generator, HeightMap, VecXZ };
@@ -11,6 +12,59 @@ pub struct Simple {
     pub max_height: f32,
     pub offset: VecXZ<i32>,
     pub dirty: bool,
+}
+
+impl Simple {
+    fn world_to_map(&self, point: &Vec3, unit_size: f32) -> VecXZ<i32> {
+        VecXZ::new(
+            (point.x / unit_size - self.offset.x as f32).floor() as i32,
+            (point.z / unit_size - self.offset.z as f32).floor() as i32,
+        )
+    }
+
+    fn height(&self, map: &VecXZ<i32>) -> f32 {
+        if map.x > 0 && map.z > 0 {
+            self.heights.get(map.x as u32, map.z as u32).unwrap_or(0.0) * self.max_height
+        } else {
+            0.0
+        }
+    }
+
+    /// Returns true if point is under the terrain
+    fn is_under(&self, point: &Vec3, unit_size: f32) -> bool {
+        let map = self.world_to_map(&point, unit_size);
+        self.height(&map) > point.y
+    }
+
+    fn binary_search_intersection(
+        &self,
+        depth: u32,
+        min: f32,
+        max: f32,
+        unit_size: f32,
+        ray: &Ray,
+    ) -> Vec3 {
+        const RECURSION_LIMIT: u32 = 200;
+        const PRECISION: f32 = 0.01;
+        let half = min + (max - min) / 2.0;
+
+        let point = ray.point(half);
+        let map = self.world_to_map(&point, unit_size);
+
+        let y = self.height(&map);
+
+        if depth == RECURSION_LIMIT || (y - point.y).abs() < PRECISION {
+            return point;
+        }
+
+        let (min, max) = if self.is_under(&point, unit_size) {
+            (min, half)
+        } else {
+            (half, max)
+        };
+
+        self.binary_search_intersection(depth + 1, min, max, unit_size, ray)
+    }
 }
 
 impl Generator for Simple {
@@ -42,12 +96,6 @@ impl Generator for Simple {
 
         let x0 = map_x as f32 * unit_size as f32;
         let z0 = map_z as f32 * unit_size as f32;
-
-        println!("  Get mesh for Position: ({}; {}), Map: ({}; {}), World: ({:?}; {:?}), HeightMap: ({:?}; {:?})",
-            position.x, position.z, map_x, map_z, x0, z0,
-height_map_x0,
-height_map_z0,
-            );
 
         for z in 0..vertices_per_side {
             let scale_z = z as i32 * scale as i32;
@@ -129,9 +177,29 @@ height_map_z0,
         self.dirty
     }
 
-    fn set_dirty(&mut self) {
-        self.dirty = true;
+    fn set_dirty(&mut self, value: bool) {
+        self.dirty = value;
     }
+
+
+
+    fn ray_intersection(&self, ray: &Ray, unit_size: f32) -> Option<Vec3> {
+        const RAY_RANGE: f32 = 4000.0;
+        if let Some(direction) = ray.direction.as_ref() {
+            if let Some(origin) = ray.origin.as_ref() {
+                let target = origin + direction * RAY_RANGE;
+
+                if self.is_under(&target, unit_size) && !self.is_under(&origin, unit_size) {
+                    return Some(
+                        self.binary_search_intersection(0, 0.0, RAY_RANGE, unit_size, ray)
+                    );
+                }
+            }
+        }
+
+        None
+    }
+
 }
 
 impl From<HeightMap> for Simple {

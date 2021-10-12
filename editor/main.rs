@@ -14,6 +14,7 @@ fn main() {
         .with(ray::extension)
         .with(terrain::extension)
 
+        .with(System::from(brush::startup))
         .with(System::from(ui::startup))
         .with(System::from(terrain::startup))
         .with(System::from(terrain::load))

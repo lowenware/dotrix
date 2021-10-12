@@ -5,6 +5,8 @@ use rand::{ SeedableRng, RngCore };
 use rand::rngs::SmallRng;
 
 use dotrix_core::{ Assets, World };
+use dotrix_core::ray::Ray;
+use dotrix_math::Vec3;
 
 use crate::{ Generator, Simple };
 
@@ -159,6 +161,10 @@ impl Map {
         for node in self.nodes.values_mut() {
             node.cleanup = true;
         }
+    }
+
+    pub fn ray_intersection(&self, ray: &Ray) -> Option<Vec3> {
+        self.generator.ray_intersection(ray, self.unit_size)
     }
 }
 

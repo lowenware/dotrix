@@ -6,6 +6,8 @@ use std::any::Any;
 
 use dotrix_core::{ Application, Id, System };
 use dotrix_core::assets::Mesh;
+use dotrix_core::ray::Ray;
+use dotrix_math::Vec3;
 
 // mod generator;
 mod height_map;
@@ -45,7 +47,9 @@ pub trait Generator: Send + Sync {
 
     fn dirty(&self) -> bool;
 
-    fn set_dirty(&mut self);
+    fn set_dirty(&mut self, value: bool);
+
+    fn ray_intersection(&self, ray: &Ray, unit_size: f32) -> Option<Vec3>;
 }
 
 /// Enables the terrain extension in Dotrix application
