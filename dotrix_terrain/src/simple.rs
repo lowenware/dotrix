@@ -181,23 +181,40 @@ impl Generator for Simple {
         self.dirty = value;
     }
 
-
-
-    fn ray_intersection(&self, ray: &Ray, unit_size: f32) -> Option<Vec3> {
-        const RAY_RANGE: f32 = 4000.0;
+    fn intersection(&self, ray: &Ray, range: f32, unit_size: f32) -> Option<Vec3> {
         if let Some(direction) = ray.direction.as_ref() {
             if let Some(origin) = ray.origin.as_ref() {
-                let target = origin + direction * RAY_RANGE;
+                let target = origin + direction * range;
 
                 if self.is_under(&target, unit_size) && !self.is_under(&origin, unit_size) {
                     return Some(
-                        self.binary_search_intersection(0, 0.0, RAY_RANGE, unit_size, ray)
+                        self.binary_search_intersection(0, 0.0, range, unit_size, ray)
                     );
                 }
             }
         }
 
         None
+    }
+
+    fn modify(&mut self, point: &Vec3, values: &[f32], size: u32, unit_size: f32) {
+        let radius = size / 2;
+        let mut map = self.world_to_map(point, unit_size);
+        map.x -= radius as i32;
+        map.z -= radius as i32;
+        for u in 0..size {
+            let index = u * size;
+            let x = map.x + u as i32;
+            if x > 0 {
+                for v in 0..size {
+                    let z = map.z + v as i32;
+                    if z > 0 {
+                        self.heights.add(x as u32, z as u32, values[(index + v) as usize]);
+                    }
+                }
+            }
+        }
+        self.dirty = true;
     }
 
 }

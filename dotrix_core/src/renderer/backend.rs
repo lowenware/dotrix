@@ -274,7 +274,9 @@ impl VertexBuffer {
         count: u32,
     ) {
         if let Some(buffer) = self.attributes.as_ref() {
+            println!("begin write buffer");
             ctx.queue.write_buffer(buffer, 0, attributes);
+            println!("end write buffer");
         } else {
             self.attributes = Some(
                 ctx.device.create_buffer_init(
@@ -288,7 +290,7 @@ impl VertexBuffer {
         }
 
         if let Some(buffer) = self.indices.as_ref() {
-            let indices = indices.expect("Indexed meshed can't be reloaded without indices");
+            let indices = indices.expect("Indexed meshes can't be reloaded without indices");
             ctx.queue.write_buffer(buffer, 0, indices);
         } else {
             self.indices = indices.map(|contents| {

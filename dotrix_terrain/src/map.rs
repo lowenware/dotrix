@@ -4,7 +4,8 @@ use noise::{ NoiseFn, Perlin };
 use rand::{ SeedableRng, RngCore };
 use rand::rngs::SmallRng;
 
-use dotrix_core::{ Assets, World };
+use dotrix_core::{ Assets, Id, World };
+use dotrix_core::assets::Mesh;
 use dotrix_core::ray::Ray;
 use dotrix_math::Vec3;
 
@@ -132,6 +133,9 @@ pub struct Node {
     pub cleanup: bool,
     /// Spawn state flag
     pub spawned: bool,
+
+    pub dirty: bool,
+    pub mesh: Id<Mesh>,
 }
 
 /// World Terrain Map service
@@ -163,8 +167,44 @@ impl Map {
         }
     }
 
-    pub fn ray_intersection(&self, ray: &Ray) -> Option<Vec3> {
-        self.generator.ray_intersection(ray, self.unit_size)
+    pub fn intersection(&self, ray: &Ray, range: f32) -> Option<Vec3> {
+        self.generator.intersection(ray, range, self.unit_size)
+    }
+
+    pub fn modify(&mut self, point: &Vec3, values: &[f32], size: u32) {
+        self.generator.modify(point, values, size, self.unit_size);
+    }
+
+    pub fn set_dirty(&mut self, point: &Vec3, size: u32) {
+        let radius = (size as f32 / 2.0) * self.unit_size;
+        let dirty_from = VecXZ::new(point.x - radius, point.z - radius);
+        let dirty_to = VecXZ::new(point.x + radius, point.z + radius);
+        let scale = (self.component.units_per_side() / 2) as f32 * self.unit_size;
+        for (pos, node) in self.nodes.iter_mut() {
+            let pos_x0 = (pos.x - node.lod.scale() as i32) as f32 * scale;
+            let pos_x1 = (pos.x + node.lod.scale() as i32) as f32 * scale;
+            let pos_z0 = (pos.z - node.lod.scale() as i32) as f32 * scale;
+            let pos_z1 = (pos.z + node.lod.scale() as i32) as f32 * scale;
+
+            if pos_x0 >= dirty_to.x || dirty_from.x >= pos_x1 {
+                continue;
+            }
+
+            if (dirty_from.z >= pos_z1 || pos_z0 >= dirty_to.z) {
+                continue;
+            }
+
+    // If one rectangle is on left side of other
+    //if (l1.x >= r2.x || l2.x >= r1.x)
+    //    return false;
+ 
+    // If one rectangle is above other
+    //if (r1.y >= l2.y || r2.y >= l1.y)
+    //    return false;
+
+
+            node.dirty = true;
+        }
     }
 }
 

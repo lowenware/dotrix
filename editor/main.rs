@@ -25,6 +25,7 @@ fn main() {
         .with(System::from(ui::show))
 
         .with(Service::from(ui::Controls::default()))
+        .with(Service::from(brush::Brush::default()))
 
         .run();
 }

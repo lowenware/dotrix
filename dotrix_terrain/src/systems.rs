@@ -31,7 +31,6 @@ pub fn spawn(
     camera: Const<Camera>,
 ) {
     if !map.generator.dirty() {
-        /// TODO: mark as non-dirty
         return;
     }
 
@@ -67,6 +66,7 @@ pub fn spawn(
             );
         }
     }
+    map.generator.set_dirty(false);
 }
 
 fn check_lod_and_spawn(
@@ -79,15 +79,28 @@ fn check_lod_and_spawn(
 ) {
     // TODO: check LOD and spawn terrain by recursive calls
 
+    let scale = lod.scale();
     if let Some(node) = map.nodes.get_mut(&position) {
         node.cleanup = false;
+        if node.dirty {
+            if let Some(new_mesh) = map.generator.get(map.component, position, scale, map.unit_size) {
+                if let Some(mesh) = assets.get_mut(node.mesh) {
+                    mesh.vertices = new_mesh.vertices;
+                    // wgpu panics on buffer rewriting. why?
+                    // mesh.changed = true;
+                    mesh.unload();
+                }
+            }
+            println!("redraw {}:{}", position.x, position.z);
+            node.dirty = false;
+        }
     } else {
-        let scale = lod.scale();
         if let Some(mesh) = map.generator.get(map.component, position, scale, map.unit_size) {
+            let mesh = assets.store(mesh);
             let terrain = Terrain {
                 position,
                 scale,
-                mesh: assets.store(mesh),
+                mesh,
                 loaded: false,
             };
             let material = Material {
@@ -104,12 +117,13 @@ fn check_lod_and_spawn(
             let pipeline = Pipeline::default();
 
             world.spawn(Some((terrain, material, pipeline)));
-        }
 
-        map.nodes.insert(position, Node {
-            lod,
-            ..Default::default()
-        });
+            map.nodes.insert(position, Node {
+                lod,
+                mesh,
+                ..Default::default()
+            });
+        }
     }
 }
 
@@ -161,12 +175,12 @@ pub fn render(
         // check if model is disabled or already rendered
         if !pipeline.cycle(&renderer) { continue; }
 
-        if !terrain.loaded {
+        //if !terrain.loaded {
             if let Some(mesh) = assets.get_mut(terrain.mesh) {
                 mesh.load(&renderer);
             }
-            terrain.loaded = true;
-        }
+        //    terrain.loaded = true;
+        //}
 
         if !material.load(&renderer, &mut assets) { continue; }
 

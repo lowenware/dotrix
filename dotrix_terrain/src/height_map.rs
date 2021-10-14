@@ -5,18 +5,16 @@ use crate::VecXZ;
 /// World HeightMap container
 pub struct HeightMap {
     size: VecXZ<u32>,
-    bytes_per_pixel: u32,
-    data: Vec<u8>,
+    data: Vec<f32>,
 }
 
 impl HeightMap {
     /// Creates new heightmap
-    pub fn new(size: VecXZ<u32>, bytes_per_pixel: u32) -> Self {
-        let capacity = size.x * size.z * bytes_per_pixel;
+    pub fn new(size: VecXZ<u32>) -> Self {
+        let capacity = size.x * size.z;
         Self {
             size,
-            bytes_per_pixel,
-            data: vec![0; capacity as usize],
+            data: vec![0.0; capacity as usize],
         }
     }
 
@@ -28,32 +26,32 @@ impl HeightMap {
     pub fn get(&self, point_x: u32, point_z: u32) -> Option<f32> {
         let size_x = self.size.x;
         let size_z = self.size.z;
-        let bytes_per_pixel = self.bytes_per_pixel;
         if point_x < size_x && point_z < size_z {
-            let mut result: u32 = 0;
-            let index = (point_z * size_x + point_x) * bytes_per_pixel;
-            for i in 0..bytes_per_pixel {
-                if i == 3 { break; }
-                // println!("{:#02X}", self.data[(index + i) as usize]);
-                result |= (self.data[(index + i) as usize] as u32) << (8 * i);
-
-            }
-            Some(result as f32 / 0xFFFFFF as f32)
+            let index = point_z * size_x + point_x;
+            Some(self.data[index as usize])
         } else {
             None
         }
     }
 
     /// Sets value for specified X and Z
-    pub fn set(&mut self,  point_x: u32, point_z: u32, value: u32) {
+    pub fn set(&mut self,  point_x: u32, point_z: u32, value: f32) {
         let size_x = self.size.x;
         let size_z = self.size.z;
-        let bytes_per_pixel = self.bytes_per_pixel;
         if point_x < size_x && point_z < size_z {
-            let index = (point_z * size_x + point_x) * bytes_per_pixel;
-            for i in 0..bytes_per_pixel {
-                self.data[(index + i) as usize] = ((value >> (8 * i)) & 0xFF) as u8;
-            }
+            let index = point_z * size_x + point_x;
+            self.data[index as usize] = value;
+        }
+    }
+
+    /// Adds value for specified X and Z
+    pub fn add(&mut self,  point_x: u32, point_z: u32, value: f32) {
+        let size_x = self.size.x;
+        let size_z = self.size.z;
+        if point_x < size_x && point_z < size_z {
+            let index = point_z * size_x + point_x;
+            let v = self.data[index as usize];
+            self.data[index as usize] = v + value;
         }
     }
 }
@@ -61,15 +59,35 @@ impl HeightMap {
 impl From<Texture> for HeightMap {
     fn from(texture: Texture) -> Self {
         let size = VecXZ::new(texture.width, texture.height);
+        let capacity = size.x * size.z;
         let bytes_per_pixel = texture.data.len() as u32 / size.x / size.z;
+        let mut data = Vec::with_capacity(capacity as usize);
+        for x in 0..size.x {
+            let index = x * size.z;
+            for z in 0..size.z {
+                let value = match bytes_per_pixel {
+                    1 => texture.data[(index + z) as usize] as f32 / 0xFF as f32,
+                    2 => {
+                        let index = ((index + z) as usize) * 2;
+                        let value = texture.data[index] as u16 |
+                            (texture.data[index + 1] as u16) << 8;
+                        value as f32 / 0xFFFF as f32
+                    },
+                    4 => texture.data[4 * (index + z) as usize] as f32 / 0xFF as f32,
+                    _ => panic!("Unsupported texture format")
+                };
+                data.push(value);
+            }
+        }
+
         Self {
             size,
-            bytes_per_pixel,
-            data: texture.data
+            data,
         }
     }
 }
 
+/*
 impl From<HeightMap> for Texture {
     fn from(height_map: HeightMap) -> Self {
         Texture {
@@ -80,10 +98,11 @@ impl From<HeightMap> for Texture {
         }
     }
 }
+*/
 
 impl Default for HeightMap {
     fn default() -> Self {
-        Self::new(VecXZ::new(1024, 1024), 2)
+        Self::new(VecXZ::new(1024, 1024))
     }
 }
 

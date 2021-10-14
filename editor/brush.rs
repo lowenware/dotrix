@@ -10,28 +10,27 @@ use dotrix::math::Vec3;
 pub const BRUSH_TEXTURE: &str = "dotrix::editor::brush";
 
 pub struct Brush {
-    radius: u32,
-    data: Vec<f32>,
+    size: u32,
+    values: Vec<f32>,
 }
 
 impl Brush {
-
-    pub fn radial(radius: u32) -> Self {
-        let side = 2 * radius;
-        let size = (side * side) as usize;
-        let mut data = Vec::with_capacity(size);
+    pub fn radial(size: u32, intensity: f32) -> Self {
+        let capacity = (size * size) as usize;
+        let mut values = Vec::with_capacity(capacity);
+        let radius = size / 2;
         let alpha = Self::distance(0, radius, radius, radius);
 
-        for u in 0..side {
-            for v in 0..side {
-                let value = (alpha - Self::distance(u, v, radius, radius)) / alpha;
-                data.push(if value > 0.0 { value } else { 0.0 });
+        for u in 0..size {
+            for v in 0..size {
+                let value = alpha - Self::distance(u, v, radius, radius);
+                values.push(if value > 0.0 { intensity * value / alpha } else { 0.0 });
             }
         }
 
         Self {
-            radius,
-            data
+            size,
+            values
         }
     }
 
@@ -43,10 +42,10 @@ impl Brush {
 
     pub fn texture(&self) -> Texture {
         let bytes_per_pixel = 4;
-        let mut data = Vec::with_capacity(self.data.len() * bytes_per_pixel);
+        let mut data = Vec::with_capacity(self.values.len() * bytes_per_pixel);
         let max_value: u8 = 0xFF;
-        let size = self.radius * 2;
-        for value in self.data.iter() {
+        let size = self.size;
+        for value in self.values.iter() {
             let byte = (max_value as f32 * value) as u8;
             data.push(byte); // R
             data.push(byte); // G
@@ -62,24 +61,35 @@ impl Brush {
     }
 }
 
+impl Default for Brush {
+    fn default() -> Self {
+        Self::radial(512, 0.5)
+    }
+}
+
 pub fn startup(
     mut assets: Mut<Assets>,
+    brush: Const<Brush>,
 ) {
-    let brush = Brush::radial(256);
     assets.store_as(brush.texture(), BRUSH_TEXTURE);
 }
 
 pub fn update(
+    mut map: Mut<Map>,
     ray: Const<Ray>,
     input: Const<Input>,
-    mut map: Mut<Map>,
+    brush: Const<Brush>,
 ) {
+    let range: f32 = 64000.0;
     if input.button_state(Button::MouseLeft) != Some(InputState::Hold) {
         return;
     }
 
-    /*
-    if let Some(intersection) = terrain.ray_intersection(&ray) {
+    if let Some(point) = map.intersection(&ray, range) {
+        println!("Ray intersects terrain @ {:?}", point);
+        map.modify(&point, &brush.values, brush.size);
+        map.set_dirty(&point, brush.size);
+        /*
         if let Some(heightmap) = terrain.heightmap_mut::<HeightMap>() {
             let size = heightmap.size() as f32;
             let offset = size as f32 / 2.0;
@@ -98,7 +108,7 @@ pub fn update(
                 terrain.force_spawn = true;
             }
         }
+        */
     }
-    */
 }
 

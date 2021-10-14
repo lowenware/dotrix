@@ -49,7 +49,9 @@ pub trait Generator: Send + Sync {
 
     fn set_dirty(&mut self, value: bool);
 
-    fn ray_intersection(&self, ray: &Ray, unit_size: f32) -> Option<Vec3>;
+    fn intersection(&self, ray: &Ray, range: f32, unit_size: f32) -> Option<Vec3>;
+
+    fn modify(&mut self, point: &Vec3, values: &[f32], size: u32, unit_size: f32);
 }
 
 /// Enables the terrain extension in Dotrix application
