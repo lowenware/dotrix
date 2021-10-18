@@ -8,6 +8,7 @@ mod objects;
 mod widgets;
 
 pub use widgets::*;
+use crate::brush::Brush;
 
 
 #[derive(Eq, PartialEq)]
@@ -46,6 +47,7 @@ pub fn startup(
 
 pub fn show(
     mut controls: Mut<Controls>,
+    mut brush: Mut<Brush>,
     frame: Const<Frame>,
     overlay: Const<Overlay>
 ) {
@@ -86,7 +88,7 @@ pub fn show(
             .show(&egui_overlay.ctx, |ui| {
 
             match controls.mode {
-                Mode::Terrain => terrain::show(ui, &mut controls.terrain),
+                Mode::Terrain => terrain::show(ui, &mut controls.terrain, &mut brush),
                 Mode::Objects => objects::show(ui, &mut controls.objects),
                 _ => {}
             }

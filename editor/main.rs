@@ -24,8 +24,8 @@ fn main() {
         .with(System::from(scene::control))
         .with(System::from(ui::show))
 
-        .with(Service::from(ui::Controls::default()))
         .with(Service::from(brush::Brush::default()))
+        .with(Service::from(ui::Controls::default()))
 
         .run();
 }

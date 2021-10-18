@@ -8,14 +8,23 @@ use dotrix::math::Vec3;
 
 
 pub const BRUSH_TEXTURE: &str = "dotrix::editor::brush";
+pub const INTENSITY: f32 = 0.1;
+pub const SIZE: u32 = 512;
+
+#[derive(Eq, PartialEq, Clone, Copy)]
+pub enum Mode {
+    Elevate,
+    Flatten,
+}
 
 pub struct Brush {
-    size: u32,
-    values: Vec<f32>,
+    pub mode: Mode,
+    pub size: u32,
+    pub values: Vec<f32>,
 }
 
 impl Brush {
-    pub fn radial(size: u32, intensity: f32) -> Self {
+    pub fn radial(size: u32, intensity: f32) -> Vec<f32> {
         let capacity = (size * size) as usize;
         let mut values = Vec::with_capacity(capacity);
         let radius = size / 2;
@@ -28,10 +37,7 @@ impl Brush {
             }
         }
 
-        Self {
-            size,
-            values
-        }
+        values
     }
 
     fn distance(u1: u32, v1: u32, u2: u32, v2: u32) -> f32 {
@@ -43,14 +49,27 @@ impl Brush {
     pub fn texture(&self) -> Texture {
         let bytes_per_pixel = 4;
         let mut data = Vec::with_capacity(self.values.len() * bytes_per_pixel);
-        let max_value: u8 = 0xFF;
+        let max_byte: u8 = 0xFF;
         let size = self.size;
+        let mut max_value = -1.0;
+        let mut min_value = 1.0;
+        
+        for &value in self.values.iter() {
+            if value > max_value {
+                max_value = value;
+            }
+
+            if value < min_value {
+                min_value = value;
+            }
+        }
+        let delta = max_value - min_value;
         for value in self.values.iter() {
-            let byte = (max_value as f32 * value) as u8;
+            let byte = (max_byte as f32 * (value - min_value) / delta) as u8;
             data.push(byte); // R
             data.push(byte); // G
             data.push(byte); // B
-            data.push(max_value); // A
+            data.push(max_byte); // A
         }
         Texture {
             width: size,
@@ -63,7 +82,13 @@ impl Brush {
 
 impl Default for Brush {
     fn default() -> Self {
-        Self::radial(512, 0.5)
+        let size = SIZE;
+        let intensity = INTENSITY;
+        Self {
+            mode: Mode::Elevate,
+            size,
+            values: Self::radial(size, intensity)
+        }
     }
 }
 

@@ -3,12 +3,17 @@ use dotrix::Id;
 use dotrix::assets::Texture;
 use dotrix::math::Vec2u;
 use dotrix::terrain::{ Component, Noise };
+use crate::brush::{
+    Brush,
+    INTENSITY as BRUSH_INTENSITY,
+    SIZE as BRUSH_SIZE,
+    Mode as BrushMode,
+};
 
-#[derive(Eq, PartialEq)]
-pub enum Brush {
-    Elevate,
-    Flatten,
-    Noise
+#[derive(Eq, PartialEq, Clone, Copy)]
+pub enum BrushShape {
+    Radial,
+    Noise,
 }
 
 pub struct Controls {
@@ -18,10 +23,10 @@ pub struct Controls {
     size_locked: bool,
     heightmap_size: u32,
     max_height: f32,
-    brush: Brush,
-    brush_size: f32,
-    brush_elevate: i8,
-    brush_flatten: i8,
+    brush_mode: BrushMode,
+    brush_shape: BrushShape,
+    brush_intensity: f32,
+    brush_size: u32,
     noise: Noise,
     brush_texture: Id<Texture>,
 }
@@ -41,10 +46,10 @@ impl Default for Controls {
             size_locked: true,
             heightmap_size: 4096,
             max_height: 512.0,
-            brush: Brush::Elevate,
-            brush_size: 64.0,
-            brush_elevate: 1,
-            brush_flatten: 1,
+            brush_mode: BrushMode::Elevate,
+            brush_shape: BrushShape::Radial,
+            brush_intensity: BRUSH_INTENSITY,
+            brush_size: BRUSH_SIZE,
             noise: Noise::default(),
             brush_texture: Id::default(),
         }
@@ -52,10 +57,10 @@ impl Default for Controls {
 }
 
 
-pub fn show(ui: &mut egui::Ui, controls: &mut Controls) {
+pub fn show(ui: &mut egui::Ui, controls: &mut Controls, brush: &mut Brush) {
     egui::CollapsingHeader::new("Brush")
         .default_open(true)
-        .show(ui, |ui| show_brush(ui, controls));
+        .show(ui, |ui| show_brush(ui, controls, brush));
     ui.separator();
     egui::CollapsingHeader::new("Height Map")
         .default_open(true)
@@ -124,38 +129,49 @@ fn show_mesh_properties(ui: &mut egui::Ui, controls: &mut Controls) {
     });
 }
 
-fn show_brush(ui: &mut egui::Ui, controls: &mut Controls) {
+fn show_brush(ui: &mut egui::Ui, controls: &mut Controls, brush: &mut Brush) {
     super::tool_grid("brush").show(ui, |ui| {
+        let mut brush_changed = false;
+        let mut brush_shape = controls.brush_shape;
+
         ui.label("Mode");
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut controls.brush, Brush::Elevate, "Elevate");
-            ui.selectable_value(&mut controls.brush, Brush::Flatten, "Flatten");
-            ui.selectable_value(&mut controls.brush, Brush::Noise, "Noise");
+            ui.selectable_value(&mut controls.brush_mode, BrushMode::Elevate, "Elevate");
+            ui.selectable_value(&mut controls.brush_mode, BrushMode::Flatten, "Flatten");
         });
         ui.end_row();
 
-        ui.label("Size");
-        ui.add(egui::Slider::new(&mut controls.brush_size, 1.0..=512.0));
+        if brush.mode != controls.brush_mode {
+            brush.mode = controls.brush_mode;
+            brush_changed = true;
+        }
+
+        ui.label("Mode");
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut controls.brush_shape, BrushShape::Radial, "Radial");
+            ui.selectable_value(&mut controls.brush_shape, BrushShape::Noise, "Noise");
+        });
         ui.end_row();
 
-        match controls.brush {
-            Brush::Elevate => {
-                ui.label("Direction");
-                ui.horizontal(|ui| {
-                    ui.radio_value(&mut controls.brush_elevate, 1, "Raise");
-                    ui.radio_value(&mut controls.brush_elevate, -1, "Lower");
-                });
-                ui.end_row();
-            },
-            Brush::Flatten => {
-                ui.label("Direction");
-                ui.horizontal(|ui| {
-                    ui.radio_value(&mut controls.brush_flatten, 1, "Raise");
-                    ui.radio_value(&mut controls.brush_flatten, -1, "Lower");
-                });
-                ui.end_row();
-            },
-            Brush::Noise => {
+        if brush_shape != controls.brush_shape {
+            controls.brush_shape = brush_shape;
+            brush_changed = true;
+        }
+
+        ui.label("Size");
+        brush_changed |= ui.add(
+            egui::Slider::new(&mut controls.brush_size, 1..=4096)
+        ).changed();
+        ui.end_row();
+
+        ui.label("Intensity");
+        brush_changed |= ui.add(
+            egui::Slider::new(&mut controls.brush_intensity, -1.0..=1.0)
+        ).changed();
+        ui.end_row();
+
+        match controls.brush_shape {
+            BrushShape::Noise => {
                 ui.label("Frequency");
                 ui.add(egui::Slider::new(&mut controls.noise.frequency, 1.0..=16.0));
                 ui.end_row();
@@ -187,11 +203,20 @@ fn show_brush(ui: &mut egui::Ui, controls: &mut Controls) {
                 ui.add(egui::DragValue::new(&mut controls.noise.seed));
                 ui.end_row();
             },
+            _ => {}
         };
+
+        if brush_changed {
+            let brush_size = controls.brush_size;
+            let brush_intensity = controls.brush_intensity;
+            brush.size = brush_size;
+            brush.values = Brush::radial(brush_size, brush_intensity);
+        }
 
         ui.label("Preview");
         ui.image(egui::TextureId::User(controls.brush_texture.id), [100.0, 100.0]);
         ui.end_row();
+
     });
 }
 
