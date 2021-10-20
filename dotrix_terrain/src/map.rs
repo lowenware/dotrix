@@ -175,6 +175,10 @@ impl Map {
         self.generator.modify(point, values, size, self.unit_size);
     }
 
+    pub fn flatten(&mut self, point: &Vec3, values: &[f32], size: u32) {
+        self.generator.flatten(point, values, size, self.unit_size);
+    }
+
     pub fn set_dirty(&mut self, point: &Vec3, size: u32) {
         let radius = (size as f32 / 2.0) * self.unit_size;
         let dirty_from = VecXZ::new(point.x - radius, point.z - radius);

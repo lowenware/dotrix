@@ -53,7 +53,7 @@ impl Brush {
         let size = self.size;
         let mut max_value = -1.0;
         let mut min_value = 1.0;
-        
+
         for &value in self.values.iter() {
             if value > max_value {
                 max_value = value;
@@ -112,7 +112,10 @@ pub fn update(
 
     if let Some(point) = map.intersection(&ray, range) {
         println!("Ray intersects terrain @ {:?}", point);
-        map.modify(&point, &brush.values, brush.size);
+        match brush.mode {
+            Mode::Elevate => map.modify(&point, &brush.values, brush.size),
+            Mode::Flatten => map.flatten(&point, &brush.values, brush.size),
+        };
         map.set_dirty(&point, brush.size);
         /*
         if let Some(heightmap) = terrain.heightmap_mut::<HeightMap>() {

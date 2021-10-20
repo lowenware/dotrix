@@ -8,28 +8,30 @@ use dotrix::math::Vec3;
 use std::f32::consts::PI;
 
 const ROTATE_SPEED: f32 = PI / 10.0;
-const ZOOM_SPEED: f32 = 100.0;
+const ZOOM_SPEED: f32 = 1000.0;
 
 pub fn startup(
     mut camera: Mut<Camera>,
     mut world: Mut<World>,
 ) {
-    world.spawn(Some((
-        Light::Simple {
-            // direction: Vec3::new(0.3, -0.5, -0.6),
-            position: Vec3::new(0.0, 1000.0, 0.0),
-            color: Color::white(),
+    world.spawn([
+        (Light::Directional {
+            direction: Vec3::new(0.0, -0.8, 0.8),
+            color: Color::rgb(0.8, 0.8, 0.8),
             intensity: 0.8,
             enabled: true,
-        },
-    )));
-    // spawn source of white light at (0.0, 100.0, 0.0)
-    world.spawn(Some((
-        Light::Ambient {
-            color: Color::white(),
+        },),
+        (Light::Directional {
+            direction: Vec3::new(0.0, -0.8, -0.8),
+            color: Color::rgb(0.8, 0.8, 0.8),
             intensity: 0.8,
-        },
-    )));
+            enabled: true,
+        },),
+        (Light::Ambient {
+            color: Color::grey(),
+            intensity: 0.5,
+        },),
+    ]);
 
     camera.distance = 4000.0;
 }

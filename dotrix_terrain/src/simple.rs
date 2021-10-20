@@ -217,6 +217,47 @@ impl Generator for Simple {
         self.dirty = true;
     }
 
+    fn flatten(&mut self, point: &Vec3, values: &[f32], size: u32, unit_size: f32) {
+        let radius = size / 2;
+        let mut map = self.world_to_map(point, unit_size);
+        map.x -= radius as i32;
+        map.z -= radius as i32;
+        let mut target = 0.0;
+        let mut cnt = 0;
+        for u in 0..size {
+            let index = u * size;
+            let x = map.x + u as i32;
+            if x > 0 {
+                for v in 0..size {
+                    let z = map.z + v as i32;
+                    if z > 0 {
+                        if let Some(value) = self.heights.get(x as u32, z as u32) {
+                            target += value;
+                            cnt += 1;
+                        }
+                    }
+                }
+            }
+        }
+        target = target / cnt as f32;
+        for u in 0..size {
+            let index = u * size;
+            let x = map.x + u as i32;
+            if x > 0 {
+                for v in 0..size {
+                    let z = map.z + v as i32;
+                    if z > 0 {
+                        if let Some(value) = self.heights.get(x as u32, z as u32) {
+                            let value = (target - value) * values[(index + v) as usize];
+                            self.heights.add(x as u32, z as u32, value);
+                        }
+                    }
+                }
+            }
+        }
+
+        self.dirty = true;
+    }
 }
 
 impl From<HeightMap> for Simple {
