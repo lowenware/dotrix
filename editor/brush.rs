@@ -3,7 +3,7 @@ use dotrix::{ Assets, Input };
 use dotrix::assets::Texture;
 use dotrix::input::{ Button, State as InputState };
 use dotrix::ray::Ray;
-use dotrix::terrain::{ Map, HeightMap };
+use dotrix::terrain::{ Map, HeightMap, Noise };
 use dotrix::math::Vec3;
 
 
@@ -21,6 +21,7 @@ pub struct Brush {
     pub mode: Mode,
     pub size: u32,
     pub values: Vec<f32>,
+    pub changed: bool,
 }
 
 impl Brush {
@@ -38,6 +39,15 @@ impl Brush {
         }
 
         values
+    }
+
+    pub fn noise(size: u32, intensity: f32, noise: &Noise) -> Vec<f32> {
+        let mut map = noise.map(size as usize);
+        let radial = Brush::radial(size, intensity);
+        for (value, r) in map.iter_mut().zip(radial.iter()) {
+            *value *= *r;
+        }
+        map
     }
 
     fn distance(u1: u32, v1: u32, u2: u32, v2: u32) -> f32 {
@@ -87,7 +97,8 @@ impl Default for Brush {
         Self {
             mode: Mode::Elevate,
             size,
-            values: Self::radial(size, intensity)
+            values: Self::radial(size, intensity),
+            changed: false,
         }
     }
 }
@@ -100,12 +111,27 @@ pub fn startup(
 }
 
 pub fn update(
+    mut assets: Mut<Assets>,
+    mut brush: Mut<Brush>,
     mut map: Mut<Map>,
     ray: Const<Ray>,
     input: Const<Input>,
-    brush: Const<Brush>,
 ) {
     let range: f32 = 64000.0;
+
+    if brush.changed {
+        let new_texture = brush.texture();
+        if let Some(texture_id) = assets.find(BRUSH_TEXTURE) {
+            if let Some(texture) = assets.get_mut::<Texture>(texture_id) {
+                texture.data = new_texture.data;
+                texture.width = new_texture.width;
+                texture.height = new_texture.height;
+                texture.unload();
+                brush.changed = false;
+            }
+        }
+    }
+
     if input.button_state(Button::MouseLeft) != Some(InputState::Hold) {
         return;
     }

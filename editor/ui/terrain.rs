@@ -148,8 +148,8 @@ fn show_brush(ui: &mut egui::Ui, controls: &mut Controls, brush: &mut Brush) {
 
         ui.label("Mode");
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut controls.brush_shape, BrushShape::Radial, "Radial");
-            ui.selectable_value(&mut controls.brush_shape, BrushShape::Noise, "Noise");
+            ui.selectable_value(&mut brush_shape, BrushShape::Radial, "Radial");
+            ui.selectable_value(&mut brush_shape, BrushShape::Noise, "Noise");
         });
         ui.end_row();
 
@@ -161,56 +161,77 @@ fn show_brush(ui: &mut egui::Ui, controls: &mut Controls, brush: &mut Brush) {
         ui.label("Size");
         brush_changed |= ui.add(
             egui::Slider::new(&mut controls.brush_size, 1..=4096)
-        ).changed();
+        ).drag_released();
         ui.end_row();
 
         ui.label("Intensity");
         brush_changed |= ui.add(
             egui::Slider::new(&mut controls.brush_intensity, -1.0..=1.0)
-        ).changed();
+        ).drag_released();
         ui.end_row();
 
         match controls.brush_shape {
             BrushShape::Noise => {
                 ui.label("Frequency");
-                ui.add(egui::Slider::new(&mut controls.noise.frequency, 1.0..=16.0));
+                brush_changed |= ui.add(
+                    egui::Slider::new(&mut controls.noise.frequency, 1.0..=16.0)
+                ).drag_released();
                 ui.end_row();
 
                 ui.label("Octaves");
-                ui.add(egui::Slider::new(&mut controls.noise.octaves, 1..=8));
+                brush_changed |= ui.add(
+                    egui::Slider::new(&mut controls.noise.octaves, 1..=8)
+                ).drag_released();
                 ui.end_row();
 
                 ui.label("Persistence");
-                ui.add(egui::Slider::new(&mut controls.noise.persistence, 1.0..=16.0));
+                brush_changed |= ui.add(
+                    egui::Slider::new(&mut controls.noise.persistence, 1.0..=16.0)
+                ).drag_released();
                 ui.end_row();
 
                 ui.label("Lacunarity");
-                ui.add(egui::Slider::new(&mut controls.noise.lacunarity, 1.0..=16.0));
+                brush_changed |= ui.add(
+                    egui::Slider::new(&mut controls.noise.lacunarity, 1.0..=16.0)
+                ).drag_released();
                 ui.end_row();
 
                 ui.label("Scale");
-                ui.add(egui::Slider::new(&mut controls.noise.scale, 0.01..=8192.0));
+                brush_changed |= ui.add(
+                    egui::Slider::new(&mut controls.noise.scale, 0.01..=8192.0)
+                ).drag_released();
                 ui.end_row();
 
                 ui.label("Offset");
                 ui.horizontal(|ui| {
-                    ui.add(egui::DragValue::new(&mut controls.noise.offset[0]).prefix("X: "));
-                    ui.add(egui::DragValue::new(&mut controls.noise.offset[1]).prefix("Z: "));
+                    brush_changed |= ui.add(
+                        egui::DragValue::new(&mut controls.noise.offset[0]).prefix("X: ")
+                    ).drag_released();
+                    brush_changed |= ui.add(
+                        egui::DragValue::new(&mut controls.noise.offset[1]).prefix("Z: ")
+                    ).drag_released();
                 });
                 ui.end_row();
 
                 ui.label("Seed");
-                ui.add(egui::DragValue::new(&mut controls.noise.seed));
+                brush_changed |= ui.add(
+                    egui::DragValue::new(&mut controls.noise.seed)
+                ).drag_released();
                 ui.end_row();
             },
             _ => {}
         };
 
         if brush_changed {
+            println!("brush changed");
             let brush_size = controls.brush_size;
             let brush_intensity = controls.brush_intensity;
             brush.size = brush_size;
-            brush.values = Brush::radial(brush_size, brush_intensity);
+            brush.values = match controls.brush_shape {
+                BrushShape::Radial => Brush::radial(brush_size, brush_intensity),
+                BrushShape::Noise => Brush::noise(brush_size, brush_intensity, &controls.noise),
+            };
+            brush.changed = true;
         }
 
         ui.label("Preview");
