@@ -12,6 +12,13 @@ pub type StateId = TypeId;
 #[derive(Eq, PartialEq, Debug, Hash, Clone, Copy)]
 pub struct Entity(u64);
 
+impl Entity {
+    /// Returns raw entitiy identifier
+    pub fn raw(&self) -> u64 {
+        self.0
+    }
+}
+
 impl From<u64> for Entity {
     fn from(id: u64) -> Self {
         Entity(id)
