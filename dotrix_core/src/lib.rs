@@ -11,6 +11,7 @@ mod globals;
 mod id;
 mod pipeline;
 mod pose;
+mod state;
 mod world;
 
 pub mod animation;
@@ -35,10 +36,11 @@ pub use id::Id;
 pub use pipeline::Pipeline;
 pub use pose::Pose;
 pub use transform::Transform;
-pub use ecs::{ System, Priority, RunLevel };
+pub use ecs::{ System, Priority, RunLevel, StateId };
 pub use input::Input;
 pub use ray::Ray;
 pub use renderer::Renderer;
+pub use state::State;
 pub use window::{ Window, Monitor, VideoMode };
 pub use world::World;
 
@@ -113,6 +115,8 @@ impl Dotrix {
         app.add_service(globals::Globals::default());
         // Render manager
         app.add_service(renderer::Renderer::default());
+        // States stack 
+        app.add_service(state::State::default());
 
         // Window manager
         app.add_service(window::Window::default());

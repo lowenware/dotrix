@@ -12,9 +12,10 @@ use winit::{
 
 use crate::{
     assets::Assets,
-    ecs::{ RunLevel, System, Systemized },
+    ecs::{ RunLevel, StateId, System, Systemized },
     window::Window,
     input::Input,
+    State,
 };
 
 /// Application data to maintain the process
@@ -104,6 +105,9 @@ fn run(
         ..
     }: Application
 ) {
+    // Global application state
+    let current_state: StateId = StateId::of::<bool>();
+    let current_state_ptr: *const StateId = &current_state;
 
     let (mut pool, _spawner) = {
         let local_pool = futures::executor::LocalPool::new();
@@ -119,7 +123,11 @@ fn run(
         window.set_title(name);
     }
 
-    scheduler.run_startup(&mut services);
+    if let Some(state) = services.get_mut::<State>() {
+        state.set_pointer(current_state_ptr as usize);
+    }
+
+    scheduler.run_startup(&mut services, current_state_ptr);
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(10));
@@ -147,28 +155,16 @@ fn run(
                 pool.run_until_stalled();
             }
             Event::WindowEvent { event: WindowEvent::Resized(_), .. } => {
-                scheduler.run_resize(&mut services);
+                scheduler.run_resize(&mut services, current_state_ptr);
             }
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                 *control_flow = ControlFlow::Exit;
             },
             Event::RedrawRequested(_) => {
-                // if let Some(frame) = services.get_mut::<Frame>() {
-                //    frame.next();
-                // }
-                scheduler.run_bind(&mut services);
-                scheduler.run_standard(&mut services);
-                // if let Some(renderer) = services.get_mut::<Renderer>() {
-                //     renderer.next_frame();
-                // }
-                scheduler.run_render(&mut services);
-                scheduler.run_release(&mut services);
-                // if let Some(renderer) = services.get_mut::<Renderer>() {
-                //     renderer.finalize();
-                // }
-                // if let Some(input) = services.get_mut::<Input>() {
-                //     input.reset();
-                // }
+                scheduler.run_bind(&mut services, current_state_ptr);
+                scheduler.run_standard(&mut services, current_state_ptr);
+                scheduler.run_render(&mut services, current_state_ptr);
+                scheduler.run_release(&mut services, current_state_ptr);
             }
             _ => {}
         }
@@ -228,7 +224,6 @@ impl Scheduler {
     }
 
     pub fn add(&mut self, system: System) {
-
         let System { data, run_level } = system;
 
         let storage = match run_level {
@@ -248,39 +243,45 @@ impl Scheduler {
         });
     }
 
-    pub fn run_render(&mut self, services: &mut Services) {
+    pub fn run_render(&mut self, services: &mut Services, state_ptr: *const StateId) {
         for system in &mut self.render {
-            system.run(services);
+            let state = unsafe { *state_ptr };
+            system.run(services, state);
         }
     }
 
-    pub fn run_standard(&mut self, services: &mut Services) {
+    pub fn run_standard(&mut self, services: &mut Services, state_ptr: *const StateId) {
         for system in &mut self.standard {
-            system.run(services);
+            let state = unsafe { *state_ptr };
+            system.run(services, state);
         }
     }
 
-    pub fn run_startup(&mut self, services: &mut Services) {
+    pub fn run_startup(&mut self, services: &mut Services, state_ptr: *const StateId) {
         for system in &mut self.startup {
-            system.run(services);
+            let state = unsafe { *state_ptr };
+            system.run(services, state);
         }
     }
 
-    pub fn run_bind(&mut self, services: &mut Services) {
+    pub fn run_bind(&mut self, services: &mut Services, state_ptr: *const StateId) {
         for system in &mut self.bind {
-            system.run(services);
+            let state = unsafe { *state_ptr };
+            system.run(services, state);
         }
     }
 
-    pub fn run_release(&mut self, services: &mut Services) {
+    pub fn run_release(&mut self, services: &mut Services, state_ptr: *const StateId) {
         for system in &mut self.release {
-            system.run(services);
+            let state = unsafe { *state_ptr };
+            system.run(services, state);
         }
     }
 
-    pub fn run_resize(&mut self, services: &mut Services) {
+    pub fn run_resize(&mut self, services: &mut Services, state_ptr: *const StateId) {
         for system in &mut self.resize {
-            system.run(services);
+            let state = unsafe { *state_ptr };
+            system.run(services, state);
         }
     }
 }

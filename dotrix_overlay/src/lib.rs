@@ -239,3 +239,4 @@ pub fn extension(application: &mut Application) {
     application.add_system(System::from(render).with(Priority::Custom(0)));
     application.add_service(Overlay::default());
 }
+

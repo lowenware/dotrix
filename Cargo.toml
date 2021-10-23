@@ -1,6 +1,6 @@
 [package]
 name = "dotrix"
-version = "0.5.2"
+version = "0.5.3"
 authors = [
   "Elias Kartashov <elias@lowenware.com>",
   "Štěpán Wünsch <sw@lowenware.com>",
@@ -85,6 +85,10 @@ path = "examples/animation/main.rs"
 [[example]]
 name = "light"
 path = "examples/light/main.rs"
+
+[[example]]
+name = "states"
+path = "examples/states/main.rs"
 
 [[example]]
 name = "skybox"
