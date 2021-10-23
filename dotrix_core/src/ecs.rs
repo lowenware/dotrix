@@ -1,10 +1,12 @@
 //! Entity Component System
 
+use std::any::TypeId;
 use std::hash::Hash;
-
 use core::ops::{ Deref, DerefMut };
-
 use crate::application::{ Services, IntoService };
+
+/// StateID type def
+pub type StateId = TypeId;
 
 /// Entity structure has only id field and represent an agregation of components
 #[derive(Eq, PartialEq, Debug, Hash, Clone, Copy)]
@@ -42,6 +44,17 @@ impl From<Priority> for u32 {
             Priority::Custom(value) => value,
         }
     }
+}
+
+/// Application state when system should run
+#[derive(Eq, PartialEq, Debug, Hash, Clone, Copy)]
+pub enum Rule {
+    /// System runs ar any state
+    Always,
+    /// System runs at specific state
+    StateOn(StateId),
+    /// System does not run at specific state
+    StateOff(StateId),
 }
 
 /// Wrapper for system functions
@@ -127,6 +140,13 @@ impl SystemOption<RunLevel> for System {
     }
 }
 
+/// [`State`] option implementation
+impl SystemOption<Rule> for System {
+    fn set_option(&mut self, option: Rule) {
+        self.data.push_rule(option);
+    }
+}
+
 /// [`RunLevel`] option implementation
 impl SystemOption<Priority> for System {
     fn set_option(&mut self, option: Priority) {
@@ -142,6 +162,7 @@ where
     run: Run,
     ctx: Ctx,
     priority: Priority,
+    rules: Vec<Rule>,
 }
 
 /// Abstraction for [`System`] prepared to be integrated into engine
@@ -149,11 +170,15 @@ pub trait Systemized: Send + Sync {
     /// Returns name of the system
     fn name(&self) -> &'static str;
     /// Executes system cylce
-    fn run(&mut self, app: &mut Services);
+    fn run(&mut self, app: &mut Services, state: StateId);
     /// Returns priority of the system
     fn priority(&self) -> Priority;
     /// Sets priority for the system
     fn set_priority(&mut self, priority: Priority);
+    /// Pushes system execution rule
+    fn push_rule(&mut self, rule: Rule);
+    /// Returns true is system can run at state
+    fn run_at_state(&self, state: StateId) -> bool;
 }
 
 impl<Run, Ctx> Systemized for SystemData<Run, Ctx>
@@ -165,8 +190,10 @@ where
         self.name
     }
 
-    fn run(&mut self, app: &mut Services) {
-        (self.run)(&mut self.ctx, app);
+    fn run(&mut self, app: &mut Services, state: StateId) {
+        if self.run_at_state(state) {
+            (self.run)(&mut self.ctx, app);
+        }
     }
 
     fn priority(&self) -> Priority {
@@ -175,6 +202,29 @@ where
 
     fn set_priority(&mut self, priority: Priority) {
         self.priority = priority;
+    }
+
+    fn push_rule(&mut self, rule: Rule) {
+        self.rules.push(rule);
+    }
+
+    fn run_at_state(&self, state: StateId) -> bool {
+        if !self.rules.is_empty() {
+            let mut no_match_result = false;
+            for rule in self.rules.iter() {
+                match rule {
+                    Rule::Always => return true,
+                    Rule::StateOn(s) => if state == *s { return true; },
+                    Rule::StateOff(s) => if state == *s {
+                        return false;
+                    } else {
+                        no_match_result = true;
+                    },
+                };
+            }
+            return no_match_result;
+        }
+        true
     }
 }
 
@@ -212,6 +262,7 @@ macro_rules! impl_into_system {
                     },
                     priority: Priority::Normal,
                     ctx: ($($context::default())*),
+                    rules: Vec::new(),
                 };
                 Box::new(data)
             }
@@ -372,7 +423,7 @@ where
 mod tests {
     use crate::{
         application::Services,
-        ecs::{ Context, System, Const, Mut, RunLevel },
+        ecs::{ Context, StateId, System, Const, Mut, RunLevel },
         world::World,
     };
 
@@ -387,7 +438,7 @@ mod tests {
         let mut services = Services::new();
         services.add(World::new());
         let mut s = System::from(my_system);
-        s.data.run(&mut services);
+        s.data.run(&mut services, StateId::of::<bool>());
         assert_eq!(services.get::<World>().unwrap().counter(), 1);
     }
 
@@ -407,7 +458,7 @@ mod tests {
         let mut services = Services::new();
         services.add(MyService { data: 123 });
         let mut s = System::from(my_system_with_context);
-        s.data.run(&mut services);
+        s.data.run(&mut services, StateId::of::<bool>());
         assert_eq!(services.get::<MyService>().unwrap().data, 0);
     }
 
