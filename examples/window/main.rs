@@ -2,7 +2,7 @@ mod camera;
 mod match_finder;
 mod settings;
 
-use camera::{ CameraMemory, camera_update };
+use camera::{ camera_update };
 use dotrix::prelude::*;
 use dotrix::{ Camera };
 use dotrix::{ egui, overlay };
@@ -20,7 +20,6 @@ fn main() {
         .with(System::from(camera_update))
         .with(System::from(match_finder::update))
 
-        .with(Service::from(CameraMemory::new()))
         .with(Service::from(MatchFinder::new()))
         .with(Service::from(Settings::default()))
 
