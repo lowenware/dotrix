@@ -5,14 +5,12 @@ use crate::assets::Texture;
 use dotrix_math::{ clamp_min, Vec2, Vec2i, Vec2u };
 use winit::{
     dpi::{ PhysicalPosition, PhysicalSize, Position },
+    error:: { ExternalError, NotSupportedError },
     monitor:: { MonitorHandle as WinitMonitor, VideoMode as WinitVideoMode },
     window::{ self, Fullscreen as WinitFullscreen, Window as WinitWindow },
 };
 pub use window::CursorIcon as CursorIcon;
 pub use window::UserAttentionType as UserAttentionType;
-
-const NOT_SUPPORTED_ERROR: &str = "Sorry, the feature is not supported on this device.";
-
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 /// Information about a video mode.
@@ -182,9 +180,10 @@ impl Window {
 
     /// Returns the position of the top-left hand corner of the window's client
     /// area relative to the top-left hand corner of the desktop.
-    pub fn inner_position(&self) -> Vec2i {
-        let position = self.get().inner_position().expect(NOT_SUPPORTED_ERROR);
-        Vec2i { x: position.x, y: position.y }
+    pub fn inner_position(&self) -> Result<Vec2i, NotSupportedError> {
+        self.get().inner_position().and_then(|pos| {
+            Ok(Vec2i { x: pos.x, y: pos.y })
+        })
     }
 
     /// Returns the size of the window's client area in pixels.
@@ -231,9 +230,10 @@ impl Window {
     ///
     /// The coordinates can be negative if the top-left hand corner of the window
     /// is outside of the visible screen region.
-    pub fn outer_position(&self) -> Vec2i {
-        let position = self.get().outer_position().expect(NOT_SUPPORTED_ERROR);
-        Vec2i { x: position.x, y: position.y }
+    pub fn outer_position(&self) -> Result<Vec2i, NotSupportedError> {
+        self.get().outer_position().and_then(|pos| {
+            Ok(Vec2i { x: pos.x, y: pos.y })
+        })
     }
 
     /// Returns the size of the entire window in pixels.
@@ -272,10 +272,13 @@ impl Window {
     }
 
     /// Returns the resolution of monitor on which the window currently resides.
-    pub fn screen_size(&self) -> Vec2u {
-        let monitor = self.get().current_monitor().expect(NOT_SUPPORTED_ERROR);
-        let size = monitor.size();
-        Vec2u { x: size.width, y: size.height }
+    ///
+    /// Returns `None` if current monitor can't be detected.
+    pub fn screen_size(&self) -> Option<Vec2u> {
+        self.get().current_monitor().and_then(|monitor| {
+            let size = monitor.size();
+            return Some(Vec2u { x: size.width, y: size.height });
+        })
     }
 
     /// Change whether or not the window will always be on top of other windows.
@@ -285,9 +288,12 @@ impl Window {
     }
 
     /// Grabs the cursor, preventing it from leaving the window.
-    pub fn set_cursor_grab(&mut self, grab: bool) {
-        self.get().set_cursor_grab(grab).expect(NOT_SUPPORTED_ERROR);
-        self.cursor_grab = grab;
+    pub fn set_cursor_grab(&mut self, grab: bool) -> Result<(), ExternalError> {
+        let result = self.get().set_cursor_grab(grab);
+        if result.is_ok() {
+            self.cursor_grab = grab;
+        }
+        result
     }
 
     /// Modifies the cursor icon of the window.
@@ -297,12 +303,10 @@ impl Window {
     }
 
     /// Change the position of the cursor in window in pixel coordinates.
-    pub fn set_cursor_position(&self, pos: Vec2) {
-        self.get().set_cursor_position(
-            Position::Physical(
-                PhysicalPosition { x:  pos.x.round() as i32, y: pos.y.round() as i32 }
-            )
-        ).expect(NOT_SUPPORTED_ERROR);
+    pub fn set_cursor_position(&self, pos: Vec2) -> Result<(), ExternalError> {
+        self.get().set_cursor_position(Position::Physical(
+            PhysicalPosition { x: pos.x.round() as i32, y: pos.y.round() as i32 }
+        ))
     }
 
     /// Modifies the cursor's visibility.

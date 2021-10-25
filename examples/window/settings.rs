@@ -82,7 +82,12 @@ pub fn ui(
                     ui.end_row();
 
                     ui.label("Screen size");
-                    ui.label(format!("x: {}, y: {}", window.screen_size().x, window.screen_size().y));
+                    ui.label(
+                        match window.screen_size() {
+                            Some(size) => format!("x: {}, y: {}", size.x, size.y),
+                            None => String::from("Cannot detect current monitor!"),
+                        }
+                    );
                     ui.end_row();
                 });
 
@@ -144,7 +149,12 @@ pub fn ui(
                 .show(ui, |ui| {
                     Grid::new("info_window_grid").show(ui, |ui| {
                         ui.label("Inner Position");
-                        ui.label(format!("x: {}, y: {}", window.inner_position().x, window.inner_position().y));
+                        ui.label(
+                            match window.inner_position() {
+                                Ok(pos) => format!("x: {}, y: {}", pos.x, pos.y),
+                                Err(e) => format!("Cannot detect inner position! {}", e),
+                            }
+                        );
                         ui.end_row();
 
                         ui.label("Inner Size");
@@ -156,7 +166,12 @@ pub fn ui(
                         ui.end_row();
 
                         ui.label("Outer Position");
-                        ui.label(format!("x: {}, y: {}", window.outer_position().x, window.outer_position().y));
+                        ui.label(
+                            match window.inner_position() {
+                                Ok(pos) => format!("x: {}, y: {}", pos.x, pos.y),
+                                Err(e) => format!("Cannot detect inner position! {}", e),
+                            }
+                        );
                         ui.end_row();
 
                         ui.label("Outer Size");
@@ -205,10 +220,14 @@ pub fn ui(
                     ui.label("set Cursor grab");
                     ui.horizontal(|ui| {
                         if ui.selectable_label(window.cursor_grab(), "true").clicked() {
-                            window.set_cursor_grab(true);
+                            if let Err(e) = window.set_cursor_grab(true) {
+                                println!("Cannot grab cursor! {}", e);
+                            }
                         }
                         if ui.selectable_label(!window.cursor_grab(), "false").clicked() {
-                            window.set_cursor_grab(false);
+                            if let Err(e) = window.set_cursor_grab(false) {
+                                println!("Cannot ungrab cursor! {}", e);
+                            }
                         }
                     });
                     ui.end_row();
@@ -359,34 +378,39 @@ pub fn ui(
                     });
                     ui.end_row();
 
-                    ui.label("set Min Inner Size - x");
-                    ui.add(Slider::new(&mut settings.min_inner_size.x, 100..=window.screen_size().x)
-                        .text(""));
-                    ui.end_row();
+                    match window.screen_size() {
+                        Some(screen_size) => {
+                            ui.label("set Min Inner Size - x");
+                            ui.add(Slider::new(&mut settings.min_inner_size.x, 100..=screen_size.x).text(""));
+                            ui.end_row();
 
-                    ui.label("set Min Inner Size - y");
-                    ui.add(Slider::new(&mut settings.min_inner_size.y, 100..=window.screen_size().y)
-                        .text(""));
-                    ui.end_row();
+                            ui.label("set Min Inner Size - y");
+                            ui.add(Slider::new(&mut settings.min_inner_size.y, 100..=screen_size.y).text(""));
+                            ui.end_row();
 
-                    if settings.min_inner_size != window.min_inner_size() {
-                        window.set_min_inner_size(settings.min_inner_size);
+                            if settings.min_inner_size != window.min_inner_size() {
+                                window.set_min_inner_size(settings.min_inner_size);
+                            };
+
+                            let mut inner_size = window.inner_size();
+
+                            ui.label("set Inner Size - x");
+                            ui.add(Slider::new(&mut inner_size.x, 100..=screen_size.x).text(""));
+                            ui.end_row();
+
+                            ui.label("set Inner Size - y");
+                            ui.add(Slider::new(&mut inner_size.y, 100..=screen_size.y).text(""));
+                            ui.end_row();
+
+                            if window.inner_size() != inner_size {
+                                window.set_inner_size(inner_size);
+                            }
+                        },
+                        None => {
+                            ui.label("Cannot detect current monitor!");
+                            ui.end_row();
+                        }
                     };
-
-                    let mut inner_size = window.inner_size();
-                    ui.label("set Inner Size - x");
-                    ui.add(Slider::new(&mut inner_size.x, 100..=window.screen_size().x)
-                        .text(""));
-                    ui.end_row();
-
-                    ui.label("set Inner Size - y");
-                    ui.add(Slider::new(&mut inner_size.y, 100..=window.screen_size().y)
-                        .text(""));
-                    ui.end_row();
-
-                    if window.inner_size() != inner_size {
-                        window.set_inner_size(inner_size);
-                    }
 
                     // TODO: we should use work area for that
                     // https://docs.microsoft.com/en-gb/windows/win32/api/winuser/nf-winuser-systemparametersinfoa
@@ -500,38 +524,55 @@ pub fn startup(
 }
 
 fn move_window_left(window: &Window) {
-    window.set_outer_position(Vec2i::new(0, window.outer_position().y));
+    if let Ok(pos) = window.outer_position() {
+        window.set_outer_position(Vec2i::new(0, pos.y));
+    } else {
+        println!("Cannot move window.");
+    }
 }
 
 fn move_window_right(window: &Window) {
-    window.set_outer_position(
-        Vec2i::new(
-            window.screen_size().x as i32 - window.outer_size().x as i32,
-            window.outer_position().y,
-        )
-    );
+    if let (Some(screen_size), Ok(pos)) = (window.screen_size(), window.outer_position()) {
+        let outer_size = window.outer_size();
+        window.set_outer_position(
+            Vec2i::new(screen_size.x as i32 - outer_size.x as i32, pos.y)
+        );
+    } else {
+        println!("Cannot move window.");
+    }
 }
 
 fn move_window_top(window: &Window) {
-    window.set_outer_position(Vec2i::new(window.outer_position().x, 0));
+    if let Ok(pos) = window.outer_position() {
+        window.set_outer_position(Vec2i::new(pos.x, 0));
+    } else {
+        println!("Cannot move window.");
+    }
 }
 
 fn move_window_bottom(window: &Window) {
-    window.set_outer_position(
-        Vec2i::new(
-            window.outer_position().x,
-            window.screen_size().y as i32 - window.outer_size().y as i32,
-        )
-    );
+    if let (Some(screen_size), Ok(pos)) = (window.screen_size(), window.outer_position()) {
+        let outer_size = window.outer_size();
+        window.set_outer_position(
+            Vec2i::new(pos.x, screen_size.y as i32 - outer_size.y as i32)
+        );
+    } else {
+        println!("Cannot move window.");
+    }
 }
 
 fn move_window_center(window: &Window) {
-    window.set_outer_position(
-        Vec2i::new(
-            (window.screen_size().x - window.outer_size().x) as i32 / 2,
-            (window.screen_size().y - window.outer_size().y) as i32 / 2,
-        )
-    );
+    if let Some(screen_size) = window.screen_size() {
+        let outer_size = window.outer_size();
+        window.set_outer_position(
+            Vec2i::new(
+                (screen_size.x - outer_size.x) as i32 / 2,
+                (screen_size.y - outer_size.y) as i32 / 2,
+            )
+        );
+    } else {
+        println!("Cannot move window.");
+    }
 }
 
 const CURSOR_ICONS: &[CursorIcon] = &[

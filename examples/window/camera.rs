@@ -34,7 +34,9 @@ pub fn camera_update(
                 dotrix::camera::control(camera, input, frame);
             },
             InputState::Deactivated => {
-                window.set_cursor_position(memory.cursor_position);
+                if let Err(e) = window.set_cursor_position(memory.cursor_position) {
+                    println!("{}", e);
+                }
                 window.set_cursor_visible(true)
             },
         }
