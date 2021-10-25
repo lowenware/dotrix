@@ -181,9 +181,7 @@ impl Window {
     /// Returns the position of the top-left hand corner of the window's client
     /// area relative to the top-left hand corner of the desktop.
     pub fn inner_position(&self) -> Result<Vec2i, NotSupportedError> {
-        self.get().inner_position().and_then(|pos| {
-            Ok(Vec2i { x: pos.x, y: pos.y })
-        })
+        self.get().inner_position().map(|pos| Vec2i { x: pos.x, y: pos.y })
     }
 
     /// Returns the size of the window's client area in pixels.
@@ -231,9 +229,7 @@ impl Window {
     /// The coordinates can be negative if the top-left hand corner of the window
     /// is outside of the visible screen region.
     pub fn outer_position(&self) -> Result<Vec2i, NotSupportedError> {
-        self.get().outer_position().and_then(|pos| {
-            Ok(Vec2i { x: pos.x, y: pos.y })
-        })
+        self.get().outer_position().map(|pos| Vec2i { x: pos.x, y: pos.y })
     }
 
     /// Returns the size of the entire window in pixels.
@@ -275,9 +271,9 @@ impl Window {
     ///
     /// Returns `None` if current monitor can't be detected.
     pub fn screen_size(&self) -> Option<Vec2u> {
-        self.get().current_monitor().and_then(|monitor| {
+        self.get().current_monitor().map(|monitor| {
             let size = monitor.size();
-            return Some(Vec2u { x: size.width, y: size.height });
+            Vec2u { x: size.width, y: size.height }
         })
     }
 
