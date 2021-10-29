@@ -49,11 +49,17 @@ pub trait Generator: Send + Sync {
 
     fn set_dirty(&mut self, value: bool);
 
+    fn set_y_scale(&mut self, value: f32);
+
+    fn set_offset(&mut self, offset_x: i32, offset_z: i32);
+
     fn intersection(&self, ray: &Ray, range: f32, unit_size: f32) -> Option<Vec3>;
 
     fn modify(&mut self, point: &Vec3, values: &[f32], size: u32, unit_size: f32);
 
     fn flatten(&mut self, point: &Vec3, values: &[f32], size: u32, unit_size: f32);
+
+    fn resize(&mut self, new_size_x: u32, new_size_z: u32);
 }
 
 /// Enables the terrain extension in Dotrix application

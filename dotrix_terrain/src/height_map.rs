@@ -54,6 +54,38 @@ impl HeightMap {
             self.data[index as usize] = v + value;
         }
     }
+
+    /// Resize height map
+    pub fn resize(&mut self, new_size_x: usize, new_size_z: usize) {
+        let old_size_x = self.size.x as usize;
+        let old_size_z = self.size.z as usize;
+        let old_length = self.data.len();
+        let new_length = new_size_x * new_size_z;
+        // Extend the array to move data
+        if new_length > old_length {
+            self.data.resize(new_length, 0.0);
+        }
+        for z in (0..new_size_z).rev() {
+            for x in (0..new_size_x).rev() {
+                let new_index = z * new_size_x + x;
+                let old_index = z * old_size_x + x;
+                let use_old_value = x < old_size_x && z < old_size_z;
+                self.data[new_index] = if use_old_value {
+                    self.data[old_index]
+                } else {
+                    0.0
+                }
+            }
+        }
+        // Shrink array if it was necessary
+        if new_length < old_length {
+            self.data.resize(new_length as usize, 0.0);
+        }
+
+        self.size.x = new_size_x as u32;
+        self.size.z = new_size_z as u32;
+    }
+
 }
 
 impl From<Texture> for HeightMap {

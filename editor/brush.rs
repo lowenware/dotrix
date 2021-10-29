@@ -6,6 +6,8 @@ use dotrix::ray::Ray;
 use dotrix::terrain::{ Map, HeightMap, Noise };
 use dotrix::math::Vec3;
 
+use crate::ui::Controls;
+
 
 pub const BRUSH_TEXTURE: &str = "dotrix::editor::brush";
 pub const INTENSITY: f32 = 0.1;
@@ -17,11 +19,16 @@ pub enum Mode {
     Flatten,
 }
 
+#[derive(Eq, PartialEq, Clone, Copy)]
+pub enum Shape {
+    Radial,
+    Noise,
+}
+
 pub struct Brush {
     pub mode: Mode,
     pub size: u32,
     pub values: Vec<f32>,
-    pub changed: bool,
 }
 
 impl Brush {
@@ -98,7 +105,6 @@ impl Default for Brush {
             mode: Mode::Elevate,
             size,
             values: Self::radial(size, intensity),
-            changed: false,
         }
     }
 }
@@ -113,56 +119,54 @@ pub fn startup(
 pub fn update(
     mut assets: Mut<Assets>,
     mut brush: Mut<Brush>,
+    mut controls: Mut<Controls>,
+) {
+    if !controls.terrain.brush_reload {
+        return;
+    }
+
+    let brush_size = controls.terrain.brush_size;
+    let brush_intensity = controls.terrain.brush_intensity;
+
+    brush.size = brush_size;
+    brush.values = match controls.terrain.brush_shape {
+        Shape::Radial => Brush::radial(brush_size, brush_intensity),
+        Shape::Noise => Brush::noise(brush_size, brush_intensity, &controls.terrain.noise),
+    };
+
+    let new_texture = brush.texture();
+    if let Some(texture_id) = assets.find(BRUSH_TEXTURE) {
+        if let Some(texture) = assets.get_mut::<Texture>(texture_id) {
+            texture.data = new_texture.data;
+            texture.width = new_texture.width;
+            texture.height = new_texture.height;
+            texture.unload();
+        }
+    }
+
+    controls.terrain.brush_reload = false;
+}
+
+
+pub fn apply(
+    mut brush: Mut<Brush>,
     mut map: Mut<Map>,
     ray: Const<Ray>,
     input: Const<Input>,
 ) {
-    let range: f32 = 64000.0;
-
-    if brush.changed {
-        let new_texture = brush.texture();
-        if let Some(texture_id) = assets.find(BRUSH_TEXTURE) {
-            if let Some(texture) = assets.get_mut::<Texture>(texture_id) {
-                texture.data = new_texture.data;
-                texture.width = new_texture.width;
-                texture.height = new_texture.height;
-                texture.unload();
-                brush.changed = false;
-            }
-        }
-    }
-
     if input.button_state(Button::MouseLeft) != Some(InputState::Hold) {
         return;
     }
 
+    let range: f32 = 64000.0;
+
     if let Some(point) = map.intersection(&ray, range) {
-        println!("Ray intersects terrain @ {:?}", point);
+        // println!("Ray intersects terrain @ {:?}", point);
         match brush.mode {
             Mode::Elevate => map.modify(&point, &brush.values, brush.size),
             Mode::Flatten => map.flatten(&point, &brush.values, brush.size),
         };
-        map.set_dirty(&point, brush.size);
-        /*
-        if let Some(heightmap) = terrain.heightmap_mut::<HeightMap>() {
-            let size = heightmap.size() as f32;
-            let offset = size as f32 / 2.0;
-            let x = intersection.x + offset;
-            let z = intersection.z + offset;
-
-            if x < 0.0 || x >= size || z < 0.0 || z >= size {
-                return;
-            }
-
-            let x = x.round() as usize;
-            let z = z.round() as usize;
-
-            if let Some(value) = heightmap.get(x, z) {
-                heightmap.set(x, z, value + 256);
-                terrain.force_spawn = true;
-            }
-        }
-        */
+        map.set_tile_dirty(&point, brush.size);
     }
 }
 

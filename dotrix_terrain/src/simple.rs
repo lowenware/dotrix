@@ -9,7 +9,7 @@ use crate::{ Component, Generator, HeightMap, VecXZ };
 #[derive(Default)]
 pub struct Simple {
     pub heights: HeightMap,
-    pub max_height: f32,
+    pub y_scale: f32,
     pub offset: VecXZ<i32>,
     pub dirty: bool,
 }
@@ -24,7 +24,7 @@ impl Simple {
 
     fn height(&self, map: &VecXZ<i32>) -> f32 {
         if map.x > 0 && map.z > 0 {
-            self.heights.get(map.x as u32, map.z as u32).unwrap_or(0.0) * self.max_height
+            self.heights.get(map.x as u32, map.z as u32).unwrap_or(0.0) * self.y_scale
         } else {
             0.0
         }
@@ -112,7 +112,7 @@ impl Generator for Simple {
                     )
                 } else { None };
 
-                let world_y = self.max_height * height.unwrap_or(0.0);
+                let world_y = self.y_scale * height.unwrap_or(0.0);
 
                 positions.push([world_x, world_y, world_z]);
                 uvs.push([
@@ -179,6 +179,15 @@ impl Generator for Simple {
 
     fn set_dirty(&mut self, value: bool) {
         self.dirty = value;
+    }
+
+    fn set_y_scale(&mut self, value: f32) {
+        self.y_scale = value;
+    }
+
+    fn set_offset(&mut self, offset_x: i32, offset_z: i32) {
+        self.offset.x = offset_x;
+        self.offset.z = offset_z;
     }
 
     fn intersection(&self, ray: &Ray, range: f32, unit_size: f32) -> Option<Vec3> {
@@ -258,6 +267,11 @@ impl Generator for Simple {
 
         self.dirty = true;
     }
+
+    fn resize(&mut self, size_x: u32, size_z: u32) {
+        self.heights.resize(size_x as usize, size_z as usize);
+        self.dirty = true;
+    }
 }
 
 impl From<HeightMap> for Simple {
@@ -271,7 +285,7 @@ impl From<HeightMap> for Simple {
         Self {
             heights,
             offset,
-            max_height: 100.0,
+            y_scale: 100.0,
             dirty: true
         }
     }

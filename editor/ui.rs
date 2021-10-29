@@ -12,16 +12,16 @@ use crate::brush::Brush;
 
 
 #[derive(Eq, PartialEq)]
-enum Mode {
+pub enum Mode {
     Viewer,
     Terrain,
     Objects
 }
 
 pub struct Controls {
-    mode: Mode,
-    terrain: terrain::Controls,
-    objects: objects::Controls,
+    pub mode: Mode,
+    pub terrain: terrain::Controls,
+    pub objects: objects::Controls,
 }
 
 impl Default for Controls {

@@ -66,6 +66,26 @@ pub fn spawn(
             );
         }
     }
+
+    let query = world.query::<(&Entity, &Terrain)>();
+    for (entity, terrain) in query {
+        if let Some(node) = map.nodes.get_mut(&terrain.position) {
+            node.entity = Some(*entity);
+        }
+    }
+
+    map.nodes.retain(|position, node| {
+        if !node.cleanup {
+            return true;
+        }
+
+        if let Some(entity) = node.entity.take() {
+            world.exile(entity);
+        }
+        assets.remove(node.mesh);
+        false
+    });
+
     map.generator.set_dirty(false);
 }
 

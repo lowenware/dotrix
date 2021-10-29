@@ -5,6 +5,7 @@ use rand::{ SeedableRng, RngCore };
 use rand::rngs::SmallRng;
 
 use dotrix_core::{ Assets, Id, World };
+use dotrix_core::ecs::Entity;
 use dotrix_core::assets::Mesh;
 use dotrix_core::ray::Ray;
 use dotrix_math::Vec3;
@@ -133,9 +134,11 @@ pub struct Node {
     pub cleanup: bool,
     /// Spawn state flag
     pub spawned: bool,
-
+    /// True value means, that terrain node should be fully regenerated
     pub dirty: bool,
+    /// Id of the node terrain Mesh
     pub mesh: Id<Mesh>,
+    pub entity: Option<Entity>,
 }
 
 /// World Terrain Map service
@@ -179,7 +182,7 @@ impl Map {
         self.generator.flatten(point, values, size, self.unit_size);
     }
 
-    pub fn set_dirty(&mut self, point: &Vec3, size: u32) {
+    pub fn set_tile_dirty(&mut self, point: &Vec3, size: u32) {
         let radius = (size as f32 / 2.0) * self.unit_size;
         let dirty_from = VecXZ::new(point.x - radius, point.z - radius);
         let dirty_to = VecXZ::new(point.x + radius, point.z + radius);
@@ -198,15 +201,12 @@ impl Map {
                 continue;
             }
 
-    // If one rectangle is on left side of other
-    //if (l1.x >= r2.x || l2.x >= r1.x)
-    //    return false;
- 
-    // If one rectangle is above other
-    //if (r1.y >= l2.y || r2.y >= l1.y)
-    //    return false;
+            node.dirty = true;
+        }
+    }
 
-
+    pub fn set_dirty(&mut self) {
+        for (_, node) in self.nodes.iter_mut() {
             node.dirty = true;
         }
     }

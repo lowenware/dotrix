@@ -21,6 +21,7 @@ fn main() {
         .with(System::from(scene::startup))
 
         .with(System::from(brush::update))
+        .with(System::from(brush::apply))
         .with(System::from(scene::control))
         .with(System::from(ui::show))
 
