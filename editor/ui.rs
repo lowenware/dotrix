@@ -10,7 +10,6 @@ mod widgets;
 pub use widgets::*;
 use crate::brush::Brush;
 
-
 #[derive(Eq, PartialEq)]
 pub enum Mode {
     Viewer,
@@ -91,7 +90,7 @@ pub fn show(
                 Mode::Terrain => terrain::show(ui, &mut controls.terrain, &mut brush),
                 Mode::Objects => objects::show(ui, &mut controls.objects),
                 _ => {}
-            }
+            };
         });
     }
 }

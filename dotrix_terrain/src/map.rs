@@ -96,6 +96,18 @@ impl Component {
     pub fn axis_offset(axis: i32, lod: Lod) -> i32 {
         lod.scale() as i32 * (2 * axis + 1)
     }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Component::Tiny => "Tiny (62 units)",
+            Component::Small => "Small (126 units)",
+            Component::Standard => "Standard (254 units)",
+        }
+    }
+
+    pub fn slice() -> [Self; 3] {
+        [Component::Tiny, Component::Small, Component::Standard ]
+    }
 }
 
 /// Terrain Level of Details

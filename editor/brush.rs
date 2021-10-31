@@ -6,7 +6,7 @@ use dotrix::ray::Ray;
 use dotrix::terrain::{ Map, HeightMap, Noise };
 use dotrix::math::Vec3;
 
-use crate::ui::Controls;
+use crate::ui::{ Controls };
 
 
 pub const BRUSH_TEXTURE: &str = "dotrix::editor::brush";
@@ -121,7 +121,7 @@ pub fn update(
     mut brush: Mut<Brush>,
     mut controls: Mut<Controls>,
 ) {
-    if !controls.terrain.brush_reload {
+    if controls.terrain.brush_reload {
         return;
     }
 

@@ -8,7 +8,7 @@ use dotrix::terrain::{ Map, HeightMap, Lod, Simple as SimpleTerrain };
 
 pub use dotrix::terrain::extension;
 
-use crate::ui::Controls;
+use crate::ui::{ Controls };
 
 const COMPONENT_SIZE: usize = 128;
 
@@ -53,24 +53,26 @@ pub fn load(
 ) {
     // resize terrain map
     if controls.terrain.map_reload {
-        let lod = Lod::from_level(3);
+        let lod = Lod::from_level(controls.terrain.lod);
         let scale = lod.scale();
         let units_per_side = controls.terrain.component.units_per_side() as u32;
+        let tiles_per_x = controls.terrain.tiles_per_x;
+        // Note: Only square terrain is implemented
+        let size_x = scale * controls.terrain.tiles_per_x * units_per_side + 1;
+        // let size_z = controls.terrain.tiles_per_z * units_per_side + 1;
 
-        let size_x = controls.terrain.tiles_per_x * units_per_side + 1;
-        let size_z = controls.terrain.tiles_per_z * units_per_side + 1;
-        let tiles_per_x = ((size_x - 1) as f32 / 8.0 / units_per_side as f32).ceil() as u32;
-        let tiles_per_z = ((size_z - 1) as f32 / 8.0 / units_per_side as f32).ceil() as u32;
-
-        map.view_range = (if tiles_per_x > tiles_per_z { tiles_per_x } else { tiles_per_z } as f32 / 2.0).ceil() as u32;
+        map.component = controls.terrain.component;
+        map.view_range = tiles_per_x / 2;
         map.min_lod = lod;
         map.unit_size = 1.0;
 
-        println!("HeightMap: {}x{}, view_range: {}", size_x, size_z, map.view_range);
+        println!("HeightMap: Tiles: {}, Size: {}, view_range: {}", controls.terrain.tiles_per_x,
+            size_x, map.view_range);
 
         map.generator.set_y_scale(controls.terrain.y_scale);
-        map.generator.resize(size_x, size_z);
-        map.generator.set_offset(-(size_x as i32 / 2), -(size_z as i32 / 2));
+        map.generator.resize(size_x, size_x);
+        map.generator.set_offset(-(size_x as i32 / 2), -(size_x as i32 / 2));
+        map.set_dirty();
         controls.terrain.map_reload = false;
     }
 

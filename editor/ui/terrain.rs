@@ -2,7 +2,7 @@ use dotrix::egui::native as egui;
 use dotrix::Id;
 use dotrix::assets::Texture;
 use dotrix::math::Vec2u;
-use dotrix::terrain::{ Component, Noise };
+use dotrix::terrain::{ Component, Lod, Noise };
 use crate::brush::{
     Brush,
     INTENSITY as BRUSH_INTENSITY,
@@ -14,12 +14,12 @@ use crate::brush::{
 pub struct Controls {
     /// Terrain Component Type
     pub component: Component,
+    /// Level of Details
+    pub lod: u32,
     /// Number of components per X
     pub tiles_per_x: u32,
-    /// Number of components per Z
+    /// Number of components per Z (not implemented yet)
     pub tiles_per_z: u32,
-    /// If locked, the terrain has square shape
-    pub size_locked: bool,
     /// Height of the World
     pub y_scale: f32,
     /// Brush can be elevating or flattening
@@ -30,14 +30,16 @@ pub struct Controls {
     pub brush_intensity: f32,
     /// Size of the brush
     pub brush_size: u32,
+    /// Reload brush
+    pub brush_reload: bool,
     /// Noise configuration
     pub noise: Noise,
     /// Id of the brush texture
     pub brush_texture: Id<Texture>,
-    /// brush reload flag
-    pub brush_reload: bool,
-    /// terrain map reload falg
+    /// Reload terrain map
     pub map_reload: bool,
+
+    pub sizes: Vec<(u32, String)>,
 }
 
 impl Controls {
@@ -48,27 +50,41 @@ impl Controls {
 
 impl Default for Controls {
     fn default() -> Self {
-        Self {
+        let mut result = Self {
             component: Component::Standard,
-            tiles_per_x: 4,
-            tiles_per_z: 4,
-            size_locked: true,
+            lod: 0,
+            tiles_per_x: 2,
+            tiles_per_z: 2,
             y_scale: 512.0,
             brush_mode: BrushMode::Elevate,
             brush_shape: BrushShape::Radial,
             brush_intensity: BRUSH_INTENSITY,
             brush_size: BRUSH_SIZE,
-            noise: Noise::default(),
-            brush_texture: Id::default(),
             brush_reload: true,
+            brush_texture: Id::default(),
+            noise: Noise::default(),
             map_reload: true,
-        }
+            sizes: Vec::new()
+        };
+        result.calculate_sizes();
+        result
+    }
+}
+
+impl Controls {
+    fn calculate_sizes(&mut self) {
+        self.sizes = (1..=6).map(|i| {
+            let tiles_per_x = 2 * i;
+            let units = self.component.units_per_side() as u32;
+            let lod = Lod::from_level(self.lod);
+            let size = tiles_per_x * units * lod.scale();
+            (tiles_per_x, format!("{}", size))
+        }).collect::<Vec<_>>();
     }
 }
 
 
 pub fn show(ui: &mut egui::Ui, controls: &mut Controls, brush: &mut Brush) {
-
 
     egui::CollapsingHeader::new("Properties")
         .default_open(true)
@@ -79,7 +95,6 @@ pub fn show(ui: &mut egui::Ui, controls: &mut Controls, brush: &mut Brush) {
         .default_open(true)
         .show(ui, |ui| show_brush(ui, controls, brush));
     ui.separator();
-
 }
 
 
@@ -104,47 +119,52 @@ fn show_properties(ui: &mut egui::Ui, controls: &mut Controls) {
         let limit_x = size_x;
         let mut size_z = controls.tiles_per_z * quads_per_side + 1;
 
-        ui.label(if controls.size_locked { "Size" } else { "Size by X" });
-
-        ui.horizontal(|ui| {
-            if ui.add(egui::DragValue::new(&mut size_x)
-                .speed(2 * quads_per_side)
-                .clamp_range(std::ops::RangeInclusive::new(63, 8129))
-            ).changed() {
-                controls.tiles_per_x = size_x / quads_per_side;
-                if controls.size_locked {
-                    controls.tiles_per_z = controls.tiles_per_x;
+        let component = controls.component;
+        ui.label("Component");
+        egui::ComboBox::from_id_source("terrain_component")
+            .selected_text(controls.component.as_str())
+            .show_ui(ui, |ui| {
+                for component in Component::slice() {
+                    ui.selectable_value(&mut controls.component, component, component.as_str());
                 }
-                controls.map_reload = true;
-            }
-
-            if ui.checkbox(&mut controls.size_locked, "Square").changed() {
-                if controls.size_locked {
-                    if controls.tiles_per_x > controls.tiles_per_z {
-                        controls.tiles_per_z = controls.tiles_per_x;
-                    } else {
-                        controls.tiles_per_x = controls.tiles_per_z;
-                    }
-                    controls.map_reload = true;
-                }
-            }
-        });
+            });
         ui.end_row();
 
-        if !controls.size_locked {
-            ui.label("Size by Z");
-            if ui.add(egui::DragValue::new(&mut size_z)
-                .speed(quads_per_side)
-                .clamp_range(std::ops::RangeInclusive::new(0, 8129))
-            ).changed() {
-                controls.tiles_per_z = size_z / quads_per_side;
-                if controls.size_locked {
-                    controls.tiles_per_x = controls.tiles_per_z;
-                }
-                controls.map_reload = true;
-            }
-            ui.end_row();
+        let lod = controls.lod;
+        ui.label("Level of Details");
+            let lods = [
+                "1 / 1 (High)",
+                "1 / 2",
+                "1 / 4",
+                "1 / 8 (Low)",
+            ];
+            egui::ComboBox::from_id_source("terrain_lod")
+                .selected_text(lods[controls.lod as usize])
+                .show_ui(ui, |ui| {
+                    for (lod, label) in lods.iter().enumerate() {
+                        ui.selectable_value(&mut controls.lod, lod as u32, label);
+                    }
+                });
+        ui.end_row();
+
+        if lod != controls.lod || component != controls.component {
+            controls.calculate_sizes();
+            controls.map_reload = true;
         }
+
+        let tiles_per_x = controls.tiles_per_x;
+
+        ui.label("Size");
+        ui.horizontal(|ui| {
+            for (tiles_per_x, label) in controls.sizes.iter() {
+                ui.selectable_value(&mut controls.tiles_per_x, *tiles_per_x, label);
+            }
+        });
+
+        if tiles_per_x != controls.tiles_per_x {
+            controls.map_reload = true;
+        }
+        ui.end_row();
 
         ui.label("Height Scale");
         if ui.add(
@@ -159,9 +179,8 @@ fn show_properties(ui: &mut egui::Ui, controls: &mut Controls) {
 
 
 fn show_brush(ui: &mut egui::Ui, controls: &mut Controls, brush: &mut Brush) {
+    let mut brush_reload = false;
     super::tool_grid("brush").show(ui, |ui| {
-        let mut brush_reload = false;
-        let mut brush_shape = controls.brush_shape;
 
         ui.label("Mode");
         ui.horizontal(|ui| {
@@ -175,15 +194,16 @@ fn show_brush(ui: &mut egui::Ui, controls: &mut Controls, brush: &mut Brush) {
             brush_reload = true;
         }
 
+        let brush_shape = controls.brush_shape;
+
         ui.label("Mode");
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut brush_shape, BrushShape::Radial, "Radial");
-            ui.selectable_value(&mut brush_shape, BrushShape::Noise, "Noise");
+            ui.selectable_value(&mut controls.brush_shape, BrushShape::Radial, "Radial");
+            ui.selectable_value(&mut controls.brush_shape, BrushShape::Noise, "Noise");
         });
         ui.end_row();
 
         if brush_shape != controls.brush_shape {
-            controls.brush_shape = brush_shape;
             brush_reload = true;
         }
 
@@ -250,13 +270,13 @@ fn show_brush(ui: &mut egui::Ui, controls: &mut Controls, brush: &mut Brush) {
             },
             _ => {}
         };
-        controls.brush_reload = brush_reload;
-
 
         ui.label("Preview");
         ui.image(egui::TextureId::User(controls.brush_texture.id), [100.0, 100.0]);
         ui.end_row();
     });
+
+    controls.brush_reload = brush_reload;
 }
 
 
