@@ -11,6 +11,12 @@ use crate::brush::{
     Shape as BrushShape,
 };
 
+pub enum HeightMapAction {
+    Reset,
+    Import,
+    Export,
+}
+
 pub struct Controls {
     /// Terrain Component Type
     pub component: Component,
@@ -39,6 +45,8 @@ pub struct Controls {
     /// Reload terrain map
     pub map_reload: bool,
 
+    pub height_map_action: Option<HeightMapAction>,
+
     pub sizes: Vec<(u32, String)>,
 }
 
@@ -64,7 +72,8 @@ impl Default for Controls {
             brush_texture: Id::default(),
             noise: Noise::default(),
             map_reload: true,
-            sizes: Vec::new()
+            height_map_action: None,
+            sizes: Vec::new(),
         };
         result.calculate_sizes();
         result
@@ -103,13 +112,13 @@ fn show_properties(ui: &mut egui::Ui, controls: &mut Controls) {
         ui.label("Height Map");
         ui.horizontal(|ui| {
             if ui.button("New").clicked() {
-                println!("New Height Map");
+                controls.height_map_action = Some(HeightMapAction::Reset);
             }
             if ui.button("Import").clicked() {
-                println!("Import Height Map");
+                controls.height_map_action = Some(HeightMapAction::Import);
             }
             if ui.button("Export").clicked() {
-                println!("Export Height Map");
+                controls.height_map_action = Some(HeightMapAction::Export);
             }
         });
         ui.end_row();

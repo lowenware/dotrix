@@ -702,6 +702,7 @@ dependencies = [
  "dotrix_math",
  "dotrix_overlay",
  "dotrix_pbr",
+ "image",
  "noise",
  "num",
  "rand 0.8.4",

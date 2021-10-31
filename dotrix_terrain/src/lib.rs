@@ -5,7 +5,7 @@
 use std::any::Any;
 
 use dotrix_core::{ Application, Id, System };
-use dotrix_core::assets::Mesh;
+use dotrix_core::assets::{ Mesh, Texture };
 use dotrix_core::ray::Ray;
 use dotrix_math::Vec3;
 
@@ -59,7 +59,9 @@ pub trait Generator: Send + Sync {
 
     fn flatten(&mut self, point: &Vec3, values: &[f32], size: u32, unit_size: f32);
 
+    fn export(&self, filename: &str);
     fn resize(&mut self, new_size_x: u32, new_size_z: u32);
+    fn reset(&mut self);
 }
 
 /// Enables the terrain extension in Dotrix application

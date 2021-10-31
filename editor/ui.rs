@@ -8,6 +8,7 @@ mod objects;
 mod widgets;
 
 pub use widgets::*;
+pub use terrain::HeightMapAction;
 use crate::brush::Brush;
 
 #[derive(Eq, PartialEq)]

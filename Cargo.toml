@@ -37,6 +37,7 @@ members = [
   "dotrix_terrain",
 ]
 
+
 [dependencies.dotrix_core]
 version = "0.5"
 path = "./dotrix_core"

@@ -8,7 +8,7 @@ use dotrix::terrain::{ Map, HeightMap, Lod, Simple as SimpleTerrain };
 
 pub use dotrix::terrain::extension;
 
-use crate::ui::{ Controls };
+use crate::ui::{ Controls, HeightMapAction };
 
 const COMPONENT_SIZE: usize = 128;
 
@@ -74,6 +74,23 @@ pub fn load(
         map.generator.set_offset(-(size_x as i32 / 2), -(size_x as i32 / 2));
         map.set_dirty();
         controls.terrain.map_reload = false;
+    }
+
+    if let Some(height_map_action) = controls.terrain.height_map_action.take() {
+        match height_map_action {
+            HeightMapAction::Reset => {
+                println!("New Height Map");
+                map.generator.reset();
+                map.set_dirty();
+            },
+            HeightMapAction::Import => {
+                println!("Import Height Map");
+            },
+            HeightMapAction::Export => {
+                let heightmap = map.generator.export("./heightmap-export.png");
+                println!("Export Height Map");
+            }
+        }
     }
 
     /*

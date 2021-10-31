@@ -34,6 +34,7 @@ pub fn spawn(
         return;
     }
 
+
     let viewer = VecXZ::new(
         camera.target.x,
         camera.target.z,
@@ -49,6 +50,8 @@ pub fn spawn(
     let index_z = (viewer.z / max_component_size).floor() as i32;
 
     map.request_cleanup();
+
+    let nodes = map.nodes.len();
 
     for x in -view_range..view_range {
         let x_pos = Component::axis_offset(index_x + x, lod);
@@ -67,8 +70,12 @@ pub fn spawn(
         }
     }
 
+    let spawned = map.nodes.len() - nodes;
+    let mut entities = 0;
+
     let query = world.query::<(&Entity, &Terrain)>();
     for (entity, terrain) in query {
+        entities += 1;
         if let Some(node) = map.nodes.get_mut(&terrain.position) {
             node.entity = Some(*entity);
         }
@@ -86,7 +93,11 @@ pub fn spawn(
         false
     });
 
+    let cleaned = nodes - map.nodes.len();
+
     map.generator.set_dirty(false);
+
+    println!("Spawned {}, cleaned {}, entities {}", spawned, cleaned, entities);
 }
 
 fn check_lod_and_spawn(
@@ -111,7 +122,7 @@ fn check_lod_and_spawn(
                     mesh.unload();
                 }
             }
-            println!("redraw {}:{}", position.x, position.z);
+            // println!("redraw {}:{}", position.x, position.z);
             node.dirty = false;
         }
     } else {
@@ -125,13 +136,14 @@ fn check_lod_and_spawn(
             };
             let material = Material {
                 // texture: terrain.texture,
-                albedo: match position {
+                albedo: Color::grey(),
+                /* match position {
                     VecXZ { x:-24, z:-24} => Color::red(),
                     // 1 => Color::red(),
                     // 2 => Color::green(),
                     // 4 => Color::blue(),
                     _ => Color::grey()
-                },
+                }, */
                 ..Default::default()
             };
             let pipeline = Pipeline::default();

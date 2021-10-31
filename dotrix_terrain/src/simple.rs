@@ -1,6 +1,6 @@
 /// Simple terrain generator
 
-use dotrix_core::assets::Mesh;
+use dotrix_core::assets::{ Mesh, Texture };
 use dotrix_core::ray::Ray;
 use dotrix_math::{ InnerSpace, Vec3 };
 
@@ -271,6 +271,25 @@ impl Generator for Simple {
     fn resize(&mut self, size_x: u32, size_z: u32) {
         self.heights.resize(size_x as usize, size_z as usize);
         self.dirty = true;
+    }
+
+    fn reset(&mut self) {
+        self.heights.reset();
+        self.dirty = true;
+    }
+
+    fn export(&self, filename: &str) {
+        let texture = self.heights.texture(self.y_scale);
+        if let Ok(()) = image::save_buffer_with_format(
+            std::path::Path::new(filename),
+            texture.data.as_slice(),
+            texture.width,
+            texture.height,
+            image::ColorType::Rgba8,
+            image::ImageFormat::Png
+        ) {
+            println!("Texture saved to {}", filename);
+        }
     }
 }
 

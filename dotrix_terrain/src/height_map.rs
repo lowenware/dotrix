@@ -86,6 +86,43 @@ impl HeightMap {
         self.size.z = new_size_z as u32;
     }
 
+    /// Reset height map
+    pub fn reset(&mut self) {
+        for value in self.data.iter_mut() {
+            *value = 0.0;
+        }
+    }
+
+    pub fn texture(&self, y_scale: f32) -> Texture {
+        let mut min = y_scale;
+        let mut max = -y_scale;
+        for value in self.data.iter() {
+            let v = *value;
+            if v < min {
+                min = v;
+            }
+            if v > max {
+                max = v;
+            }
+        }
+        let delta = max - min;
+        let mut data = Vec::with_capacity(self.data.len() * 4);
+
+        for value in self.data.iter() {
+            let byte = ((0xFF as f32 * ((value - min) / delta)) as u8) & 0xFF;
+            data.push(byte);
+            data.push(byte);
+            data.push(byte);
+            data.push(0xFF);
+        }
+
+        Texture {
+            data,
+            width: self.size.x,
+            height: self.size.z,
+            ..Default::default()
+        }
+    }
 }
 
 impl From<Texture> for HeightMap {

@@ -34,3 +34,6 @@ features = ["trace"]
 version = "1.4"
 features = ["derive"]
 
+[dependencies.image]
+version = "0.23.14"
+
