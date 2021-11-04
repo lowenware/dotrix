@@ -97,7 +97,7 @@ pub fn render(
     for (model, material, transform, pipeline) in query {
         if pipeline.shader.is_null() {
             pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL)
-                .unwrap_or_else(Id::default);
+                .unwrap_or_default();
         }
 
         // check if model is disabled or already rendered

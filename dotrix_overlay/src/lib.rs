@@ -5,7 +5,7 @@ use std::{
     collections::HashMap,
 };
 
-use dotrix_core::{ Application, Id, Pipeline, Assets, Globals, Input, Renderer, Window };
+use dotrix_core::{ Application, Pipeline, Assets, Globals, Input, Renderer, Window };
 use dotrix_core::assets::Shader;
 use dotrix_core::ecs::{ Const, Priority, System, Mut };
 use dotrix_core::renderer::{
@@ -154,7 +154,7 @@ pub fn render(
     window: Const<Window>,
 ) {
     let mut overlay_uniform = overlay.uniform.take()
-        .unwrap_or_else(UniformBuffer::default);
+        .unwrap_or_default();
 
     let window_size = window.inner_size();
     let scale_factor = window.scale_factor();
@@ -175,7 +175,7 @@ pub fn render(
         for (widget, pipeline) in provider.tessellate() {
             if pipeline.shader.is_null() {
                 pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL)
-                    .unwrap_or_else(Id::default);
+                    .unwrap_or_default();
             }
 
             // check if model is disabled or already rendered
