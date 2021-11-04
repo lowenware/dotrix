@@ -78,7 +78,7 @@ impl State {
     }
 
     /// Returns a referrence to the current state
-    pub fn get<T: IntoState>(&mut self) -> Option<&T> {
+    pub fn get<T: IntoState>(&self) -> Option<&T> {
         self.stack.last()
             .map(|entry| entry.boxed.downcast_ref())
             .unwrap_or(None)
