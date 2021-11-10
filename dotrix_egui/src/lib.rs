@@ -26,16 +26,26 @@ const TEXTURE_NAME: &str = "egui::texture";
 const SCROLL_SENSITIVITY: f32 = 10.0;
 
 /// EGUI overlay provider
-#[derive(Default)]
 pub struct Egui {
     /// EGUI context
     pub ctx: egui::CtxRef,
+    /// UI scale factor
+    pub scale_factor: f32,
     widgets: Vec<(Widget, Pipeline)>,
     texture: Option<Id<Texture>>,
     texture_version: Option<u64>,
-    scale_factor: f32,
-    surface_width: f32,
-    surface_height: f32,
+}
+
+impl Default for Egui {
+    fn default() -> Self {
+        Egui {
+            ctx: egui::CtxRef::default(),
+            scale_factor: 1.0,
+            widgets: Vec::new(),
+            texture: None,
+            texture_version: None,
+        }
+    }
 }
 
 impl Ui for Egui {
@@ -45,14 +55,10 @@ impl Ui for Egui {
         input: &Input,
         window: &Window,
     ) {
-        let scale_factor = window.scale_factor();
+        let scale_factor = self.scale_factor * window.scale_factor();
         let surface_size = window.inner_size();
         let surface_width = surface_size.x as f32;
         let surface_height = surface_size.y as f32;
-
-        self.scale_factor = scale_factor;
-        self.surface_width = surface_width;
-        self.surface_height = surface_height;
 
         let mut events = input.events.iter()
             .map(|e| match e {
@@ -137,10 +143,11 @@ impl Ui for Egui {
         self.texture_version = Some(texture.version);
     }
 
-    fn tessellate(&mut self) -> &mut [(Widget, Pipeline)] {
-        let scale_factor = self.scale_factor;
-        let surface_width = self.surface_width;
-        let surface_height = self.surface_height;
+    fn tessellate(&mut self, window: &Window) -> &mut [(Widget, Pipeline)] {
+        let scale_factor = self.scale_factor * window.scale_factor();
+        let surface_size = window.inner_size();
+        let surface_width = surface_size.x as f32;
+        let surface_height = surface_size.y as f32;
 
         let (_output, paint_commands) = self.ctx.end_frame();
         let paint_jobs = self.ctx.tessellate(paint_commands);
