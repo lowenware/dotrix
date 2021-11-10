@@ -88,7 +88,7 @@ pub trait Ui: Any + Send + Sync {
     fn bind(&mut self, assets: &mut Assets, input: &Input, window: &Window);
 
     /// Returns tessellated widgets for current frame
-    fn tessellate(&mut self) -> &mut [(Widget, Pipeline)];
+    fn tessellate(&mut self, window: &Window) -> &mut [(Widget, Pipeline)];
 }
 
 impl dyn Ui {
@@ -172,7 +172,7 @@ pub fn render(
     );
 
     for provider in overlay.providers() {
-        for (widget, pipeline) in provider.tessellate() {
+        for (widget, pipeline) in provider.tessellate(&window) {
             if pipeline.shader.is_null() {
                 pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL)
                     .unwrap_or_default();

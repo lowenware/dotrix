@@ -3,14 +3,25 @@
 use crate::assets::Texture;
 
 use dotrix_math::{ clamp_min, Vec2, Vec2i, Vec2u };
-use winit::{
-    dpi::{ PhysicalPosition, PhysicalSize, Position },
-    error:: { ExternalError, NotSupportedError },
-    monitor:: { MonitorHandle as WinitMonitor, VideoMode as WinitVideoMode },
-    window::{ self, Fullscreen as WinitFullscreen, Window as WinitWindow },
+use winit::dpi::{
+    PhysicalPosition,
+    PhysicalSize,
+    Position
 };
-pub use window::CursorIcon as CursorIcon;
-pub use window::UserAttentionType as UserAttentionType;
+use winit::monitor::{
+    MonitorHandle as WinitMonitor,
+    VideoMode as WinitVideoMode
+};
+use winit::window::{
+    Icon as WinitIcon,
+    Window as WinitWindow
+};
+
+pub use winit::window::{
+    CursorIcon as CursorIcon,
+    UserAttentionType as UserAttentionType,
+    Fullscreen as WinitFullscreen,
+};
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 /// Information about a video mode.
@@ -64,7 +75,7 @@ pub enum Fullscreen {
 /// Window service - a wrapper for [`winit::window::Window`] instance.
 pub struct Window {
     always_on_top: bool,
-    pub (crate) close_request: bool,
+    close_request: bool,
     cursor_grab: bool,
     cursor_icon: CursorIcon,
     cursor_visible: bool,
@@ -73,7 +84,7 @@ pub struct Window {
     monitors: Vec<Monitor>,
     resizable: bool,
     title: String,
-    /// `WINIT` window instance
+    /// winit window instance
     window: Option<winit::window::Window>,
 }
 
@@ -92,6 +103,24 @@ impl Default for Window {
             title: String::from("Dotrix"),
             window: None,
         }
+    }
+}
+
+/// Window errors enumeration
+#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+pub enum Error {
+    /// Feature is not available at this moment
+    NotAvailable,
+    /// Feature is not supported by current platform
+    NotSupported,
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            Error::NotAvailable => "Feature is not available at this moment",
+            Error::NotSupported => "Feature is not supported by current platform",
+        })
     }
 }
 
@@ -153,6 +182,11 @@ impl Window {
         self.get().fullscreen().is_some()
     }
 
+    ///
+    pub fn close_request(&self) -> bool {
+        self.close_request
+    }
+
     /// Find winit monitor based on monitor number.
     fn get_winit_monitor(&self, monitor_number: usize) -> Option<WinitMonitor> {
         if let Some(monitor) = self.monitors.get(monitor_number) {
@@ -180,8 +214,11 @@ impl Window {
 
     /// Returns the position of the top-left hand corner of the window's client
     /// area relative to the top-left hand corner of the desktop.
-    pub fn inner_position(&self) -> Result<Vec2i, NotSupportedError> {
-        self.get().inner_position().map(|pos| Vec2i { x: pos.x, y: pos.y })
+    pub fn inner_position(&self) -> Result<Vec2i, Error> {
+        self.get()
+            .inner_position()
+            .map(|pos| Vec2i { x: pos.x, y: pos.y })
+            .or(Err(Error::NotSupported))
     }
 
     /// Returns the size of the window's client area in pixels.
@@ -228,8 +265,11 @@ impl Window {
     ///
     /// The coordinates can be negative if the top-left hand corner of the window
     /// is outside of the visible screen region.
-    pub fn outer_position(&self) -> Result<Vec2i, NotSupportedError> {
-        self.get().outer_position().map(|pos| Vec2i { x: pos.x, y: pos.y })
+    pub fn outer_position(&self) -> Result<Vec2i, Error> {
+        self.get()
+            .outer_position()
+            .map(|pos| Vec2i { x: pos.x, y: pos.y })
+            .or(Err(Error::NotSupported))
     }
 
     /// Returns the size of the entire window in pixels.
@@ -284,12 +324,11 @@ impl Window {
     }
 
     /// Grabs the cursor, preventing it from leaving the window.
-    pub fn set_cursor_grab(&mut self, grab: bool) -> Result<(), ExternalError> {
-        let result = self.get().set_cursor_grab(grab);
-        if result.is_ok() {
-            self.cursor_grab = grab;
-        }
-        result
+    pub fn set_cursor_grab(&mut self, grab: bool) -> Result<(), Error> {
+        self.get()
+            .set_cursor_grab(grab)
+            .map(|_| self.cursor_grab = grab)
+            .or(Err(Error::NotAvailable))
     }
 
     /// Modifies the cursor icon of the window.
@@ -299,10 +338,17 @@ impl Window {
     }
 
     /// Change the position of the cursor in window in pixel coordinates.
-    pub fn set_cursor_position(&self, pos: Vec2) -> Result<(), ExternalError> {
-        self.get().set_cursor_position(Position::Physical(
-            PhysicalPosition { x: pos.x.round() as i32, y: pos.y.round() as i32 }
-        ))
+    pub fn set_cursor_position(&self, pos: Vec2) -> Result<(), Error> {
+        self.get()
+            .set_cursor_position(
+                Position::Physical(
+                    PhysicalPosition {
+                        x: pos.x.round() as i32,
+                        y: pos.y.round() as i32
+                    }
+                )
+            )
+            .or(Err(Error::NotAvailable))
     }
 
     /// Modifies the cursor's visibility.
@@ -356,7 +402,7 @@ impl Window {
     /// top-left corner of the titlebar.
     pub fn set_icon(&self, icon: Option<&Texture>) {
         if let Some(texture) = icon {
-            let icn = window::Icon::from_rgba(texture.data.clone(), texture.width, texture.height)
+            let icn = WinitIcon::from_rgba(texture.data.clone(), texture.width, texture.height)
                 .expect("Failed to open icon");
             self.get().set_window_icon(Some(icn));
         } else {

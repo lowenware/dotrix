@@ -632,7 +632,7 @@ dependencies = [
 
 [[package]]
 name = "dotrix_core"
-version = "0.5.3"
+version = "0.5.4"
 dependencies = [
  "base64 0.13.0",
  "bytemuck",
