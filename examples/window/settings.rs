@@ -541,9 +541,7 @@ pub fn ui(
 
                     if let Some(dialog) = &mut settings.open_file_dialog {
                         if dialog.show(&egui.ctx).selected() {
-                            if let Some(file) = dialog.path() {
-                                settings.opened_file = Some(file);
-                            }
+                            settings.opened_file = dialog.path().take();
                         }
                     }
 
