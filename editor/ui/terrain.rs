@@ -1,6 +1,7 @@
 use dotrix::egui::native as egui;
 use dotrix::Id;
 use dotrix::assets::Texture;
+use dotrix::egui::extras::FileDialog;
 use dotrix::math::Vec2u;
 use dotrix::terrain::{ Component, Lod, Noise };
 use crate::brush::{
@@ -48,6 +49,8 @@ pub struct Controls {
     pub height_map_action: Option<HeightMapAction>,
 
     pub sizes: Vec<(u32, String)>,
+
+    pub save_file_dialog: FileDialog,
 }
 
 impl Controls {
@@ -74,6 +77,7 @@ impl Default for Controls {
             map_reload: true,
             height_map_action: None,
             sizes: Vec::new(),
+            save_file_dialog: FileDialog::save_file(None),
         };
         result.calculate_sizes();
         result
@@ -93,11 +97,11 @@ impl Controls {
 }
 
 
-pub fn show(ui: &mut egui::Ui, controls: &mut Controls, brush: &mut Brush) {
+pub fn show(ctx: &egui::CtxRef, ui: &mut egui::Ui, controls: &mut Controls, brush: &mut Brush) {
 
     egui::CollapsingHeader::new("Properties")
         .default_open(true)
-        .show(ui, |ui| show_properties(ui, controls));
+        .show(ui, |ui| show_properties(ctx, ui, controls));
     ui.separator();
 
     egui::CollapsingHeader::new("Brush")
@@ -107,7 +111,7 @@ pub fn show(ui: &mut egui::Ui, controls: &mut Controls, brush: &mut Brush) {
 }
 
 
-fn show_properties(ui: &mut egui::Ui, controls: &mut Controls) {
+fn show_properties(ctx: &egui::CtxRef, ui: &mut egui::Ui, controls: &mut Controls) {
     super::tool_grid("heightmap_properties").show(ui, |ui| {
         ui.label("Height Map");
         ui.horizontal(|ui| {
@@ -117,9 +121,15 @@ fn show_properties(ui: &mut egui::Ui, controls: &mut Controls) {
             if ui.button("Import").clicked() {
                 controls.height_map_action = Some(HeightMapAction::Import);
             }
+
             if ui.button("Export").clicked() {
+                controls.save_file_dialog.open()
+            }
+
+            if controls.save_file_dialog.show(ctx).selected() {
                 controls.height_map_action = Some(HeightMapAction::Export);
             }
+
         });
         ui.end_row();
 

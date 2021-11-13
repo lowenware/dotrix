@@ -87,8 +87,9 @@ pub fn load(
                 println!("Import Height Map");
             },
             HeightMapAction::Export => {
-                let heightmap = map.generator.export("./heightmap-export.png");
-                println!("Export Height Map");
+                if let Some(path) = controls.terrain.save_file_dialog.path().take() {
+                    let heightmap = map.generator.export(&path);
+                }
             }
         }
     }

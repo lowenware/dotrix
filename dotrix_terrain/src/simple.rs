@@ -278,17 +278,17 @@ impl Generator for Simple {
         self.dirty = true;
     }
 
-    fn export(&self, filename: &str) {
+    fn export(&self, file: &std::path::Path) {
         let texture = self.heights.texture(self.y_scale);
         if let Ok(()) = image::save_buffer_with_format(
-            std::path::Path::new(filename),
+            file,
             texture.data.as_slice(),
             texture.width,
             texture.height,
             image::ColorType::Rgba8,
             image::ImageFormat::Png
         ) {
-            println!("Texture saved to {}", filename);
+            println!("Texture saved to {:?}", file);
         }
     }
 }

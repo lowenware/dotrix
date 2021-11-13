@@ -88,7 +88,12 @@ pub fn show(
             .show(&egui_overlay.ctx, |ui| {
 
             match controls.mode {
-                Mode::Terrain => terrain::show(ui, &mut controls.terrain, &mut brush),
+                Mode::Terrain => terrain::show(
+                    &egui_overlay.ctx,
+                    ui,
+                    &mut controls.terrain,
+                    &mut brush
+                ),
                 Mode::Objects => objects::show(ui, &mut controls.objects),
                 _ => {}
             };

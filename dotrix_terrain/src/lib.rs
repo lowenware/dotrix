@@ -59,7 +59,7 @@ pub trait Generator: Send + Sync {
 
     fn flatten(&mut self, point: &Vec3, values: &[f32], size: u32, unit_size: f32);
 
-    fn export(&self, filename: &str);
+    fn export(&self, file: &std::path::Path);
     fn resize(&mut self, new_size_x: u32, new_size_z: u32);
     fn reset(&mut self);
 }
