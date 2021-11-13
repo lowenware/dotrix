@@ -1,8 +1,6 @@
 //! Mouse ray implementation
-use crate::{
-    ecs::{ Const, Mut },
-    services::{ Camera, Input, Window },
-};
+use crate::{ Application, Camera, Input, Window };
+use crate::ecs::{ Const, Mut, System };
 use dotrix_math::{ InnerSpace, SquareMatrix, Vec2, Vec3, Vec4 };
 
 /// Represents ray and provides method for various calculations
@@ -19,6 +17,23 @@ pub struct Ray {
 }
 
 impl Ray {
+    /// Returns ray direction
+    pub fn direction(&self) -> Vec3 {
+        self.direction.expect("Ray must be calculated first")
+    }
+
+    /// Returns ray direction
+    pub fn origin(&self) -> Vec3 {
+        self.origin.expect("Ray must be calculated first")
+    }
+
+    /// Returns point on the ray of requested length
+    pub fn point(&self, length: f32) -> Vec3 {
+        let direction = self.direction();
+        let origin = self.origin();
+        origin + direction * length
+    }
+
     /// Calculates normalized device coords. Pointer argument can be mouse coordinates or, for
     /// example middle moint of the screen (crosshair)
     pub fn normalized_device_coords(
@@ -106,6 +121,14 @@ pub fn calculate(
 
     ray.inverted = inverted;
 }
+
+
+/// Mouse ray extension
+pub fn extension(app: &mut Application) {
+    app.add_service(Ray::default());
+    app.add_system(System::from(calculate));
+}
+
 
 #[cfg(test)]
 mod tests {

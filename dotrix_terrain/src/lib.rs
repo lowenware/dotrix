@@ -5,75 +5,63 @@
 use std::any::Any;
 
 use dotrix_core::{ Application, Id, System };
-use dotrix_core::assets::Mesh;
+use dotrix_core::assets::{ Mesh, Texture };
+use dotrix_core::ray::Ray;
+use dotrix_math::Vec3;
 
-mod generator;
-mod services;
-mod systems;
+// mod generator;
+mod height_map;
 mod layers;
+mod map;
+mod systems;
+mod simple;
 
-pub use generator::{ Falloff, Generator, Noise };
-pub use services::Terrain;
-pub use systems::{ startup, render, spawn };
+// pub use noise::{ Noise };
+pub use height_map::HeightMap;
 pub use layers::{ Layers, Layer };
+pub use map::{ Component, Lod, Map, Node, Noise, VecXZ };
+pub use systems::{ startup, render, spawn };
+pub use simple::Simple;
 
 
 /// Terrain tile component
-pub struct Tile {
-    /// Terrain position by X axis (center of the chunk)
-    pub x: i32,
-    /// Terrain position by Z axis (center of the chunk)
-    pub z: i32,
-    /// Terrain chunk level of details (0 is the highest)
-    pub lod: usize,
-    /// Terrain chunk mesh ID
+pub struct Terrain {
+    /// Terrain position
+    pub position: VecXZ<i32>,
+    /// Terrain scale
+    pub scale: u32,
+    /// Terrain mesh ID
     pub mesh: Id<Mesh>,
-    /// Is loaded by GPU
+    /// True if it was loaded to GPU
     pub loaded: bool,
 }
 
+pub trait Generator: Send + Sync {
+    fn get(
+        &self,
+        component: Component,
+        position: VecXZ<i32>,
+        scale: u32,
+        unit_size: f32
+    ) -> Option<Mesh>;
 
-/// Trait for the terrain heights source
-pub trait Heightmap: Any + Sync + Send {
-    /// Returns Y axis value for specified X and Z pair
-    fn value(&self, x: usize, z: usize) -> f32;
-    /// Returns number of values per map side
-    fn size(&self) -> usize;
-}
+    fn dirty(&self) -> bool;
 
+    fn set_dirty(&mut self, value: bool);
 
-impl dyn Heightmap {
-    /// Casts down the reference
-    #[inline]
-    pub fn downcast_ref<T: Any>(&self) -> Option<&T> {
-        if self.is::<T>() {
-            // SAFETY: just checked whether we are pointing to the correct type, and we can rely on
-            // that check for memory safety because we have implemented Any for all types; no other
-            // impls can exist as they would conflict with our impl.
-            unsafe { Some(&*(self as *const dyn Heightmap as *const T)) }
-        } else {
-            None
-        }
-    }
+    fn set_y_scale(&mut self, value: f32);
 
-    /// Casts down the mutable reference
-    #[inline]
-    pub fn downcast_mut<T: Any>(&mut self) -> Option<&mut T> {
-        if self.is::<T>() {
-            // SAFETY: just checked whether we are pointing to the correct type, and we can rely on
-            // that check for memory safety because we have implemented Any for all types; no other
-            // impls can exist as they would conflict with our impl.
-            unsafe { Some(&mut *(self as *mut dyn Heightmap as *mut T)) }
-        } else {
-            None
-        }
-    }
+    fn set_offset(&mut self, offset_x: i32, offset_z: i32);
 
-    /// Checks if the reference is of specific type
-    #[inline]
-    fn is<T: Any>(&self) -> bool {
-        std::any::TypeId::of::<T>() == self.type_id()
-    }
+    fn intersection(&self, ray: &Ray, range: f32, unit_size: f32) -> Option<Vec3>;
+
+    fn modify(&mut self, point: &Vec3, values: &[f32], size: u32, unit_size: f32);
+
+    fn flatten(&mut self, point: &Vec3, values: &[f32], size: u32, unit_size: f32);
+
+    fn export(&self, file: &std::path::Path);
+    fn resize(&mut self, new_size_x: u32, new_size_z: u32);
+    fn reset(&mut self);
 }
 
 /// Enables the terrain extension in Dotrix application
@@ -81,5 +69,5 @@ pub fn extension(app: &mut Application) {
     app.add_system(System::from(startup));
     app.add_system(System::from(spawn));
     app.add_system(System::from(render));
-    app.add_service(Terrain::default());
+    app.add_service(Map::default());
 }

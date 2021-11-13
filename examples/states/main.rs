@@ -28,18 +28,21 @@ struct PauseState {
 fn main() {
 
     Dotrix::application("Dotrix: Demo Example")
+        // runs on application startup
         .with(System::from(startup))
 
+        // runs at all BUT NOT PauseState
         .with(
             System::from(ui_main)
                 .with(State::off::<PauseState>())
         )
+        // runs ONLY at PauseState
         .with(
             System::from(ui_paused)
                 .with(State::on::<PauseState>())
         )
+        // runs ONLY at MainState
         .with(
-            // Camera control should work only in Main state
             System::from(camera::control)
                 .with(State::on::<MainState>())
         )

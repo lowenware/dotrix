@@ -59,6 +59,14 @@ struct Layers {
 [[group(0), binding(3)]]
 var u_layers: Layers;
 
+[[block]]
+struct Material {
+    albedo: vec4<f32>;
+    has_texture: u32;
+};
+[[group(1), binding(0)]]
+var u_material: Material;
+
 fn inverse_lerp(left: f32, right: f32, value: f32) -> f32 {
     return clamp((value - left) / (right - left), 0.0, 1.0);
 }
@@ -66,7 +74,7 @@ fn inverse_lerp(left: f32, right: f32, value: f32) -> f32 {
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let texture_color: vec4<f32> = textureSample(r_texture, r_sampler, in.tex_uv / 0.5);
-    var albedo_color: vec4<f32> = vec4<f32>(1.0, 1.0, 1.0, 1.0);
+    var albedo_color: vec4<f32> = u_material.albedo;
 
     var i: u32 = 0u;
     var count: u32 = min(u32(u_layers.count.x), MAX_LAYERS_COUNT);
@@ -94,7 +102,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     // Light
     let light_color: vec4<f32> = calculate_light(in.world_position.xyz, in.normal);
 
-    return vec4<f32>(albedo_color.rgb * texture_color.rgb * light_color.rgb, 1.0);
+    return vec4<f32>(albedo_color.rgb * light_color.rgb, 1.0);
 
     //mag: f32 = length(v_TexCoord-vec2(0.5));
     // o_Target = vec4(mix(result_color.xyz, vec3(0.0), mag*mag), 1.0);
