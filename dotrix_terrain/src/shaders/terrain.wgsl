@@ -8,12 +8,11 @@ struct VertexOutput {
 };
 
 
-[[block]]
 struct Renderer {
     proj_view: mat4x4<f32>;
 };
 [[group(0), binding(0)]]
-var u_renderer: Renderer;
+var<uniform> u_renderer: Renderer;
 
 
 [[stage(vertex)]]
@@ -51,13 +50,12 @@ struct Layer {
     unused: vec2<f32>;
 };
 
-[[block]]
 struct Layers {
     count: vec4<u32>;
     list: [[stride(32)]] array<Layer, MAX_LAYERS_COUNT>;
 };
 [[group(0), binding(3)]]
-var u_layers: Layers;
+var<uniform> u_layers: Layers;
 
 fn inverse_lerp(left: f32, right: f32, value: f32) -> f32 {
     return clamp((value - left) / (right - left), 0.0, 1.0);
@@ -88,7 +86,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
         );
 
         albedo_color = albedo_color * (1.0 - color_strength) + u_layers.list[i].color * color_strength;
-        continuing { i = i + 1u; } 
+        continuing { i = i + 1u; }
     }
 
     // Light
@@ -99,5 +97,3 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     //mag: f32 = length(v_TexCoord-vec2(0.5));
     // o_Target = vec4(mix(result_color.xyz, vec3(0.0), mag*mag), 1.0);
 }
-
-

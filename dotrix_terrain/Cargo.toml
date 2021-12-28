@@ -6,6 +6,7 @@ edition = "2018"
 
 description = "Terrain for Dotrix 3D Game Engine (under construction)"
 license = "MIT"
+resolver = "2"
 
 [dependencies]
 dotrix_core = { version = "0.5", path = "../dotrix_core" }
@@ -24,10 +25,9 @@ version = "0.8.4"
 features = ["small_rng"]
 
 [dependencies.wgpu]
-version = "0.9"
+version = "0.12"
 features = ["trace"]
 
 [dependencies.bytemuck]
 version = "1.4"
 features = ["derive"]
-

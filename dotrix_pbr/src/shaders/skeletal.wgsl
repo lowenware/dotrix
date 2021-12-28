@@ -10,27 +10,24 @@ struct VertexOutput {
 };
 
 
-[[block]]
 struct Renderer {
     proj_view: mat4x4<f32>;
 };
 [[group(0), binding(0)]]
-var u_renderer: Renderer;
+var<uniform> u_renderer: Renderer;
 
 
-[[block]]
 struct Model {
     transform: mat4x4<f32>;
 };
 [[group(1), binding(0)]]
-var u_model: Model;
+var<uniform> u_model: Model;
 
-[[block]]
 struct Joints {
     transform: [[stride(64)]] array<mat4x4<f32>, MAX_JOINTS_COUNT>;
 };
 [[group(1), binding(3)]]
-var u_joints: Joints;
+var<uniform> u_joints: Joints;
 
 [[stage(vertex)]]
 fn vs_main(
@@ -91,13 +88,12 @@ fn vs_main(
 
 
 // STAGE: FRAGMENT -------------------------------------------------------------------------------
-[[block]]
 struct Material {
     albedo: vec4<f32>;
     has_texture: u32;
 };
 [[group(1), binding(1)]]
-var u_material: Material;
+var<uniform> u_material: Material;
 
 [[group(1), binding(2)]]
 var r_texture: texture_2d<f32>;
@@ -120,5 +116,3 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
 
     return albedo_color * light_color;
 }
-
-
