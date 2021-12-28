@@ -508,6 +508,49 @@ impl Sampler {
     }
 }
 
+/// Uniform Buffer
+#[derive(Default)]
+pub struct StorageBuffer {
+    wgpu_buffer: Option<wgpu::Buffer>,
+}
+
+impl StorageBuffer {
+    /// Loads data into the uniform buffer
+    pub(crate) fn load<'a>(
+        &mut self,
+        ctx: &Context,
+        data: &'a [u8],
+    ) {
+        if let Some(buffer) = self.wgpu_buffer.as_ref() {
+            ctx.queue.write_buffer(buffer, 0, data);
+        } else {
+            self.wgpu_buffer = Some(
+                ctx.device.create_buffer_init(
+                    &wgpu::util::BufferInitDescriptor {
+                        label: Some("StorageBuffer"),
+                        contents: data,
+                        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
+                    }
+                )
+            );
+        }
+    }
+
+    /// Checks if buffer is empty
+    pub fn is_empty(&self) -> bool {
+        self.wgpu_buffer.is_none()
+    }
+
+    /// Release all resources used by the buffer
+    pub fn empty(&mut self) {
+        self.wgpu_buffer.take();
+    }
+
+    fn get(&self) -> &wgpu::Buffer {
+        self.wgpu_buffer.as_ref().expect("Storage buffer must be loaded")
+    }
+}
+
 
 /// Pipeline backend
 pub struct PipelineBackend {
@@ -696,6 +739,16 @@ impl PipelineBackend {
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
+                Binding::Storage(_, stage, _) => wgpu::BindGroupLayoutEntry {
+                    binding: index as u32,
+                    visibility: visibility(stage),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage{ read_only: false},
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             }).collect::<Vec<_>>();
 
         device.create_bind_group_layout(
@@ -739,6 +792,8 @@ impl Bindings {
                                     wgpu::BindingResource::TextureView(texture.get()),
                                 Binding::Sampler(_, _, sampler) =>
                                     wgpu::BindingResource::Sampler(sampler.get()),
+                                Binding::Storage(_, _, storage) =>
+                                    storage.get().as_entire_binding(),
                             }
                         })
                         .collect::<Vec<_>>()

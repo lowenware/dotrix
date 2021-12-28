@@ -2,29 +2,21 @@
 //! lights and overlay
 mod backend;
 
-use dotrix_math::Mat4;
 use backend::Context as Backend;
+use dotrix_math::Mat4;
 
-use crate::{ Pipeline, Color, Assets, Globals, Window };
-use crate::assets::{ Mesh, Shader };
-use crate::ecs::{ Const, Mut };
+use crate::assets::{Mesh, Shader};
+use crate::ecs::{Const, Mut};
+use crate::{Assets, Color, Globals, Pipeline, Window};
 
 pub use backend::{
-    Bindings,
-    PipelineBackend,
-    Sampler,
-    ShaderModule,
-    TextureBuffer,
-    UniformBuffer,
+    Bindings, PipelineBackend, Sampler, ShaderModule, StorageBuffer, TextureBuffer, UniformBuffer,
     VertexBuffer,
 };
 
 /// Conversion matrix
 pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
-    1.0, 0.0, 0.0, 0.0,
-    0.0, 1.0, 0.0, 0.0,
-    0.0, 0.0, 0.5, 0.0,
-    0.0, 0.0, 0.5, 1.0,
+    1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5, 1.0,
 );
 
 const RENDERER_STARTUP: &str =
@@ -88,7 +80,7 @@ impl Renderer {
         buffer: &mut TextureBuffer,
         width: u32,
         height: u32,
-        layers: &'a[&'a [u8]],
+        layers: &'a [&'a [u8]],
     ) {
         buffer.load(self.backend(), width, height, layers);
     }
@@ -103,13 +95,13 @@ impl Renderer {
         sampler.load(self.backend());
     }
 
+    /// Loads the storage buffer to GPU
+    pub fn load_storage_buffer<'a>(&self, buffer: &mut StorageBuffer, data: &'a [u8]) {
+        buffer.load(self.backend(), data);
+    }
+
     /// Loads the sahder module to GPU
-    pub fn load_shader_module(
-        &self,
-        shader_module: &mut ShaderModule,
-        name: &str,
-        code: &str
-    ) {
+    pub fn load_shader_module(&self, shader_module: &mut ShaderModule, name: &str, code: &str) {
         shader_module.load(self.backend(), name, code);
     }
 
@@ -122,12 +114,11 @@ impl Renderer {
     pub fn bind(&mut self, pipeline: &mut Pipeline, layout: PipelineLayout) {
         if !self.backend().has_pipeline(pipeline.shader) {
             let pipeline_backend = PipelineBackend::new(self.backend(), &layout);
-            self.backend_mut().add_pipeline(pipeline.shader, pipeline_backend);
+            self.backend_mut()
+                .add_pipeline(pipeline.shader, pipeline_backend);
         }
 
-        let pipeline_backend = self.backend()
-            .pipeline(pipeline.shader)
-            .unwrap();
+        let pipeline_backend = self.backend().pipeline(pipeline.shader).unwrap();
 
         let mut bindings = Bindings::default();
         bindings.load(self.backend(), pipeline_backend, layout.bindings);
@@ -243,7 +234,6 @@ pub struct PipelineLayout<'a> {
     pub options: PipelineOptions,
 }
 
-
 /// Mode of the depth buffer
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum DepthBufferMode {
@@ -252,7 +242,7 @@ pub enum DepthBufferMode {
     /// Read + Write mode
     Write,
     /// Depth buffer is disabled
-    Disabled
+    Disabled,
 }
 
 /// Vertex Attribute Format
@@ -308,6 +298,8 @@ pub enum Binding<'a> {
     Texture3D(&'a str, Stage, &'a TextureBuffer),
     /// Texture sampler binding
     Sampler(&'a str, Stage, &'a Sampler),
+    /// Texture sampler binding
+    Storage(&'a str, Stage, &'a StorageBuffer),
 }
 
 /// Rendering stage
@@ -319,7 +311,7 @@ pub enum Stage {
     /// Compute shader stage
     Compute,
     /// Any stage
-    All
+    All,
 }
 
 /// Bind Group holding bindings
@@ -331,10 +323,6 @@ pub struct BindGroup<'a> {
 impl<'a> BindGroup<'a> {
     /// Constructs new Bind Group
     pub fn new(label: &'a str, bindings: Vec<Binding<'a>>) -> Self {
-        Self {
-            label,
-            bindings,
-        }
+        Self { label, bindings }
     }
 }
-
