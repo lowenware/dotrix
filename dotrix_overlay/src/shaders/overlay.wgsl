@@ -6,13 +6,11 @@ struct VertexOutput {
     [[location(1)]] color: vec4<f32>;
 };
 
-
-[[block]]
 struct Overlay {
     window_size: vec2<f32>;
 };
 [[group(0), binding(0)]]
-var u_overlay: Overlay;
+var<uniform> u_overlay: Overlay;
 
 fn linear_from_srgb(srgb: vec3<f32>) -> vec3<f32> {
     let cutoff = srgb < vec3<f32>(10.31475);
@@ -52,4 +50,3 @@ var r_texture: texture_2d<f32>;
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     return in.color * textureSample(r_texture, r_sampler, in.tex_uv);
 }
-

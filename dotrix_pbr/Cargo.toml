@@ -6,6 +6,7 @@ edition = "2018"
 
 description = "Physically based rendering for Dotrix 3D Game Engine"
 license = "MIT"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -16,4 +17,3 @@ dotrix_math = { version = "0.4", path = "../dotrix_math" }
 [dependencies.bytemuck]
 version = "1.4"
 features = ["derive"]
-

@@ -31,7 +31,6 @@ struct SpotLight {
     unused: vec2<f32>;
 };
 
-[[block]]
 struct Light {
     ambient: vec4<f32>;
     count: vec4<u32>;
@@ -42,7 +41,7 @@ struct Light {
 };
 
 [[group({{ bind_group }}), binding({{ binding }})]]
-var u_light: Light;
+var<uniform> u_light: Light;
 
 fn calculate_directional(
     light: DirectionalLight,
@@ -122,7 +121,7 @@ fn calculate_light(
             light_color,
             normal
         );
-        continuing { i = i + 1u; } 
+        continuing { i = i + 1u; }
     }
 
     i = 0u;
@@ -152,7 +151,7 @@ fn calculate_light(
             normal
         );
 
-        continuing { i = i + 1u; } 
+        continuing { i = i + 1u; }
     }
 
     i = 0u;
@@ -167,9 +166,8 @@ fn calculate_light(
             normal
         );
 
-        continuing { i = i + 1u; } 
+        continuing { i = i + 1u; }
     }
 
     return vec4<f32>(light_color, 1.0);
 }
-

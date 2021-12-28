@@ -9,6 +9,7 @@ authors = [
 edition = "2018"
 description = "3D Game Engine"
 license = "MIT"
+resolver = "2"
 
 [lib]
 name = "dotrix"

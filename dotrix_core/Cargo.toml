@@ -9,6 +9,7 @@ authors = [
 edition = "2018"
 description = "Dotrix 3D game engine core"
 license = "MIT"
+resolver = "2"
 
 [features]
 default = []
@@ -47,18 +48,17 @@ features = ["derive"]
 version = "1.0"
 
 [dependencies.wgpu]
-version = "0.9"
+version = "0.12"
 features = ["trace"]
 
 [dependencies.wgpu-subscriber]
 version = "0.1.0"
 
 [dependencies.winit]
-version = "0.25.0"
+version = "0.26.0"
 features = ["serde"]
 
 # Optional dependencies
 [dependencies.shaderc]
 version = "0.7"
 optional = true
-

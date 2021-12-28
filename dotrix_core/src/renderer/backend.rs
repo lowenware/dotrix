@@ -26,37 +26,39 @@ use super::{
 };
 
 pub(crate) struct Context {
+    #[allow(dead_code)]
     adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
     surface: wgpu::Surface,
-    swap_chain: wgpu::SwapChain,
-    sc_desc: wgpu::SwapChainDescriptor,
+    sur_desc: wgpu::SurfaceConfiguration,
     depth_buffer: wgpu::TextureView,
-    frame: Option<wgpu::SwapChainFrame>,
+    frame: Option<wgpu::SurfaceTexture>,
     encoder: Option<wgpu::CommandEncoder>,
     pipelines: HashMap<Id<Shader>, PipelineBackend>,
 }
 
 impl Context {
     pub(crate) fn bind_frame(&mut self, clear_color: &Color) {
-        let frame = match self.swap_chain.get_current_frame() {
+        let frame = match self.surface
+                    .get_current_texture() {
             Ok(frame) => frame,
             Err(_) => {
-                self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
-                self.swap_chain
-                    .get_current_frame()
-                    .expect("Failed to acquire next swap chain texture!")
+                self.surface.configure(&self.device, &self.sur_desc);
+                self.surface
+                    .get_current_texture()
+                    .expect("Failed to acquire next surface texture")
             }
         };
 
         let command_encoder_descriptor = wgpu::CommandEncoderDescriptor { label: None };
+        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&command_encoder_descriptor);
         {
             encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachment {
-                    view: &frame.output.view,
+                    view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color {
@@ -86,15 +88,18 @@ impl Context {
         if let Some(encoder) = self.encoder.take() {
             self.queue.submit(Some(encoder.finish()));
         }
-        self.frame.take();
+        let f = self.frame.take();
+        if let Some(f) = f {
+            f.present();
+        }
     }
 
     pub(crate) fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
-            self.sc_desc.width = width;
-            self.sc_desc.height = height;
+            self.sur_desc.width = width;
+            self.sur_desc.height = height;
 
-            self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
+            self.surface.configure(&self.device, &self.sur_desc);
             self.depth_buffer = create_depth_buffer(&self.device, width, height);
         }
     }
@@ -123,13 +128,14 @@ impl Context {
             let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
 
             let frame = self.frame.as_ref().expect("WGPU frame must be set");
+            let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachment {
-                    view: &frame.output.view,
+                    view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load, 
+                        load: wgpu::LoadOp::Load,
                         store: true,
                     },
                 }],
@@ -179,13 +185,14 @@ impl Context {
 }
 
 pub(crate) async fn init(window: &winit::window::Window) -> Context {
-    let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
+    let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
     let surface = unsafe { instance.create_surface(window) };
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::default(),
             // Request an adapter which can render to our surface
             compatible_surface: Some(&surface),
+            force_fallback_adapter: false,
         })
         .await
         .expect("Failed to find an appropiate adapter");
@@ -205,24 +212,23 @@ pub(crate) async fn init(window: &winit::window::Window) -> Context {
 
     let size = window.inner_size();
 
-    let sc_desc = wgpu::SwapChainDescriptor {
-        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
-        format: wgpu::TextureFormat::Bgra8UnormSrgb,
+    let sur_desc = wgpu::SurfaceConfiguration {
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        format: surface.get_preferred_format(&adapter).unwrap(),
         width: size.width,
         height: size.height,
         present_mode: wgpu::PresentMode::Mailbox,
     };
 
+    surface.configure(&device, &sur_desc);
     let depth_buffer = create_depth_buffer(&device, size.width, size.height);
-    let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
     Context {
         adapter,
         device,
         queue,
         surface,
-        swap_chain,
-        sc_desc,
+        sur_desc,
         depth_buffer,
         frame: None,
         encoder: None,
@@ -245,9 +251,9 @@ fn create_depth_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgpu::
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Depth32Float,
-        usage: wgpu::TextureUsage::RENDER_ATTACHMENT
-            | wgpu::TextureUsage::SAMPLED
-            | wgpu::TextureUsage::COPY_DST,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST,
     };
 
     device.create_texture(&texture)
@@ -281,7 +287,7 @@ impl VertexBuffer {
                     &wgpu::util::BufferInitDescriptor {
                         label: Some("VertexBuffer"),
                         contents: attributes,
-                        usage: wgpu::BufferUsage::VERTEX,
+                        usage: wgpu::BufferUsages::VERTEX,
                     }
                 )
             );
@@ -296,7 +302,7 @@ impl VertexBuffer {
                     &wgpu::util::BufferInitDescriptor {
                         label: Some("IndexBuffer"),
                         contents,
-                        usage: wgpu::BufferUsage::INDEX,
+                        usage: wgpu::BufferUsages::INDEX,
                     }
                 )
             });
@@ -363,7 +369,7 @@ impl TextureBuffer {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         });
 
         self.wgpu_texture_view = Some(
@@ -390,7 +396,8 @@ impl TextureBuffer {
                         x: 0,
                         y: 0,
                         z: i as u32,
-                    }
+                    },
+                    aspect: wgpu::TextureAspect::All,
                 },
                 data,
                 wgpu::ImageDataLayout {
@@ -440,7 +447,7 @@ impl UniformBuffer {
                     &wgpu::util::BufferInitDescriptor {
                         label: Some("UniformBuffer"),
                         contents: data,
-                        usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                     }
                 )
             );
@@ -512,12 +519,12 @@ pub struct PipelineBackend {
 }
 
 #[inline(always)]
-fn visibility(stage: &Stage) -> wgpu::ShaderStage {
+fn visibility(stage: &Stage) -> wgpu::ShaderStages {
     match stage {
-        Stage::All => wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
-        Stage::Vertex => wgpu::ShaderStage::VERTEX,
-        Stage::Fragment => wgpu::ShaderStage::FRAGMENT,
-        Stage::Compute => wgpu::ShaderStage::COMPUTE,
+        Stage::All => wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+        Stage::Vertex => wgpu::ShaderStages::VERTEX,
+        Stage::Fragment => wgpu::ShaderStages::FRAGMENT,
+        Stage::Compute => wgpu::ShaderStages::COMPUTE,
     }
 }
 
@@ -568,7 +575,7 @@ impl PipelineBackend {
 
         let vertex_buffers = [wgpu::VertexBufferLayout {
             array_stride: vertex_array_stride as u64,
-            step_mode: wgpu::InputStepMode::Vertex,
+            step_mode: wgpu::VertexStepMode::Vertex,
             attributes: vertex_attributes.as_slice(),
         }];
 
@@ -587,7 +594,7 @@ impl PipelineBackend {
                 targets: &[
                     if depth_buffer_mode == DepthBufferMode::Disabled {
                         wgpu::ColorTargetState {
-                            format: ctx.sc_desc.format,
+                            format: ctx.sur_desc.format,
                             blend: Some(wgpu::BlendState {
                                 color: wgpu::BlendComponent {
                                     src_factor: wgpu::BlendFactor::One,
@@ -600,18 +607,18 @@ impl PipelineBackend {
                                     operation: wgpu::BlendOperation::Add,
                                 },
                             }),
-                            write_mask: wgpu::ColorWrite::ALL,
+                            write_mask: wgpu::ColorWrites::ALL,
 
                         }
                     } else {
 
                         wgpu::ColorTargetState {
-                            format: ctx.sc_desc.format,
+                            format: ctx.sur_desc.format,
                             blend: Some(wgpu::BlendState {
                                 color: wgpu::BlendComponent::REPLACE,
                                 alpha: wgpu::BlendComponent::REPLACE,
                             }),
-                            write_mask: wgpu::ColorWrite::ALL,
+                            write_mask: wgpu::ColorWrites::ALL,
                         }
                     }
                 ],
@@ -639,6 +646,7 @@ impl PipelineBackend {
                 })
             } else { None },
             multisample: wgpu::MultisampleState::default(),
+            multiview: None,
         });
 
         Self {
@@ -685,10 +693,7 @@ impl PipelineBackend {
                 Binding::Sampler(_, stage, _) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
                     visibility: visibility(stage),
-                        ty: wgpu::BindingType::Sampler {
-                        comparison: false,
-                        filtering: true,
-                    },
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
             }).collect::<Vec<_>>();
@@ -764,17 +769,17 @@ pub struct ShaderModule {
 
 impl ShaderModule {
     pub(crate) fn load(&mut self, ctx: &Context, name: &str, code: &str) {
-        let mut flags = wgpu::ShaderFlags::VALIDATION;
-        match ctx.adapter.get_info().backend {
-            wgpu::Backend::Metal | wgpu::Backend::Vulkan => {
-                flags |= wgpu::ShaderFlags::EXPERIMENTAL_TRANSLATION
-            }
-            _ => (),
-        }
+        // let mut flags = wgpu::ShaderFlags::VALIDATION;
+        // match ctx.adapter.get_info().backend {
+        //     wgpu::Backend::Metal | wgpu::Backend::Vulkan => {
+        //         flags |= wgpu::ShaderFlags::EXPERIMENTAL_TRANSLATION
+        //     }
+        //     _ => (),
+        // }
         self.wgpu_shader_model = Some(ctx.device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some(name),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(code)),
-            flags,
+            // flags,
         }));
     }
 

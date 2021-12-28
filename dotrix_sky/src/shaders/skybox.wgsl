@@ -5,13 +5,12 @@ struct VertexOutput {
     [[location(0)]] cube: vec3<f32>;
 };
 
-[[block]]
 struct SkyBox {
     proj_view: mat4x4<f32>;
     scale: mat4x4<f32>;
 };
 [[group(0), binding(0)]]
-var u_skybox: SkyBox;
+var<uniform> u_skybox: SkyBox;
 
 [[stage(vertex)]]
 fn vs_main(
