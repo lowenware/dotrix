@@ -36,6 +36,7 @@ impl Material {
         let uniform = Uniform {
             albedo: self.albedo.into(),
             has_texture: !self.dummy_texture as u32,
+            ..Default::default()
         };
 
         renderer.load_uniform_buffer(&mut self.uniform, bytemuck::cast_slice(&[uniform]));
@@ -48,6 +49,7 @@ impl Material {
 struct Uniform {
     albedo: [f32; 4],
     has_texture: u32,
+    reserve: [u32; 3],
 }
 
 unsafe impl bytemuck::Zeroable for Uniform {}
