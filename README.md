@@ -22,6 +22,7 @@ numerical ID. Each entitiy agregates constant number of components.
 4. **Services** are Rust objects available through systems, providing some key
 features or access to global resources, like Assets, Input or Render management.
 
+
 ## Editor
 
 Editor application is under development in the separate [branch](https://github.com/lowenware/dotrix/tree/feat/editor)
@@ -59,6 +60,14 @@ cargo run --release --example skybox
 ```
 cargo run --release --example window
 ```
+
+## Sponsors
+
+* Johan Andersson <[@repi](https://github.com/repi)>
+
+## Contributors
+
+* Andrew King <[@QuantumEntangledAndy>(https://github.com/QuantumEntangledAndy)>
 
 ### 3rd Party Assets
 
