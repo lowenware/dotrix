@@ -8,6 +8,7 @@ struct Entry {
 }
 
 /// Application States stack service
+#[derive(Default)]
 pub struct State {
     stack: Vec<Entry>,
     state_ptr: usize,
@@ -101,15 +102,6 @@ impl State {
         self.stack.iter()
             .map(|entry| entry.name.as_str())
             .collect::<Vec<_>>()
-    }
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            stack: Vec::new(),
-            state_ptr: 0
-        }
     }
 }
 
