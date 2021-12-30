@@ -508,13 +508,39 @@ impl Sampler {
     }
 }
 
+enum StorageBufferMode {
+    Read,
+    ReadWrite
+}
+
+impl Default for StorageBufferMode {
+    fn default() -> Self {
+        Self::Read
+    }
+}
+
 /// Uniform Buffer
 #[derive(Default)]
 pub struct StorageBuffer {
+    mode: StorageBufferMode,
     wgpu_buffer: Option<wgpu::Buffer>,
 }
 
 impl StorageBuffer {
+    pub fn new_readonly() -> Self {
+        Self {
+            mode: StorageBufferMode::Read,
+            wgpu_buffer: Default::default(),
+        }
+    }
+
+    pub fn new_readwrite() -> Self {
+        Self {
+            mode: StorageBufferMode::ReadWrite,
+            wgpu_buffer: Default::default(),
+        }
+    }
+
     /// Loads data into the uniform buffer
     pub(crate) fn load<'a>(
         &mut self,
@@ -524,12 +550,20 @@ impl StorageBuffer {
         if let Some(buffer) = self.wgpu_buffer.as_ref() {
             ctx.queue.write_buffer(buffer, 0, data);
         } else {
+            let usage = match self.mode {
+                StorageBufferMode::Read => {
+                    wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST
+                }
+                StorageBufferMode::ReadWrite => {
+                    wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC
+                }
+            };
             self.wgpu_buffer = Some(
                 ctx.device.create_buffer_init(
                     &wgpu::util::BufferInitDescriptor {
                         label: Some("StorageBuffer"),
                         contents: data,
-                        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
+                        usage,
                     }
                 )
             );
@@ -739,15 +773,18 @@ impl PipelineBackend {
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
-                Binding::Storage(_, stage, _) => wgpu::BindGroupLayoutEntry {
-                    binding: index as u32,
-                    visibility: visibility(stage),
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage{ read_only: false},
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
+                Binding::Storage(_, stage, storage) => {
+                    let read_only = matches!(storage.mode, StorageBufferMode::Read);
+                    wgpu::BindGroupLayoutEntry {
+                        binding: index as u32,
+                        visibility: visibility(stage),
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage{ read_only },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    }
                 },
             }).collect::<Vec<_>>();
 
