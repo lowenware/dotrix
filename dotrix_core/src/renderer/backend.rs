@@ -88,9 +88,8 @@ impl Context {
         if let Some(encoder) = self.encoder.take() {
             self.queue.submit(Some(encoder.finish()));
         }
-        let f = self.frame.take();
-        if let Some(f) = f {
-            f.present();
+        if let Some(frame) = self.frame.take() {
+            frame.present();
         }
     }
 
@@ -863,17 +862,9 @@ pub struct ShaderModule {
 
 impl ShaderModule {
     pub(crate) fn load(&mut self, ctx: &Context, name: &str, code: &str) {
-        // let mut flags = wgpu::ShaderFlags::VALIDATION;
-        // match ctx.adapter.get_info().backend {
-        //     wgpu::Backend::Metal | wgpu::Backend::Vulkan => {
-        //         flags |= wgpu::ShaderFlags::EXPERIMENTAL_TRANSLATION
-        //     }
-        //     _ => (),
-        // }
         self.wgpu_shader_model = Some(ctx.device.create_shader_module(&wgpu::ShaderModuleDescriptor {
             label: Some(name),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(code)),
-            // flags,
         }));
     }
 
