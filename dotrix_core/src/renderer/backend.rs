@@ -519,7 +519,7 @@ impl Default for StorageBufferMode {
     }
 }
 
-/// Uniform Buffer
+/// Storage Buffer
 #[derive(Default)]
 pub struct StorageBuffer {
     mode: StorageBufferMode,
@@ -527,6 +527,7 @@ pub struct StorageBuffer {
 }
 
 impl StorageBuffer {
+    /// Create a read only storage buffer
     pub fn new_readonly() -> Self {
         Self {
             mode: StorageBufferMode::Read,
@@ -534,6 +535,7 @@ impl StorageBuffer {
         }
     }
 
+    /// Create a read-write storage buffer
     pub fn new_readwrite() -> Self {
         Self {
             mode: StorageBufferMode::ReadWrite,
@@ -541,7 +543,7 @@ impl StorageBuffer {
         }
     }
 
-    /// Loads data into the uniform buffer
+    /// Loads data into the storage buffer
     pub(crate) fn load<'a>(
         &mut self,
         ctx: &Context,
