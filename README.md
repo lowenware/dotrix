@@ -67,7 +67,7 @@ cargo run --release --example window
 
 ## Contributors
 
-* Andrew King <[@QuantumEntangledAndy>(https://github.com/QuantumEntangledAndy)>
+* Andrew King <[@QuantumEntangledAndy](https://github.com/QuantumEntangledAndy)>
 
 ### 3rd Party Assets
 
