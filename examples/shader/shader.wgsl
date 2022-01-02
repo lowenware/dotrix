@@ -26,14 +26,14 @@ struct Gradient {
   nadir_color: vec4<f32>;
 };
 [[group(0), binding(1)]]
-var<uniform> u_skybox: Gradient;
+var<uniform> u_gradient: Gradient;
 
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     let normalized_direction: vec3<f32> = normalize(in.local_position);
-    let nadir_color: vec3<f32> =  u_skybox.nadir_color.xyz;
+    let nadir_color: vec3<f32> =  u_gradient.nadir_color.xyz;
 
-    let zenith_color: vec3<f32> = u_skybox.zenith_color.xyz;
+    let zenith_color: vec3<f32> = u_gradient.zenith_color.xyz;
 
     let mix_amount: vec3<f32> = vec3<f32>(smoothStep(-1., 1., normalized_direction.y));
     let horizon_color: vec3<f32> = mix(nadir_color, zenith_color, mix_amount);

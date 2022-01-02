@@ -100,7 +100,7 @@ pub fn render(
             .get::<ProjView>()
             .expect("ProjView buffer must be loaded");
 
-        // Set the shader on the pipline
+        // Set the shader on the pipeline
         if pipeline.shader.is_null() {
             pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
         }
