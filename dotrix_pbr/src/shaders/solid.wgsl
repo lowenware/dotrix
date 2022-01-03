@@ -46,7 +46,6 @@ fn vs_main(
 struct Material {
     albedo: vec4<f32>;
     has_texture: u32;
-    reserve: vec3<u32>;
 };
 [[group(1), binding(1)]]
 var<uniform> u_material: Material;
