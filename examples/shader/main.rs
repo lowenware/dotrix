@@ -31,7 +31,7 @@ fn startup(
 
     let mesh_handle = assets.store(mesh);
 
-    // Spawn skybox
+    // Spawn Gradient data and a default pipeline
     world.spawn(Some((
         Gradient {
             nadir_color: [1., 0., 0.4, 1.],
