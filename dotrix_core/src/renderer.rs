@@ -7,7 +7,7 @@ use dotrix_math::Mat4;
 
 use crate::assets::{Mesh, Shader};
 use crate::ecs::{Const, Mut};
-use crate::{Assets, Color, Globals, Pipeline, Window};
+use crate::{Assets, Color, Globals, Id, Pipeline, Window};
 
 pub use backend::{
     Bindings, PipelineBackend, Sampler, ShaderModule, StorageBuffer, TextureBuffer, UniformBuffer,
@@ -110,6 +110,13 @@ impl Renderer {
         self.loaded = false;
     }
 
+    /// Drop the backend pipeline for a shader
+    ///
+    /// This should be called when a shader is changed.
+    pub fn drop_shader_pipeline(&mut self, shader: Id<Shader>) {
+        self.backend_mut().drop_pipeline(shader);
+    }
+
     /// Binds uniforms and other data to the pipeline
     pub fn bind(&mut self, pipeline: &mut Pipeline, layout: PipelineLayout) {
         if !self.backend().has_pipeline(pipeline.shader) {
@@ -169,6 +176,13 @@ pub fn startup(mut renderer: Mut<Renderer>, mut globals: Mut<Globals>, window: M
 
 /// Frame binding system
 pub fn bind(mut renderer: Mut<Renderer>, mut assets: Mut<Assets>) {
+    // Clear any dropped shader's pipelines
+    for id in renderer.backend().get_pipeline_shaders() {
+        if assets.get::<Shader>(id).is_none() {
+            renderer.drop_shader_pipeline(id);
+        }
+    }
+
     let clear_color = renderer.clear_color;
     renderer.backend_mut().bind_frame(&clear_color);
 
@@ -178,7 +192,8 @@ pub fn bind(mut renderer: Mut<Renderer>, mut assets: Mut<Assets>) {
 
     let mut loaded = true;
 
-    for (_id, shader) in assets.iter_mut::<Shader>() {
+    for (id, shader) in assets.iter_mut::<Shader>() {
+        renderer.drop_shader_pipeline(*id);
         shader.load(&renderer);
         if !shader.loaded() {
             loaded = false;

@@ -103,12 +103,20 @@ impl Context {
         }
     }
 
+    pub(crate) fn drop_pipeline(&mut self, shader: Id<Shader>) {
+        self.pipelines.remove(&shader);
+    }
+
     pub(crate) fn add_pipeline(&mut self, shader: Id<Shader>, pipeline_backend: PipelineBackend) {
         self.pipelines.insert(shader, pipeline_backend);
     }
 
     pub(crate) fn has_pipeline(&self, shader: Id<Shader>) -> bool {
         self.pipelines.contains_key(&shader)
+    }
+
+    pub(crate) fn get_pipeline_shaders(&self) -> Vec<Id<Shader>> {
+        self.pipelines.keys().copied().collect()
     }
 
     pub(crate) fn pipeline(&self, shader: Id<Shader>) -> Option<&PipelineBackend> {
