@@ -15,7 +15,7 @@ fn main() {
 
 fn startup(mut camera: Mut<Camera>, mut world: Mut<World>, mut assets: Mut<Assets>) {
     camera.target = [0., 0., 0.].into();
-    camera.distance = 10.0;
+    camera.distance = 30.0;
     camera.xz_angle = 0.0;
 
     assets.import("assets/models/sphere.gltf");

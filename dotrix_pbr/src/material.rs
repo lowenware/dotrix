@@ -4,6 +4,9 @@ use dotrix_core::renderer::UniformBuffer;
 use dotrix_core::{Assets, Color, Id, Renderer};
 
 const DUMMY_TEXTURE: &str = "dotrix::dummy_texture";
+const DUMMY_ROUGHNESS_TEXTURE: &str = "dotrix::dummy_roughness_texture";
+const DUMMY_METALLIC_TEXTURE: &str = "dotrix::dummy_metallic_texture";
+const DUMMY_AO_TEXTURE: &str = "dotrix::dummy_ao_texture";
 
 /// Material component
 #[derive(Default)]
@@ -34,6 +37,15 @@ impl Material {
         let dummy_id = assets
             .find::<Texture>(DUMMY_TEXTURE)
             .expect("System `dotrix::pbr::material::startup` must be executed");
+        let dummy_roughness_id = assets
+            .find::<Texture>(DUMMY_ROUGHNESS_TEXTURE)
+            .expect("System `dotrix::pbr::material::startup` must be executed");
+        let dummy_metallic_id = assets
+            .find::<Texture>(DUMMY_METALLIC_TEXTURE)
+            .expect("System `dotrix::pbr::material::startup` must be executed");
+        let dummy_ao_id = assets
+            .find::<Texture>(DUMMY_AO_TEXTURE)
+            .expect("System `dotrix::pbr::material::startup` must be executed");
         if self.texture.is_null() {
             self.texture = dummy_id;
         }
@@ -59,17 +71,17 @@ impl Material {
                 self.roughness,
                 self.roughness,
             ],
-            has_texture: !(self.roughness_texture == dummy_id) as u32,
+            has_texture: !(self.roughness_texture == dummy_roughness_id) as u32,
             ..Default::default()
         };
         let metallic = MaterialUniform {
             color: [self.metallic, self.metallic, self.metallic, self.metallic],
-            has_texture: !(self.metallic_texture == dummy_id) as u32,
+            has_texture: !(self.metallic_texture == dummy_metallic_id) as u32,
             ..Default::default()
         };
         let ao = MaterialUniform {
             color: [self.ao, self.ao, self.ao, self.ao],
-            has_texture: !(self.ao_texture == dummy_id) as u32,
+            has_texture: !(self.ao_texture == dummy_ao_id) as u32,
             ..Default::default()
         };
 
@@ -138,4 +150,28 @@ pub fn startup(mut assets: Mut<Assets>) {
         ..Default::default()
     };
     assets.store_as(texture, DUMMY_TEXTURE);
+    let texture = Texture {
+        width: 1,
+        height: 1,
+        depth: 1,
+        data: vec![0, 0, 0, 0],
+        ..Default::default()
+    };
+    assets.store_as(texture, DUMMY_ROUGHNESS_TEXTURE);
+    let texture = Texture {
+        width: 1,
+        height: 1,
+        depth: 1,
+        data: vec![0, 0, 0, 0],
+        ..Default::default()
+    };
+    assets.store_as(texture, DUMMY_METALLIC_TEXTURE);
+    let texture = Texture {
+        width: 1,
+        height: 1,
+        depth: 1,
+        data: vec![0, 0, 0, 0],
+        ..Default::default()
+    };
+    assets.store_as(texture, DUMMY_AO_TEXTURE);
 }
