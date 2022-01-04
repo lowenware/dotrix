@@ -75,6 +75,10 @@ version = "0.8"
 [dev-dependencies.noise]
 version = "0.7"
 
+[dev-dependencies.bytemuck]
+version = "1.4"
+features = ["derive"]
+
 [[example]]
 name = "demo"
 path = "examples/demo/main.rs"
@@ -98,3 +102,7 @@ path = "examples/skybox/main.rs"
 [[example]]
 name = "window"
 path = "examples/window/main.rs"
+
+[[example]]
+name = "shader"
+path = "examples/shader/main.rs"

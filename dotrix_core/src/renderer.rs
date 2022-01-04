@@ -298,7 +298,7 @@ pub enum Binding<'a> {
     Texture3D(&'a str, Stage, &'a TextureBuffer),
     /// Texture sampler binding
     Sampler(&'a str, Stage, &'a Sampler),
-    /// Texture sampler binding
+    /// Storage binding
     Storage(&'a str, Stage, &'a StorageBuffer),
 }
 
