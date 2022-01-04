@@ -1,8 +1,8 @@
-use dotrix::{ Assets, Color, Frame, World };
-use dotrix::assets::{ Mesh, Texture };
-use dotrix::ecs::{ Const, Mut };
-use dotrix::pbr::{ self, Light };
-use dotrix::math::{ Vec3 };
+use dotrix::assets::{Mesh, Texture};
+use dotrix::ecs::{Const, Mut};
+use dotrix::math::Vec3;
+use dotrix::pbr::{self, Light};
+use dotrix::{Assets, Color, Frame, World};
 
 use crate::settings::Settings;
 
@@ -17,7 +17,6 @@ struct LightController {
 }
 
 pub fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
-
     assets.import("assets/models/car.gltf");
     let car_mesh = assets.register::<Mesh>("car::mesh");
     // In real game, use one shared mesh with different transform
@@ -28,11 +27,36 @@ pub fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     let texture = assets.register::<Texture>("car::texture");
 
     world.spawn(vec![
-        (pbr::solid::Entity { mesh: car_mesh, texture, ..Default::default() }).tuple(),
-        (pbr::solid::Entity { mesh: wh1_mesh, texture, ..Default::default() }).tuple(),
-        (pbr::solid::Entity { mesh: wh2_mesh, texture, ..Default::default() }).tuple(),
-        (pbr::solid::Entity { mesh: wh3_mesh, texture, ..Default::default() }).tuple(),
-        (pbr::solid::Entity { mesh: wh4_mesh, texture, ..Default::default() }).tuple(),
+        (pbr::solid::Entity {
+            mesh: car_mesh,
+            texture,
+            ..Default::default()
+        })
+        .tuple(),
+        (pbr::solid::Entity {
+            mesh: wh1_mesh,
+            texture,
+            ..Default::default()
+        })
+        .tuple(),
+        (pbr::solid::Entity {
+            mesh: wh2_mesh,
+            texture,
+            ..Default::default()
+        })
+        .tuple(),
+        (pbr::solid::Entity {
+            mesh: wh3_mesh,
+            texture,
+            ..Default::default()
+        })
+        .tuple(),
+        (pbr::solid::Entity {
+            mesh: wh4_mesh,
+            texture,
+            ..Default::default()
+        })
+        .tuple(),
     ]);
 
     // Spawn lights
@@ -102,31 +126,30 @@ pub fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
             },
             CarLight {},
         ),
-    ],);
+    ]);
 }
 
 pub fn update(world: Mut<World>, frame: Const<Frame>, settings: Const<Settings>) {
-
     if settings.car.animate {
         animate_lights(&world, &frame);
     }
 
     // Enable/disable point lights
-    let query = world.query::<(&mut Light, &CarLight,)>();
+    let query = world.query::<(&mut Light, &CarLight)>();
     for (light, _) in query {
         match light {
             Light::Point { enabled, .. } => *enabled = settings.car.point_lights,
             Light::Spot { enabled, .. } => *enabled = settings.car.spot_lights,
-            _ => continue
+            _ => continue,
         }
     }
 }
 
 fn animate_lights(world: &World, frame: &Frame) {
-    let query = world.query::<(&mut Light, &mut LightController,)>();
+    let query = world.query::<(&mut Light, &mut LightController)>();
     for (light, c) in query {
         match light {
-            Light::Point{ intensity, .. } => {
+            Light::Point { intensity, .. } => {
                 if c.increasing {
                     c.current += c.speed * frame.delta().as_secs_f32();
                 } else {
@@ -142,8 +165,8 @@ fn animate_lights(world: &World, frame: &Frame) {
                 }
 
                 *intensity = c.current;
-            },
-            _ => continue
+            }
+            _ => continue,
         }
     }
 }

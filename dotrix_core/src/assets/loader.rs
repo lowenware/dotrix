@@ -2,19 +2,15 @@
 use std::{
     fs::File,
     path::PathBuf,
-    sync::{Arc, mpsc, Mutex},
+    sync::{mpsc, Arc, Mutex},
     thread,
 };
 
 use log::error;
 
 use super::{
-    animation::Animation,
-    mesh::Mesh,
-    skin::Skin,
-    shader::Shader,
+    animation::Animation, load_gltf::load_gltf, mesh::Mesh, shader::Shader, skin::Skin,
     texture::Texture,
-    load_gltf::load_gltf,
 };
 
 /// Asset loading task
@@ -84,18 +80,18 @@ impl Loader {
         receiver: Arc<Mutex<mpsc::Receiver<Request>>>,
         sender: Arc<Mutex<mpsc::Sender<Response>>>,
     ) -> Self {
-        let thread = thread::spawn(move || {
-            loop {
-                let request = receiver.lock().unwrap().recv().unwrap();
-                match request {
-                    Request::Import(task) => {
-                        if let Err(e) = import_resource(&task, &sender) {
-                            error!("[{}] Resource import from `{:?}` failed: \n\t{:?}",
-                                id, task.path, e);
-                        }
-                    }, 
-                    Request::Terminate => break,
+        let thread = thread::spawn(move || loop {
+            let request = receiver.lock().unwrap().recv().unwrap();
+            match request {
+                Request::Import(task) => {
+                    if let Err(e) = import_resource(&task, &sender) {
+                        error!(
+                            "[{}] Resource import from `{:?}` failed: \n\t{:?}",
+                            id, task.path, e
+                        );
+                    }
                 }
+                Request::Terminate => break,
             }
         });
 
@@ -116,7 +112,6 @@ fn import_resource(
     task: &Task,
     sender: &Arc<Mutex<mpsc::Sender<Response>>>,
 ) -> Result<(), ImportError> {
-
     use std::io::Read;
 
     let name = String::from(task.path.file_stem().unwrap().to_str().unwrap());
@@ -149,12 +144,11 @@ pub(crate) fn load_image(
     data: Vec<u8>,
     format: image::ImageFormat,
 ) -> Result<(), ImportError> {
-
     let image = image::load_from_memory_with_format(data.as_slice(), format)?;
     let image = image.into_rgba8();
 
     let (width, height) = image.dimensions();
- 
+
     let texture = Asset {
         name,
         asset: Box::new(Texture {
@@ -163,9 +157,13 @@ pub(crate) fn load_image(
             depth: 1,
             data: image.into_vec(),
             ..Default::default()
-        })
+        }),
     };
-    sender.lock().unwrap().send(Response::Texture(texture)).unwrap();
+    sender
+        .lock()
+        .unwrap()
+        .send(Response::Texture(texture))
+        .unwrap();
     Ok(())
 }
 
@@ -180,30 +178,31 @@ pub(crate) fn load_wgsl(
             name,
             code: String::from_utf8_lossy(&data).to_string(),
             ..Default::default()
-        })
+        }),
     };
-    sender.lock().unwrap().send(Response::Shader(shader)).unwrap();
+    sender
+        .lock()
+        .unwrap()
+        .send(Response::Shader(shader))
+        .unwrap();
     Ok(())
 }
-
 
 impl std::error::Error for ImportError {}
 
 impl std::fmt::Display for ImportError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ImportError::Base64Decode(err) =>
-                write!(f, "Can't decode base64 ({:?})", err),
-            ImportError::FileRead(err) =>
-                write!(f, "Can't read file ({:?})", err),
-            ImportError::ImageDecode(err) =>
-                write!(f, "Can't decode image ({:?})", err),
-            ImportError::GltfDecode(err) =>
-                write!(f, "Can't decode GLTF ({:?})", err),
-            ImportError::NotImplemented(feature, variant) => 
-                write!(f, "Not implemented support for the {:?} ({:?})", feature, variant),
-            ImportError::Corruption(err) =>
-                write!(f, "File could be corrupted ({:?})", err),
+            ImportError::Base64Decode(err) => write!(f, "Can't decode base64 ({:?})", err),
+            ImportError::FileRead(err) => write!(f, "Can't read file ({:?})", err),
+            ImportError::ImageDecode(err) => write!(f, "Can't decode image ({:?})", err),
+            ImportError::GltfDecode(err) => write!(f, "Can't decode GLTF ({:?})", err),
+            ImportError::NotImplemented(feature, variant) => write!(
+                f,
+                "Not implemented support for the {:?} ({:?})",
+                feature, variant
+            ),
+            ImportError::Corruption(err) => write!(f, "File could be corrupted ({:?})", err),
         }
     }
 }

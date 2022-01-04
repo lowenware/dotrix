@@ -1,6 +1,6 @@
-use dotrix::{ CubeMap, Pipeline, Assets, World };
 use dotrix::ecs::Mut;
 use dotrix::sky::SkyBox;
+use dotrix::{Assets, CubeMap, Pipeline, World};
 
 pub fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
     // Import skybox textures
@@ -26,6 +26,6 @@ pub fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
             front: assets.register("skybox_front"),
             ..Default::default()
         },
-        Pipeline::default()
+        Pipeline::default(),
     )));
 }

@@ -1,6 +1,6 @@
 use dotrix::prelude::*;
-use dotrix::{ Frame, Window };
 use dotrix::window::UserAttentionType;
+use dotrix::{Frame, Window};
 
 use std::time::Duration;
 
@@ -33,7 +33,7 @@ impl MatchFinder {
     }
 
     pub fn stop_searching(&mut self) {
-        self.state =  MatchFinderState::Stopping();
+        self.state = MatchFinderState::Stopping();
     }
 }
 
@@ -50,7 +50,7 @@ fn update_searching(
     from: Option<Duration>,
     mut finder: Mut<MatchFinder>,
     frame: Const<Frame>,
-    window: Const<Window>
+    window: Const<Window>,
 ) {
     if let Some(from) = from {
         let dur_secs = (frame.time() - from).as_secs_f32();
@@ -67,7 +67,7 @@ fn update_searching(
 
 fn update_stopping(mut finder: Mut<MatchFinder>, window: Const<Window>) {
     window.request_attention(None);
-    finder.state =  MatchFinderState::Idle;
+    finder.state = MatchFinderState::Idle;
 }
 
 fn update_ready(until: Duration, mut finder: Mut<MatchFinder>, frame: Const<Frame>) {

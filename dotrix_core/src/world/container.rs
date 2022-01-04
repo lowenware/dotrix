@@ -1,5 +1,5 @@
 use std::{
-    any::{ Any, TypeId },
+    any::{Any, TypeId},
     collections::HashMap,
 };
 
@@ -39,31 +39,33 @@ impl Container {
 
     pub fn push<T: Component>(&mut self, component: T) {
         if let Some(v) = self.components.get_mut(&TypeId::of::<T>()) {
-            v.as_any_mut().downcast_mut::<Vec<T>>().unwrap().push(component)
+            v.as_any_mut()
+                .downcast_mut::<Vec<T>>()
+                .unwrap()
+                .push(component)
         }
     }
 
     pub fn init<T: Component>(&mut self) {
-        self.components.insert(TypeId::of::<T>(), Box::new(Vec::<T>::new()));
+        self.components
+            .insert(TypeId::of::<T>(), Box::new(Vec::<T>::new()));
     }
 
     pub fn get_mut<T: Component>(&self) -> Option<&mut Vec<T>>
-    where T: Component
+    where
+        T: Component,
     {
-        self.components
-            .get(&TypeId::of::<T>())
-            .map(|v| {
-                unsafe {
-                    let vec_ref = v.as_any_ref().downcast_ref::<Vec<T>>().unwrap();
-                    let vec_ptr = vec_ref as *const Vec<T>;
-                    let mut_ptr = vec_ptr as *mut Vec<T>;
-                    &mut *mut_ptr
-                }
-            })
+        self.components.get(&TypeId::of::<T>()).map(|v| unsafe {
+            let vec_ref = v.as_any_ref().downcast_ref::<Vec<T>>().unwrap();
+            let vec_ptr = vec_ref as *const Vec<T>;
+            let mut_ptr = vec_ptr as *mut Vec<T>;
+            &mut *mut_ptr
+        })
     }
 
     pub fn get<T: Component>(&self) -> Option<&Vec<T>>
-    where T: Component
+    where
+        T: Component,
     {
         self.components
             .get(&TypeId::of::<T>())
@@ -103,6 +105,5 @@ mod tests {
         for i in c.get::<Item1>().unwrap() {
             assert_eq!(i.0, 321);
         }
-
     }
 }

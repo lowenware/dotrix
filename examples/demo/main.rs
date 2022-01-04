@@ -1,25 +1,15 @@
-use dotrix::prelude::*;
-use dotrix::{
-    Assets,
-    Camera,
-    Color,
-    Frame,
-    Input,
-    World,
-    Animator,
-    CubeMap,
-    Pipeline,
-    Pose,
-    Transform
-};
 use dotrix::assets::Mesh;
-use dotrix::egui::{ self, Egui };
 use dotrix::camera;
-use dotrix::input::{ ActionMapper, Button, KeyCode, Mapper };
-use dotrix::math::{ Point3, Quat, Rotation3, Vec3, Rad };
-use dotrix::overlay::{ self, Overlay };
-use dotrix::pbr::{ self, Light, Material, Model };
-use dotrix::sky::{ skybox, SkyBox };
+use dotrix::egui::{self, Egui};
+use dotrix::input::{ActionMapper, Button, KeyCode, Mapper};
+use dotrix::math::{Point3, Quat, Rad, Rotation3, Vec3};
+use dotrix::overlay::{self, Overlay};
+use dotrix::pbr::{self, Light, Material, Model};
+use dotrix::prelude::*;
+use dotrix::sky::{skybox, SkyBox};
+use dotrix::{
+    Animator, Assets, Camera, Color, CubeMap, Frame, Input, Pipeline, Pose, Transform, World,
+};
 
 use std::f32::consts::PI;
 
@@ -27,19 +17,15 @@ const CAMERA_HEIGHT: f32 = 2.0; // Default camera target feight
 const TERRAIN_SIZE: usize = 128; // Number of sqaures per side
 
 fn main() {
-
     Dotrix::application("Dotrix: Demo Example")
         .with(System::from(startup))
-
         .with(System::from(player_control))
         .with(System::from(camera::control))
         .with(System::from(ui))
-
         .with(overlay::extension)
         .with(egui::extension)
         .with(pbr::extension)
         .with(skybox::extension)
-
         .run();
 }
 
@@ -65,10 +51,7 @@ fn init_camera(camera: &mut Camera) {
     camera.distance = 5.0;
 }
 
-fn init_skybox(
-    world: &mut World,
-    assets: &mut Assets,
-) {
+fn init_skybox(world: &mut World, assets: &mut Assets) {
     // Import skybox textures
     assets.import("assets/skybox-compass/skybox_right.png");
     assets.import("assets/skybox-compass/skybox_left.png");
@@ -92,14 +75,11 @@ fn init_skybox(
             front: assets.register("skybox_front"),
             ..Default::default()
         },
-        Pipeline::default()
+        Pipeline::default(),
     )));
 }
 
-fn init_terrain(
-    world: &mut World,
-    assets: &mut Assets,
-) {
+fn init_terrain(world: &mut World, assets: &mut Assets) {
     // Generate terrain mesh like this:
     //   0   1
     // 0 +---+---+---> x
@@ -161,15 +141,12 @@ fn init_terrain(
             texture,
             translate: Vec3::new(-shift, 0.0, -shift),
             ..Default::default()
-        }).some()
+        })
+        .some(),
     );
 }
 
-fn init_player(
-    world: &mut World,
-    assets: &mut Assets,
-    input: &mut Input,
-) {
+fn init_player(world: &mut World, assets: &mut Assets, input: &mut Input) {
     // Import character model from GLTF file, it provides several assets: mesh, skin, and run
     // animation
     assets.import("assets/models/character.gltf");
@@ -192,39 +169,32 @@ fn init_player(
         },
         Animator::new(run), // Animation control (stopped by default)
         Pipeline::default(),
-        Player {
-            is_running: false,
-        }
+        Player { is_running: false },
     )));
 
     // Map W key to Run Action
-    input.mapper_mut::<Mapper<Action>>()
-        .set(vec![
-            (Action::Run, Button::Key(KeyCode::W)),
-        ]);
+    input
+        .mapper_mut::<Mapper<Action>>()
+        .set(vec![(Action::Run, Button::Key(KeyCode::W))]);
 }
 
 fn init_light(world: &mut World) {
     // spawn source of white light at (0.0, 100.0, 0.0)
-    world.spawn(Some((
-        Light::Simple {
-            // direction: Vec3::new(0.3, -0.5, -0.6),
-            position: Vec3::new(0.0, 1000.0, 0.0),
-            color: Color::white(),
-            intensity: 0.5,
-            enabled: true,
-        },
-    )));
+    world.spawn(Some((Light::Simple {
+        // direction: Vec3::new(0.3, -0.5, -0.6),
+        position: Vec3::new(0.0, 1000.0, 0.0),
+        color: Color::white(),
+        intensity: 0.5,
+        enabled: true,
+    },)));
     // spawn source of white light at (0.0, 100.0, 0.0)
-    world.spawn(Some((
-        Light::Ambient {
-            color: Color::white(),
-            intensity: 0.5,
-        },
-    )));
+    world.spawn(Some((Light::Ambient {
+        color: Color::white(),
+        intensity: 0.5,
+    },)));
 }
 
- // Component indentifying players's entity
+// Component indentifying players's entity
 struct Player {
     is_running: bool,
 }
@@ -299,7 +269,8 @@ enum Action {
 }
 
 fn ui(overlay: Const<Overlay>, frame: Const<Frame>) {
-    let egui_overlay = overlay.get::<Egui>()
+    let egui_overlay = overlay
+        .get::<Egui>()
         .expect("Egui overlay must be added on startup");
 
     egui::Area::new("FPS counter")
@@ -307,7 +278,7 @@ fn ui(overlay: Const<Overlay>, frame: Const<Frame>) {
         .show(&egui_overlay.ctx, |ui| {
             ui.colored_label(
                 egui::Rgba::from_rgb(255.0, 255.0, 255.0),
-                format!("FPS: {:.1}", frame.fps())
+                format!("FPS: {:.1}", frame.fps()),
             );
         });
 }
@@ -319,4 +290,3 @@ impl ActionMapper<Action> for Input {
         mapper.get_button(action)
     }
 }
-

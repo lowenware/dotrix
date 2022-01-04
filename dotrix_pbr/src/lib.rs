@@ -1,7 +1,7 @@
 //! Physically based rendering implementation
 
-use dotrix_core::Application;
 use dotrix_core::ecs::System;
+use dotrix_core::Application;
 
 mod light;
 mod material;
@@ -13,7 +13,7 @@ pub mod solid;
 /// Skeletal models rendering
 pub mod skeletal;
 
-pub use light::{ Light, Lights };
+pub use light::{Light, Lights};
 pub use material::Material;
 pub use model::Model;
 

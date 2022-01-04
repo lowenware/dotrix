@@ -1,6 +1,6 @@
+use crate::assets::{Assets, Texture};
+use crate::renderer::{Renderer, TextureBuffer};
 use crate::Id;
-use crate::assets::{ Assets, Texture };
-use crate::renderer::{ Renderer, TextureBuffer };
 
 /// Holds number of faces of a cubemap
 pub const FACES_COUNT: usize = 6;

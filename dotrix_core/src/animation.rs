@@ -1,10 +1,10 @@
 //! Animation components and systems
-use std::time::{ Duration };
-use dotrix_math::{ SquareMatrix, Mat4 };
+use dotrix_math::{Mat4, SquareMatrix};
+use std::time::Duration;
 
-use crate::{ Pose, Id, Assets, Frame, World };
 use crate::assets::Animation;
 use crate::ecs::Const;
+use crate::{Assets, Frame, Id, Pose, World};
 
 /// Animation playback state
 ///
@@ -95,18 +95,16 @@ impl Animator {
                 } else {
                     State::Stop
                 }
-            },
+            }
             State::Loop(current) => {
                 let new_duration = current + delta.mul_f32(self.speed);
-                State::Loop(
-                    if new_duration < duration {
-                        new_duration
-                    } else {
-                        Duration::from_secs_f32(new_duration.as_secs_f32() % duration.as_secs_f32())
-                    }
-                )
-            },
-            State::Stop => State::Stop
+                State::Loop(if new_duration < duration {
+                    new_duration
+                } else {
+                    Duration::from_secs_f32(new_duration.as_secs_f32() % duration.as_secs_f32())
+                })
+            }
+            State::Stop => State::Stop,
         };
 
         match self.state {
@@ -115,7 +113,6 @@ impl Animator {
             State::Stop => None,
         }
     }
-
 }
 
 /// System handling skeletal animation
@@ -123,7 +120,6 @@ pub fn skeletal(frame: Const<Frame>, world: Const<World>, assets: Const<Assets>)
     for (animator, pose) in world.query::<(&mut Animator, &mut Pose)>() {
         let global_transform = Mat4::identity(); // model.transform.matrix();
         if let Some(skin) = assets.get(pose.skin) {
-
             let mut local_transforms = None;
 
             if let Some(animation) = assets.get::<Animation>(animator.animation) {

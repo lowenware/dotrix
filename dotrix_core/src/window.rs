@@ -2,26 +2,12 @@
 
 use crate::assets::Texture;
 
-use dotrix_math::{ clamp_min, Vec2, Vec2i, Vec2u };
-use winit::dpi::{
-    PhysicalPosition,
-    PhysicalSize,
-    Position
-};
-use winit::monitor::{
-    MonitorHandle as WinitMonitor,
-    VideoMode as WinitVideoMode
-};
-use winit::window::{
-    Icon as WinitIcon,
-    Window as WinitWindow
-};
+use dotrix_math::{clamp_min, Vec2, Vec2i, Vec2u};
+use winit::dpi::{PhysicalPosition, PhysicalSize, Position};
+use winit::monitor::{MonitorHandle as WinitMonitor, VideoMode as WinitVideoMode};
+use winit::window::{Icon as WinitIcon, Window as WinitWindow};
 
-pub use winit::window::{
-    CursorIcon as CursorIcon,
-    UserAttentionType as UserAttentionType,
-    Fullscreen as WinitFullscreen,
-};
+pub use winit::window::{CursorIcon, Fullscreen as WinitFullscreen, UserAttentionType};
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 /// Information about a video mode.
@@ -41,11 +27,13 @@ pub struct VideoMode {
 
 impl std::fmt::Display for VideoMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} x {}, {} hz, {} bit",
-            self.resolution.x, self.resolution.y, self.refresh_rate, self.color_depth)
+        write!(
+            f,
+            "{} x {}, {} hz, {} bit",
+            self.resolution.x, self.resolution.y, self.refresh_rate, self.color_depth
+        )
     }
 }
-
 
 #[derive(Debug, PartialEq, Clone)]
 /// Information about a monitor.
@@ -117,10 +105,14 @@ pub enum Error {
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", match self {
-            Error::NotAvailable => "Feature is not available at this moment",
-            Error::NotSupported => "Feature is not supported by current platform",
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                Error::NotAvailable => "Feature is not available at this moment",
+                Error::NotSupported => "Feature is not supported by current platform",
+            }
+        )
     }
 }
 
@@ -150,9 +142,11 @@ impl Window {
     pub fn current_monitor(&self) -> &Monitor {
         self.get()
             .current_monitor()
-            .map(|winit_monitor| self.monitors.iter().find(
-                |monitor| monitor.name == winit_monitor.name().unwrap()
-            ))
+            .map(|winit_monitor| {
+                self.monitors
+                    .iter()
+                    .find(|monitor| monitor.name == winit_monitor.name().unwrap())
+            })
             .unwrap_or(None)
             .unwrap_or(&self.monitors[0])
     }
@@ -190,9 +184,9 @@ impl Window {
     /// Find winit monitor based on monitor number.
     fn get_winit_monitor(&self, monitor_number: usize) -> Option<WinitMonitor> {
         if let Some(monitor) = self.monitors.get(monitor_number) {
-            self.get().available_monitors().find(|w_monitor| {
-                w_monitor.name().unwrap() == monitor.name
-            })
+            self.get()
+                .available_monitors()
+                .find(|w_monitor| w_monitor.name().unwrap() == monitor.name)
         } else {
             None
         }
@@ -202,10 +196,10 @@ impl Window {
     fn get_winit_video_mode(&self, vmode: VideoMode) -> Option<WinitVideoMode> {
         if let Some(monitor) = self.get_winit_monitor(vmode.monitor_number) {
             monitor.video_modes().find(|w_vmode| {
-                w_vmode.size().width == vmode.resolution.x &&
-                w_vmode.size().height == vmode.resolution.y &&
-                w_vmode.refresh_rate() == vmode.refresh_rate &&
-                w_vmode.bit_depth() == vmode.color_depth
+                w_vmode.size().width == vmode.resolution.x
+                    && w_vmode.size().height == vmode.resolution.y
+                    && w_vmode.refresh_rate() == vmode.refresh_rate
+                    && w_vmode.bit_depth() == vmode.color_depth
             })
         } else {
             None
@@ -278,7 +272,10 @@ impl Window {
     /// use `inner_size` instead.
     pub fn outer_size(&self) -> Vec2u {
         let size = self.get().outer_size();
-        Vec2u { x: size.width, y: size.height }
+        Vec2u {
+            x: size.width,
+            y: size.height,
+        }
     }
 
     /// Check if the window is resizable or not.
@@ -297,7 +294,7 @@ impl Window {
         self.get().request_user_attention(request_type);
     }
 
-    pub (crate) fn request_redraw(&self) {
+    pub(crate) fn request_redraw(&self) {
         self.get().request_redraw()
     }
 
@@ -313,7 +310,10 @@ impl Window {
     pub fn screen_size(&self) -> Option<Vec2u> {
         self.get().current_monitor().map(|monitor| {
             let size = monitor.size();
-            Vec2u { x: size.width, y: size.height }
+            Vec2u {
+                x: size.width,
+                y: size.height,
+            }
         })
     }
 
@@ -340,14 +340,10 @@ impl Window {
     /// Change the position of the cursor in window in pixel coordinates.
     pub fn set_cursor_position(&self, pos: Vec2) -> Result<(), Error> {
         self.get()
-            .set_cursor_position(
-                Position::Physical(
-                    PhysicalPosition {
-                        x: pos.x.round() as i32,
-                        y: pos.y.round() as i32
-                    }
-                )
-            )
+            .set_cursor_position(Position::Physical(PhysicalPosition {
+                x: pos.x.round() as i32,
+                y: pos.y.round() as i32,
+            }))
             .or(Err(Error::NotAvailable))
     }
 
@@ -364,7 +360,8 @@ impl Window {
     /// Use `set_fullscreen(None)` to exit fullscreen.
     fn set_borderless_fullscreen(&self, monitor_number: usize) {
         let w_monitor = self.get_winit_monitor(monitor_number);
-        self.get().set_fullscreen(Some(WinitFullscreen::Borderless(w_monitor)));
+        self.get()
+            .set_fullscreen(Some(WinitFullscreen::Borderless(w_monitor)));
     }
 
     /// Turn window decorations on or off.
@@ -378,7 +375,8 @@ impl Window {
     /// Use `set_fullscreen(None)` to exit fullscreen.
     pub fn set_exclusive_fullscreen(&self, video_mode: VideoMode) {
         if let Some(w_video_mode) = self.get_winit_video_mode(video_mode) {
-            self.get().set_fullscreen(Some(WinitFullscreen::Exclusive(w_video_mode)));
+            self.get()
+                .set_fullscreen(Some(WinitFullscreen::Exclusive(w_video_mode)));
         }
     }
 
@@ -388,10 +386,10 @@ impl Window {
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         if let Some(fullscreen_mode) = fullscreen {
             match fullscreen_mode {
-                Fullscreen::Borderless(monitor_number) =>
-                    self.set_borderless_fullscreen(monitor_number),
-                Fullscreen::Exclusive(video_mode) =>
-                    self.set_exclusive_fullscreen(video_mode),
+                Fullscreen::Borderless(monitor_number) => {
+                    self.set_borderless_fullscreen(monitor_number)
+                }
+                Fullscreen::Exclusive(video_mode) => self.set_exclusive_fullscreen(video_mode),
             }
         } else {
             self.get().set_fullscreen(None);
@@ -458,7 +456,8 @@ impl Window {
     /// See `outer_position` for more information about the coordinates. This automatically
     /// un-maximizes the window if it's maximized.
     pub fn set_outer_position(&self, position: Vec2i) {
-        self.get().set_outer_position(PhysicalPosition::new(position.x, position.y));
+        self.get()
+            .set_outer_position(PhysicalPosition::new(position.x, position.y));
     }
 
     /// Sets whether the window is resizable or not.
@@ -481,27 +480,31 @@ impl Window {
 
 fn init_monitors(window: &WinitWindow) -> Vec<Monitor> {
     // TODO Consider:Should we include a higher monitor resolution than what is selected in the OS?
-    window.available_monitors().enumerate().map(|(i, w_monitor)| {
-        Monitor {
+    window
+        .available_monitors()
+        .enumerate()
+        .map(|(i, w_monitor)| Monitor {
             name: w_monitor.name().unwrap(),
             number: i,
             scale_factor: w_monitor.scale_factor() as f32,
             size: Vec2u::new(w_monitor.size().width, w_monitor.size().height),
-            video_modes: w_monitor.video_modes().filter_map(|vmode| {
-                if vmode.size().width > w_monitor.size().width
-                || vmode.size().height > w_monitor.size().height {
-                    None
-                } else {
-                    Some(
-                        VideoMode {
+            video_modes: w_monitor
+                .video_modes()
+                .filter_map(|vmode| {
+                    if vmode.size().width > w_monitor.size().width
+                        || vmode.size().height > w_monitor.size().height
+                    {
+                        None
+                    } else {
+                        Some(VideoMode {
                             color_depth: vmode.bit_depth(),
                             monitor_number: i,
                             refresh_rate: vmode.refresh_rate(),
                             resolution: Vec2u::new(vmode.size().width, vmode.size().height),
-                        }
-                    )
-                }
-            }).collect(),
-        }
-    }).collect()
+                        })
+                    }
+                })
+                .collect(),
+        })
+        .collect()
 }
