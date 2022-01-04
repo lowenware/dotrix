@@ -1,24 +1,16 @@
-use std::{
-    collections::HashMap,
-};
+use std::collections::HashMap;
 
-use dotrix_core::{ Color, Id, Pipeline, Camera, Globals, World };
-use dotrix_core::assets::{ Assets, Mesh, Shader };
-use dotrix_core::ecs::{ Entity, Mut, Const, Context };
+use dotrix_core::assets::{Assets, Mesh, Shader};
 use dotrix_core::camera::ProjView;
+use dotrix_core::ecs::{Const, Context, Entity, Mut};
 use dotrix_core::renderer::{
-    BindGroup,
-    Binding,
-    PipelineLayout,
-    PipelineOptions,
-    Renderer,
-    Sampler,
-    Stage,
+    BindGroup, Binding, PipelineLayout, PipelineOptions, Renderer, Sampler, Stage,
 };
+use dotrix_core::{Camera, Color, Globals, Id, Pipeline, World};
 
-use dotrix_pbr::{ Material, Lights };
+use dotrix_pbr::{Lights, Material};
 
-use crate::{ Terrain, Tile, Layers };
+use crate::{Layers, Terrain, Tile};
 
 const PIPELINE_LABEL: &str = "dotrix::terrain";
 
@@ -49,11 +41,7 @@ struct Viewer {
 }
 
 /// Terrain Startup System
-pub fn startup(
-    mut assets: Mut<Assets>,
-    mut globals: Mut<Globals>,
-    renderer: Const<Renderer>,
-) {
+pub fn startup(mut assets: Mut<Assets>, mut globals: Mut<Globals>, renderer: Const<Renderer>) {
     // prepare layers
     let mut layers = Layers::default();
     layers.load(&renderer);
@@ -78,7 +66,6 @@ pub fn spawn(
     mut assets: Mut<Assets>,
     mut world: Mut<World>,
 ) {
-
     let view_distance = terrain.view_distance;
     // get viewer
     let viewer = Viewer {
@@ -90,7 +77,7 @@ pub fn spawn(
     if let Some(last_viewer_position) = ctx.last_viewer_position.as_ref() {
         let dx = viewer.position[0] - last_viewer_position[0];
         let dz = viewer.position[1] - last_viewer_position[1];
-        if  !terrain.force_spawn && dx * dx + dz * dz < terrain.spawn_if_moved_by {
+        if !terrain.force_spawn && dx * dx + dz * dz < terrain.spawn_if_moved_by {
             return;
         }
     }
@@ -125,14 +112,23 @@ pub fn spawn(
         for xi in -tiles_per_view_distance..tiles_per_view_distance {
             let x = from_x + xi * tile_size as i32 + half_tile_size as i32;
             // recursively calculate what lods should be spawned and spawn them
-            queue_tiles_to_spawn(&mut ctx, &viewer, half_tile_size, max_lod, TileIndex {x, z});
+            queue_tiles_to_spawn(
+                &mut ctx,
+                &viewer,
+                half_tile_size,
+                max_lod,
+                TileIndex { x, z },
+            );
         }
     }
 
     // exile tiles
     let query = world.query::<(&Tile, &Entity)>();
     for (tile, entity) in query {
-        let index = TileIndex { x: tile.x, z: tile.z };
+        let index = TileIndex {
+            x: tile.x,
+            z: tile.z,
+        };
         let do_exile = if let Some(tile) = ctx.tiles.get_mut(&index) {
             !tile.visible
         } else {
@@ -168,7 +164,7 @@ pub fn spawn(
             z,
             lod,
             mesh: assets.store(mesh),
-            loaded: false
+            loaded: false,
         };
         let material = Material {
             texture: terrain.texture,
@@ -201,9 +197,10 @@ fn queue_tiles_to_spawn(
         if distance_sq > viewer.view_distance_sq {
             return; // the tile is out of the view distance range
         }
-        let mut tile = ctx.tiles
-            .entry(position)
-            .or_insert(TileState { lod, ..Default::default() });
+        let mut tile = ctx.tiles.entry(position).or_insert(TileState {
+            lod,
+            ..Default::default()
+        });
         tile.visible = true;
     } else {
         // Higher lod is required
@@ -232,21 +229,17 @@ pub fn render(
     globals: Const<Globals>,
     world: Const<World>,
 ) {
-    let query = world.query::<(
-        &mut Tile,
-        &mut Material,
-        &mut Pipeline
-    )>();
+    let query = world.query::<(&mut Tile, &mut Material, &mut Pipeline)>();
 
     for (tile, material, pipeline) in query {
-
         if pipeline.shader.is_null() {
-            pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL)
-                .unwrap_or_default();
+            pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
         }
 
         // check if model is disabled or already rendered
-        if !pipeline.cycle(&renderer) { continue; }
+        if !pipeline.cycle(&renderer) {
+            continue;
+        }
 
         if !tile.loaded {
             if let Some(mesh) = assets.get_mut(tile.mesh) {
@@ -255,46 +248,63 @@ pub fn render(
             tile.loaded = true;
         }
 
-        if !material.load(&renderer, &mut assets) { continue; }
+        if !material.load(&renderer, &mut assets) {
+            continue;
+        }
 
         let mesh = assets.get(tile.mesh).unwrap();
 
         if !pipeline.ready() {
             if let Some(shader) = assets.get(pipeline.shader) {
-                if !shader.loaded() { continue; }
+                if !shader.loaded() {
+                    continue;
+                }
 
                 let texture = assets.get(material.texture).unwrap();
 
-                let proj_view = globals.get::<ProjView>()
+                let proj_view = globals
+                    .get::<ProjView>()
                     .expect("ProjView buffer must be loaded");
 
-                let sampler = globals.get::<Sampler>()
+                let sampler = globals
+                    .get::<Sampler>()
                     .expect("ProjView buffer must be loaded");
 
-                let lights = globals.get::<Lights>()
+                let lights = globals
+                    .get::<Lights>()
                     .expect("Lights buffer must be loaded");
 
-                let layers = globals.get::<Layers>()
+                let layers = globals
+                    .get::<Layers>()
                     .expect("Terrain layers must be loaded");
 
-                renderer.bind(pipeline, PipelineLayout {
-                    label: String::from(PIPELINE_LABEL),
-                    mesh,
-                    shader,
-                    bindings: &[
-                        BindGroup::new("Globals", vec![
-                            Binding::Uniform("ProjView", Stage::Vertex, &proj_view.uniform),
-                            Binding::Sampler("Sampler", Stage::Fragment, sampler),
-                            Binding::Uniform("Lights", Stage::Fragment, &lights.uniform),
-                            Binding::Uniform("Layers", Stage::Fragment, &layers.uniform),
-                        ]),
-                        BindGroup::new("Locals", vec![
-                            Binding::Uniform("Material", Stage::Vertex, &material.uniform),
-                            Binding::Texture("Texture", Stage::Fragment, &texture.buffer),
-                        ])
-                    ],
-                    options: PipelineOptions::default()
-                });
+                renderer.bind(
+                    pipeline,
+                    PipelineLayout {
+                        label: String::from(PIPELINE_LABEL),
+                        mesh,
+                        shader,
+                        bindings: &[
+                            BindGroup::new(
+                                "Globals",
+                                vec![
+                                    Binding::Uniform("ProjView", Stage::Vertex, &proj_view.uniform),
+                                    Binding::Sampler("Sampler", Stage::Fragment, sampler),
+                                    Binding::Uniform("Lights", Stage::Fragment, &lights.uniform),
+                                    Binding::Uniform("Layers", Stage::Fragment, &layers.uniform),
+                                ],
+                            ),
+                            BindGroup::new(
+                                "Locals",
+                                vec![
+                                    Binding::Uniform("Material", Stage::Vertex, &material.uniform),
+                                    Binding::Texture("Texture", Stage::Fragment, &texture.buffer),
+                                ],
+                            ),
+                        ],
+                        options: PipelineOptions::default(),
+                    },
+                );
             }
         }
 

@@ -1,20 +1,20 @@
 use std::{
     any::TypeId,
     collections::HashMap,
-    time::{ Duration, Instant },
+    time::{Duration, Instant},
 };
 
 use winit::{
-    event::{ Event, WindowEvent },
-    event_loop::{ ControlFlow, EventLoop },
-    window::{ Window as WinitWindow, WindowBuilder }
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::{Window as WinitWindow, WindowBuilder},
 };
 
 use crate::{
     assets::Assets,
-    ecs::{ RunLevel, StateId, System, Systemized },
-    window::Window,
+    ecs::{RunLevel, StateId, System, Systemized},
     input::Input,
+    window::Window,
     State,
 };
 
@@ -48,16 +48,16 @@ impl Application {
     }
 
     /// Returns a service of the [`Application`]
-    pub fn service<T: IntoService>(&mut self) -> &mut T
-    {
-        self.services.get_mut::<T>().expect("Application services does not exist")
+    pub fn service<T: IntoService>(&mut self) -> &mut T {
+        self.services
+            .get_mut::<T>()
+            .expect("Application services does not exist")
     }
 
     /// Run the application
     pub fn run(self) {
         let event_loop = EventLoop::new();
-        let window = WindowBuilder::new()
-            .build(&event_loop).unwrap();
+        let window = WindowBuilder::new().build(&event_loop).unwrap();
 
         wgpu_subscriber::initialize_default_subscriber(None);
 
@@ -68,16 +68,13 @@ impl Application {
 /// Service wrapper
 pub struct Service<T> {
     /// Service instance
-    pub node: T
+    pub node: T,
 }
 
 impl<T: IntoService> Service<T> {
     /// Wraps service data
-    pub fn from(node: T) -> Self
-    {
-        Service {
-            node
-        }
+    pub fn from(node: T) -> Self {
+        Service { node }
     }
 }
 
@@ -87,9 +84,7 @@ impl<T: IntoService> Service<T> {
 pub trait IntoService: Sized + Send + Sync + 'static {
     /// Constructs wrapped service
     fn service(self) -> Service<Self> {
-        Service {
-            node: self
-        }
+        Service { node: self }
     }
 }
 impl<T: Sized + Send + Sync + 'static> IntoService for T {}
@@ -103,7 +98,7 @@ fn run(
         mut scheduler,
         mut services,
         ..
-    }: Application
+    }: Application,
 ) {
     // Global application state
     let current_state: StateId = StateId::of::<bool>();
@@ -154,12 +149,18 @@ fn run(
                 }
                 pool.run_until_stalled();
             }
-            Event::WindowEvent { event: WindowEvent::Resized(_), .. } => {
+            Event::WindowEvent {
+                event: WindowEvent::Resized(_),
+                ..
+            } => {
                 scheduler.run_resize(&mut services, current_state_ptr);
             }
-            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => {
                 *control_flow = ControlFlow::Exit;
-            },
+            }
             Event::RedrawRequested(_) => {
                 scheduler.run_bind(&mut services, current_state_ptr);
                 scheduler.run_standard(&mut services, current_state_ptr);
@@ -177,7 +178,6 @@ pub struct Services {
 }
 
 impl Services {
-
     pub(crate) fn new() -> Self {
         Self {
             storage: HashMap::new(),

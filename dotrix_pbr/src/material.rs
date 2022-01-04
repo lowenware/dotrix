@@ -1,7 +1,7 @@
-use dotrix_core::{ Assets, Id, Color, Renderer };
 use dotrix_core::assets::Texture;
 use dotrix_core::ecs::Mut;
 use dotrix_core::renderer::UniformBuffer;
+use dotrix_core::{Assets, Color, Id, Renderer};
 
 const DUMMY_TEXTURE: &str = "dotrix::dummy_texture";
 
@@ -23,7 +23,8 @@ impl Material {
     pub fn load(&mut self, renderer: &Renderer, assets: &mut Assets) -> bool {
         if self.texture.is_null() {
             self.dummy_texture = true;
-            self.texture = assets.find(DUMMY_TEXTURE)
+            self.texture = assets
+                .find(DUMMY_TEXTURE)
                 .expect("System `dotrix::pbr::material::startup` must be executed");
         }
 

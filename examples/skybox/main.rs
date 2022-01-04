@@ -1,7 +1,7 @@
-use dotrix::prelude::*;
-use dotrix::{ Assets, Camera, CubeMap, Pipeline, World };
 use dotrix::camera;
-use dotrix::sky::{ skybox, SkyBox };
+use dotrix::prelude::*;
+use dotrix::sky::{skybox, SkyBox};
+use dotrix::{Assets, Camera, CubeMap, Pipeline, World};
 
 fn main() {
     Dotrix::application("Dotrix: SkyBox Example")
@@ -38,6 +38,6 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>, mut assets: Mut<Asset
             front: assets.register("skybox_front"),
             ..Default::default()
         },
-        Pipeline::default()
+        Pipeline::default(),
     )));
 }

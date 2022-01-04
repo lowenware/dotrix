@@ -1,5 +1,5 @@
+use dotrix_core::assets::{Mesh, Texture};
 use dotrix_core::Id;
-use dotrix_core::assets::{ Mesh, Texture };
 
 /// Widget
 #[derive(Default)]

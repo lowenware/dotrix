@@ -1,24 +1,24 @@
 //! Assets and management service
 pub mod animation;
-pub mod loader;
 mod load_gltf;
+pub mod loader;
 pub mod mesh;
+pub mod resource;
 pub mod shader;
 pub mod skin;
-pub mod resource;
 pub mod texture;
 
-pub use loader::*;
 pub use animation::Animation;
+pub use loader::*;
 pub use mesh::*;
+pub use resource::*;
 pub use shader::Shader;
 pub use skin::Skin;
-pub use resource::*;
 pub use texture::*;
 
 use std::{
-    collections::{ HashMap, hash_map },
-    sync::{Arc, mpsc, Mutex},
+    collections::{hash_map, HashMap},
+    sync::{mpsc, Arc, Mutex},
     vec::Vec,
 };
 
@@ -28,7 +28,7 @@ const THREADS_COUNT: usize = 4;
 
 /// Assets management service
 ///
-/// Stored asset can be identified by its [`Id`]. The [`Id`] is being assigned to an asset, once 
+/// Stored asset can be identified by its [`Id`]. The [`Id`] is being assigned to an asset, once
 /// the asset is stored.
 ///
 /// File operations performed by the service are being executed in separate threads, so no
@@ -52,7 +52,6 @@ pub struct Assets {
 }
 
 impl Assets {
-
     /// Creates new instance of Assets container
     pub fn new() -> Self {
         let threads_count = THREADS_COUNT;
@@ -63,7 +62,11 @@ impl Assets {
         let mut loaders = Vec::with_capacity(threads_count);
 
         for id in 0..threads_count {
-            loaders.push(Loader::new(id, Arc::clone(&thread_rx), Arc::clone(&thread_tx)));
+            loaders.push(Loader::new(
+                id,
+                Arc::clone(&thread_rx),
+                Arc::clone(&thread_tx),
+            ));
         }
 
         Self {
@@ -88,7 +91,10 @@ impl Assets {
         let resource = Resource::new(name.to_string(), path_str.to_string());
         let id = self.store_as::<Resource>(resource, name);
         // TODO: start loading in separate thread
-        let task = Task { path: path.to_path_buf(), name: name.to_string() };
+        let task = Task {
+            path: path.to_path_buf(),
+            name: name.to_string(),
+        };
         self.sender.send(Request::Import(task)).unwrap();
         id
     }
@@ -117,14 +123,18 @@ impl Assets {
     /// }
     /// ```
     pub fn register<T>(&mut self, name: &str) -> Id<T>
-    where Self: AssetMapGetter<T> {
+    where
+        Self: AssetMapGetter<T>,
+    {
         let raw_id = self.next_id();
         Id::new(*self.registry.entry(name.to_string()).or_insert(raw_id))
     }
 
     /// Stores an asset under user defined name and returns [`Id`] of it
     pub fn store_as<T>(&mut self, asset: T, name: &str) -> Id<T>
-    where Self: AssetMapGetter<T> {
+    where
+        Self: AssetMapGetter<T>,
+    {
         let id = self.register(name);
         self.map_mut().insert(id, asset);
         id
@@ -132,7 +142,9 @@ impl Assets {
 
     /// Stores an asset and returns [`Id`] of it
     pub fn store<T>(&mut self, asset: T) -> Id<T>
-    where Self: AssetMapGetter<T> {
+    where
+        Self: AssetMapGetter<T>,
+    {
         let id = Id::new(self.next_id());
         self.map_mut().insert(id, asset);
         id
@@ -140,37 +152,49 @@ impl Assets {
 
     /// Searches for an asset by the name and return [`Id`] of it if the asset exists
     pub fn find<T>(&self, name: &str) -> Option<Id<T>>
-    where Self: AssetMapGetter<T> {
+    where
+        Self: AssetMapGetter<T>,
+    {
         self.registry.get(&name.to_string()).map(|id| Id::new(*id))
     }
 
     /// Searches an asset by its [`Id`] and returns it by a reference if the asset exists
     pub fn get<T>(&self, handle: Id<T>) -> Option<&T>
-    where Self: AssetMapGetter<T> {
+    where
+        Self: AssetMapGetter<T>,
+    {
         self.map().get(&handle)
     }
 
     /// Searches an asset by its [`Id`] and returns it by a mutual reference if the asset exists
     pub fn get_mut<T>(&mut self, handle: Id<T>) -> Option<&mut T>
-    where Self: AssetMapGetter<T> {
+    where
+        Self: AssetMapGetter<T>,
+    {
         self.map_mut().get_mut(&handle)
     }
 
     /// Removes an asset from the Service and returns it if the asset exists
     pub fn remove<T>(&mut self, handle: Id<T>) -> Option<T>
-    where Self: AssetMapGetter<T> {
+    where
+        Self: AssetMapGetter<T>,
+    {
         self.map_mut().remove(&handle)
     }
 
     /// Returns iterator over assets by its type
     pub fn iter<T>(&mut self) -> hash_map::Iter<'_, Id<T>, T>
-    where Self: AssetMapGetter<T> {
+    where
+        Self: AssetMapGetter<T>,
+    {
         self.map().iter()
     }
 
     /// Returns mutable iterator over assets by its type
     pub fn iter_mut<T>(&mut self) -> hash_map::IterMut<'_, Id<T>, T>
-    where Self: AssetMapGetter<T> {
+    where
+        Self: AssetMapGetter<T>,
+    {
         self.map_mut().iter_mut()
     }
 
@@ -185,19 +209,19 @@ impl Assets {
             match response {
                 Response::Animation(animation) => {
                     self.store_as(*animation.asset, &animation.name);
-                },
+                }
                 Response::Mesh(mesh) => {
                     self.store_as(*mesh.asset, &mesh.name);
-                },
+                }
                 Response::Shader(shader) => {
                     self.store_as(*shader.asset, &shader.name);
-                },
+                }
                 Response::Skin(skin) => {
                     self.store_as(*skin.asset, &skin.name);
-                },
+                }
                 Response::Texture(texture) => {
                     self.store_as(*texture.asset, &texture.name);
-                },
+                }
             };
         }
     }

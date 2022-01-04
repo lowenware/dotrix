@@ -9,10 +9,7 @@ pub struct Resource {
 impl Resource {
     /// Constructs new resource
     pub fn new(name: String, path: String) -> Self {
-        Self {
-            name,
-            path,
-        }
+        Self { name, path }
     }
 
     /// Returns the [`Resource`] path
@@ -25,4 +22,3 @@ impl Resource {
         &self.name
     }
 }
-

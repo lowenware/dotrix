@@ -9,7 +9,7 @@ use std::{
 pub struct Id<T> {
     /// Actual identifier value
     pub id: u64,
-    phantom: PhantomData<T>
+    phantom: PhantomData<T>,
 }
 
 impl<T> Id<T> {

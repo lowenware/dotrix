@@ -1,20 +1,12 @@
-use crate::fox::{ Fox, FoxAnimClip };
-use dotrix::{ Animator, Transform, Camera, Color, Frame, Input, World };
+use crate::fox::{Fox, FoxAnimClip};
 use dotrix::animation::State as AnimState;
-use dotrix::ecs::{ Const, Mut };
-use dotrix::pbr::Light;
-use dotrix::egui::{
-    CollapsingHeader,
-    ComboBox,
-    DragValue,
-    Egui,
-    Grid,
-    SidePanel,
-    Slider,
-};
+use dotrix::ecs::{Const, Mut};
+use dotrix::egui::{CollapsingHeader, ComboBox, DragValue, Egui, Grid, SidePanel, Slider};
+use dotrix::input::{Button, State as InputState};
+use dotrix::math::{Point3, Vec3};
 use dotrix::overlay::Overlay;
-use dotrix::input::{ Button, State as InputState };
-use dotrix::math::{ Point3, Vec3 };
+use dotrix::pbr::Light;
+use dotrix::{Animator, Camera, Color, Frame, Input, Transform, World};
 
 use std::f32::consts::PI;
 
@@ -42,14 +34,17 @@ impl Settings {
     pub fn reset(&mut self) {
         *self = Settings::default();
     }
-
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             fox_transform: Transform {
-                translate: Vec3 {x: 80.0, y: 0.0, z: 0.0},
+                translate: Vec3 {
+                    x: 80.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
                 ..Default::default()
             },
 
@@ -71,7 +66,8 @@ impl Default for Settings {
 }
 
 pub fn ui(mut settings: Mut<Settings>, overlay: Const<Overlay>) {
-    let egui = overlay.get::<Egui>()
+    let egui = overlay
+        .get::<Egui>()
         .expect("Renderer does not contain an Overlay instance");
 
     SidePanel::left("side_panel").show(&egui.ctx, |ui| {
@@ -81,31 +77,67 @@ pub fn ui(mut settings: Mut<Settings>, overlay: Const<Overlay>) {
                 Grid::new("transform").show(ui, |ui| {
                     ui.label("Translation");
                     ui.horizontal(|ui| {
-                        ui.add(DragValue::new(&mut settings.fox_transform.translate.x).prefix("x: ").speed(0.1));
-                        ui.add(DragValue::new(&mut settings.fox_transform.translate.y).prefix("y: ").speed(0.1));
-                        ui.add(DragValue::new(&mut settings.fox_transform.translate.z).prefix("z: ").speed(0.1));
+                        ui.add(
+                            DragValue::new(&mut settings.fox_transform.translate.x)
+                                .prefix("x: ")
+                                .speed(0.1),
+                        );
+                        ui.add(
+                            DragValue::new(&mut settings.fox_transform.translate.y)
+                                .prefix("y: ")
+                                .speed(0.1),
+                        );
+                        ui.add(
+                            DragValue::new(&mut settings.fox_transform.translate.z)
+                                .prefix("z: ")
+                                .speed(0.1),
+                        );
                     });
                     ui.end_row();
 
                     ui.label("Rotation");
                     ui.horizontal(|ui| {
-                        ui.add(DragValue::new(&mut settings.fox_transform.rotate.v.x).prefix("x: ").speed(0.01));
-                        ui.add(DragValue::new(&mut settings.fox_transform.rotate.v.y).prefix("y: ").speed(0.01));
-                        ui.add(DragValue::new(&mut settings.fox_transform.rotate.v.z).prefix("z: ").speed(0.01));
+                        ui.add(
+                            DragValue::new(&mut settings.fox_transform.rotate.v.x)
+                                .prefix("x: ")
+                                .speed(0.01),
+                        );
+                        ui.add(
+                            DragValue::new(&mut settings.fox_transform.rotate.v.y)
+                                .prefix("y: ")
+                                .speed(0.01),
+                        );
+                        ui.add(
+                            DragValue::new(&mut settings.fox_transform.rotate.v.z)
+                                .prefix("z: ")
+                                .speed(0.01),
+                        );
                     });
                     ui.end_row();
 
                     ui.label("Scale");
                     ui.horizontal(|ui| {
-                        ui.add(DragValue::new(&mut settings.fox_transform.scale.x).prefix("x: ").speed(0.01));
-                        ui.add(DragValue::new(&mut settings.fox_transform.scale.y).prefix("y: ").speed(0.01));
-                        ui.add(DragValue::new(&mut settings.fox_transform.scale.z).prefix("z: ").speed(0.01));
+                        ui.add(
+                            DragValue::new(&mut settings.fox_transform.scale.x)
+                                .prefix("x: ")
+                                .speed(0.01),
+                        );
+                        ui.add(
+                            DragValue::new(&mut settings.fox_transform.scale.y)
+                                .prefix("y: ")
+                                .speed(0.01),
+                        );
+                        ui.add(
+                            DragValue::new(&mut settings.fox_transform.scale.z)
+                                .prefix("z: ")
+                                .speed(0.01),
+                        );
                     });
                     ui.end_row();
                 });
             });
 
-            CollapsingHeader::new("Animation")
+        CollapsingHeader::new("Animation")
             .default_open(true)
             .show(ui, |ui| {
                 Grid::new("animation").show(ui, |ui| {
@@ -114,12 +146,27 @@ pub fn ui(mut settings: Mut<Settings>, overlay: Const<Overlay>) {
                         .selected_text(format!("{:?}", settings.anim_clip))
                         .show_ui(ui, |ui| {
                             // There should be some EnumIterator in real implementation
-                            ui.selectable_value(&mut settings.anim_clip, FoxAnimClip::Walk, format!("{:?}", FoxAnimClip::Walk));
-                            ui.selectable_value(&mut settings.anim_clip, FoxAnimClip::Run, format!("{:?}", FoxAnimClip::Run));
-                            ui.selectable_value(&mut settings.anim_clip, FoxAnimClip::Survey, format!("{:?}", FoxAnimClip::Survey));
+                            ui.selectable_value(
+                                &mut settings.anim_clip,
+                                FoxAnimClip::Walk,
+                                format!("{:?}", FoxAnimClip::Walk),
+                            );
+                            ui.selectable_value(
+                                &mut settings.anim_clip,
+                                FoxAnimClip::Run,
+                                format!("{:?}", FoxAnimClip::Run),
+                            );
+                            ui.selectable_value(
+                                &mut settings.anim_clip,
+                                FoxAnimClip::Survey,
+                                format!("{:?}", FoxAnimClip::Survey),
+                            );
                         });
 
-                    if ui.button(if settings.anim_play {"Stop"} else {"Play"}).clicked() {
+                    if ui
+                        .button(if settings.anim_play { "Stop" } else { "Play" })
+                        .clicked()
+                    {
                         settings.anim_play = !settings.anim_play;
                     };
                     ui.end_row();
@@ -132,15 +179,27 @@ pub fn ui(mut settings: Mut<Settings>, overlay: Const<Overlay>) {
                 });
             });
 
-            CollapsingHeader::new("Camera")
+        CollapsingHeader::new("Camera")
             .default_open(true)
             .show(ui, |ui| {
                 Grid::new("Target").show(ui, |ui| {
                     ui.label("Target");
                     ui.horizontal(|ui| {
-                        ui.add(DragValue::new(&mut settings.cam_target.x).prefix("x: ").speed(0.1));
-                        ui.add(DragValue::new(&mut settings.cam_target.y).prefix("y: ").speed(0.1));
-                        ui.add(DragValue::new(&mut settings.cam_target.z).prefix("z: ").speed(0.1));
+                        ui.add(
+                            DragValue::new(&mut settings.cam_target.x)
+                                .prefix("x: ")
+                                .speed(0.1),
+                        );
+                        ui.add(
+                            DragValue::new(&mut settings.cam_target.y)
+                                .prefix("y: ")
+                                .speed(0.1),
+                        );
+                        ui.add(
+                            DragValue::new(&mut settings.cam_target.z)
+                                .prefix("z: ")
+                                .speed(0.1),
+                        );
                         if ui.button("¤").on_hover_text("Target fox").clicked() {
                             settings.cam_target.x = settings.fox_transform.translate.x;
                             settings.cam_target.y = settings.fox_transform.translate.y;
@@ -163,7 +222,7 @@ pub fn ui(mut settings: Mut<Settings>, overlay: Const<Overlay>) {
                 });
             });
 
-            CollapsingHeader::new("Light")
+        CollapsingHeader::new("Light")
             .default_open(true)
             .show(ui, |ui| {
                 Grid::new("light").show(ui, |ui| {
@@ -191,13 +250,14 @@ pub fn ui(mut settings: Mut<Settings>, overlay: Const<Overlay>) {
                     ui.label("Intensity");
                     ui.add(Slider::new(&mut settings.simple_light_intensity, 0.0..=3.0).text(""));
                     if ui.button("↺").on_hover_text("Reset value").clicked() {
-                        settings.simple_light_intensity = Settings::default().simple_light_intensity;
+                        settings.simple_light_intensity =
+                            Settings::default().simple_light_intensity;
                     };
                     ui.end_row();
                 });
             });
 
-            CollapsingHeader::new("Ambient Light")
+        CollapsingHeader::new("Ambient Light")
             .default_open(true)
             .show(ui, |ui| {
                 Grid::new("ambient light").show(ui, |ui| {
@@ -225,7 +285,8 @@ pub fn ui(mut settings: Mut<Settings>, overlay: Const<Overlay>) {
                     ui.label("Intensity");
                     ui.add(Slider::new(&mut settings.ambient_light_intensity, 0.0..=3.0).text(""));
                     if ui.button("↺").on_hover_text("Reset value").clicked() {
-                        settings.ambient_light_intensity = Settings::default().ambient_light_intensity;
+                        settings.ambient_light_intensity =
+                            Settings::default().ambient_light_intensity;
                     };
                     ui.end_row();
                 });
@@ -238,7 +299,12 @@ pub fn ui(mut settings: Mut<Settings>, overlay: Const<Overlay>) {
 }
 
 /// This func updates camera based on values in settings and controls
-pub fn update_camera(mut camera: Mut<Camera>, mut settings: Mut<Settings>, input: Const<Input>, frame: Const<Frame>) {
+pub fn update_camera(
+    mut camera: Mut<Camera>,
+    mut settings: Mut<Settings>,
+    input: Const<Input>,
+    frame: Const<Frame>,
+) {
     const ROTATE_SPEED: f32 = PI / 10.0;
     const ZOOM_SPEED: f32 = 500.0;
 
@@ -283,16 +349,12 @@ pub fn update_camera(mut camera: Mut<Camera>, mut settings: Mut<Settings>, input
 }
 
 /// This func updates fox's entity based on values in settings
-pub fn update_fox(
-    settings: Const<Settings>,
-    world: Mut<World>,
-) {
+pub fn update_fox(settings: Const<Settings>, world: Mut<World>) {
     // Query fox entity
     let query = world.query::<(&mut Transform, &mut Animator, &mut Fox)>();
 
     // This loop will run only once, because Fox component is assigned to only one entity
     for (transform, animator, fox) in query {
-
         // Set transformation
         transform.translate = settings.fox_transform.translate;
         transform.rotate = settings.fox_transform.rotate;
@@ -325,10 +387,7 @@ pub fn update_fox(
 }
 
 /// This func updates all light entities based on values in settings
-pub fn update_lights(
-    settings: Const<Settings>,
-    world: Mut<World>,
-) {
+pub fn update_lights(settings: Const<Settings>, world: Mut<World>) {
     // Query ambient light entities
     let query = world.query::<(&mut Light,)>();
 
@@ -337,12 +396,14 @@ pub fn update_lights(
             Light::Ambient { color, intensity } => {
                 *color = settings.ambient_light_color;
                 *intensity = settings.ambient_light_intensity;
-            },
-            Light::Simple { color, intensity, .. } => {
+            }
+            Light::Simple {
+                color, intensity, ..
+            } => {
                 *color = settings.simple_light_color;
                 *intensity = settings.simple_light_intensity;
-            },
-            _ => continue
+            }
+            _ => continue,
         }
     }
 }

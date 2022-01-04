@@ -1,9 +1,9 @@
 //! Entity Component System
 
+use crate::application::{IntoService, Services};
+use core::ops::{Deref, DerefMut};
 use std::any::TypeId;
 use std::hash::Hash;
-use core::ops::{ Deref, DerefMut };
-use crate::application::{ Services, IntoService };
 
 /// StateID type def
 pub type StateId = TypeId;
@@ -111,13 +111,11 @@ impl System {
         let data = func.into_system();
         let run_level = RunLevel::from(data.name());
 
-        Self {
-            data,
-            run_level,
-        }
+        Self { data, run_level }
     }
 
     /// Adds an option to the system
+    #[must_use]
     pub fn with<T>(mut self, option: T) -> Self
     where
         Self: SystemOption<T>,
@@ -154,7 +152,7 @@ impl SystemOption<Priority> for System {
     }
 }
 
-struct SystemData<Run, Ctx> 
+struct SystemData<Run, Ctx>
 where
     Run: FnMut(&mut Ctx, &mut Services) + Send + Sync,
 {
@@ -214,12 +212,18 @@ where
             for rule in self.rules.iter() {
                 match rule {
                     Rule::Always => return true,
-                    Rule::StateOn(s) => if state == *s { return true; },
-                    Rule::StateOff(s) => if state == *s {
-                        return false;
-                    } else {
-                        no_match_result = true;
-                    },
+                    Rule::StateOn(s) => {
+                        if state == *s {
+                            return true;
+                        }
+                    }
+                    Rule::StateOff(s) => {
+                        if state == *s {
+                            return false;
+                        } else {
+                            no_match_result = true;
+                        }
+                    }
                 };
             }
             return no_match_result;
@@ -312,9 +316,7 @@ where
 {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        unsafe {
-            &*self.value
-        }
+        unsafe { &*self.value }
     }
 }
 
@@ -323,16 +325,14 @@ where
     T: SystemContext,
 {
     fn deref_mut(&mut self) -> &mut T {
-        unsafe {
-            &mut *self.value
-        }
+        unsafe { &mut *self.value }
     }
 }
 
 /// Mutable accessor for [`IntoService`] instance
 pub struct Mut<T>
 where
-    T: IntoService
+    T: IntoService,
 {
     value: *mut T,
 }
@@ -343,9 +343,7 @@ where
 {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        unsafe {
-            &*self.value
-        }
+        unsafe { &*self.value }
     }
 }
 
@@ -354,9 +352,7 @@ where
     T: IntoService,
 {
     fn deref_mut(&mut self) -> &mut T {
-        unsafe {
-            &mut *self.value
-        }
+        unsafe { &mut *self.value }
     }
 }
 
@@ -374,9 +370,7 @@ where
 {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        unsafe {
-            &*self.value
-        }
+        unsafe { &*self.value }
     }
 }
 
@@ -397,10 +391,11 @@ where
 {
     type Item = T;
     fn fetch(services: &mut Services) -> Self {
-        let service: &mut T = services.get_mut::<T>()
+        let service: &mut T = services
+            .get_mut::<T>()
             .unwrap_or_else(|| panic!("Service {} does not exist", std::any::type_name::<T>()));
         Mut {
-            value: service as *mut T
+            value: service as *mut T,
         }
     }
 }
@@ -411,10 +406,11 @@ where
 {
     type Item = T;
     fn fetch(service: &mut Services) -> Self {
-        let service: &T = service.get::<T>()
+        let service: &T = service
+            .get::<T>()
             .unwrap_or_else(|| panic!("Service {} does not exist", std::any::type_name::<T>()));
         Const {
-            value: service as *const T
+            value: service as *const T,
         }
     }
 }
@@ -423,7 +419,7 @@ where
 mod tests {
     use crate::{
         application::Services,
-        ecs::{ Context, StateId, System, Const, Mut, RunLevel },
+        ecs::{Const, Context, Mut, RunLevel, StateId, System},
         world::World,
     };
 
@@ -446,7 +442,7 @@ mod tests {
     struct MyContext(u64);
 
     struct MyService {
-        data: u64
+        data: u64,
     }
 
     fn my_system_with_context(ctx: Context<MyContext>, mut service: Mut<MyService>) {

@@ -1,5 +1,5 @@
-use dotrix_core::{ Color, Renderer };
 use dotrix_core::renderer::UniformBuffer;
+use dotrix_core::{Color, Renderer};
 
 pub const MAX_LAYERS: usize = 16;
 
@@ -15,7 +15,11 @@ pub struct Layer {
 
 impl Default for Layer {
     fn default() -> Self {
-        Self { color: Color::rgb(0.18, 0.62, 0.24), height: -1.0, blend: 0.1 }
+        Self {
+            color: Color::rgb(0.18, 0.62, 0.24),
+            height: -1.0,
+            blend: 0.1,
+        }
     }
 }
 
@@ -33,7 +37,7 @@ impl Layers {
     pub fn load(&mut self, renderer: &Renderer) {
         renderer.load_uniform_buffer(
             &mut self.uniform,
-            bytemuck::cast_slice(&[Uniform::from(self.list.as_slice())])
+            bytemuck::cast_slice(&[Uniform::from(self.list.as_slice())]),
         );
     }
 }
@@ -44,7 +48,7 @@ struct LayerUniform {
     color: [f32; 4],
     height: f32,
     blend: f32,
-    unused: [u32; 2]
+    unused: [u32; 2],
 }
 
 unsafe impl bytemuck::Zeroable for LayerUniform {}
@@ -63,7 +67,8 @@ impl From<&[Layer]> for Uniform {
         use std::convert::TryInto;
 
         let count = layers.len() as u32;
-        let mut layers = layers.iter()
+        let mut layers = layers
+            .iter()
             .map(|layer| LayerUniform {
                 color: layer.color.into(),
                 height: layer.height,
