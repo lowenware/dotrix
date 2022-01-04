@@ -1,27 +1,18 @@
 //! Input service, ray casting service and utils
 use crate::ecs::Mut;
-use dotrix_math::{Vec2, clamp};
+use dotrix_math::{clamp, Vec2};
 
 use std::{
     collections::HashMap,
-    path::{ Path, PathBuf },
+    path::{Path, PathBuf},
 };
 
-use winit::event::{
-    ElementState,
-    KeyboardInput,
-    MouseButton,
-    MouseScrollDelta,
-    WindowEvent,
-};
+use winit::event::{ElementState, KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent};
 
-pub use winit::event::{
-    ModifiersState as Modifiers,
-    VirtualKeyCode as KeyCode,
-};
+pub use winit::event::{ModifiersState as Modifiers, VirtualKeyCode as KeyCode};
 
 /// Input button abstraction
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone, )] // TODO: add support for serialization
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)] // TODO: add support for serialization
 pub enum Button {
     /// Key by the code
     Key(KeyCode), // TODO: consider support for Key{scancode: u32}?
@@ -76,6 +67,7 @@ pub struct Input {
     mapper: Box<dyn std::any::Any + Send + Sync>,
     states: HashMap<Button, State>,
     mouse_scroll_delta: f32,
+    mouse_horizontal_scroll_delta: f32,
     mouse_position: Option<Vec2>,
     mouse_delta: Vec2,
     mouse_moved: bool,
@@ -100,7 +92,7 @@ pub enum Action {
     /// Move Left
     MoveLeft,
     /// Move Right
-    MoveRight
+    MoveRight,
 }
 
 impl Input {
@@ -183,6 +175,13 @@ impl Input {
         self.mouse_scroll_delta
     }
 
+    /// Mouse scroll delta
+    ///
+    /// Value can be positive (up) or negative (down)
+    pub fn mouse_horizontal_scroll(&self) -> f32 {
+        self.mouse_horizontal_scroll_delta
+    }
+
     /// Current mouse position in pixel coordinates. The top-left of the window is at (0, 0)
     pub fn mouse_position(&self) -> Option<&Vec2> {
         self.mouse_position.as_ref()
@@ -206,12 +205,15 @@ impl Input {
     ///
     /// The top-left of the window is at (0, 0), bottom-right at (1, 1)
     pub fn mouse_position_normalized(&self) -> Vec2 {
-        let (x, y) = self.mouse_position
+        let (x, y) = self
+            .mouse_position
             .as_ref()
-            .map(|p| (
+            .map(|p| {
+                (
                     clamp(p.x / self.window_size.x, 0.0, 1.0),
                     clamp(p.y / self.window_size.y, 0.0, 1.0),
-            ))
+                )
+            })
             .unwrap_or((0.0, 0.0));
 
         Vec2::new(x, y)
@@ -222,6 +224,7 @@ impl Input {
         self.mouse_moved = false;
         self.mouse_delta = Vec2 { x: 0.0, y: 0.0 };
         self.mouse_scroll_delta = 0.0;
+        self.mouse_horizontal_scroll_delta = 0.0;
 
         self.states.retain(|_btn, state| match state {
             State::Activated => {
@@ -240,12 +243,14 @@ impl Input {
         if let winit::event::Event::WindowEvent { event, .. } = event {
             match event {
                 WindowEvent::KeyboardInput { input, .. } => self.on_keyboard_event(input),
-                WindowEvent::MouseInput { state, button, .. } =>
-                    self.on_mouse_click_event(*state, *button),
+                WindowEvent::MouseInput { state, button, .. } => {
+                    self.on_mouse_click_event(*state, *button)
+                }
                 WindowEvent::CursorMoved { position, .. } => self.on_cursor_moved_event(position),
                 WindowEvent::MouseWheel { delta, .. } => self.on_mouse_wheel_event(delta),
-                WindowEvent::Resized(size) =>
-                    self.window_size = Vec2::new(size.width as f32, size.height as f32),
+                WindowEvent::Resized(size) => {
+                    self.window_size = Vec2::new(size.width as f32, size.height as f32)
+                }
                 WindowEvent::ModifiersChanged(input) => self.modifiers = *input,
                 WindowEvent::ReceivedCharacter(chr) => {
                     if is_printable(*chr) && !self.modifiers.ctrl() && !self.modifiers.logo() {
@@ -255,17 +260,19 @@ impl Input {
                             self.events.push(Event::Text(chr.to_string()));
                         }
                     }
-                },
+                }
                 WindowEvent::HoveredFile(buffer) => self.on_hovered_file_event(buffer),
                 WindowEvent::HoveredFileCancelled => self.on_hovered_file_canceled_event(),
                 WindowEvent::DroppedFile(buffer) => self.on_dropped_file_event(buffer),
-                _ => {},
+                _ => {}
             }
         }
 
         if let winit::event::Event::DeviceEvent {
-            event: winit::event::DeviceEvent::MouseMotion { delta }, ..
-        } = event {
+            event: winit::event::DeviceEvent::MouseMotion { delta },
+            ..
+        } = event
+        {
             self.on_mouse_motion_event(delta)
         }
     }
@@ -295,10 +302,10 @@ impl Input {
                 if *self.states.get(&btn).unwrap_or(&State::Deactivated) == State::Deactivated {
                     self.states.insert(btn, State::Activated);
                 }
-            },
+            }
             ElementState::Released => {
                 self.states.insert(btn, State::Deactivated);
-            },
+            }
         }
     }
 
@@ -314,11 +321,12 @@ impl Input {
     }
 
     fn on_mouse_wheel_event(&mut self, delta: &MouseScrollDelta) {
-        let change = match delta {
-            MouseScrollDelta::LineDelta(_x, y) => *y,
-            MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
+        let (change_x, change_y) = match delta {
+            MouseScrollDelta::LineDelta(x, y) => (*x, *y),
+            MouseScrollDelta::PixelDelta(pos) => (pos.x as f32, pos.y as f32),
         };
-        self.mouse_scroll_delta += change;
+        self.mouse_scroll_delta += change_y;
+        self.mouse_horizontal_scroll_delta += change_x;
     }
 
     fn on_mouse_motion_event(&mut self, delta: &(f64, f64)) {
@@ -354,6 +362,7 @@ impl Default for Input {
             mapper,
             states: HashMap::new(),
             mouse_scroll_delta: 0.0,
+            mouse_horizontal_scroll_delta: 0.0,
             mouse_position: None,
             mouse_delta: Vec2::new(0.0, 0.0),
             mouse_moved: false,
@@ -379,7 +388,7 @@ pub struct Mapper<T> {
 
 impl<T> Mapper<T>
 where
-    T: Copy + Eq + std::hash::Hash
+    T: Copy + Eq + std::hash::Hash,
 {
     /// Constructs new [`Mapper`]
     pub fn new() -> Self {
