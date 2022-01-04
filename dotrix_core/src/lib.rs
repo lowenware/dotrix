@@ -145,9 +145,10 @@ impl Dotrix {
         // Reset input events
         app.add_system(System::from(input::release));
 
-        Self {
-            app: Some(app),
-        }
+        // Reload and clean up assets
+        app.add_system(System::from(assets::assets_reload));
+
+        Self { app: Some(app) }
     }
 
     /// Initiates building of an application with specified name

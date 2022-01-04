@@ -112,8 +112,8 @@ impl Renderer {
 
     /// Drop the backend pipeline for a shader
     ///
-    /// This should be called when a shader is changed.
-    pub fn drop_shader_pipeline(&mut self, shader: Id<Shader>) {
+    /// This should be called when a shader is removed.
+    pub fn drop_pipeline(&mut self, shader: Id<Shader>) {
         self.backend_mut().drop_pipeline(shader);
     }
 
@@ -176,13 +176,6 @@ pub fn startup(mut renderer: Mut<Renderer>, mut globals: Mut<Globals>, window: M
 
 /// Frame binding system
 pub fn bind(mut renderer: Mut<Renderer>, mut assets: Mut<Assets>) {
-    // Clear any dropped shader's pipelines
-    for id in renderer.backend().get_pipeline_shaders() {
-        if assets.get::<Shader>(id).is_none() {
-            renderer.drop_shader_pipeline(id);
-        }
-    }
-
     let clear_color = renderer.clear_color;
     renderer.backend_mut().bind_frame(&clear_color);
 
@@ -193,7 +186,7 @@ pub fn bind(mut renderer: Mut<Renderer>, mut assets: Mut<Assets>) {
     let mut loaded = true;
 
     for (id, shader) in assets.iter_mut::<Shader>() {
-        renderer.drop_shader_pipeline(*id);
+        renderer.drop_pipeline(*id);
         shader.load(&renderer);
         if !shader.loaded() {
             loaded = false;

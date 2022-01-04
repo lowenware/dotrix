@@ -115,10 +115,6 @@ impl Context {
         self.pipelines.contains_key(&shader)
     }
 
-    pub(crate) fn get_pipeline_shaders(&self) -> Vec<Id<Shader>> {
-        self.pipelines.keys().copied().collect()
-    }
-
     pub(crate) fn pipeline(&self, shader: Id<Shader>) -> Option<&PipelineBackend> {
         self.pipelines.get(&shader)
     }

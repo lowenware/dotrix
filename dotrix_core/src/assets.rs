@@ -17,18 +17,18 @@ pub use resource::*;
 pub use texture::*;
 
 use std::{
-    collections::{ HashMap, hash_map },
-    sync::{Arc, mpsc, Mutex},
+    collections::{hash_map, HashMap, HashSet},
+    sync::{mpsc, Arc, Mutex},
     vec::Vec,
 };
 
-use crate::id::Id;
+use crate::{ecs::Mut, id::Id, Renderer};
 
 const THREADS_COUNT: usize = 4;
 
 /// Assets management service
 ///
-/// Stored asset can be identified by its [`Id`]. The [`Id`] is being assigned to an asset, once 
+/// Stored asset can be identified by its [`Id`]. The [`Id`] is being assigned to an asset, once
 /// the asset is stored.
 ///
 /// File operations performed by the service are being executed in separate threads, so no
@@ -49,6 +49,7 @@ pub struct Assets {
     sender: mpsc::Sender<Request>,
     receiver: mpsc::Receiver<Response>,
     id_generator: u64,
+    removed_shaders: HashSet<Id<Shader>>,
 }
 
 impl Assets {
@@ -78,6 +79,7 @@ impl Assets {
             sender,
             receiver,
             id_generator: 1,
+            removed_shaders: HashSet::new(),
         }
     }
 
@@ -159,6 +161,7 @@ impl Assets {
     /// Removes an asset from the Service and returns it if the asset exists
     pub fn remove<T>(&mut self, handle: Id<T>) -> Option<T>
     where Self: AssetMapGetter<T> {
+        self.map_removed_mut().map(|l| l.insert(handle));
         self.map_mut().remove(&handle)
     }
 
@@ -203,12 +206,44 @@ impl Assets {
     }
 }
 
+/// Reload assets and cleanup any assets that need some post process
+/// after `assets.remove`
+pub fn assets_reload(mut assets: Mut<Assets>, mut renderer: Mut<Renderer>) {
+    // Shaders that no longer exist need ro be removed from the renderer
+    // by dropping their pipeline
+    for removed_shader in &assets.removed_shaders {
+        if assets.get::<Shader>(*removed_shader).is_none() {
+            renderer.drop_pipeline(*removed_shader);
+        }
+    }
+    assets.removed_shaders.clear();
+
+    // Any shader that has its shader module dropped/uninitalised should have it's
+    // pipeline dropped from the renderer
+    for (id, shader) in &assets.shaders {
+        if !shader.loaded() {
+            renderer.drop_pipeline(*id);
+        }
+    }
+}
+
 /// Asset map getting trait
 pub trait AssetMapGetter<T> {
     /// Returns HashMap reference for selected asset type
     fn map(&self) -> &HashMap<Id<T>, T>;
     /// Returns mutable HashMap reference for selected asset type
     fn map_mut(&mut self) -> &mut HashMap<Id<T>, T>;
+
+    /// Returns HashSet reference for selected asset type that have been removed
+    /// since last clean up
+    fn map_removed(&self) -> Option<&HashSet<Id<T>>> {
+        None
+    }
+    /// Returns mutable HashSet reference for selected asset type that have been removed
+    /// since last clean up
+    fn map_removed_mut(&mut self) -> Option<&mut HashSet<Id<T>>> {
+        None
+    }
 }
 
 impl AssetMapGetter<Animation> for Assets {
@@ -268,6 +303,13 @@ impl AssetMapGetter<Shader> for Assets {
 
     fn map_mut(&mut self) -> &mut HashMap<Id<Shader>, Shader> {
         &mut self.shaders
+    }
+
+    fn map_removed(&self) -> Option<&HashSet<Id<Shader>>> {
+        Some(&self.removed_shaders)
+    }
+    fn map_removed_mut(&mut self) -> Option<&mut HashSet<Id<Shader>>> {
+        Some(&mut self.removed_shaders)
     }
 }
 
