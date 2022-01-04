@@ -131,6 +131,9 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
 
     if (u_material.albedo.has_texture != 0u) {
         albedo = textureSample(r_texture, r_sampler, in.tex_uv);
+        // Covert from sRGB to linear color space
+        // (PBR based renderer expect linear)
+        albedo = vec4<f32>(pow(albedo.rgb, vec3<f32>(2.2)), albedo.a);
     } else {
         albedo = u_material.albedo.color;
     }
