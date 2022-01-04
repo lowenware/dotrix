@@ -6,7 +6,7 @@ use dotrix::pbr::{self, Light};
 use dotrix::{Assets, Camera, Color, Dotrix, System, World};
 
 fn main() {
-    Dotrix::application("Dotrix: Shader Example")
+    Dotrix::application("Dotrix: PBR")
         .with(System::from(startup))
         .with(System::from(camera::control))
         .with(pbr::extension)
