@@ -44,32 +44,76 @@ fn vs_main(
 
 // STAGE: FRAGMENT -------------------------------------------------------------------------------
 struct Material {
-    albedo: vec4<f32>;
-    has_texture: u32;
-    reserve: vec3<u32>;
+  color: vec4<f32>;
+  has_texture: u32;
+};
+struct Materials {
+    albedo: Material;
+    roughness: Material;
+    metallic: Material;
+    ao: Material;
 };
 [[group(1), binding(1)]]
-var<uniform> u_material: Material;
+var<uniform> u_material: Materials;
 
 [[group(1), binding(2)]]
 var r_texture: texture_2d<f32>;
+
+[[group(1), binding(3)]]
+var r_roughness_texture: texture_2d<f32>;
+
+[[group(1), binding(4)]]
+var r_metallic_texture: texture_2d<f32>;
+
+[[group(1), binding(5)]]
+var r_ao_texture: texture_2d<f32>;
 
 [[group(0), binding(1)]]
 var r_sampler: sampler;
 
 {{ include(light) }}
 
+fn average(input: vec4<f32>) -> f32 {
+  return (input.x + input.y + input.z + input.w) / 4.;
+}
+
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
-    var albedo_color: vec4<f32>;
+    var albedo: vec4<f32>;
+    var roughness: vec4<f32>;
+    var metallic: vec4<f32>;
+    var ao: vec4<f32>;
 
-    if (u_material.has_texture != 0u) {
-        albedo_color = textureSample(r_texture, r_sampler, in.tex_uv);
+    if (u_material.albedo.has_texture != 0u) {
+        albedo = textureSample(r_texture, r_sampler, in.tex_uv);
     } else {
-        albedo_color = u_material.albedo;
+        albedo = u_material.albedo.color;
     }
 
-    let light_color = calculate_light(in.world_position, in.normal);
+    if (u_material.roughness.has_texture != 0u) {
+        roughness = textureSample(r_roughness_texture, r_sampler, in.tex_uv);
+    } else {
+        roughness = u_material.roughness.color;
+    }
 
-    return albedo_color * light_color;
+    if (u_material.metallic.has_texture != 0u) {
+        metallic = textureSample(r_metallic_texture, r_sampler, in.tex_uv);
+    } else {
+        metallic = u_material.metallic.color;
+    }
+
+    if (u_material.ao.has_texture != 0u) {
+        metallic = textureSample(r_ao_texture, r_sampler, in.tex_uv);
+    } else {
+        metallic = u_material.ao.color;
+    }
+
+    return calculate_lighting(
+        in.world_position.xyz,
+        in.normal.xyz,
+        albedo.rgb,
+        average(roughness),
+        average(metallic),
+        average(ao),
+    );
 }
