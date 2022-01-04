@@ -108,6 +108,7 @@ impl Renderer {
     /// Forces engine to reload shaders
     pub fn reload(&mut self) {
         self.loaded = false;
+        self.drop_all_pipelines();
     }
 
     /// Drop the backend pipeline for a shader
@@ -115,6 +116,11 @@ impl Renderer {
     /// This should be called when a shader is removed.
     pub fn drop_pipeline(&mut self, shader: Id<Shader>) {
         self.backend_mut().drop_pipeline(shader);
+    }
+
+    /// Drop all loaded backend pipelines for all shader
+    pub fn drop_all_pipelines(&mut self) {
+        self.backend_mut().drop_all_pipelines();
     }
 
     /// Binds uniforms and other data to the pipeline
@@ -185,8 +191,7 @@ pub fn bind(mut renderer: Mut<Renderer>, mut assets: Mut<Assets>) {
 
     let mut loaded = true;
 
-    for (id, shader) in assets.iter_mut::<Shader>() {
-        renderer.drop_pipeline(*id);
+    for (_id, shader) in assets.iter_mut::<Shader>() {
         shader.load(&renderer);
         if !shader.loaded() {
             loaded = false;

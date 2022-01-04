@@ -107,6 +107,10 @@ impl Context {
         self.pipelines.remove(&shader);
     }
 
+    pub(crate) fn drop_all_pipelines(&mut self) {
+        self.pipelines.clear();
+    }
+
     pub(crate) fn add_pipeline(&mut self, shader: Id<Shader>, pipeline_backend: PipelineBackend) {
         self.pipelines.insert(shader, pipeline_backend);
     }
