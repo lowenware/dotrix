@@ -141,7 +141,7 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
         roughness = u_material.roughness;
     }
 
-    if ((u_material.has_texture & 4u) == 2u) {
+    if ((u_material.has_texture & 4u) == 4u) {
         metallic = average(textureSample(r_metallic_texture, r_sampler, in.tex_uv));
     } else {
         metallic = u_material.metallic;
