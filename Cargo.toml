@@ -106,3 +106,7 @@ path = "examples/window/main.rs"
 [[example]]
 name = "shader"
 path = "examples/shader/main.rs"
+
+[[example]]
+name = "pbr"
+path = "examples/pbr/main.rs"

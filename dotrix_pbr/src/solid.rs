@@ -17,6 +17,18 @@ pub struct Entity {
     pub texture: Id<Texture>,
     /// Albedo color
     pub albedo: Color,
+    /// Roughness texture asset ID
+    pub roughness_texture: Id<Texture>,
+    /// Roughness (Random scatter)
+    pub roughness: f32,
+    /// Metallic texture asset ID
+    pub metallic_texture: Id<Texture>,
+    /// Metallic (reflectance)
+    pub metallic: f32,
+    /// Ambient occulsion texture asset ID
+    pub ao_texture: Id<Texture>,
+    /// Ambient occulsion
+    pub ao: f32,
     /// Shader asset ID
     pub shader: Id<Shader>,
     /// Translation vector
@@ -37,6 +49,12 @@ impl Entity {
             Material {
                 albedo: self.albedo,
                 texture: self.texture,
+                roughness: self.roughness,
+                metallic: self.metallic,
+                ao: self.ao,
+                roughness_texture: self.roughness_texture,
+                metallic_texture: self.metallic_texture,
+                ao_texture: self.ao_texture,
                 ..Default::default()
             },
             Transform {
@@ -62,6 +80,12 @@ impl Default for Entity {
             mesh: Id::default(),
             texture: Id::default(),
             albedo: Color::default(),
+            roughness: 1.,
+            roughness_texture: Id::default(),
+            metallic: 0.,
+            metallic_texture: Id::default(),
+            ao: 0.,
+            ao_texture: Id::default(),
             shader: Id::default(),
             translate: Vec3::new(0.0, 0.0, 0.0),
             rotate: Quat::from_angle_y(Rad(0.0)),
@@ -106,6 +130,9 @@ pub fn render(
                 }
 
                 let texture = assets.get(material.texture).unwrap();
+                let roughness_texture = assets.get(material.roughness_texture).unwrap();
+                let metallic_texture = assets.get(material.metallic_texture).unwrap();
+                let ao_texture = assets.get(material.ao_texture).unwrap();
 
                 let proj_view = globals
                     .get::<ProjView>()
@@ -144,6 +171,21 @@ pub fn render(
                                         &material.uniform,
                                     ),
                                     Binding::Texture("Texture", Stage::Fragment, &texture.buffer),
+                                    Binding::Texture(
+                                        "RoughnessTexture",
+                                        Stage::Fragment,
+                                        &roughness_texture.buffer,
+                                    ),
+                                    Binding::Texture(
+                                        "MetallicTexture",
+                                        Stage::Fragment,
+                                        &metallic_texture.buffer,
+                                    ),
+                                    Binding::Texture(
+                                        "AoTexture",
+                                        Stage::Fragment,
+                                        &ao_texture.buffer,
+                                    ),
                                 ],
                             ),
                         ],

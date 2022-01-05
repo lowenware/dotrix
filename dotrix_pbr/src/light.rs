@@ -1,7 +1,7 @@
 //! Various implementations of light sources
 use dotrix_core::ecs::{Const, Mut};
 use dotrix_core::renderer::UniformBuffer;
-use dotrix_core::{Color, Globals, Renderer, World};
+use dotrix_core::{Camera, Color, Globals, Renderer, World};
 
 use dotrix_math::Vec3;
 
@@ -151,9 +151,18 @@ pub fn startup(mut globals: Mut<Globals>) {
 }
 
 /// Lights binding system
-pub fn bind(world: Const<World>, renderer: Const<Renderer>, mut globals: Mut<Globals>) {
+pub fn bind(
+    world: Const<World>,
+    renderer: Const<Renderer>,
+    mut globals: Mut<Globals>,
+    camera: Const<Camera>,
+) {
     if let Some(lights) = globals.get_mut::<Lights>() {
-        let mut uniform = Uniform::default();
+        let camera_position = camera.position();
+        let mut uniform = Uniform {
+            camera_position: [camera_position.x, camera_position.y, camera_position.z, 0.],
+            ..Default::default()
+        };
 
         for (light,) in world.query::<(&Light,)>() {
             uniform.store(light);
@@ -166,6 +175,8 @@ pub fn bind(world: Const<World>, renderer: Const<Renderer>, mut globals: Mut<Glo
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
 struct Uniform {
+    /// Camera position
+    camera_position: [f32; 4],
     /// Light color
     ambient: [f32; 4],
     /// Slice with numbers of light sources
@@ -293,8 +304,7 @@ struct PointLight {
     a_linear: f32,
     /// Quadratic light attenuation
     a_quadratic: f32,
-    /// Data padding (unused)
-    padding: f32,
+    a_unused: f32,
 }
 
 unsafe impl bytemuck::Zeroable for PointLight {}

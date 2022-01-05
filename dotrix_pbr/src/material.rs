@@ -12,20 +12,39 @@ pub struct Material {
     pub texture: Id<Texture>,
     /// Albedo color
     pub albedo: Color,
+    /// Roughness (Random scatter)
+    pub roughness: f32,
+    /// Id of a roughness texture asset
+    pub roughness_texture: Id<Texture>,
+    /// Metallic (reflectance)
+    pub metallic: f32,
+    /// Id of a metallic texture asset
+    pub metallic_texture: Id<Texture>,
+    // Ambient occulsion
+    pub ao: f32,
+    /// Id of a ao texture asset
+    pub ao_texture: Id<Texture>,
     /// Pipeline buffer
     pub uniform: UniformBuffer,
-    /// Has texture
-    pub dummy_texture: bool,
 }
 
 impl Material {
     /// Loads the [`Material`] into GPU buffers
     pub fn load(&mut self, renderer: &Renderer, assets: &mut Assets) -> bool {
+        let dummy_id = assets
+            .find::<Texture>(DUMMY_TEXTURE)
+            .expect("System `dotrix::pbr::material::startup` must be executed");
         if self.texture.is_null() {
-            self.dummy_texture = true;
-            self.texture = assets
-                .find(DUMMY_TEXTURE)
-                .expect("System `dotrix::pbr::material::startup` must be executed");
+            self.texture = dummy_id;
+        }
+        if self.roughness_texture.is_null() {
+            self.roughness_texture = dummy_id;
+        }
+        if self.metallic_texture.is_null() {
+            self.metallic_texture = dummy_id;
+        }
+        if self.ao_texture.is_null() {
+            self.ao_texture = dummy_id;
         }
 
         if let Some(texture) = assets.get_mut(self.texture) {
@@ -33,11 +52,42 @@ impl Material {
         } else {
             return false;
         }
+        if let Some(texture) = assets.get_mut(self.roughness_texture) {
+            texture.load(renderer);
+        } else {
+            return false;
+        }
+        if let Some(texture) = assets.get_mut(self.metallic_texture) {
+            texture.load(renderer);
+        } else {
+            return false;
+        }
+        if let Some(texture) = assets.get_mut(self.ao_texture) {
+            texture.load(renderer);
+        } else {
+            return false;
+        }
+
+        let mut has_texture: u32 = 0;
+        if self.texture != dummy_id {
+            has_texture |= 0b0001;
+        }
+        if self.roughness_texture != dummy_id {
+            has_texture |= 0b0010;
+        }
+        if self.metallic_texture != dummy_id {
+            has_texture |= 0b0100;
+        }
+        if self.ao_texture != dummy_id {
+            has_texture |= 0b1000;
+        }
 
         let uniform = Uniform {
             albedo: self.albedo.into(),
-            has_texture: !self.dummy_texture as u32,
-            ..Default::default()
+            has_texture,
+            roughness: self.roughness,
+            metallic: self.metallic,
+            ao: self.ao,
         };
 
         renderer.load_uniform_buffer(&mut self.uniform, bytemuck::cast_slice(&[uniform]));
@@ -50,7 +100,9 @@ impl Material {
 struct Uniform {
     albedo: [f32; 4],
     has_texture: u32,
-    reserve: [u32; 3],
+    roughness: f32,
+    metallic: f32,
+    ao: f32,
 }
 
 unsafe impl bytemuck::Zeroable for Uniform {}
