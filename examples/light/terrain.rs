@@ -1,8 +1,8 @@
-use dotrix::{ Assets, World };
-use dotrix::assets::{ Mesh };
+use dotrix::assets::Mesh;
 use dotrix::ecs::Mut;
-use dotrix::pbr;
 use dotrix::math::Vec3;
+use dotrix::pbr;
+use dotrix::{Assets, World};
 
 const TERRAIN_SIZE: usize = 128; // Number of sqaures per side
 
@@ -58,6 +58,7 @@ pub fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
             texture,
             translate: Vec3::new(-shift, 0.0, -shift),
             ..Default::default()
-        }).some()
+        })
+        .some(),
     );
 }

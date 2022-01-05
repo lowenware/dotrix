@@ -61,6 +61,11 @@ cargo run --release --example skybox
 cargo run --release --example window
 ```
 
+**Features:** shader, uniform buffer
+```
+cargo run --release --example shader
+```
+
 ## Sponsors
 
 * Johan Andersson <[@repi](https://github.com/repi)>

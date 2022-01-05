@@ -25,58 +25,51 @@ pub mod transform;
 pub mod window;
 
 pub use animation::Animator;
-pub use application::{ Application, IntoService, Service };
+pub use application::{Application, IntoService, Service};
 pub use assets::Assets;
 pub use camera::Camera;
 pub use color::Color;
 pub use cubemap::CubeMap;
+pub use ecs::{Priority, RunLevel, StateId, System};
 pub use frame::Frame;
 pub use globals::Globals;
 pub use id::Id;
+pub use input::Input;
 pub use pipeline::Pipeline;
 pub use pose::Pose;
-pub use transform::Transform;
-pub use ecs::{ System, Priority, RunLevel, StateId };
-pub use input::Input;
 pub use ray::Ray;
 pub use renderer::Renderer;
 pub use state::State;
-pub use window::{ Window, Monitor, VideoMode };
+pub use transform::Transform;
+pub use window::{Monitor, VideoMode, Window};
 pub use world::World;
 
-#[deprecated(since="0.5.0", note="Please use components from dotrix crate instead")]
+#[deprecated(
+    since = "0.5.0",
+    note = "Please use components from dotrix crate instead"
+)]
 pub mod components {
-//! Dotrix core components
-    pub use crate::{
-        animation::Animator,
-        color::Color,
-        pose::Pose,
-        transform::Transform,
-    };
+    //! Dotrix core components
+    pub use crate::{animation::Animator, color::Color, pose::Pose, transform::Transform};
 }
 
-#[deprecated(since="0.5.0", note="Please use services from dotrix crate instead")]
+#[deprecated(
+    since = "0.5.0",
+    note = "Please use services from dotrix crate instead"
+)]
 pub mod services {
-//! Services are very important part of Dotrix. Technicaly the service is a standard Rust
-//! structure with methods. Logically, services are providers of interfaces to various
-//! features.
-//!
-//! Developer should explicitly create an instance of a service and add it to a game using the
-//! [`crate::Dotrix`] application builder:
-//!
+    //! Services are very important part of Dotrix. Technicaly the service is a standard Rust
+    //! structure with methods. Logically, services are providers of interfaces to various
+    //! features.
+    //!
+    //! Developer should explicitly create an instance of a service and add it to a game using the
+    //! [`crate::Dotrix`] application builder:
+    //!
     pub use crate::{
-        assets::Assets,
-        camera::Camera,
-        globals::Globals,
-        input::Input,
-        frame::Frame,
-        ray::Ray,
-        renderer::Renderer,
-        window::Window,
-        world::World,
+        assets::Assets, camera::Camera, frame::Frame, globals::Globals, input::Input, ray::Ray,
+        renderer::Renderer, window::Window, world::World,
     };
 }
-
 
 /// Application Builder
 ///
@@ -115,7 +108,7 @@ impl Dotrix {
         app.add_service(globals::Globals::default());
         // Render manager
         app.add_service(renderer::Renderer::default());
-        // States stack 
+        // States stack
         app.add_service(state::State::default());
 
         // Window manager
@@ -160,7 +153,8 @@ impl Dotrix {
 
     /// Adds system, service or extension to the application
     pub fn with<T>(&mut self, engine_unit: T) -> &mut Self
-    where Self: ExtendWith<T>
+    where
+        Self: ExtendWith<T>,
     {
         self.extend_with(engine_unit);
         self
@@ -174,8 +168,7 @@ impl Dotrix {
 
     /// Adds a service to the application
 
-    pub fn with_service<T: IntoService>(&mut self, service: T) -> &mut Self
-    {
+    pub fn with_service<T: IntoService>(&mut self, service: T) -> &mut Self {
         self.app.as_mut().unwrap().add_service(service);
         self
     }

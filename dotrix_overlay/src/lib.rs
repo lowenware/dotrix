@@ -1,23 +1,17 @@
 mod widget;
 
 use std::{
-    any::{ Any, TypeId },
+    any::{Any, TypeId},
     collections::HashMap,
 };
 
-use dotrix_core::{ Application, Pipeline, Assets, Globals, Input, Renderer, Window };
 use dotrix_core::assets::Shader;
-use dotrix_core::ecs::{ Const, Priority, System, Mut };
+use dotrix_core::ecs::{Const, Mut, Priority, System};
 use dotrix_core::renderer::{
-    Binding,
-    BindGroup,
-    DepthBufferMode,
-    PipelineLayout,
-    PipelineOptions,
-    Sampler,
-    Stage,
-    UniformBuffer
+    BindGroup, Binding, DepthBufferMode, PipelineLayout, PipelineOptions, Sampler, Stage,
+    UniformBuffer,
 };
+use dotrix_core::{Application, Assets, Globals, Input, Pipeline, Renderer, Window};
 
 const PIPELINE_LABEL: &str = "dotrix::overlay";
 
@@ -34,7 +28,7 @@ unsafe impl Sync for Overlay {}
 unsafe impl Send for Overlay {}
 
 pub struct Providers<'a> {
-    iter: std::collections::hash_map::ValuesMut<'a, TypeId, Box<dyn Ui>>
+    iter: std::collections::hash_map::ValuesMut<'a, TypeId, Box<dyn Ui>>,
 }
 
 impl<'a> Iterator for Providers<'a> {
@@ -48,35 +42,41 @@ impl<'a> Iterator for Providers<'a> {
 impl Overlay {
     pub fn providers(&mut self) -> Providers {
         Providers {
-            iter: self.providers.values_mut()
+            iter: self.providers.values_mut(),
         }
     }
 
     pub fn set<T>(&mut self, ui: T)
-    where T: Ui
+    where
+        T: Ui,
     {
         let type_id = TypeId::of::<T>();
         self.providers.insert(type_id, Box::new(ui));
     }
 
     pub fn get<T>(&self) -> Option<&T>
-    where T: Any
+    where
+        T: Any,
     {
         let type_id = TypeId::of::<T>();
-        self.providers.get(&type_id)
+        self.providers
+            .get(&type_id)
             .map(|boxed| boxed.downcast_ref::<T>().unwrap())
     }
 
     pub fn get_mut<T>(&mut self) -> Option<&mut T>
-    where T: Any
+    where
+        T: Any,
     {
         let type_id = TypeId::of::<T>();
-        self.providers.get_mut(&type_id)
+        self.providers
+            .get_mut(&type_id)
             .map(|boxed| boxed.downcast_mut::<T>().unwrap())
     }
 
     pub fn remove<T>(&mut self)
-    where T: Any
+    where
+        T: Any,
     {
         let type_id = TypeId::of::<T>();
         self.providers.remove(&type_id);
@@ -153,33 +153,31 @@ pub fn render(
     globals: Const<Globals>,
     window: Const<Window>,
 ) {
-    let mut overlay_uniform = overlay.uniform.take()
-        .unwrap_or_default();
+    let mut overlay_uniform = overlay.uniform.take().unwrap_or_default();
 
     let window_size = window.inner_size();
     let scale_factor = window.scale_factor();
 
     renderer.load_uniform_buffer(
         &mut overlay_uniform,
-        bytemuck::cast_slice(&[
-            Uniform {
-                window_size: [
-                    window_size.x as f32 / scale_factor,
-                    window_size.y as f32 / scale_factor
-                ]
-            }
-        ])
+        bytemuck::cast_slice(&[Uniform {
+            window_size: [
+                window_size.x as f32 / scale_factor,
+                window_size.y as f32 / scale_factor,
+            ],
+        }]),
     );
 
     for provider in overlay.providers() {
         for (widget, pipeline) in provider.tessellate(&window) {
             if pipeline.shader.is_null() {
-                pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL)
-                    .unwrap_or_default();
+                pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
             }
 
             // check if model is disabled or already rendered
-            if !pipeline.cycle(&renderer) { continue; }
+            if !pipeline.cycle(&renderer) {
+                continue;
+            }
 
             widget.mesh.load(&renderer);
 
@@ -191,30 +189,45 @@ pub fn render(
 
             if !pipeline.ready() {
                 if let Some(shader) = assets.get(pipeline.shader) {
-                    let sampler = globals.get::<Sampler>()
+                    let sampler = globals
+                        .get::<Sampler>()
                         .expect("Sampler buffer must be loaded");
 
-                    let texture = assets.get(widget.texture)
-                        .expect("Texture must be loaded");
+                    let texture = assets.get(widget.texture).expect("Texture must be loaded");
 
-                    renderer.bind(pipeline, PipelineLayout {
-                        label: String::from(PIPELINE_LABEL),
-                        mesh: &widget.mesh,
-                        shader,
-                        bindings: &[
-                            BindGroup::new("Globals", vec![
-                                Binding::Uniform("Overlay", Stage::Vertex, &overlay_uniform),
-                            ]),
-                            BindGroup::new("Locals", vec![
-                                Binding::Texture("Texture", Stage::Fragment, &texture.buffer),
-                                Binding::Sampler("Sampler", Stage::Fragment, sampler),
-                            ])
-                        ],
-                        options: PipelineOptions {
-                            depth_buffer_mode: DepthBufferMode::Disabled,
-                            disable_cull_mode: true,
-                        }
-                    });
+                    renderer.bind(
+                        pipeline,
+                        PipelineLayout {
+                            label: String::from(PIPELINE_LABEL),
+                            mesh: &widget.mesh,
+                            shader,
+                            bindings: &[
+                                BindGroup::new(
+                                    "Globals",
+                                    vec![Binding::Uniform(
+                                        "Overlay",
+                                        Stage::Vertex,
+                                        &overlay_uniform,
+                                    )],
+                                ),
+                                BindGroup::new(
+                                    "Locals",
+                                    vec![
+                                        Binding::Texture(
+                                            "Texture",
+                                            Stage::Fragment,
+                                            &texture.buffer,
+                                        ),
+                                        Binding::Sampler("Sampler", Stage::Fragment, sampler),
+                                    ],
+                                ),
+                            ],
+                            options: PipelineOptions {
+                                depth_buffer_mode: DepthBufferMode::Disabled,
+                                disable_cull_mode: true,
+                            },
+                        },
+                    );
                 }
             }
             renderer.run(pipeline, &widget.mesh);
@@ -227,7 +240,7 @@ pub fn render(
 #[repr(C)]
 #[derive(Default, Copy, Clone)]
 struct Uniform {
-    window_size: [f32; 2]
+    window_size: [f32; 2],
 }
 
 unsafe impl bytemuck::Zeroable for Uniform {}
@@ -239,4 +252,3 @@ pub fn extension(application: &mut Application) {
     application.add_system(System::from(render).with(Priority::Custom(0)));
     application.add_service(Overlay::default());
 }
-

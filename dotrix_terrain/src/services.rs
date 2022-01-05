@@ -1,9 +1,9 @@
-use dotrix_core::{ Id };
-use dotrix_core::assets::{ Texture, Mesh };
+use dotrix_core::assets::{Mesh, Texture};
+use dotrix_core::Id;
 
-use dotrix_math::{ Vec3, InnerSpace };
+use dotrix_math::{InnerSpace, Vec3};
 
-use crate::{ Heightmap, Generator };
+use crate::{Generator, Heightmap};
 
 /// Terrain manager (configuration)
 pub struct Terrain {
@@ -56,10 +56,18 @@ impl Terrain {
 
         for z in -offset..=offset {
             let world_z = tile_z + z * scale;
-            let map_z = if world_z < -half_world_size { 0 } else { world_z + half_world_size };
+            let map_z = if world_z < -half_world_size {
+                0
+            } else {
+                world_z + half_world_size
+            };
             for x in -offset..=offset {
                 let world_x = tile_x + x * scale;
-                let map_x = if world_x < -half_world_size { 0 } else { world_x + half_world_size};
+                let map_x = if world_x < -half_world_size {
+                    0
+                } else {
+                    world_x + half_world_size
+                };
                 let world_y = self.heightmap.value(map_x as usize, map_z as usize);
                 positions.push([world_x as f32, world_y, world_z as f32]);
                 uvs.push([

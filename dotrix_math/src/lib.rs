@@ -6,17 +6,17 @@
 #![warn(missing_docs)]
 
 pub mod math;
-pub use math::slerp;
 pub use cgmath::num_traits::clamp;
 pub use cgmath::num_traits::clamp_min;
 pub use cgmath::perspective;
-pub use cgmath::VectorSpace;
+pub use cgmath::Deg;
 pub use cgmath::InnerSpace;
 pub use cgmath::MetricSpace;
+pub use cgmath::Rad;
 pub use cgmath::Rotation3;
 pub use cgmath::SquareMatrix;
-pub use cgmath::Rad;
-pub use cgmath::Deg;
+pub use cgmath::VectorSpace;
+pub use math::slerp;
 
 /// 4x4 Matrix of f32
 pub type Mat4 = cgmath::Matrix4<f32>;
@@ -40,4 +40,3 @@ pub type Vec2i = cgmath::Vector2<i32>;
 pub type Vec2u = cgmath::Vector2<u32>;
 /// Quaternion of f32
 pub type Quat = cgmath::Quaternion<f32>;
-

@@ -1,11 +1,11 @@
 //! Dotrix camera implementation
 use crate::{
-    ecs::{ Mut, Const },
-    services::{ Frame, Globals, Input, Renderer, Window },
-    renderer::{ UniformBuffer },
+    ecs::{Const, Mut},
+    renderer::UniformBuffer,
+    services::{Frame, Globals, Input, Renderer, Window},
 };
 
-use dotrix_math::{ Mat4, Point3, Vec3, perspective, Rad };
+use dotrix_math::{perspective, Mat4, Point3, Rad, Vec3};
 use std::f32::consts::PI;
 
 const ROTATE_SPEED: f32 = PI / 10.0;
@@ -60,7 +60,7 @@ impl Camera {
             fov,
             near_plane,
             far_plane,
-            proj: None
+            proj: None,
         }
     }
 
@@ -130,7 +130,7 @@ pub fn bind(
     mut globals: Mut<Globals>,
     mut camera: Mut<Camera>,
     renderer: Const<Renderer>,
-    window: Const<Window>
+    window: Const<Window>,
 ) {
     // Calculate projection matrix
     if camera.proj.is_none() {
@@ -138,7 +138,7 @@ pub fn bind(
             Rad(camera.fov),
             window.aspect_ratio(),
             camera.near_plane,
-            camera.far_plane
+            camera.far_plane,
         ));
     }
 
@@ -161,7 +161,7 @@ pub fn resize(mut camera: Mut<Camera>, window: Const<Window>) {
         Rad(camera.fov),
         window.aspect_ratio(),
         camera.near_plane,
-        camera.far_plane
+        camera.far_plane,
     ));
 }
 
@@ -176,7 +176,7 @@ pub fn control(mut camera: Mut<Camera>, input: Const<Input>, frame: Const<Frame>
 
     camera.y_angle += mouse_delta.x * ROTATE_SPEED * time_delta;
 
-    let xz_angle = camera.xz_angle + mouse_delta.y * ROTATE_SPEED * time_delta;  
+    let xz_angle = camera.xz_angle + mouse_delta.y * ROTATE_SPEED * time_delta;
     let half_pi = PI / 2.0;
 
     camera.xz_angle = if xz_angle >= half_pi {
@@ -187,5 +187,3 @@ pub fn control(mut camera: Mut<Camera>, input: Const<Input>, frame: Const<Frame>
         xz_angle
     };
 }
-
-

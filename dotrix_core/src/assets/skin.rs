@@ -1,10 +1,10 @@
 //! Skin asset
-use std::collections::HashMap;
 use crate::{
     pose::Pose,
-    transform::{ Transform, Builder as TransformBuilder },
+    transform::{Builder as TransformBuilder, Transform},
 };
-use dotrix_math::{ Mat4, SquareMatrix };
+use dotrix_math::{Mat4, SquareMatrix};
+use std::collections::HashMap;
 
 /// Maximal number of joints in skin
 pub const MAX_JOINTS: usize = 32;
@@ -32,7 +32,12 @@ impl Joint {
         name: Option<String>,
         local_bind_transform: Transform,
     ) -> Self {
-        Self { local_bind_transform, name, id, parent_id }
+        Self {
+            local_bind_transform,
+            name,
+            id,
+            parent_id,
+        }
     }
 
     fn transform(
@@ -48,7 +53,7 @@ impl Joint {
 
         JointTransform {
             id: self.id,
-            global_transform: parent_transform * local_transform
+            global_transform: parent_transform * local_transform,
         }
     }
 }
@@ -95,17 +100,13 @@ impl Skin {
         mut index: Vec<JointIndex>,
         inverse_bind_matrices: Option<Vec<Mat4>>,
     ) -> Self {
-
         if let Some(inverse_bind_matrices) = inverse_bind_matrices {
             for (mut joint_index, matrix) in index.iter_mut().zip(inverse_bind_matrices.iter()) {
                 joint_index.inverse_bind_matrix = Some(*matrix);
             }
         }
 
-        Self {
-            joints,
-            index,
-        }
+        Self { joints, index }
     }
 
     fn index(&self, joint_id: JointId) -> usize {
@@ -119,9 +120,9 @@ impl Skin {
         model_transform: &Mat4,
         local_transforms: Option<HashMap<JointId, TransformBuilder>>,
     ) {
-
         for (i, joint) in self.joints.iter().enumerate() {
-            let parent_transform = joint.parent_id
+            let parent_transform = joint
+                .parent_id
                 .map(|parent_id| skin_transform.joints[self.index(parent_id)].global_transform)
                 .or(Some(*model_transform))
                 .unwrap();
@@ -139,5 +140,3 @@ impl Skin {
         }
     }
 }
-
-

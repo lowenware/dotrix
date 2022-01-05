@@ -3,11 +3,11 @@ mod settings;
 mod skybox;
 mod terrain;
 
-use dotrix::prelude::*;
-use dotrix::{ Camera, World };
-use dotrix::{ egui, sky, pbr, overlay };
 use dotrix::math::Point3;
 use dotrix::pbr::Light;
+use dotrix::prelude::*;
+use dotrix::{egui, overlay, pbr, sky};
+use dotrix::{Camera, World};
 
 use settings::Settings;
 

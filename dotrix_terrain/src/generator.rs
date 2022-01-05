@@ -1,8 +1,8 @@
-use noise::{ NoiseFn, Perlin };
 use crate::Heightmap;
+use noise::{NoiseFn, Perlin};
 
-use rand::{ SeedableRng, RngCore };
 use rand::rngs::SmallRng;
+use rand::{RngCore, SeedableRng};
 
 /// Noise configuration
 #[derive(Clone, Copy, PartialEq, PartialOrd)]
@@ -35,15 +35,17 @@ impl Noise {
 
         let mut pseudo_rng = SmallRng::seed_from_u64(self.seed as u64);
 
-        let octaves_offsets = (0..self.octaves).map(|_| {
-            max_noise_height += amplitude;
-            amplitude *= self.persistence;
+        let octaves_offsets = (0..self.octaves)
+            .map(|_| {
+                max_noise_height += amplitude;
+                amplitude *= self.persistence;
 
-            [
-                Self::randomize_offset(self.offset[0], &mut pseudo_rng),
-                Self::randomize_offset(self.offset[1], &mut pseudo_rng)
-            ]
-        }).collect::<Vec<_>>();
+                [
+                    Self::randomize_offset(self.offset[0], &mut pseudo_rng),
+                    Self::randomize_offset(self.offset[1], &mut pseudo_rng),
+                ]
+            })
+            .collect::<Vec<_>>();
 
         let mut min_noise_height = 0.0;
         let mut max_noise_height = 0.0;
@@ -57,12 +59,8 @@ impl Noise {
                 frequency = 1.0;
 
                 for octave_offset in octaves_offsets.iter() {
-                    let xf = (x as f32 - half_size + octave_offset[0])
-                        / self.scale
-                        * frequency;
-                    let zf = (z as f32 - half_size + octave_offset[1])
-                        / self.scale
-                        * frequency;
+                    let xf = (x as f32 - half_size + octave_offset[0]) / self.scale * frequency;
+                    let zf = (z as f32 - half_size + octave_offset[1]) / self.scale * frequency;
 
                     let noise_value = noise.get([xf as f64, zf as f64]) as f32; // (-1..1);
                     noise_height += noise_value * amplitude;
@@ -145,10 +143,12 @@ impl Falloff {
     }
 }
 
-
 impl Default for Falloff {
     fn default() -> Self {
-        Self { power: 2.6, factor: 2.4 }
+        Self {
+            power: 2.6,
+            factor: 2.4,
+        }
     }
 }
 
@@ -171,7 +171,11 @@ impl Heightmap for Generator {
             .as_ref()
             .map(|noise_map| {
                 let i = x * self.size + z;
-                let mut value = if i < noise_map.len() { noise_map[i] } else { 0.0 };
+                let mut value = if i < noise_map.len() {
+                    noise_map[i]
+                } else {
+                    0.0
+                };
                 if let Some(falloff_map) = self.falloff_map.as_ref() {
                     if i < falloff_map.len() {
                         value -= falloff_map[i];

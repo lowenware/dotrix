@@ -1,29 +1,12 @@
 /// WGPU backend wrapper module
-use std::{
-    borrow::Cow,
-    collections::HashMap,
-};
+use std::{borrow::Cow, collections::HashMap};
 use wgpu;
 use wgpu::util::DeviceExt;
 use winit;
 
-use crate::{
-    assets::{
-        Shader,
-    },
-    id::Id,
-    color::Color,
-};
+use crate::{assets::Shader, color::Color, id::Id};
 
-use super::{
-    AttributeFormat,
-    BindGroup,
-    Binding,
-    DepthBufferMode,
-    Options,
-    PipelineLayout,
-    Stage
-};
+use super::{AttributeFormat, BindGroup, Binding, DepthBufferMode, Options, PipelineLayout, Stage};
 
 pub(crate) struct Context {
     #[allow(dead_code)]
@@ -40,8 +23,7 @@ pub(crate) struct Context {
 
 impl Context {
     pub(crate) fn bind_frame(&mut self, clear_color: &Color) {
-        let frame = match self.surface
-                    .get_current_texture() {
+        let frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(_) => {
                 self.surface.configure(&self.device, &self.sur_desc);
@@ -52,8 +34,12 @@ impl Context {
         };
 
         let command_encoder_descriptor = wgpu::CommandEncoderDescriptor { label: None };
-        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.device.create_command_encoder(&command_encoder_descriptor);
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self
+            .device
+            .create_command_encoder(&command_encoder_descriptor);
         {
             encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -135,7 +121,9 @@ impl Context {
             let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
 
             let frame = self.frame.as_ref().expect("WGPU frame must be set");
-            let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let view = frame
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachment {
@@ -155,7 +143,9 @@ impl Context {
                         }),
                         stencil_ops: None,
                     })
-                } else { None }
+                } else {
+                    None
+                },
             });
 
             rpass.push_debug_group("Prepare to run pipeline");
@@ -166,18 +156,17 @@ impl Context {
                     scissors_rect.clip_min_x,
                     scissors_rect.clip_min_y,
                     scissors_rect.width,
-                    scissors_rect.height
+                    scissors_rect.height,
                 );
             }
 
             for (index, wgpu_bind_group) in bindings.wgpu_bind_groups.iter().enumerate() {
-               rpass.set_bind_group(index as u32, wgpu_bind_group, &[]);
+                rpass.set_bind_group(index as u32, wgpu_bind_group, &[]);
             }
             rpass.set_vertex_buffer(0, vertex_buffer.get().slice(..));
             rpass.pop_debug_group();
 
             let count = vertex_buffer.count;
-
 
             if let Some(indices_buffer) = vertex_buffer.indices().as_ref() {
                 rpass.insert_debug_marker("Draw indexed");
@@ -243,7 +232,6 @@ pub(crate) async fn init(window: &winit::window::Window) -> Context {
     }
 }
 
-
 fn create_depth_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
     let buffer_extent = wgpu::Extent3d {
         width,
@@ -263,7 +251,8 @@ fn create_depth_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgpu::
             | wgpu::TextureUsages::COPY_DST,
     };
 
-    device.create_texture(&texture)
+    device
+        .create_texture(&texture)
         .create_view(&wgpu::TextureViewDescriptor::default())
 }
 
@@ -289,15 +278,13 @@ impl VertexBuffer {
         if let Some(buffer) = self.attributes.as_ref() {
             ctx.queue.write_buffer(buffer, 0, attributes);
         } else {
-            self.attributes = Some(
-                ctx.device.create_buffer_init(
-                    &wgpu::util::BufferInitDescriptor {
-                        label: Some("VertexBuffer"),
-                        contents: attributes,
-                        usage: wgpu::BufferUsages::VERTEX,
-                    }
-                )
-            );
+            self.attributes = Some(ctx.device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("VertexBuffer"),
+                    contents: attributes,
+                    usage: wgpu::BufferUsages::VERTEX,
+                },
+            ));
         }
 
         if let Some(buffer) = self.indices.as_ref() {
@@ -305,13 +292,12 @@ impl VertexBuffer {
             ctx.queue.write_buffer(buffer, 0, indices);
         } else {
             self.indices = indices.map(|contents| {
-                ctx.device.create_buffer_init(
-                    &wgpu::util::BufferInitDescriptor {
+                ctx.device
+                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some("IndexBuffer"),
                         contents,
                         usage: wgpu::BufferUsages::INDEX,
-                    }
-                )
+                    })
             });
         }
 
@@ -330,14 +316,15 @@ impl VertexBuffer {
     }
 
     fn get(&self) -> &wgpu::Buffer {
-        self.attributes.as_ref().expect("Attributes buffer must be loaded")
+        self.attributes
+            .as_ref()
+            .expect("Attributes buffer must be loaded")
     }
 
     fn indices(&self) -> Option<&wgpu::Buffer> {
         self.indices.as_ref()
     }
 }
-
 
 /// Texture Buffer
 #[derive(Default)]
@@ -347,13 +334,7 @@ pub struct TextureBuffer {
 
 impl TextureBuffer {
     /// Loads data into the texture buffer
-    pub(crate) fn load<'a>(
-        &mut self,
-        ctx: &Context,
-        width: u32,
-        height: u32,
-        layers: &[&'a [u8]],
-    ) {
+    pub(crate) fn load<'a>(&mut self, ctx: &Context, width: u32, height: u32, layers: &[&'a [u8]]) {
         let depth_or_array_layers = layers.len() as u32;
 
         let size = wgpu::Extent3d {
@@ -379,21 +360,18 @@ impl TextureBuffer {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         });
 
-        self.wgpu_texture_view = Some(
-            texture.create_view(&wgpu::TextureViewDescriptor {
-                label: None,
-                dimension: Some(if depth_or_array_layers == 6 {
-                    wgpu::TextureViewDimension::Cube
-                } else {
-                    wgpu::TextureViewDimension::D2
-                }),
-                ..wgpu::TextureViewDescriptor::default()
-            })
-        );
+        self.wgpu_texture_view = Some(texture.create_view(&wgpu::TextureViewDescriptor {
+            label: None,
+            dimension: Some(if depth_or_array_layers == 6 {
+                wgpu::TextureViewDimension::Cube
+            } else {
+                wgpu::TextureViewDimension::D2
+            }),
+            ..wgpu::TextureViewDescriptor::default()
+        }));
 
         for (i, data) in layers.iter().enumerate() {
-            let bytes_per_row = std::num::NonZeroU32::new(data.len() as u32 / height)
-                .unwrap();
+            let bytes_per_row = std::num::NonZeroU32::new(data.len() as u32 / height).unwrap();
 
             ctx.queue.write_texture(
                 wgpu::ImageCopyTexture {
@@ -412,7 +390,7 @@ impl TextureBuffer {
                     bytes_per_row: Some(bytes_per_row),
                     rows_per_image: Some(std::num::NonZeroU32::new(height).unwrap()),
                 },
-                layer_size
+                layer_size,
             );
         }
     }
@@ -428,10 +406,11 @@ impl TextureBuffer {
     }
 
     fn get(&self) -> &wgpu::TextureView {
-        self.wgpu_texture_view.as_ref().expect("Texture must be loaded")
+        self.wgpu_texture_view
+            .as_ref()
+            .expect("Texture must be loaded")
     }
 }
-
 
 /// Uniform Buffer
 #[derive(Default)]
@@ -441,23 +420,17 @@ pub struct UniformBuffer {
 
 impl UniformBuffer {
     /// Loads data into the uniform buffer
-    pub(crate) fn load<'a>(
-        &mut self,
-        ctx: &Context,
-        data: &'a [u8],
-    ) {
+    pub(crate) fn load<'a>(&mut self, ctx: &Context, data: &'a [u8]) {
         if let Some(buffer) = self.wgpu_buffer.as_ref() {
             ctx.queue.write_buffer(buffer, 0, data);
         } else {
-            self.wgpu_buffer = Some(
-                ctx.device.create_buffer_init(
-                    &wgpu::util::BufferInitDescriptor {
-                        label: Some("UniformBuffer"),
-                        contents: data,
-                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                    }
-                )
-            );
+            self.wgpu_buffer = Some(ctx.device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("UniformBuffer"),
+                    contents: data,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                },
+            ));
         }
     }
 
@@ -472,10 +445,11 @@ impl UniformBuffer {
     }
 
     fn get(&self) -> &wgpu::Buffer {
-        self.wgpu_buffer.as_ref().expect("Uniform buffer must be loaded")
+        self.wgpu_buffer
+            .as_ref()
+            .expect("Uniform buffer must be loaded")
     }
 }
-
 
 /// Texture Sampler
 #[derive(Default)]
@@ -486,18 +460,18 @@ pub struct Sampler {
 impl Sampler {
     /// Loads the Sampler
     pub(crate) fn load(&mut self, ctx: &Context) {
-        if self.wgpu_sampler.is_some() { return; }
-        self.wgpu_sampler = Some(ctx.device.create_sampler(
-            &wgpu::SamplerDescriptor {
-                address_mode_u: wgpu::AddressMode::Repeat,
-                address_mode_v: wgpu::AddressMode::Repeat,
-                address_mode_w: wgpu::AddressMode::Repeat,
-                mag_filter: wgpu::FilterMode::Nearest,
-                min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Nearest,
-                ..Default::default()
-            }
-        ));
+        if self.wgpu_sampler.is_some() {
+            return;
+        }
+        self.wgpu_sampler = Some(ctx.device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::Repeat,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        }));
     }
 
     /// Checks if the Sampler is empty
@@ -517,7 +491,7 @@ impl Sampler {
 
 enum StorageBufferMode {
     Read,
-    ReadWrite
+    ReadWrite,
 }
 
 impl Default for StorageBufferMode {
@@ -551,11 +525,7 @@ impl StorageBuffer {
     }
 
     /// Loads data into the storage buffer
-    pub(crate) fn load<'a>(
-        &mut self,
-        ctx: &Context,
-        data: &'a [u8],
-    ) {
+    pub(crate) fn load<'a>(&mut self, ctx: &Context, data: &'a [u8]) {
         if let Some(buffer) = self.wgpu_buffer.as_ref() {
             ctx.queue.write_buffer(buffer, 0, data);
         } else {
@@ -564,18 +534,18 @@ impl StorageBuffer {
                     wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST
                 }
                 StorageBufferMode::ReadWrite => {
-                    wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC
+                    wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::COPY_DST
+                        | wgpu::BufferUsages::COPY_SRC
                 }
             };
-            self.wgpu_buffer = Some(
-                ctx.device.create_buffer_init(
-                    &wgpu::util::BufferInitDescriptor {
-                        label: Some("StorageBuffer"),
-                        contents: data,
-                        usage,
-                    }
-                )
-            );
+            self.wgpu_buffer = Some(ctx.device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("StorageBuffer"),
+                    contents: data,
+                    usage,
+                },
+            ));
         }
     }
 
@@ -590,10 +560,11 @@ impl StorageBuffer {
     }
 
     fn get(&self) -> &wgpu::Buffer {
-        self.wgpu_buffer.as_ref().expect("Storage buffer must be loaded")
+        self.wgpu_buffer
+            .as_ref()
+            .expect("Storage buffer must be loaded")
     }
 }
-
 
 /// Pipeline backend
 pub struct PipelineBackend {
@@ -618,24 +589,30 @@ impl PipelineBackend {
     pub(crate) fn new(ctx: &Context, pipeline: &PipelineLayout) -> Self {
         let depth_buffer_mode = pipeline.options.depth_buffer_mode;
         let wgpu_shader_module = pipeline.shader.module.get();
-        let wgpu_bind_group_layouts = pipeline.bindings.iter()
+        let wgpu_bind_group_layouts = pipeline
+            .bindings
+            .iter()
             .map(|bind_group_layout| Self::bind_group_layout(&ctx.device, bind_group_layout))
             .collect::<Vec<_>>();
 
         // create pipeline layout
-        let pipeline_layout = ctx.device.create_pipeline_layout(
-            &wgpu::PipelineLayoutDescriptor {
+        let pipeline_layout = ctx
+            .device
+            .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: None,
-                bind_group_layouts: wgpu_bind_group_layouts.iter()
+                bind_group_layouts: wgpu_bind_group_layouts
+                    .iter()
                     .collect::<Vec<_>>()
                     .as_slice(),
                 push_constant_ranges: &[],
-            }
-        );
+            });
 
         // prepare vertex buffers layout
         let mut vertex_array_stride = 0;
-        let vertex_attributes = pipeline.mesh.vertex_buffer_layout().iter()
+        let vertex_attributes = pipeline
+            .mesh
+            .vertex_buffer_layout()
+            .iter()
             .enumerate()
             .map(|(index, attr)| {
                 let offset = vertex_array_stride;
@@ -666,19 +643,20 @@ impl PipelineBackend {
         }];
 
         // create the pipeline
-        let wgpu_pipeline = ctx.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some(&pipeline.label),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: wgpu_shader_module,
-                entry_point: "vs_main",
-                buffers: &vertex_buffers,
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: wgpu_shader_module,
-                entry_point: "fs_main",
-                targets: &[
-                    if depth_buffer_mode == DepthBufferMode::Disabled {
+        let wgpu_pipeline = ctx
+            .device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(&pipeline.label),
+                layout: Some(&pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: wgpu_shader_module,
+                    entry_point: "vs_main",
+                    buffers: &vertex_buffers,
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: wgpu_shader_module,
+                    entry_point: "fs_main",
+                    targets: &[if depth_buffer_mode == DepthBufferMode::Disabled {
                         wgpu::ColorTargetState {
                             format: ctx.sur_desc.format,
                             blend: Some(wgpu::BlendState {
@@ -694,10 +672,8 @@ impl PipelineBackend {
                                 },
                             }),
                             write_mask: wgpu::ColorWrites::ALL,
-
                         }
                     } else {
-
                         wgpu::ColorTargetState {
                             format: ctx.sur_desc.format,
                             blend: Some(wgpu::BlendState {
@@ -706,44 +682,47 @@ impl PipelineBackend {
                             }),
                             write_mask: wgpu::ColorWrites::ALL,
                         }
-                    }
-                ],
-            }),
-            primitive: wgpu::PrimitiveState {
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: if !pipeline.options.disable_cull_mode {
-                    Some(wgpu::Face::Back)
+                    }],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: if !pipeline.options.disable_cull_mode {
+                        Some(wgpu::Face::Back)
+                    } else {
+                        None
+                    },
+                    ..Default::default()
+                },
+                depth_stencil: if depth_buffer_mode != DepthBufferMode::Disabled {
+                    Some(wgpu::DepthStencilState {
+                        format: wgpu::TextureFormat::Depth32Float,
+                        depth_write_enabled: depth_buffer_mode == DepthBufferMode::Write,
+                        depth_compare: wgpu::CompareFunction::Less,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState {
+                            constant: 2, // corresponds to bilinear filtering
+                            slope_scale: 2.0,
+                            clamp: 0.0,
+                        },
+                    })
                 } else {
                     None
                 },
-                ..Default::default()
-            },
-            depth_stencil: if depth_buffer_mode != DepthBufferMode::Disabled {
-                Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth32Float,
-                    depth_write_enabled: depth_buffer_mode == DepthBufferMode::Write,
-                    depth_compare: wgpu::CompareFunction::Less,
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState {
-                        constant: 2, // corresponds to bilinear filtering
-                        slope_scale: 2.0,
-                        clamp: 0.0,
-                    },
-                })
-            } else { None },
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-        });
+                multisample: wgpu::MultisampleState::default(),
+                multiview: None,
+            });
 
         Self {
             wgpu_bind_group_layouts,
             wgpu_pipeline,
-            depth_buffer_mode
+            depth_buffer_mode,
         }
     }
 
     fn bind_group_layout(device: &wgpu::Device, bind_group: &BindGroup) -> wgpu::BindGroupLayout {
-        let entries = bind_group.bindings.iter()
+        let entries = bind_group
+            .bindings
+            .iter()
             .enumerate()
             .map(|(index, binding)| match binding {
                 Binding::Uniform(_, stage, _) => wgpu::BindGroupLayoutEntry {
@@ -762,7 +741,7 @@ impl PipelineBackend {
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2
+                        view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
                 },
@@ -779,7 +758,7 @@ impl PipelineBackend {
                 Binding::Sampler(_, stage, _) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
                     visibility: visibility(stage),
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
                 Binding::Storage(_, stage, storage) => {
@@ -788,24 +767,22 @@ impl PipelineBackend {
                         binding: index as u32,
                         visibility: visibility(stage),
                         ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage{ read_only },
+                            ty: wgpu::BufferBindingType::Storage { read_only },
                             has_dynamic_offset: false,
                             min_binding_size: None,
                         },
                         count: None,
                     }
-                },
-            }).collect::<Vec<_>>();
+                }
+            })
+            .collect::<Vec<_>>();
 
-        device.create_bind_group_layout(
-            &wgpu::BindGroupLayoutDescriptor {
-                label: Some(bind_group.label),
-                entries: entries.as_slice(),
-            }
-        )
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some(bind_group.label),
+            entries: entries.as_slice(),
+        })
     }
 }
-
 
 /// Pipeline Bindings
 #[derive(Default)]
@@ -813,40 +790,47 @@ pub struct Bindings {
     wgpu_bind_groups: Vec<wgpu::BindGroup>,
 }
 
-
 impl Bindings {
     pub(crate) fn load(
         &mut self,
         ctx: &Context,
         pipeline: &PipelineBackend,
-        bind_groups: &[BindGroup]
+        bind_groups: &[BindGroup],
     ) {
-        self.wgpu_bind_groups = pipeline.wgpu_bind_group_layouts.iter()
+        self.wgpu_bind_groups = pipeline
+            .wgpu_bind_group_layouts
+            .iter()
             .enumerate()
-            .map(|(group, wgpu_bind_group_layout)| ctx.device.create_bind_group(
-                &wgpu::BindGroupDescriptor {
+            .map(|(group, wgpu_bind_group_layout)| {
+                ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
                     layout: wgpu_bind_group_layout,
-                    entries: bind_groups[group].bindings.iter()
+                    entries: bind_groups[group]
+                        .bindings
+                        .iter()
                         .enumerate()
                         .map(|(binding, entry)| wgpu::BindGroupEntry {
                             binding: binding as u32,
                             resource: match entry {
-                                Binding::Uniform(_, _, uniform) =>
-                                    uniform.get().as_entire_binding(),
-                                Binding::Texture(_, _, texture) |
-                                Binding::Texture3D(_, _, texture) =>
-                                    wgpu::BindingResource::TextureView(texture.get()),
-                                Binding::Sampler(_, _, sampler) =>
-                                    wgpu::BindingResource::Sampler(sampler.get()),
-                                Binding::Storage(_, _, storage) =>
-                                    storage.get().as_entire_binding(),
-                            }
+                                Binding::Uniform(_, _, uniform) => {
+                                    uniform.get().as_entire_binding()
+                                }
+                                Binding::Texture(_, _, texture)
+                                | Binding::Texture3D(_, _, texture) => {
+                                    wgpu::BindingResource::TextureView(texture.get())
+                                }
+                                Binding::Sampler(_, _, sampler) => {
+                                    wgpu::BindingResource::Sampler(sampler.get())
+                                }
+                                Binding::Storage(_, _, storage) => {
+                                    storage.get().as_entire_binding()
+                                }
+                            },
                         })
                         .collect::<Vec<_>>()
                         .as_slice(),
-                        label: None,
-                }
-            ))
+                    label: None,
+                })
+            })
             .collect::<Vec<_>>();
     }
 
@@ -861,7 +845,6 @@ impl Bindings {
     }
 }
 
-
 /// Shader Module
 #[derive(Default)]
 pub struct ShaderModule {
@@ -870,10 +853,12 @@ pub struct ShaderModule {
 
 impl ShaderModule {
     pub(crate) fn load(&mut self, ctx: &Context, name: &str, code: &str) {
-        self.wgpu_shader_model = Some(ctx.device.create_shader_module(&wgpu::ShaderModuleDescriptor {
-            label: Some(name),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(code)),
-        }));
+        self.wgpu_shader_model = Some(ctx.device.create_shader_module(
+            &wgpu::ShaderModuleDescriptor {
+                label: Some(name),
+                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(code)),
+            },
+        ));
     }
 
     /// Returns true if shader module was loaded to GPU
@@ -887,6 +872,8 @@ impl ShaderModule {
     }
 
     fn get(&self) -> &wgpu::ShaderModule {
-        self.wgpu_shader_model.as_ref().expect("Shader model must be loaded")
+        self.wgpu_shader_model
+            .as_ref()
+            .expect("Shader model must be loaded")
     }
 }

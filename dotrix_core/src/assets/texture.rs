@@ -1,5 +1,5 @@
 //! Texture asset
-use crate::renderer::{ Renderer, TextureBuffer };
+use crate::renderer::{Renderer, TextureBuffer};
 
 /// Texture asset
 #[derive(Default)]

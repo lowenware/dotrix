@@ -1,6 +1,6 @@
 //! data structure and constructors
 use std::convert::From;
-use std::ops::{ Index, IndexMut };
+use std::ops::{Index, IndexMut};
 
 /// RGBA Color.
 #[derive(Default, Copy, Clone, Debug)]
@@ -119,13 +119,23 @@ impl IndexMut<i32> for Color {
 
 impl From<[f32; 3]> for Color {
     fn from(rgb: [f32; 3]) -> Self {
-        Self { r: rgb[0], g: rgb[1], b: rgb[2], a: 1.0 }
+        Self {
+            r: rgb[0],
+            g: rgb[1],
+            b: rgb[2],
+            a: 1.0,
+        }
     }
 }
 
 impl From<[f32; 4]> for Color {
     fn from(rgba: [f32; 4]) -> Self {
-        Self { r: rgba[0], g: rgba[1], b: rgba[2], a: rgba[3] }
+        Self {
+            r: rgba[0],
+            g: rgba[1],
+            b: rgba[2],
+            a: rgba[3],
+        }
     }
 }
 

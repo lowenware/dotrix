@@ -1,10 +1,7 @@
 //! Mesh Asset
-use bytemuck::{ Pod, Zeroable };
-use dotrix_math::{ Vec3, InnerSpace, VectorSpace };
-use crate::{
-    renderer::{ AttributeFormat, VertexBuffer, Renderer },
-};
-
+use crate::renderer::{AttributeFormat, Renderer, VertexBuffer};
+use bytemuck::{Pod, Zeroable};
+use dotrix_math::{InnerSpace, Vec3, VectorSpace};
 
 /// Asset with 3D model data
 #[derive(Default)]
@@ -26,10 +23,12 @@ pub struct Mesh {
 impl Mesh {
     /// Adds Vertex Attributes to the mesh
     pub fn with_vertices<T>(&mut self, data: &[T])
-    where T: VertexAttribute + Pod + Zeroable
+    where
+        T: VertexAttribute + Pod + Zeroable,
     {
         if self.vertices.is_empty() {
-            self.vertices = data.iter()
+            self.vertices = data
+                .iter()
                 .map(|attr| Vec::from(bytemuck::cast_slice(&[*attr])))
                 .collect::<Vec<_>>();
         } else {
@@ -56,20 +55,19 @@ impl Mesh {
             return;
         }
 
-        let count = self.indices.as_ref()
+        let count = self
+            .indices
+            .as_ref()
             .map(|indices| indices.len() / 4)
             .unwrap_or_else(|| self.vertices.len());
 
-        let buffer: Vec<u8> = self.vertices.iter()
-            .flatten()
-            .copied()
-            .collect::<Vec<_>>();
+        let buffer: Vec<u8> = self.vertices.iter().flatten().copied().collect::<Vec<_>>();
 
         renderer.load_vertex_buffer(
             &mut self.vertex_buffer,
             buffer.as_slice(),
             self.indices.as_deref(),
-            count
+            count,
         );
 
         self.changed = false;
@@ -88,9 +86,7 @@ impl Mesh {
     /// Calculates normals for the mesh
     pub fn calculate_normals(positions: &[[f32; 3]], indices: Option<&[u32]>) -> Vec<[f32; 3]> {
         let mut normals = vec![[99.9; 3]; positions.len()];
-        let faces = indices
-            .map(|i| i.len())
-            .unwrap_or_else(|| positions.len()) / 3;
+        let faces = indices.map(|i| i.len()).unwrap_or_else(|| positions.len()) / 3;
 
         for face in 0..faces {
             let mut i0 = (face * 3) as usize;
@@ -132,41 +128,61 @@ pub trait VertexAttribute {
 }
 
 impl VertexAttribute for f32 {
-    fn format() -> AttributeFormat { AttributeFormat::Float32 }
+    fn format() -> AttributeFormat {
+        AttributeFormat::Float32
+    }
 }
 
 impl VertexAttribute for [f32; 2] {
-    fn format() -> AttributeFormat { AttributeFormat::Float32x2 }
+    fn format() -> AttributeFormat {
+        AttributeFormat::Float32x2
+    }
 }
 
 impl VertexAttribute for [f32; 3] {
-    fn format() -> AttributeFormat { AttributeFormat::Float32x3 }
+    fn format() -> AttributeFormat {
+        AttributeFormat::Float32x3
+    }
 }
 
 impl VertexAttribute for [f32; 4] {
-    fn format() -> AttributeFormat { AttributeFormat::Float32x4 }
+    fn format() -> AttributeFormat {
+        AttributeFormat::Float32x4
+    }
 }
 
 impl VertexAttribute for [u16; 2] {
-    fn format() -> AttributeFormat { AttributeFormat::Uint16x2 }
+    fn format() -> AttributeFormat {
+        AttributeFormat::Uint16x2
+    }
 }
 
 impl VertexAttribute for [u16; 4] {
-    fn format() -> AttributeFormat { AttributeFormat::Uint16x4 }
+    fn format() -> AttributeFormat {
+        AttributeFormat::Uint16x4
+    }
 }
 
 impl VertexAttribute for u32 {
-    fn format() -> AttributeFormat { AttributeFormat::Uint32 }
+    fn format() -> AttributeFormat {
+        AttributeFormat::Uint32
+    }
 }
 
 impl VertexAttribute for [u32; 2] {
-    fn format() -> AttributeFormat { AttributeFormat::Uint32x2 }
+    fn format() -> AttributeFormat {
+        AttributeFormat::Uint32x2
+    }
 }
 
 impl VertexAttribute for [u32; 3] {
-    fn format() -> AttributeFormat { AttributeFormat::Uint32x3 }
+    fn format() -> AttributeFormat {
+        AttributeFormat::Uint32x3
+    }
 }
 
 impl VertexAttribute for [u32; 4] {
-    fn format() -> AttributeFormat { AttributeFormat::Uint32x4 }
+    fn format() -> AttributeFormat {
+        AttributeFormat::Uint32x4
+    }
 }

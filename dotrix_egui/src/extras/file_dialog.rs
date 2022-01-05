@@ -1,8 +1,7 @@
 use std::{
-    env,
-    fs,
+    env, fs,
     io::Error,
-    path::{ Path, PathBuf },
+    path::{Path, PathBuf},
 };
 
 use egui::*;
@@ -361,27 +360,28 @@ impl FileDialog {
                 }
                 Command::CreateDirectory => {
                     let mut path = self.path.clone();
-                    let name = if self.filename_edit.is_empty()
-                        { "New folder" } else { &self.filename_edit };
+                    let name = if self.filename_edit.is_empty() {
+                        "New folder"
+                    } else {
+                        &self.filename_edit
+                    };
                     path.push(name);
                     match fs::create_dir(&path) {
                         Ok(_) => {
                             self.refresh();
                             self.select(Some(path));
                             // TODO: scroll to selected?
-                        },
+                        }
                         Err(e) => println!("Error while creating directory: {}", e),
                     }
                 }
-                Command::Rename(from, to) => {
-                    match fs::rename(from, &to) {
-                        Ok(_) => {
-                            self.refresh();
-                            self.select(Some(to));
-                        },
-                        Err(e) => println!("Error while renaming: {}", e),
+                Command::Rename(from, to) => match fs::rename(from, &to) {
+                    Ok(_) => {
+                        self.refresh();
+                        self.select(Some(to));
                     }
-                }
+                    Err(e) => println!("Error while renaming: {}", e),
+                },
             };
         }
     }

@@ -1,28 +1,16 @@
-use crate::match_finder::{ MatchFinder, MatchFinderState };
-use dotrix::ecs::{ Const, Mut };
-use dotrix::assets:: { Assets, Texture };
-use dotrix::{ Id, Frame, Input, Window };
+use crate::match_finder::{MatchFinder, MatchFinderState};
+use dotrix::assets::{Assets, Texture};
+use dotrix::ecs::{Const, Mut};
+use dotrix::egui::extras::file_dialog::FileDialog;
 use dotrix::egui::{
-    CollapsingHeader,
-    ComboBox,
-    Egui,
-    Grid,
-    ScrollArea,
-    SidePanel,
-    Slider,
-    TopBottomPanel,
+    CollapsingHeader, ComboBox, Egui, Grid, ScrollArea, SidePanel, Slider, TopBottomPanel,
 };
-use dotrix::egui::extras::{
-    file_dialog::FileDialog,
-};
+use dotrix::math::{Vec2i, Vec2u};
 use dotrix::overlay::Overlay;
-use dotrix::math::{ Vec2i, Vec2u };
-use dotrix::window::{ CursorIcon, Fullscreen, UserAttentionType, VideoMode };
+use dotrix::window::{CursorIcon, Fullscreen, UserAttentionType, VideoMode};
+use dotrix::{Frame, Id, Input, Window};
 
-use std::{
-    collections::hash_map::HashMap,
-    path::PathBuf,
-};
+use std::{collections::hash_map::HashMap, path::PathBuf};
 
 pub struct Settings {
     current_monitor_number: usize,
@@ -63,16 +51,25 @@ pub fn ui(
     mut settings: Mut<Settings>,
     mut window: Mut<Window>,
 ) {
-    let egui = overlay.get::<Egui>()
+    let egui = overlay
+        .get::<Egui>()
         .expect("Renderer does not contain an Overlay instance");
 
     TopBottomPanel::top("top_panel").show(&egui.ctx, |ui| {
         ui.horizontal(|ui| {
-            if ui.button("🗙").clicked() { window.close(); }
-            if ui.button("🗕").clicked() { window.set_minimized(true); }
+            if ui.button("🗙").clicked() {
+                window.close();
+            }
+            if ui.button("🗕").clicked() {
+                window.set_minimized(true);
+            }
             if window.maximized() {
-                if ui.button("Ｓ").clicked() { window.set_maximized(false); }
-            } else if ui.button("🗖").clicked() { window.set_maximized(true); }
+                if ui.button("Ｓ").clicked() {
+                    window.set_maximized(false);
+                }
+            } else if ui.button("🗖").clicked() {
+                window.set_maximized(true);
+            }
 
             ui.horizontal(|ui| {
                 if ui.text_edit_singleline(&mut settings.title).lost_focus() {
@@ -586,16 +583,14 @@ fn file_path_to_string(buf: &Option<std::path::PathBuf>) -> String {
     }
 }
 
-pub fn startup(
-    mut assets: Mut<Assets>,
-    mut settings: Mut<Settings>,
-    window: Const<Window>,
-) {
+pub fn startup(mut assets: Mut<Assets>, mut settings: Mut<Settings>, window: Const<Window>) {
     settings.title = String::from(window.title());
 
     // Load icons
     for name in ["dotrix", "lowenware", "rustacean"].iter() {
-        settings.icons.insert(String::from(*name), assets.register::<Texture>(name));
+        settings
+            .icons
+            .insert(String::from(*name), assets.register::<Texture>(name));
         assets.import(format!("assets/{}.png", name).as_str());
     }
 }
@@ -611,9 +606,10 @@ fn move_window_left(window: &Window) {
 fn move_window_right(window: &Window) {
     if let (Some(screen_size), Ok(pos)) = (window.screen_size(), window.outer_position()) {
         let outer_size = window.outer_size();
-        window.set_outer_position(
-            Vec2i::new(screen_size.x as i32 - outer_size.x as i32, pos.y)
-        );
+        window.set_outer_position(Vec2i::new(
+            screen_size.x as i32 - outer_size.x as i32,
+            pos.y,
+        ));
     } else {
         println!("Cannot move window.");
     }
@@ -630,9 +626,10 @@ fn move_window_top(window: &Window) {
 fn move_window_bottom(window: &Window) {
     if let (Some(screen_size), Ok(pos)) = (window.screen_size(), window.outer_position()) {
         let outer_size = window.outer_size();
-        window.set_outer_position(
-            Vec2i::new(pos.x, screen_size.y as i32 - outer_size.y as i32)
-        );
+        window.set_outer_position(Vec2i::new(
+            pos.x,
+            screen_size.y as i32 - outer_size.y as i32,
+        ));
     } else {
         println!("Cannot move window.");
     }
@@ -641,12 +638,10 @@ fn move_window_bottom(window: &Window) {
 fn move_window_center(window: &Window) {
     if let Some(screen_size) = window.screen_size() {
         let outer_size = window.outer_size();
-        window.set_outer_position(
-            Vec2i::new(
-                (screen_size.x - outer_size.x) as i32 / 2,
-                (screen_size.y - outer_size.y) as i32 / 2,
-            )
-        );
+        window.set_outer_position(Vec2i::new(
+            (screen_size.x - outer_size.x) as i32 / 2,
+            (screen_size.y - outer_size.y) as i32 / 2,
+        ));
     } else {
         println!("Cannot move window.");
     }
