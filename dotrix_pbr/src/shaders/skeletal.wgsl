@@ -89,17 +89,14 @@ fn vs_main(
 
 // STAGE: FRAGMENT -------------------------------------------------------------------------------
 struct Material {
-  color: vec4<f32>;
-  has_texture: u32;
-};
-struct Materials {
-    albedo: Material;
-    roughness: Material;
-    metallic: Material;
-    ao: Material;
+    albedo: vec4<f32>;
+    has_texture: u32;
+    roughness: f32;
+    metallic: f32;
+    ao: f32;
 };
 [[group(1), binding(1)]]
-var<uniform> u_material: Materials;
+var<uniform> u_material: Material;
 
 [[group(1), binding(2)]]
 var r_texture: texture_2d<f32>;
@@ -125,43 +122,43 @@ fn average(input: vec4<f32>) -> f32 {
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     var albedo: vec4<f32>;
-    var roughness: vec4<f32>;
-    var metallic: vec4<f32>;
-    var ao: vec4<f32>;
+    var roughness: f32;
+    var metallic: f32;
+    var ao: f32;
 
-    if (u_material.albedo.has_texture != 0u) {
+    if ((u_material.has_texture & 1u) == 1u) {
         albedo = textureSample(r_texture, r_sampler, in.tex_uv);
         // Covert from sRGB to linear color space
         // (PBR based renderer expect linear)
         albedo = vec4<f32>(pow(albedo.rgb, vec3<f32>(2.2)), albedo.a);
     } else {
-        albedo = u_material.albedo.color;
+        albedo = u_material.albedo;
     }
 
-    if (u_material.roughness.has_texture != 0u) {
-        roughness = textureSample(r_roughness_texture, r_sampler, in.tex_uv);
+    if ((u_material.has_texture & 2u) == 2u) {
+        roughness = average(textureSample(r_roughness_texture, r_sampler, in.tex_uv));
     } else {
-        roughness = u_material.roughness.color;
+        roughness = u_material.roughness;
     }
 
-    if (u_material.metallic.has_texture != 0u) {
-        metallic = textureSample(r_metallic_texture, r_sampler, in.tex_uv);
+    if ((u_material.has_texture & 4u) == 2u) {
+        metallic = average(textureSample(r_metallic_texture, r_sampler, in.tex_uv));
     } else {
-        metallic = u_material.metallic.color;
+        metallic = u_material.metallic;
     }
 
-    if (u_material.ao.has_texture != 0u) {
-        ao = textureSample(r_ao_texture, r_sampler, in.tex_uv);
+    if ((u_material.has_texture & 8u) == 8u) {
+        ao = average(textureSample(r_ao_texture, r_sampler, in.tex_uv));
     } else {
-        ao = u_material.ao.color;
+        ao = u_material.ao;
     }
 
     return calculate_lighting(
         in.world_position.xyz,
         in.normal.xyz,
         albedo.rgb,
-        average(roughness),
-        average(metallic),
-        average(ao),
+        roughness,
+        metallic,
+        ao,
     );
 }

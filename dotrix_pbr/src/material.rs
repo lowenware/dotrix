@@ -47,32 +47,6 @@ impl Material {
             self.ao_texture = dummy_id;
         }
 
-        let albedo = MaterialUniform {
-            color: self.albedo.into(),
-            has_texture: !(self.texture == dummy_id) as u32,
-            ..Default::default()
-        };
-        let roughness = MaterialUniform {
-            color: [
-                self.roughness,
-                self.roughness,
-                self.roughness,
-                self.roughness,
-            ],
-            has_texture: !(self.roughness_texture == dummy_id) as u32,
-            ..Default::default()
-        };
-        let metallic = MaterialUniform {
-            color: [self.metallic, self.metallic, self.metallic, self.metallic],
-            has_texture: !(self.metallic_texture == dummy_id) as u32,
-            ..Default::default()
-        };
-        let ao = MaterialUniform {
-            color: [self.ao, self.ao, self.ao, self.ao],
-            has_texture: !(self.ao_texture == dummy_id) as u32,
-            ..Default::default()
-        };
-
         if let Some(texture) = assets.get_mut(self.texture) {
             texture.load(renderer);
         } else {
@@ -94,11 +68,26 @@ impl Material {
             return false;
         }
 
+        let mut has_texture: u32 = 0;
+        if self.texture != dummy_id {
+            has_texture |= 0b0001;
+        }
+        if self.roughness_texture != dummy_id {
+            has_texture |= 0b0010;
+        }
+        if self.metallic_texture != dummy_id {
+            has_texture |= 0b0100;
+        }
+        if self.ao_texture != dummy_id {
+            has_texture |= 0b1000;
+        }
+
         let uniform = Uniform {
-            albedo,
-            roughness,
-            metallic,
-            ao,
+            albedo: self.albedo.into(),
+            has_texture,
+            roughness: self.roughness,
+            metallic: self.metallic,
+            ao: self.ao,
         };
 
         renderer.load_uniform_buffer(&mut self.uniform, bytemuck::cast_slice(&[uniform]));
@@ -108,21 +97,12 @@ impl Material {
 
 #[repr(C)]
 #[derive(Default, Debug, Clone, Copy)]
-struct MaterialUniform {
-    color: [f32; 4],
-    has_texture: u32,
-    reserved: [f32; 3],
-}
-unsafe impl bytemuck::Zeroable for MaterialUniform {}
-unsafe impl bytemuck::Pod for MaterialUniform {}
-
-#[repr(C)]
-#[derive(Default, Debug, Clone, Copy)]
 struct Uniform {
-    albedo: MaterialUniform,
-    roughness: MaterialUniform,
-    metallic: MaterialUniform,
-    ao: MaterialUniform,
+    albedo: [f32; 4],
+    has_texture: u32,
+    roughness: f32,
+    metallic: f32,
+    ao: f32,
 }
 
 unsafe impl bytemuck::Zeroable for Uniform {}
