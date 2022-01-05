@@ -51,6 +51,18 @@ impl Default for Egui {
     }
 }
 
+impl Egui {
+    /// Returns true if it wants the mouse clicks
+    pub fn wants_pointer_input(&self) -> bool {
+        !self.mouse_used_outside && self.ctx.wants_pointer_input()
+    }
+
+    /// Returns true if it wants the keyboard clicks
+    pub fn wants_keyboard_input(&self) -> bool {
+        self.ctx.wants_keyboard_input()
+    }
+}
+
 impl Ui for Egui {
     fn bind(&mut self, assets: &mut Assets, input: &mut Input, window: &Window) {
         let scale_factor = self.scale_factor * window.scale_factor();
