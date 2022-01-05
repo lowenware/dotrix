@@ -106,9 +106,9 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     }
 
     if (u_material.ao.has_texture != 0u) {
-        metallic = textureSample(r_ao_texture, r_sampler, in.tex_uv);
+        ao = textureSample(r_ao_texture, r_sampler, in.tex_uv);
     } else {
-        metallic = u_material.ao.color;
+        ao = u_material.ao.color;
     }
 
     return calculate_lighting(
