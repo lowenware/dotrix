@@ -50,6 +50,7 @@ pub struct Assets {
     receiver: mpsc::Receiver<Response>,
     id_generator: u64,
     removed_shaders: HashSet<Id<Shader>>,
+    hot_reload: bool,
 }
 
 impl Assets {
@@ -83,6 +84,7 @@ impl Assets {
             receiver,
             id_generator: 1,
             removed_shaders: HashSet::new(),
+            hot_reload: true,
         }
     }
 
@@ -228,12 +230,22 @@ impl Assets {
             };
         }
     }
+
+    /// Enable/Disable hot reload of certain assets. If this is
+    /// disabled certain assets like `Shaders` need to be
+    /// cleaned up manually with `renderer.drop_pipeline`
+    pub fn hot_reload_enable(&mut self, enable: bool) {
+        self.hot_reload = enable;
+    }
 }
 
 /// Reload assets and cleanup any assets that need some post process
 /// after `assets.remove`
-pub fn assets_reload(mut assets: Mut<Assets>, mut renderer: Mut<Renderer>) {
-    // Shaders that no longer exist need ro be removed from the renderer
+pub fn release(mut assets: Mut<Assets>, mut renderer: Mut<Renderer>) {
+    if !assets.hot_reload {
+        return;
+    }
+    // Shaders that no longer exist need to be removed from the renderer
     // by dropping their pipeline
     for removed_shader in &assets.removed_shaders {
         if assets.get::<Shader>(*removed_shader).is_none() {
