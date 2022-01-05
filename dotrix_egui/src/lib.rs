@@ -82,7 +82,6 @@ impl Ui for Egui {
 
         for &(dotrix_button, egui_button) in dotrix_to_egui.iter() {
             if let Some(button_state) = input.button_state(dotrix_button) {
-                println!("button_state: {:?}", button_state);
                 events.push(egui::Event::PointerButton {
                     pos: mouse_pos,
                     button: egui_button,
