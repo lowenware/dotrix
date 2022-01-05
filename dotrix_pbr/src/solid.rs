@@ -27,7 +27,7 @@ pub struct Entity {
     pub metallic: f32,
     /// Ambient occulsion texture asset ID
     pub ao_texture: Id<Texture>,
-    // Ambient occulsion
+    /// Ambient occulsion
     pub ao: f32,
     /// Shader asset ID
     pub shader: Id<Shader>,
