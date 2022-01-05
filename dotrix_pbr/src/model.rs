@@ -1,6 +1,6 @@
-use dotrix_core::{ Id, Renderer, Transform };
-use dotrix_core::assets::{ Assets, Mesh };
+use dotrix_core::assets::{Assets, Mesh};
 use dotrix_core::renderer::UniformBuffer;
+use dotrix_core::{Id, Renderer, Transform};
 
 /// Model component
 #[derive(Default)]

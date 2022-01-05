@@ -1,9 +1,9 @@
 //! Mouse ray implementation
 use crate::{
-    ecs::{ Const, Mut },
-    services::{ Camera, Input, Window },
+    ecs::{Const, Mut},
+    services::{Camera, Input, Window},
 };
-use dotrix_math::{ InnerSpace, SquareMatrix, Vec2, Vec3, Vec4 };
+use dotrix_math::{InnerSpace, SquareMatrix, Vec2, Vec3, Vec4};
 
 /// Represents ray and provides method for various calculations
 #[derive(Default)]
@@ -26,7 +26,6 @@ impl Ray {
         viewport_width: f32,
         viewport_height: f32,
     ) -> Vec4 {
-
         let x = (2.0 * pointer.x) / viewport_width - 1.0;
         let y = 1.0 - (2.0 * pointer.y) / viewport_height;
         Vec4::new(x, y, -1.0, 1.0)
@@ -34,14 +33,9 @@ impl Ray {
 
     /// Calculate intersection with an axis aligned box
     /// Returns optional ray length in near and far intersection points
-    pub fn intersect_aligned_box(
-        &self,
-        bounds: [Vec3; 2],
-    ) -> Option<(f32, f32)> {
-
+    pub fn intersect_aligned_box(&self, bounds: [Vec3; 2]) -> Option<(f32, f32)> {
         if let Some(origin) = self.origin.as_ref() {
             if let Some(inverted) = self.inverted.as_ref() {
-
                 let x_min = (bounds[self.sign[0] as usize].x - origin.x) * inverted.x;
                 let x_max = (bounds[1 - self.sign[0] as usize].x - origin.x) * inverted.x;
 
@@ -55,16 +49,16 @@ impl Ray {
                 let t_min = if y_min > x_min { y_min } else { x_min };
                 let t_max = if y_max < x_max { y_max } else { x_max };
 
-                let z_min = (bounds[self.sign[2] as usize].z - origin.z) * inverted.z; 
-                let z_max = (bounds[1 - self.sign[2] as usize].z - origin.z) * inverted.z; 
+                let z_min = (bounds[self.sign[2] as usize].z - origin.z) * inverted.z;
+                let z_max = (bounds[1 - self.sign[2] as usize].z - origin.z) * inverted.z;
 
                 if t_min > z_max || z_min > t_max {
-                    return None; 
+                    return None;
                 }
 
                 let t_min = if z_min > t_min { z_min } else { t_min };
                 let t_max = if z_max < t_max { z_max } else { t_max };
- 
+
                 return Some((t_min, t_max));
             }
         }
@@ -81,8 +75,7 @@ pub fn calculate(
 ) {
     ray.direction = input.mouse_position().map(|mouse| {
         let viewport = window.inner_size();
-        let ray = Ray::normalized_device_coords(
-            mouse, viewport.x as f32, viewport.y as f32);
+        let ray = Ray::normalized_device_coords(mouse, viewport.x as f32, viewport.y as f32);
 
         // eye coordinates
         let mut ray = camera.proj().invert().unwrap() * ray;
@@ -127,16 +120,13 @@ mod tests {
             sign,
         };
 
-        let res = ray.intersect_aligned_box([
-            Vec3::new(-1.0, -1.0, -1.0),
-            Vec3::new(1.0, 1.0, 1.0)
-        ]);
+        let res =
+            ray.intersect_aligned_box([Vec3::new(-1.0, -1.0, -1.0), Vec3::new(1.0, 1.0, 1.0)]);
 
-        assert_eq!(res.is_some(), true);
+        assert!(res.is_some());
         let (t_min, t_max) = res.unwrap();
 
         assert_eq!(t_min.round() as i32, 9);
         assert_eq!(t_max.round() as i32, 11);
     }
-
 }

@@ -48,7 +48,7 @@ pub use dotrix_sky as sky;
 pub use dotrix_terrain as terrain;
 
 pub mod prelude {
+    pub use dotrix_core::ecs::{Const, Context, Mut, System};
     pub use dotrix_core::Dotrix;
-    pub use dotrix_core::ecs::{ Mut, Const, Context, System };
     pub use dotrix_core::Service;
 }

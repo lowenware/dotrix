@@ -1,7 +1,7 @@
 use crate::{
     assets::Shader,
     id::Id,
-    renderer::{ Bindings, Options, Renderer, ScissorsRect },
+    renderer::{Bindings, Options, Renderer, ScissorsRect},
 };
 
 /// Rendering control component
@@ -31,6 +31,7 @@ impl Pipeline {
     }
 
     /// Adds scissors rectangle for rendering
+    #[must_use]
     pub fn with_scissors_rect(
         mut self,
         clip_min_x: u32,
@@ -38,14 +39,12 @@ impl Pipeline {
         width: u32,
         height: u32,
     ) -> Self {
-        self.options.scissors_rect = Some (
-            ScissorsRect {
-                clip_min_x,
-                clip_min_y,
-                width,
-                height,
-            }
-        );
+        self.options.scissors_rect = Some(ScissorsRect {
+            clip_min_x,
+            clip_min_y,
+            width,
+            height,
+        });
         self
     }
 }

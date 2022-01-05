@@ -1,27 +1,12 @@
 //! Component and buffers
 
-use dotrix_core::{
-    Application,
-    CubeMap,
-    Pipeline,
-    Assets,
-    Globals,
-    Camera,
-    Renderer,
-    World
-};
-use dotrix_core::assets::{ Mesh, Shader };
-use dotrix_core::ecs::{ Mut, Const, System };
+use dotrix_core::assets::{Mesh, Shader};
+use dotrix_core::ecs::{Const, Mut, System};
 use dotrix_core::renderer::{
-    BindGroup,
-    Binding,
-    DepthBufferMode,
-    PipelineLayout,
-    PipelineOptions,
-    Sampler,
-    Stage,
-    UniformBuffer
+    BindGroup, Binding, DepthBufferMode, PipelineLayout, PipelineOptions, Sampler, Stage,
+    UniformBuffer,
 };
+use dotrix_core::{Application, Assets, Camera, CubeMap, Globals, Pipeline, Renderer, World};
 
 use dotrix_math::Mat4;
 
@@ -49,25 +34,39 @@ pub fn startup(mut assets: Mut<Assets>, renderer: Const<Renderer>) {
     let mut mesh = Mesh::default();
     mesh.with_vertices(&[
         // front
-        [-1.0, -1.0, 1.0], [1.0, -1.0, 1.0], [1.0, 1.0, 1.0], [-1.0, 1.0, 1.0],
-        // top 
-        [1.0, 1.0, -1.0], [-1.0, 1.0, -1.0], [-1.0, 1.0, 1.0], [1.0, 1.0, 1.0],
+        [-1.0, -1.0, 1.0],
+        [1.0, -1.0, 1.0],
+        [1.0, 1.0, 1.0],
+        [-1.0, 1.0, 1.0],
+        // top
+        [1.0, 1.0, -1.0],
+        [-1.0, 1.0, -1.0],
+        [-1.0, 1.0, 1.0],
+        [1.0, 1.0, 1.0],
         // right
-        [1.0, -1.0, -1.0], [1.0, 1.0, -1.0], [1.0, 1.0, 1.0], [1.0, -1.0, 1.0],
+        [1.0, -1.0, -1.0],
+        [1.0, 1.0, -1.0],
+        [1.0, 1.0, 1.0],
+        [1.0, -1.0, 1.0],
         // left
-        [-1.0, -1.0, 1.0], [-1.0, 1.0, 1.0], [-1.0, 1.0, -1.0], [-1.0, -1.0, -1.0],
+        [-1.0, -1.0, 1.0],
+        [-1.0, 1.0, 1.0],
+        [-1.0, 1.0, -1.0],
+        [-1.0, -1.0, -1.0],
         // back
-        [-1.0, 1.0, -1.0], [1.0, 1.0, -1.0], [1.0, -1.0, -1.0], [-1.0, -1.0, -1.0],
+        [-1.0, 1.0, -1.0],
+        [1.0, 1.0, -1.0],
+        [1.0, -1.0, -1.0],
+        [-1.0, -1.0, -1.0],
         // bottom
-        [1.0, -1.0, 1.0], [-1.0, -1.0, 1.0], [-1.0, -1.0, -1.0], [1.0, -1.0, -1.0],
+        [1.0, -1.0, 1.0],
+        [-1.0, -1.0, 1.0],
+        [-1.0, -1.0, -1.0],
+        [1.0, -1.0, -1.0],
     ]);
     mesh.with_indices(&[
-        2, 1, 0, 0, 3, 2,
-        6, 5, 4, 4, 7, 6,
-        10, 9, 8, 8, 11, 10,
-        14, 13, 12, 12, 15, 14,
-        18, 17, 16, 16, 19, 18,
-        22, 21, 20, 20, 23, 22,
+        2, 1, 0, 0, 3, 2, 6, 5, 4, 4, 7, 6, 10, 9, 8, 8, 11, 10, 14, 13, 12, 12, 15, 14, 18, 17,
+        16, 16, 19, 18, 22, 21, 20, 20, 23, 22,
     ]);
 
     mesh.load(&renderer);
@@ -98,52 +97,74 @@ pub fn render(
 
     for (skybox, cubemap, pipeline) in query {
         let proj_view_mx = camera.proj.as_ref().unwrap() * camera.view_matrix_static();
-        let scale = if skybox.view_range > 0.1 { skybox.view_range } else { 1.0 };
+        let scale = if skybox.view_range > 0.1 {
+            skybox.view_range
+        } else {
+            1.0
+        };
         let uniform = Uniform {
             proj_view: proj_view_mx.into(),
-            scale: Mat4::from_scale(scale).into()
+            scale: Mat4::from_scale(scale).into(),
         };
 
         if pipeline.shader.is_null() {
-            pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL)
-                .unwrap_or_default();
+            pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
         }
 
         // check if model is disabled or already rendered
-        if !pipeline.cycle(&renderer) { continue; }
+        if !pipeline.cycle(&renderer) {
+            continue;
+        }
 
         renderer.load_uniform_buffer(&mut skybox.uniform, bytemuck::cast_slice(&[uniform]));
 
-        if !cubemap.load(&renderer, &mut assets) { continue; }
+        if !cubemap.load(&renderer, &mut assets) {
+            continue;
+        }
 
-        let mesh = assets.get(
-            assets.find::<Mesh>(PIPELINE_LABEL)
-                .expect("SkyBox must be initialized with the `skybox::startup` system")
-        ).unwrap();
+        let mesh = assets
+            .get(
+                assets
+                    .find::<Mesh>(PIPELINE_LABEL)
+                    .expect("SkyBox must be initialized with the `skybox::startup` system"),
+            )
+            .unwrap();
 
         if !pipeline.ready() {
             if let Some(shader) = assets.get(pipeline.shader) {
-                let sampler = globals.get::<Sampler>()
+                let sampler = globals
+                    .get::<Sampler>()
                     .expect("Sampler buffer must be loaded");
 
-                renderer.bind(pipeline, PipelineLayout {
-                    label: String::from(PIPELINE_LABEL),
-                    mesh,
-                    shader,
-                    bindings: &[
-                        BindGroup::new("Globals", vec![
-                            Binding::Uniform("SkyBox", Stage::Vertex, &skybox.uniform),
-                            Binding::Sampler("Sampler", Stage::Fragment, sampler),
-                        ]),
-                        BindGroup::new("Locals", vec![
-                            Binding::Texture3D("CubeMap", Stage::Fragment, &cubemap.buffer),
-                        ])
-                    ],
-                    options: PipelineOptions {
-                        depth_buffer_mode: DepthBufferMode::Read,
-                        ..Default::default()
-                    }
-                });
+                renderer.bind(
+                    pipeline,
+                    PipelineLayout {
+                        label: String::from(PIPELINE_LABEL),
+                        mesh,
+                        shader,
+                        bindings: &[
+                            BindGroup::new(
+                                "Globals",
+                                vec![
+                                    Binding::Uniform("SkyBox", Stage::Vertex, &skybox.uniform),
+                                    Binding::Sampler("Sampler", Stage::Fragment, sampler),
+                                ],
+                            ),
+                            BindGroup::new(
+                                "Locals",
+                                vec![Binding::Texture3D(
+                                    "CubeMap",
+                                    Stage::Fragment,
+                                    &cubemap.buffer,
+                                )],
+                            ),
+                        ],
+                        options: PipelineOptions {
+                            depth_buffer_mode: DepthBufferMode::Read,
+                            ..Default::default()
+                        },
+                    },
+                );
             }
         }
 

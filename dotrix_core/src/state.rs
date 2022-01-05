@@ -1,5 +1,5 @@
+use crate::ecs::{Rule, StateId};
 use std::any::Any;
-use crate::ecs::{ Rule, StateId };
 
 struct Entry {
     state_id: StateId,
@@ -42,37 +42,42 @@ impl State {
 
     /// Pushes the application state to the stack
     pub fn push<T>(&mut self, state: T)
-    where T: IntoState {
+    where
+        T: IntoState,
+    {
         let state_id = StateId::of::<T>();
         let name = String::from(std::any::type_name::<T>());
-        self.stack.push(
-            Entry {
-                state_id,
-                name,
-                boxed: Box::new(state)
-            }
-        );
+        self.stack.push(Entry {
+            state_id,
+            name,
+            boxed: Box::new(state),
+        });
         self.write_pointer(state_id);
     }
 
     /// Pops the application state from the stack, and returns it
     pub fn pop<T: IntoState>(&mut self) -> Option<T> {
-        self.pop_any().map(|boxed| {
-            if boxed.is::<T>() {
-                unsafe {
-                    let raw: *mut dyn IntoState = Box::into_raw(boxed);
-                    Some(*Box::from_raw(raw as *mut T))
+        self.pop_any()
+            .map(|boxed| {
+                if boxed.is::<T>() {
+                    unsafe {
+                        let raw: *mut dyn IntoState = Box::into_raw(boxed);
+                        Some(*Box::from_raw(raw as *mut T))
+                    }
+                } else {
+                    None
                 }
-            } else {
-                None
-            }
-        }).unwrap_or(None)
+            })
+            .unwrap_or(None)
     }
 
     /// Pops the application state from the stack, but do not downcast it
     pub fn pop_any(&mut self) -> Option<Box<dyn IntoState>> {
         let last = self.stack.pop();
-        let state_id = self.stack.last().map(|entry| entry.state_id)
+        let state_id = self
+            .stack
+            .last()
+            .map(|entry| entry.state_id)
             .unwrap_or_else(StateId::of::<bool>);
         self.write_pointer(state_id);
         last.map(|entry| entry.boxed)
@@ -80,14 +85,16 @@ impl State {
 
     /// Returns a referrence to the current state
     pub fn get<T: IntoState>(&self) -> Option<&T> {
-        self.stack.last()
+        self.stack
+            .last()
             .map(|entry| entry.boxed.downcast_ref())
             .unwrap_or(None)
     }
 
     /// Returns a mutable referrence to the current state
     pub fn get_mut<T: IntoState>(&mut self) -> Option<&mut T> {
-        self.stack.last_mut()
+        self.stack
+            .last_mut()
             .map(|entry| entry.boxed.downcast_mut())
             .unwrap_or(None)
     }
@@ -99,7 +106,8 @@ impl State {
 
     /// Returns dump of current stack
     pub fn dump(&self) -> Vec<&str> {
-        self.stack.iter()
+        self.stack
+            .iter()
             .map(|entry| entry.name.as_str())
             .collect::<Vec<_>>()
     }
@@ -107,10 +115,9 @@ impl State {
 
 /// Application state abstraction
 pub trait IntoState: Any + Send + Sync + 'static {}
-impl<T: 'static + Send + Sync> IntoState for T { }
+impl<T: 'static + Send + Sync> IntoState for T {}
 
 impl dyn IntoState {
-
     /// Casts down the reference
     #[inline]
     pub fn downcast_ref<T: Any>(&self) -> Option<&T> {

@@ -1,24 +1,20 @@
 use std::{
     path::Path,
-    sync::{ Arc, mpsc, Mutex },
+    sync::{mpsc, Arc, Mutex},
 };
 
-use gltf::{
-    Gltf,
-    buffer::Source,
-    animation::util::ReadOutputs,
-};
+use gltf::{animation::util::ReadOutputs, buffer::Source, Gltf};
 
 use log::info;
 
 use crate::transform::Transform;
-use dotrix_math::{ Mat4, Vec3, Quat };
+use dotrix_math::{Mat4, Quat, Vec3};
 
 use super::{
-    animation::{ Animation, Interpolation },
-    loader::{ Asset, ImportError, Response, load_image },
+    animation::{Animation, Interpolation},
+    loader::{load_image, Asset, ImportError, Response},
     mesh::Mesh,
-    skin::{ Skin, JointId, Joint, JointIndex },
+    skin::{Joint, JointId, JointIndex, Skin},
 };
 
 pub fn load_gltf(
@@ -26,8 +22,7 @@ pub fn load_gltf(
     name: String,
     data: Vec<u8>,
     path: &Path,
-) -> Result<(), ImportError>{
-
+) -> Result<(), ImportError> {
     let gltf = Gltf::from_slice(&data)?;
     let buffers = load_buffers(&gltf, path)?;
 
@@ -56,15 +51,13 @@ fn load_buffers(gltf: &Gltf, path: &Path) -> Result<Vec<Vec<u8>>, ImportError> {
                 } else {
                     return Err(ImportError::Corruption("blob buffer not found"));
                 }
-            },
+            }
             Source::Uri(uri) => {
-                buffers.push(
-                    if let Some(stripped) = uri.strip_prefix(URI_BASE64) {
-                        base64::decode(stripped)?
-                    } else {
-                        std::fs::read(path.parent().unwrap().join(uri))?
-                    }
-                );
+                buffers.push(if let Some(stripped) = uri.strip_prefix(URI_BASE64) {
+                    base64::decode(stripped)?
+                } else {
+                    std::fs::read(path.parent().unwrap().join(uri))?
+                });
             }
         }
     }
@@ -72,11 +65,7 @@ fn load_buffers(gltf: &Gltf, path: &Path) -> Result<Vec<Vec<u8>>, ImportError> {
     Ok(buffers)
 }
 
-fn load_joints(
-    joints: &mut Vec<Joint>,
-    node: &gltf::Node,
-    parent_id: Option<JointId>,
-) {
+fn load_joints(joints: &mut Vec<Joint>, node: &gltf::Node, parent_id: Option<JointId>) {
     let local_transform = Transform::from(node.transform());
     let id = node.index();
     joints.push(Joint::new(
@@ -97,8 +86,7 @@ fn load_node(
     node: &gltf::Node,
     root: Option<&gltf::Node>,
     buffers: &[Vec<u8>],
-) -> Result <(), ImportError> {
-
+) -> Result<(), ImportError> {
     if let Some(skin) = node.skin() {
         let reader = skin.reader(|buffer| Some(&buffers[buffer.index()]));
         let inverse_bind_matrices = reader
@@ -106,17 +94,29 @@ fn load_node(
             .map(|v| v.map(Mat4::from).collect());
 
         let asset_name = [name, "skin"].join("::");
-        let index = skin.joints().map(|j| JointIndex { id: j.index(), inverse_bind_matrix: None}).collect::<Vec<_>>();
+        let index = skin
+            .joints()
+            .map(|j| JointIndex {
+                id: j.index(),
+                inverse_bind_matrix: None,
+            })
+            .collect::<Vec<_>>();
         let mut joints: Vec<Joint> = Vec::new();
-        load_joints(&mut joints, skin.skeleton().as_ref().or(root).unwrap(), None);
+        load_joints(
+            &mut joints,
+            skin.skeleton().as_ref().or(root).unwrap(),
+            None,
+        );
 
         info!("importing skin as `{}`", asset_name);
-        sender.lock().unwrap().send(Response::Skin(
-            Asset {
+        sender
+            .lock()
+            .unwrap()
+            .send(Response::Skin(Asset {
                 name: asset_name,
                 asset: Box::new(Skin::new(joints, index, inverse_bind_matrices)),
-            }
-        )).unwrap();
+            }))
+            .unwrap();
     }
 
     if let Some(mesh) = node.mesh() {
@@ -137,7 +137,6 @@ fn load_node(
             format!("{}.node[{}]", name, child.index())
         };
 
-
         load_node(sender, &child_name, &child, root, buffers)?;
     }
 
@@ -149,34 +148,38 @@ fn load_mesh(
     name: &str,
     primitive: &gltf::Primitive,
     buffers: &[Vec<u8>],
-) -> Result <(), ImportError> {
-
+) -> Result<(), ImportError> {
     let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()]));
     let mode = primitive.mode();
 
     if mode != gltf::mesh::Mode::Triangles {
-        return Err(ImportError::NotImplemented("primitive mode", Some(mode_to_string(mode))));
+        return Err(ImportError::NotImplemented(
+            "primitive mode",
+            Some(mode_to_string(mode)),
+        ));
     }
 
     let mut mesh = Mesh::default();
 
-    let indices = reader.read_indices().map(|i| i.into_u32().collect::<Vec<u32>>());
+    let indices = reader
+        .read_indices()
+        .map(|i| i.into_u32().collect::<Vec<u32>>());
 
     if let Some(indices_ref) = indices.as_ref() {
         mesh.with_indices(indices_ref);
     }
 
-    let positions = reader.read_positions()
+    let positions = reader
+        .read_positions()
         .map(|p| p.collect::<Vec<[f32; 3]>>())
         .expect("Mesh must contain some vertices positions");
 
     mesh.with_vertices(&positions);
 
-    let normals = reader.read_normals()
+    let normals = reader
+        .read_normals()
         .map(|n| n.collect::<Vec<[f32; 3]>>())
-        .unwrap_or_else(
-            || Mesh::calculate_normals(&positions, indices.as_deref())
-        );
+        .unwrap_or_else(|| Mesh::calculate_normals(&positions, indices.as_deref()));
 
     mesh.with_vertices(&normals);
 
@@ -196,12 +199,14 @@ fn load_mesh(
 
     info!("import mesh as `{}`", name);
 
-    sender.lock().unwrap().send(Response::Mesh(
-        Asset {
+    sender
+        .lock()
+        .unwrap()
+        .send(Response::Mesh(Asset {
             name,
             asset: Box::new(mesh),
-        }
-    )).unwrap();
+        }))
+        .unwrap();
 
     Ok(())
 }
@@ -211,8 +216,7 @@ fn load_texture(
     name: &str,
     texture: &gltf::texture::Info,
     buffers: &[Vec<u8>],
-) -> Result <(), ImportError> {
-
+) -> Result<(), ImportError> {
     let source = texture.texture().source().source();
     let name = [name, "texture"].join("::");
     info!("importing texture as `{}`", name);
@@ -222,18 +226,22 @@ fn load_texture(
             const URI_IMAGE_PNG: &str = "data:image/png;base64,";
 
             if !uri.starts_with(URI_IMAGE_PNG) {
-                return Err(ImportError::NotImplemented("mime type",
-                        mime_type.map(String::from)));
+                return Err(ImportError::NotImplemented(
+                    "mime type",
+                    mime_type.map(String::from),
+                ));
             }
 
             let data = base64::decode(&uri[URI_IMAGE_PNG.len()..])?;
             (data, image::ImageFormat::Png)
-        },
+        }
 
         gltf::image::Source::View { view, mime_type } => {
             if mime_type != "image/png" {
-                return Err(ImportError::NotImplemented("mime type",
-                        Some(String::from(mime_type))));
+                return Err(ImportError::NotImplemented(
+                    "mime type",
+                    Some(String::from(mime_type)),
+                ));
             }
 
             let index = view.buffer().index();
@@ -267,7 +275,6 @@ fn load_animation(
     let mut animation = Animation::new();
 
     for channel in gltf_animation.channels() {
-
         let sampler = channel.sampler();
         let interpolation = Interpolation::from(sampler.interpolation());
         let index = channel.target().node().index();
@@ -277,25 +284,38 @@ fn load_animation(
 
         match outputs.unwrap() {
             ReadOutputs::Translations(output) => animation.add_translation_channel(
-                index, interpolation, timestamps, output.map(Vec3::from).collect(),
+                index,
+                interpolation,
+                timestamps,
+                output.map(Vec3::from).collect(),
             ),
             ReadOutputs::Rotations(output) => animation.add_rotation_channel(
-                index, interpolation, timestamps, output.into_f32()
-                    .map(|q| Quat::new(q[3], q[0], q[1], q[2])).collect()
+                index,
+                interpolation,
+                timestamps,
+                output
+                    .into_f32()
+                    .map(|q| Quat::new(q[3], q[0], q[1], q[2]))
+                    .collect(),
             ),
             ReadOutputs::Scales(output) => animation.add_scale_channel(
-                index, interpolation, timestamps, output.map(Vec3::from).collect()
+                index,
+                interpolation,
+                timestamps,
+                output.map(Vec3::from).collect(),
             ),
             ReadOutputs::MorphTargetWeights(ref _weights) => (),
         };
     }
 
-    sender.lock().unwrap().send(Response::Animation(
-        Asset {
+    sender
+        .lock()
+        .unwrap()
+        .send(Response::Animation(Asset {
             name,
             asset: Box::new(animation),
-        }
-    )).unwrap();
+        }))
+        .unwrap();
 }
 
 fn mode_to_string(mode: gltf::mesh::Mode) -> String {

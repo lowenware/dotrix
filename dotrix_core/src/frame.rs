@@ -1,5 +1,5 @@
-use std::time::{ Duration, Instant };
 use crate::ecs::Mut;
+use std::time::{Duration, Instant};
 
 /// Frame tracking service
 ///
