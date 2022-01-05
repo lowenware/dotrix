@@ -50,13 +50,13 @@ impl Material {
             self.texture = dummy_id;
         }
         if self.roughness_texture.is_null() {
-            self.roughness_texture = dummy_id;
+            self.roughness_texture = dummy_roughness_id;
         }
         if self.metallic_texture.is_null() {
-            self.metallic_texture = dummy_id;
+            self.metallic_texture = dummy_metallic_id;
         }
         if self.ao_texture.is_null() {
-            self.ao_texture = dummy_id;
+            self.ao_texture = dummy_ao_id;
         }
 
         let albedo = MaterialUniform {
@@ -123,7 +123,7 @@ impl Material {
 struct MaterialUniform {
     color: [f32; 4],
     has_texture: u32,
-    reverve: [f32; 3],
+    reserved: [f32; 3],
 }
 unsafe impl bytemuck::Zeroable for MaterialUniform {}
 unsafe impl bytemuck::Pod for MaterialUniform {}
