@@ -67,6 +67,7 @@ pub struct Input {
     mapper: Box<dyn std::any::Any + Send + Sync>,
     states: HashMap<Button, State>,
     mouse_scroll_delta: f32,
+    mouse_horizontal_scroll_delta: f32,
     mouse_position: Option<Vec2>,
     mouse_delta: Vec2,
     mouse_moved: bool,
@@ -174,6 +175,13 @@ impl Input {
         self.mouse_scroll_delta
     }
 
+    /// Mouse scroll delta
+    ///
+    /// Value can be positive (up) or negative (down)
+    pub fn mouse_horizontal_scroll(&self) -> f32 {
+        self.mouse_horizontal_scroll_delta
+    }
+
     /// Current mouse position in pixel coordinates. The top-left of the window is at (0, 0)
     pub fn mouse_position(&self) -> Option<&Vec2> {
         self.mouse_position.as_ref()
@@ -216,6 +224,7 @@ impl Input {
         self.mouse_moved = false;
         self.mouse_delta = Vec2 { x: 0.0, y: 0.0 };
         self.mouse_scroll_delta = 0.0;
+        self.mouse_horizontal_scroll_delta = 0.0;
 
         self.states.retain(|_btn, state| match state {
             State::Activated => {
@@ -312,11 +321,12 @@ impl Input {
     }
 
     fn on_mouse_wheel_event(&mut self, delta: &MouseScrollDelta) {
-        let change = match delta {
-            MouseScrollDelta::LineDelta(_x, y) => *y,
-            MouseScrollDelta::PixelDelta(pos) => pos.y as f32,
+        let (change_x, change_y) = match delta {
+            MouseScrollDelta::LineDelta(x, y) => (*x, *y),
+            MouseScrollDelta::PixelDelta(pos) => (pos.x as f32, pos.y as f32),
         };
-        self.mouse_scroll_delta += change;
+        self.mouse_scroll_delta += change_y;
+        self.mouse_horizontal_scroll_delta += change_x;
     }
 
     fn on_mouse_motion_event(&mut self, delta: &(f64, f64)) {
@@ -352,6 +362,7 @@ impl Default for Input {
             mapper,
             states: HashMap::new(),
             mouse_scroll_delta: 0.0,
+            mouse_horizontal_scroll_delta: 0.0,
             mouse_position: None,
             mouse_delta: Vec2::new(0.0, 0.0),
             mouse_moved: false,

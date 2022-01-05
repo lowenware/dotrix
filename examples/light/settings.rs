@@ -408,7 +408,15 @@ pub fn ui(mut settings: Mut<Settings>, overlay: Mut<Overlay>) {
 }
 
 /// This func updates camera based on values in editor and controls
-pub fn update_camera(mut camera: Mut<Camera>, input: Const<Input>, frame: Const<Frame>) {
+pub fn update_camera(
+    mut camera: Mut<Camera>,
+    input: Const<Input>,
+    frame: Const<Frame>,
+    overlay: Mut<Overlay>,
+) {
+    let egui = overlay
+        .get::<Egui>()
+        .expect("Renderer does not contain an Overlay instance");
     const ROTATE_SPEED: f32 = PI / 10.0;
     const ZOOM_SPEED: f32 = 10.0;
 
@@ -423,21 +431,23 @@ pub fn update_camera(mut camera: Mut<Camera>, input: Const<Input>, frame: Const<
     let mut xz_angle = camera.xz_angle;
 
     // Calculate new values
-    distance -= ZOOM_SPEED * mouse_scroll * time_delta;
-    distance = if distance > -1.0 { distance } else { -1.0 };
+    if !egui.wants_pointer_input() {
+        distance -= ZOOM_SPEED * mouse_scroll * time_delta;
+        distance = if distance > -1.0 { distance } else { -1.0 };
 
-    if input.button_state(Button::MouseRight) == Some(InputState::Hold) {
-        y_angle += mouse_delta.x * ROTATE_SPEED * time_delta;
-        xz_angle = camera.xz_angle + mouse_delta.y * ROTATE_SPEED * time_delta;
-        let half_pi = PI / 2.0;
+        if input.button_state(Button::MouseRight) == Some(InputState::Hold) {
+            y_angle += mouse_delta.x * ROTATE_SPEED * time_delta;
+            xz_angle = camera.xz_angle + mouse_delta.y * ROTATE_SPEED * time_delta;
+            let half_pi = PI / 2.0;
 
-        xz_angle = if xz_angle >= half_pi {
-            half_pi - 0.01
-        } else if xz_angle <= -half_pi {
-            -half_pi + 0.01
-        } else {
-            xz_angle
-        };
+            xz_angle = if xz_angle >= half_pi {
+                half_pi - 0.01
+            } else if xz_angle <= -half_pi {
+                -half_pi + 0.01
+            } else {
+                xz_angle
+            };
+        }
     }
 
     // Apply values to camera
