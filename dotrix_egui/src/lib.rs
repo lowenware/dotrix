@@ -82,7 +82,6 @@ impl Ui for Egui {
 
         for &(dotrix_button, egui_button) in dotrix_to_egui.iter() {
             if let Some(button_state) = input.button_state(dotrix_button) {
-                println!("button_state: {:?}", button_state);
                 events.push(egui::Event::PointerButton {
                     pos: mouse_pos,
                     button: egui_button,
@@ -131,7 +130,10 @@ impl Ui for Egui {
             events,
             dropped_files,
             hovered_files,
-            scroll_delta: egui::math::vec2(0.0, input.mouse_scroll() * SCROLL_SENSITIVITY),
+            scroll_delta: egui::math::vec2(
+                input.mouse_horizontal_scroll() * SCROLL_SENSITIVITY,
+                input.mouse_scroll() * SCROLL_SENSITIVITY,
+            ),
             ..Default::default()
         });
 
