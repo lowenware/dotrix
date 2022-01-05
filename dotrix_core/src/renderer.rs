@@ -115,11 +115,13 @@ impl Renderer {
     ///
     /// This should be called when a shader is removed.
     pub fn drop_pipeline(&mut self, shader: Id<Shader>) {
+        self.loaded = false;
         self.backend_mut().drop_pipeline(shader);
     }
 
     /// Drop all loaded backend pipelines for all shader
     pub fn drop_all_pipelines(&mut self) {
+        self.loaded = false;
         self.backend_mut().drop_all_pipelines();
     }
 
