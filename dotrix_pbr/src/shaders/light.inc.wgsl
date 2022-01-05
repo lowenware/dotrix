@@ -194,7 +194,7 @@ fn calculate_lighting(
     let camera_position: vec3<f32> = u_light.camera_position.xyz;
     var light_color: vec3<f32> = vec3<f32>(0.);
 
-    let normal: vec3<f32> = normalize(normal_in);
+    let normal: vec3<f32> = normalize(normal_in );
     let camera_direction: vec3<f32> = normalize(camera_position - position);
 
     var fresnel_schlick_0: vec3<f32> = vec3<f32>(0.04);
