@@ -7,12 +7,14 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
 #![warn(missing_docs)]
 
+use std::convert::TryInto;
+
 /// Extra widgets provided by dotrix.
 pub mod extras;
 
 use dotrix_core::assets::{Mesh, Texture};
 use dotrix_core::ecs::{Mut, System};
-use dotrix_core::input::{Button, Event as InputEvent, KeyCode, Modifiers, State as InputState};
+use dotrix_core::input::{Button, Event as InputEvent, KeyCode, Modifiers};
 use dotrix_core::{Application, Assets, Id, Input, Pipeline, Window};
 
 use dotrix_overlay::{Overlay, Ui, Widget};
@@ -31,6 +33,8 @@ pub struct Egui {
     widgets: Vec<(Widget, Pipeline)>,
     texture: Option<Id<Texture>>,
     texture_version: Option<u64>,
+    mouse_used_outside: bool,
+    prev_mouse_used: [bool; 3],
 }
 
 impl Default for Egui {
@@ -41,6 +45,8 @@ impl Default for Egui {
             widgets: Vec::new(),
             texture: None,
             texture_version: None,
+            mouse_used_outside: false,
+            prev_mouse_used: [false; 3],
         }
     }
 }
@@ -60,11 +66,15 @@ impl Ui for Egui {
                 InputEvent::Cut => Some(egui::Event::Cut),
                 InputEvent::Text(text) => Some(egui::Event::Text(String::from(text))),
                 InputEvent::Key(event) => {
-                    to_egui_key_code(event.key_code).map(|key| egui::Event::Key {
-                        key,
-                        pressed: event.pressed,
-                        modifiers: to_egui_modifiers(event.modifiers),
-                    })
+                    if self.ctx.wants_keyboard_input() {
+                        to_egui_key_code(event.key_code).map(|key| egui::Event::Key {
+                            key,
+                            pressed: event.pressed,
+                            modifiers: to_egui_modifiers(event.modifiers),
+                        })
+                    } else {
+                        None
+                    }
                 }
             })
             .collect::<Vec<_>>();
@@ -74,22 +84,54 @@ impl Ui for Egui {
             .map(|p| egui::math::Pos2::new(p.x / scale_factor, p.y / scale_factor))
             .unwrap_or_else(|| egui::math::Pos2::new(0.0, 0.0));
 
+        let mouse_used: Vec<bool> = [Button::MouseLeft, Button::MouseRight, Button::MouseMiddle]
+            .iter()
+            .map(|&b| input.button_state(b).is_some())
+            .collect();
+
+        let any_mouse_used = mouse_used.iter().any(|&i| i);
+
+        let wants_pointer_input = if any_mouse_used {
+            if !self.ctx.wants_pointer_input() && !self.mouse_used_outside {
+                // egui dosen't want it so we won't give it to
+                // egui until mouse is up
+                self.mouse_used_outside = true;
+                false
+            } else {
+                !self.mouse_used_outside
+            }
+        } else {
+            // mouse is no longer used
+            self.mouse_used_outside = false;
+            true
+        };
+
         let dotrix_to_egui = [
             (Button::MouseLeft, egui::PointerButton::Primary),
             (Button::MouseRight, egui::PointerButton::Secondary),
             (Button::MouseMiddle, egui::PointerButton::Middle),
         ];
 
-        for &(dotrix_button, egui_button) in dotrix_to_egui.iter() {
-            if let Some(button_state) = input.button_state(dotrix_button) {
-                events.push(egui::Event::PointerButton {
-                    pos: mouse_pos,
-                    button: egui_button,
-                    pressed: button_state == InputState::Hold,
-                    modifiers: Default::default(),
-                });
+        if wants_pointer_input {
+            for (i, &(dotrix_button, egui_button)) in dotrix_to_egui.iter().enumerate() {
+                let needs_update = if mouse_used[i] {
+                    true
+                } else {
+                    mouse_used[i] != self.prev_mouse_used[i]
+                };
+
+                if needs_update {
+                    events.push(egui::Event::PointerButton {
+                        pos: mouse_pos,
+                        button: egui_button,
+                        pressed: input.button_state(dotrix_button).is_some(),
+                        modifiers: Default::default(),
+                    });
+                }
             }
         }
+
+        self.prev_mouse_used = mouse_used.try_into().unwrap();
 
         if input.mouse_moved() {
             events.push(egui::Event::PointerMoved(Pos2 {
@@ -121,6 +163,15 @@ impl Ui for Egui {
             })
             .collect::<Vec<_>>();
 
+        let (scroll_delta_x, scroll_delta_y) = if wants_pointer_input {
+            (
+                input.mouse_horizontal_scroll() * SCROLL_SENSITIVITY,
+                input.mouse_scroll() * SCROLL_SENSITIVITY,
+            )
+        } else {
+            (0., 0.)
+        };
+
         self.ctx.begin_frame(egui::RawInput {
             screen_rect: Some(egui::math::Rect::from_min_size(
                 Default::default(),
@@ -130,10 +181,7 @@ impl Ui for Egui {
             events,
             dropped_files,
             hovered_files,
-            scroll_delta: egui::math::vec2(
-                input.mouse_horizontal_scroll() * SCROLL_SENSITIVITY,
-                input.mouse_scroll() * SCROLL_SENSITIVITY,
-            ),
+            scroll_delta: egui::math::vec2(scroll_delta_x, scroll_delta_y),
             ..Default::default()
         });
 
