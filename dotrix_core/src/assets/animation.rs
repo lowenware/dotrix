@@ -1,10 +1,10 @@
 //! Skeletal Animation Asset
-use std::time::Duration;
-use std::collections::HashMap;
 use super::skin::JointId;
+use std::collections::HashMap;
+use std::time::Duration;
 
-use crate::transform::{ Transform, Builder as TransformBuilder };
-use dotrix_math::{ slerp, Vec3, Quat, VectorSpace };
+use crate::transform::{Builder as TransformBuilder, Transform};
+use dotrix_math::{slerp, Quat, Vec3, VectorSpace};
 
 /// Interpolation types
 #[derive(Debug)]
@@ -32,7 +32,7 @@ trait Interpolate: Copy {
     fn linear(self, target: Self, value: f32) -> Self;
 }
 
-impl Interpolate for Vec3{
+impl Interpolate for Vec3 {
     fn linear(self, target: Self, value: f32) -> Self {
         self.lerp(target, value)
     }
@@ -52,7 +52,10 @@ pub(crate) struct KeyFrame<T> {
 
 impl<T> KeyFrame<T> {
     fn new(timestamp: f32, transformation: T) -> Self {
-        Self { transformation, timestamp }
+        Self {
+            transformation,
+            timestamp,
+        }
     }
 }
 
@@ -67,13 +70,19 @@ impl<T: Interpolate + Copy + Clone> Channel<T> {
         joint_id: JointId,
         interpolation: Interpolation,
         timestamps: Vec<f32>,
-        transforms: Vec<T>
+        transforms: Vec<T>,
     ) -> Self {
-        let keyframes = timestamps.into_iter().zip(transforms.into_iter()).map(
-            |(timestamp, transformation)| KeyFrame::new(timestamp, transformation)
-        ).collect::<Vec<_>>();
+        let keyframes = timestamps
+            .into_iter()
+            .zip(transforms.into_iter())
+            .map(|(timestamp, transformation)| KeyFrame::new(timestamp, transformation))
+            .collect::<Vec<_>>();
 
-        Channel { keyframes, joint_id, interpolation }
+        Channel {
+            keyframes,
+            joint_id,
+            interpolation,
+        }
     }
 
     fn sample(&self, keyframe: f32) -> Option<T> {
@@ -84,10 +93,10 @@ impl<T: Interpolate + Copy + Clone> Channel<T> {
                 return match self.interpolation {
                     Interpolation::Step => Some(first.transformation),
                     Interpolation::Linear => {
-                        let value = (keyframe - first.timestamp) /
-                            (next.timestamp - first.timestamp);
+                        let value =
+                            (keyframe - first.timestamp) / (next.timestamp - first.timestamp);
                         Some(first.transformation.linear(next.transformation, value))
-                    },
+                    }
                     _ => panic!("Unsupported interpolation {:?}", self.interpolation),
                 };
             }
@@ -129,7 +138,12 @@ impl Animation {
         translations: Vec<Vec3>,
     ) {
         self.update_duration(&timestamps);
-        self.translation_channels.push(Channel::from(joint_id, interpolation, timestamps, translations));
+        self.translation_channels.push(Channel::from(
+            joint_id,
+            interpolation,
+            timestamps,
+            translations,
+        ));
     }
 
     /// Adds rotation transformation channel
@@ -141,7 +155,12 @@ impl Animation {
         rotations: Vec<Quat>,
     ) {
         self.update_duration(&timestamps);
-        self.rotation_channels.push(Channel::from(joint_id, interpolation, timestamps, rotations));
+        self.rotation_channels.push(Channel::from(
+            joint_id,
+            interpolation,
+            timestamps,
+            rotations,
+        ));
     }
 
     /// Adds scale transformation channel
@@ -153,7 +172,8 @@ impl Animation {
         scales: Vec<Vec3>,
     ) {
         self.update_duration(&timestamps);
-        self.scale_channels.push(Channel::from(joint_id, interpolation, timestamps, scales));
+        self.scale_channels
+            .push(Channel::from(joint_id, interpolation, timestamps, scales));
     }
 
     fn update_duration(&mut self, timestamps: &[f32]) {
@@ -171,7 +191,10 @@ impl Animation {
 
         for channel in &self.translation_channels {
             if let Some(transform) = channel.sample(keyframe) {
-                result.insert(channel.joint_id, Transform::builder().with_translate(transform));
+                result.insert(
+                    channel.joint_id,
+                    Transform::builder().with_translate(transform),
+                );
             }
         }
 
@@ -180,7 +203,10 @@ impl Animation {
                 if let Some(t) = result.get_mut(&channel.joint_id) {
                     t.rotate = Some(transform);
                 } else {
-                    result.insert(channel.joint_id, Transform::builder().with_rotate(transform));
+                    result.insert(
+                        channel.joint_id,
+                        Transform::builder().with_rotate(transform),
+                    );
                 }
             }
         }

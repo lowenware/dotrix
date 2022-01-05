@@ -1,5 +1,5 @@
 use std::{
-    any::{ Any, TypeId },
+    any::{Any, TypeId},
     collections::HashMap,
 };
 
@@ -13,14 +13,16 @@ impl Globals {
     /// Gets a reference to the data instance by its type
     pub fn get<T: 'static + Send + Sync>(&self) -> Option<&T> {
         let type_id = TypeId::of::<T>();
-        self.map.get(&type_id)
+        self.map
+            .get(&type_id)
             .map(|boxed| boxed.downcast_ref::<T>().unwrap())
     }
 
     /// Gets a mutable reference to the data instance by its type
     pub fn get_mut<T: 'static + Send + Sync>(&mut self) -> Option<&mut T> {
         let type_id = TypeId::of::<T>();
-        self.map.get_mut(&type_id)
+        self.map
+            .get_mut(&type_id)
             .map(|boxed| boxed.downcast_mut::<T>().unwrap())
     }
 

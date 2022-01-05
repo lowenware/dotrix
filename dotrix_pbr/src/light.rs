@@ -1,7 +1,7 @@
 //! Various implementations of light sources
-use dotrix_core::{ Color, Globals, Renderer, World };
-use dotrix_core::ecs::{ Const, Mut };
+use dotrix_core::ecs::{Const, Mut};
 use dotrix_core::renderer::UniformBuffer;
+use dotrix_core::{Color, Globals, Renderer, World};
 
 use dotrix_math::Vec3;
 
@@ -187,21 +187,30 @@ impl Uniform {
     /// Stores data from Light component into the uniform structure
     pub fn store(&mut self, light: &Light) {
         match light {
-            Light::Ambient { color, intensity } => {
-                self.ambient = (*color * (*intensity)).into()
-            },
-            Light::Directional { color, direction, intensity, enabled } => {
+            Light::Ambient { color, intensity } => self.ambient = (*color * (*intensity)).into(),
+            Light::Directional {
+                color,
+                direction,
+                intensity,
+                enabled,
+            } => {
                 let i = self.count[0] as usize;
                 if *enabled && i < MAX_LIGHTS {
                     self.directional[i] = DirectionalLight {
                         direction: [direction.x, direction.y, direction.z, 1.0],
-                        color: (*color * (*intensity)).into()
+                        color: (*color * (*intensity)).into(),
                     };
                     self.count[0] = i as u32 + 1;
                 }
-            },
+            }
             Light::Point {
-                color, position, intensity, enabled, constant, linear, quadratic
+                color,
+                position,
+                intensity,
+                enabled,
+                constant,
+                linear,
+                quadratic,
             } => {
                 let i = self.count[1] as usize;
                 if *enabled && i < MAX_LIGHTS {
@@ -216,7 +225,12 @@ impl Uniform {
                     self.count[1] = i as u32 + 1;
                 }
             }
-            Light::Simple { color, position, intensity, enabled } => {
+            Light::Simple {
+                color,
+                position,
+                intensity,
+                enabled,
+            } => {
                 let i = self.count[2] as usize;
                 if *enabled && i < MAX_LIGHTS {
                     self.simple[i] = SimpleLight {
@@ -225,9 +239,15 @@ impl Uniform {
                     };
                     self.count[2] = i as u32 + 1;
                 }
-            },
+            }
             Light::Spot {
-                color, position, direction, intensity, enabled, cut_off, outer_cut_off
+                color,
+                position,
+                direction,
+                intensity,
+                enabled,
+                cut_off,
+                outer_cut_off,
             } => {
                 let i = self.count[3] as usize;
                 if *enabled && i < MAX_LIGHTS {
@@ -241,12 +261,10 @@ impl Uniform {
                     };
                     self.count[3] = i as u32 + 1;
                 }
-            },
+            }
         };
     }
 }
-
-
 
 /// Directional light uniform data
 #[repr(C)]
@@ -315,4 +333,3 @@ struct SpotLight {
 
 unsafe impl bytemuck::Zeroable for SpotLight {}
 unsafe impl bytemuck::Pod for SpotLight {}
-

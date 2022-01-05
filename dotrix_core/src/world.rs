@@ -1,20 +1,14 @@
 mod container;
 
-use std::{
-    any::TypeId,
-    vec::Vec,
-    collections::HashMap,
-    marker::PhantomData
-};
+use std::{any::TypeId, collections::HashMap, marker::PhantomData, vec::Vec};
 
 use container::Container;
 
 use crate::{
     count,
-    ecs::{ Component, Entity },
+    ecs::{Component, Entity},
     recursive,
 };
-
 
 /// Service to store and manage entities
 pub struct World {
@@ -67,15 +61,17 @@ impl World {
     /// _NOTE: if your entity has only one component, don't forget to put trailing comma after it
     /// as it is shown in the example above. Otherwise it won't be parsed by Rust compiler as
     /// a tuple.
-    pub fn spawn<T, I>(&mut self, iter: I) 
+    pub fn spawn<T, I>(&mut self, iter: I)
     where
         T: Archetype + Pattern,
-        I: IntoIterator<Item = T>
+        I: IntoIterator<Item = T>,
     {
-        let (index, container) = if let Some((index, container)) = self.content
+        let (index, container) = if let Some((index, container)) = self
+            .content
             .iter_mut()
             .enumerate()
-            .find(|(_, s)| T::matches(s) && s.len() == T::len() + 1) // + Entity
+            .find(|(_, s)| T::matches(s) && s.len() == T::len() + 1)
+        // + Entity
         {
             (index, container)
         } else {
@@ -114,18 +110,19 @@ impl World {
     ///     }
     /// }
     /// ```
-    pub fn query<'w, Q>(&'w self) -> impl Iterator<Item = <<Q as Query>::Iter as Iterator>::Item> + 'w
+    pub fn query<'w, Q>(
+        &'w self,
+    ) -> impl Iterator<Item = <<Q as Query>::Iter as Iterator>::Item> + 'w
     where
         Q: Query<'w>,
     {
-        let iter = self.content.iter()
+        let iter = self
+            .content
+            .iter()
             .filter(|&container| Q::matches(container))
-            .map(|container| Q::select(container))
-            .flatten();
+            .flat_map(|container| Q::select(container));
 
-        Matches {
-            iter,
-        }
+        Matches { iter }
     }
 
     /// Exiles an entity from the world
@@ -167,13 +164,15 @@ impl World {
         }
 
         let entity_index = if let Some(entities) = self.content[index].get::<Entity>() {
-            if let Some((index, _)) = entities.iter()
+            if let Some((index, _)) = entities
+                .iter()
                 .enumerate()
-                .find(|(_index, e)| **e == entity) {
-                    index
-                } else {
-                    return;
-                }
+                .find(|(_index, e)| **e == entity)
+            {
+                index
+            } else {
+                return;
+            }
         } else {
             return;
         };
@@ -224,7 +223,6 @@ pub trait Query<'w> {
 
 /// Iterator or Query result
 pub struct Matches<I> {
-
     iter: I,
 }
 
@@ -374,8 +372,8 @@ recursive!(impl_tuples, A, B, C, D, E, F, G, H); //, E, F, G, H, I, J, K, L, M, 
 
 #[cfg(test)]
 mod tests {
-    use crate::ecs::Entity;
     use super::World;
+    use crate::ecs::Entity;
 
     struct Armor(u32);
     struct Health(u32);
@@ -403,22 +401,22 @@ mod tests {
         let mut iter = world.query::<(&Armor, &Damage)>();
 
         let item = iter.next();
-        assert_eq!(item.is_some(), true);
+        assert!(item.is_some());
 
-        if let Some ((armor, damage)) = item {
+        if let Some((armor, damage)) = item {
             assert_eq!(armor.0, 100); // Armor(100)
             assert_eq!(damage.0, 300); // Damage(300)
         }
 
         let item = iter.next();
-        assert_eq!(item.is_some(), true);
+        assert!(item.is_some());
 
         let item = item.unwrap();
-        assert_eq!(item.0.0, 10); // Armor(10)
-        assert_eq!(item.1.0, 600); // Damage(600)
+        assert_eq!(item.0 .0, 10); // Armor(10)
+        assert_eq!(item.1 .0, 600); // Damage(600)
 
         let item = iter.next();
-        assert_eq!(item.is_some(), false);
+        assert!(item.is_none());
     }
 
     #[test]
@@ -442,22 +440,22 @@ mod tests {
     fn spawn_and_exile() {
         let mut world = spawn();
         {
-            let iter = world.query::<(&Entity, &mut Armor,)>();
+            let iter = world.query::<(&Entity, &mut Armor)>();
             let mut entity_to_delete = None;
             let mut entities_before = 0;
-            for (entity, armor,) in iter {
+            for (entity, armor) in iter {
                 if armor.0 == 100 {
                     entity_to_delete = Some(*entity);
                 }
                 entities_before += 1;
             }
-            assert_eq!(entity_to_delete.is_some(), true);
+            assert!(entity_to_delete.is_some());
 
             world.exile(entity_to_delete.unwrap());
 
-            let iter = world.query::<(&Entity, &mut Armor,)>();
+            let iter = world.query::<(&Entity, &mut Armor)>();
             let mut entities_after = 0;
-            for (entity, _armor,) in iter {
+            for (entity, _armor) in iter {
                 assert_ne!(*entity, entity_to_delete.unwrap());
                 entities_after += 1;
             }

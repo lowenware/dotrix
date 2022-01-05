@@ -6,10 +6,10 @@
 // glTF conversion by @AsoboStudio and @scurest
 //
 
-use dotrix::assets::{ Animation, Mesh, Skin, Texture };
-use dotrix::{ Id, Animator, Pipeline, Pose, Transform, Assets, World };
+use dotrix::assets::{Animation, Mesh, Skin, Texture};
 use dotrix::ecs::Mut;
-use dotrix::pbr::{ Model, Material };
+use dotrix::pbr::{Material, Model};
+use dotrix::{Animator, Assets, Id, Pipeline, Pose, Transform, World};
 
 use std::collections::HashMap;
 
@@ -54,6 +54,4 @@ pub fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
         Pipeline::default(),
         Fox { animations },
     )));
-
 }
-

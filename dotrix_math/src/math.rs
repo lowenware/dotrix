@@ -1,14 +1,10 @@
 //! Custom math functions
-use super::{ Quat };
+use super::Quat;
 
 // nalgebra and cgmath lerp methods produce some weird artifacts, see link bellow
 // https://github.com/rustgd/cgmath/issues/300
 /// Interpolates quaternion
-pub fn slerp(
-    left: Quat,
-    right: Quat,
-    amount: f32
-) -> Quat{
+pub fn slerp(left: Quat, right: Quat, amount: f32) -> Quat {
     let num2;
     let num3;
     let num = amount;

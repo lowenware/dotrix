@@ -1,5 +1,5 @@
 //! Transformation structure and builder
-use dotrix_math::{Mat4, Vec3, Quat, Rotation3, Rad};
+use dotrix_math::{Mat4, Quat, Rad, Rotation3, Vec3};
 
 /// Agregator for skin transformations
 #[derive(Default)]
@@ -14,18 +14,21 @@ pub struct Builder {
 
 impl Builder {
     /// Constructs the builder from translation vector
+    #[must_use]
     pub fn with_translate(mut self, translate: Vec3) -> Self {
         self.translate = Some(translate);
         self
     }
 
     /// Constructs the builder from rotation quaternion
+    #[must_use]
     pub fn with_rotate(mut self, rotate: Quat) -> Self {
         self.rotate = Some(rotate);
         self
     }
 
     /// Constructs the builder from scale vector
+    #[must_use]
     pub fn with_scale(mut self, scale: Vec3) -> Self {
         self.scale = Some(scale);
         self
@@ -73,7 +76,6 @@ impl Transform {
         Builder::default()
     }
 
-
     /// Returns transformation matrix
     pub fn matrix(&self) -> Mat4 {
         let t = Mat4::from_translation(self.translate);
@@ -83,6 +85,7 @@ impl Transform {
     }
 
     /// Merge current transformation with values from the [`Builder`] respectively
+    #[must_use]
     pub fn merge(&self, builder: &Builder) -> Self {
         Self {
             translate: builder.translate.unwrap_or(self.translate),

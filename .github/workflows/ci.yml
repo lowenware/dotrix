@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, style_checks ]
+  pull_request:
+    branches: [ main, style_checks ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        toolchain: [stable, nightly]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.toolchain }}
+        override: true
+
+    - name: Install shaderc dependencies
+      if: runner.os == 'Linux'
+      run: sudo apt update; sudo apt install libegl1-mesa-dev
+
+    - name: Install shaderc dependencies
+      if: runner.os == 'macOS'
+      run:
+        brew install git cmake ninja python@3.8
+
+    - name: Install shaderc dependencies
+      if: runner.os == 'Windows'
+      shell: bash
+      run:
+        choco install cmake ninja
+
+    - uses: actions-rs/cargo@v1
+      with:
+        command: build
+        args: --release --verbose --workspace --all-features --all-targets
+
+    - uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --release --verbose --workspace --all-features --all-targets
+
+    - name: Build docs
+      run: cargo doc

@@ -4,19 +4,18 @@
 
 use std::any::Any;
 
-use dotrix_core::{ Application, Id, System };
 use dotrix_core::assets::Mesh;
+use dotrix_core::{Application, Id, System};
 
 mod generator;
+mod layers;
 mod services;
 mod systems;
-mod layers;
 
-pub use generator::{ Falloff, Generator, Noise };
+pub use generator::{Falloff, Generator, Noise};
+pub use layers::{Layer, Layers};
 pub use services::Terrain;
-pub use systems::{ startup, render, spawn };
-pub use layers::{ Layers, Layer };
-
+pub use systems::{render, spawn, startup};
 
 /// Terrain tile component
 pub struct Tile {
@@ -32,7 +31,6 @@ pub struct Tile {
     pub loaded: bool,
 }
 
-
 /// Trait for the terrain heights source
 pub trait Heightmap: Any + Sync + Send {
     /// Returns Y axis value for specified X and Z pair
@@ -40,7 +38,6 @@ pub trait Heightmap: Any + Sync + Send {
     /// Returns number of values per map side
     fn size(&self) -> usize;
 }
-
 
 impl dyn Heightmap {
     /// Casts down the reference

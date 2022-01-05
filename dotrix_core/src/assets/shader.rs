@@ -1,5 +1,5 @@
 //! Shader Asset
-use crate::renderer::{ Renderer, ShaderModule };
+use crate::renderer::{Renderer, ShaderModule};
 
 /// Shader Asset
 #[derive(Default)]
