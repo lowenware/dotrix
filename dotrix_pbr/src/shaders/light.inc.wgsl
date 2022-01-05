@@ -113,79 +113,79 @@ fn calculate_spot(
     return out;
 }
 
-fn DistributionGGX(N: vec3<f32>, H: vec3<f32>, roughness: f32) -> f32
+fn distribution_ggx(normal: vec3<f32>, halfway: vec3<f32>, roughness: f32) -> f32
 {
     let a: f32 = roughness*roughness;
     let a2: f32 = a*a;
-    let NdotH: f32 = max(dot(N, H), 0.0);
-    let NdotH2: f32 = NdotH*NdotH;
+    let n_dot_h: f32 = max(dot(normal, halfway), 0.0);
+    let n_dot_h_2: f32 = n_dot_h*n_dot_h;
 
     let num: f32 = a2;
-    var denom: f32 = (NdotH2 * (a2 - 1.0) + 1.0);
+    var denom: f32 = (n_dot_h_2 * (a2 - 1.0) + 1.0);
     denom = PI * denom * denom;
 
     return num / denom;
 }
 
-fn GeometrySchlickGGX(NdotV: f32, roughness: f32) -> f32
+fn geometry_schlick_ggx(n_dot_v: f32, roughness: f32) -> f32
 {
     let r: f32 = (roughness + 1.0);
     let k: f32 = (r*r) / 8.0;
 
-    let num: f32   = NdotV;
-    let denom: f32 = NdotV * (1.0 - k) + k;
+    let num: f32   = n_dot_v;
+    let denom: f32 = n_dot_v * (1.0 - k) + k;
 
     return num / denom;
 }
-fn GeometrySmith(N: vec3<f32>, V: vec3<f32>, L: vec3<f32>, roughness: f32) -> f32
+fn geometry_smith(normal: vec3<f32>, camera_direction: vec3<f32>, light_direction: vec3<f32>, roughness: f32) -> f32
 {
-    let NdotV: f32 = max(dot(N, V), 0.0);
-    let NdotL: f32 = max(dot(N, L), 0.0);
-    let ggx2: f32  = GeometrySchlickGGX(NdotV, roughness);
-    let ggx1: f32  = GeometrySchlickGGX(NdotL, roughness);
+    let n_dot_v: f32 = max(dot(normal, camera_direction), 0.0);
+    let n_dot_l: f32 = max(dot(normal, light_direction), 0.0);
+    let ggx2: f32  = geometry_schlick_ggx(n_dot_v, roughness);
+    let ggx1: f32  = geometry_schlick_ggx(n_dot_l, roughness);
 
     return ggx1 * ggx2;
 }
 
 // Calulates the amount of light that refects (specular) and that which scatters (diffuse)
-fn fresnelSchlick(cosTheta: f32, F0: vec3<f32>) -> vec3<f32>
+fn calculate_fresnel_schlick(cos_theta: f32, fresnel_schlick_0: vec3<f32>) -> vec3<f32>
 {
-    return F0 + (vec3<f32>(1.0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+    return fresnel_schlick_0 + (vec3<f32>(1.0) - fresnel_schlick_0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
 }
 
 fn pbr(
   light_out: LightCalcOutput,
-  V: vec3<f32>, // Camera direction
-  N: vec3<f32>, // normal
-  F0: vec3<f32>, // surface reflection at zero incidence
+  camera_direction: vec3<f32>, // Camera direction
+  normal: vec3<f32>, // normal
+  fresnel_schlick_0: vec3<f32>, // surface reflection at zero incidence
   albedo: vec3<f32>, // scatter color in linear space
   metallic: f32, // Metallic (reflectance)
   roughness: f32 // Roughness (random scatter)
 ) -> vec3<f32> {
-  let L: vec3<f32> = light_out.light_direction;
-  let H: vec3<f32> = normalize(V + L);
+  let light_direction: vec3<f32> = light_out.light_direction;
+  let halfway: vec3<f32> = normalize(camera_direction + light_direction);
 
   // cook-torrance brdf
-  let NDF: f32 = DistributionGGX(N, H, roughness);
-  let G: f32   = GeometrySmith(N, V, L, roughness);
-  let F: vec3<f32>  = fresnelSchlick(max(dot(H, V), 0.0), F0);
+  let normal_distribution_function: f32 = distribution_ggx(normal, halfway, roughness);
+  let geometry_function: f32   = geometry_smith(normal, camera_direction, light_direction, roughness);
+  let fresnel_schlick: vec3<f32>  = calculate_fresnel_schlick(max(dot(halfway, camera_direction), 0.0), fresnel_schlick_0);
 
-  let kS: vec3<f32> = F;
-  var kD: vec3<f32> = vec3<f32>(1.0) - kS;
-  kD = kD * (1.0 - metallic);
+  let reflection_specular_fraction: vec3<f32> = fresnel_schlick;
+  var refraction_diffuse_fraction: vec3<f32> = vec3<f32>(1.0) - reflection_specular_fraction; // refraction/diffuse  fraction
+  refraction_diffuse_fraction = refraction_diffuse_fraction * (1.0 - metallic);
 
-  let numerator: vec3<f32> = NDF * G * F;
-  let denominator: f32 = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+  let numerator: vec3<f32> = normal_distribution_function * geometry_function * fresnel_schlick;
+  let denominator: f32 = 4.0 * max(dot(normal, camera_direction), 0.0) * max(dot(normal, light_direction), 0.0) + 0.0001;
   let specular: vec3<f32>     = numerator / denominator;
 
   // get the outgoing radiance
-  let NdotL: f32 = max(dot(N, L), 0.0);
-  return (kD * albedo / PI + specular) * light_out.radiance * NdotL;
+  let n_dot_l: f32 = max(dot(normal, light_direction), 0.0);
+  return (refraction_diffuse_fraction * albedo / PI + specular) * light_out.radiance * n_dot_l;
 }
 
 fn calculate_lighting(
     position: vec3<f32>,
-    normal: vec3<f32>,
+    normal_in: vec3<f32>,
     albedo: vec3<f32>,
     roughness: f32,
     metallic: f32,
@@ -194,11 +194,11 @@ fn calculate_lighting(
     let camera_position: vec3<f32> = u_light.camera_position.xyz;
     var light_color: vec3<f32> = vec3<f32>(0.);
 
-    let N: vec3<f32> = normalize(normal);
-    let V: vec3<f32> = normalize(camera_position - position);
+    let normal: vec3<f32> = normalize(normal_in);
+    let camera_direction: vec3<f32> = normalize(camera_position - position);
 
-    var F0: vec3<f32> = vec3<f32>(0.04);
-    F0 = mix(F0, albedo, vec3<f32>(metallic));
+    var fresnel_schlick_0: vec3<f32> = vec3<f32>(0.04);
+    fresnel_schlick_0 = mix(fresnel_schlick_0, albedo, vec3<f32>(metallic));
 
     // Directions light
     var i: u32 = 0u;
@@ -210,9 +210,9 @@ fn calculate_lighting(
       );
       light_color = light_color + pbr(
         light_result,
-        V,
-        N,
-        F0,
+        camera_direction,
+        normal,
+        fresnel_schlick_0,
         albedo,
         metallic,
         roughness
@@ -228,9 +228,9 @@ fn calculate_lighting(
       );
       light_color = light_color + pbr(
         light_result,
-        V,
-        N,
-        F0,
+        camera_direction,
+        normal,
+        fresnel_schlick_0,
         albedo,
         metallic,
         roughness
@@ -246,9 +246,9 @@ fn calculate_lighting(
       );
       light_color = light_color + pbr(
         light_result,
-        V,
-        N,
-        F0,
+        camera_direction,
+        normal,
+        fresnel_schlick_0,
         albedo,
         metallic,
         roughness
@@ -264,9 +264,9 @@ fn calculate_lighting(
       );
       light_color = light_color + pbr(
         light_result,
-        V,
-        N,
-        F0,
+        camera_direction,
+        normal,
+        fresnel_schlick_0,
         albedo,
         metallic,
         roughness
