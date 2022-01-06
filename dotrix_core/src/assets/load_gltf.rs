@@ -184,7 +184,16 @@ fn load_mesh(
     mesh.with_vertices(&normals);
 
     if let Some(uvs) = reader.read_tex_coords(0) {
-        mesh.with_vertices(uvs.into_f32().collect::<Vec<_>>().as_slice());
+        let uvs = uvs.into_f32().collect::<Vec<_>>();
+        let (tangents, bitangents) = Mesh::calculate_tangents_bitangents(
+            positions.as_slice(),
+            uvs.as_slice(),
+            indices.as_deref(),
+        );
+        mesh.with_vertices(tangents.as_slice());
+        mesh.with_vertices(bitangents.as_slice());
+
+        mesh.with_vertices(uvs.as_slice());
     }
 
     if let Some(weights) = reader.read_weights(0) {
