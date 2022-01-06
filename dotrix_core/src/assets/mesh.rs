@@ -1,7 +1,7 @@
 //! Mesh Asset
 use crate::renderer::{AttributeFormat, Renderer, VertexBuffer};
 use bytemuck::{Pod, Zeroable};
-use dotrix_math::{InnerSpace, Vec3, VectorSpace};
+use dotrix_math::{InnerSpace, Vec2, Vec3, VectorSpace};
 
 /// Asset with 3D model data
 #[derive(Default)]
@@ -118,6 +118,87 @@ impl Mesh {
             };
         }
         normals
+    }
+
+    /// Calculates tangents for the mesh
+    pub fn calculate_tangents_bitangents(
+        positions: &[[f32; 3]],
+        uvs: &[[f32; 2]],
+        indices: Option<&[u32]>,
+    ) -> (Vec<[f32; 3]>, Vec<[f32; 3]>) {
+        let mut tangents = vec![[99.9; 3]; positions.len()];
+        let mut bitangents = vec![[99.9; 3]; positions.len()];
+        let faces = indices.map(|i| i.len()).unwrap_or_else(|| positions.len()) / 3;
+
+        for face in 0..faces {
+            let mut i0 = (face * 3) as usize;
+            let mut i1 = i0 + 1;
+            let mut i2 = i1 + 1;
+            if let Some(idx) = indices {
+                i0 = idx[i0] as usize;
+                i1 = idx[i1] as usize;
+                i2 = idx[i2] as usize;
+            }
+            let v0 = Vec3::from(positions[i0]);
+            let v1 = Vec3::from(positions[i1]);
+            let v2 = Vec3::from(positions[i2]);
+            let uv0 = Vec2::from(uvs[i0]);
+            let uv1 = Vec2::from(uvs[i1]);
+            let uv2 = Vec2::from(uvs[i2]);
+
+            let edge1 = v1 - v0;
+            let edge2 = v2 - v0;
+            let delta_uv1 = uv1 - uv0;
+            let delta_uv2 = uv2 - uv0;
+
+            let f = 1.0 / (delta_uv1.x * delta_uv2.y - delta_uv2.x * delta_uv1.y);
+
+            let tangent = Vec3::from([
+                f * (delta_uv2.y * edge1.x - delta_uv1.y * edge2.x),
+                f * (delta_uv2.y * edge1.y - delta_uv1.y * edge2.y),
+                f * (delta_uv2.y * edge1.z - delta_uv1.y * edge2.z),
+            ]);
+
+            let bitangent = Vec3::from([
+                f * (-delta_uv2.x * edge1.x + delta_uv1.x * edge2.x),
+                f * (-delta_uv2.x * edge1.y + delta_uv1.x * edge2.y),
+                f * (-delta_uv2.x * edge1.z + delta_uv1.x * edge2.z),
+            ]);
+
+            tangents[i0] = if tangents[i0][0] > 9.0 {
+                tangent.into()
+            } else {
+                tangent.lerp(tangents[i0].into(), 0.5).into()
+            };
+            tangents[i1] = if tangents[i1][0] > 9.0 {
+                tangent.into()
+            } else {
+                tangent.lerp(tangents[i1].into(), 0.5).into()
+            };
+            tangents[i2] = if tangents[i2][0] > 9.0 {
+                tangent.into()
+            } else {
+                tangent.lerp(tangents[i2].into(), 0.5).into()
+            };
+
+            bitangents[i0] = if bitangents[i0][0] > 9.0 {
+                bitangent.into()
+            } else {
+                bitangent.lerp(bitangents[i0].into(), 0.5).into()
+            };
+            bitangents[i1] = if bitangents[i1][0] > 9.0 {
+                bitangent.into()
+            } else {
+                bitangent.lerp(bitangents[i1].into(), 0.5).into()
+            };
+            bitangents[i2] = if bitangents[i2][0] > 9.0 {
+                bitangent.into()
+            } else {
+                bitangent.lerp(bitangents[i2].into(), 0.5).into()
+            };
+        }
+
+        (tangents, bitangents)
     }
 }
 
