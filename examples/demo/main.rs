@@ -117,11 +117,14 @@ fn init_terrain(world: &mut World, assets: &mut Assets) {
     }
 
     let normals = Mesh::calculate_normals(&positions, None);
+    let (tangents, bitangents) = Mesh::calculate_tangents_bitangents(&positions, &uvs, None);
 
     let mut mesh = Mesh::default();
 
     mesh.with_vertices(&positions);
     mesh.with_vertices(&normals);
+    mesh.with_vertices(&tangents);
+    mesh.with_vertices(&bitangents);
     mesh.with_vertices(&uvs);
 
     // Store mesh and get its ID
