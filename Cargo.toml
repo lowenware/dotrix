@@ -110,3 +110,7 @@ path = "examples/shader/main.rs"
 [[example]]
 name = "pbr"
 path = "examples/pbr/main.rs"
+
+[[example]]
+name = "normal_map"
+path = "examples/normal_map/main.rs"

@@ -33,6 +33,8 @@ pub struct Entity {
     pub ao_texture: Id<Texture>,
     /// Ambient occulsion
     pub ao: f32,
+    /// Id of a normal map asset
+    pub normal_texture: Id<Texture>,
     /// Shader asset ID
     pub shader: Id<Shader>,
     /// Translation vector
@@ -57,6 +59,7 @@ impl Entity {
                 roughness_texture: self.roughness_texture,
                 metallic_texture: self.metallic_texture,
                 ao_texture: self.ao_texture,
+                normal_texture: self.normal_texture,
                 ..Default::default()
             },
             Transform {
@@ -85,6 +88,7 @@ impl Default for Entity {
             metallic_texture: Id::default(),
             ao: 0.,
             ao_texture: Id::default(),
+            normal_texture: Id::default(),
             shader: Id::default(),
             translate: Vec3::new(0.0, 0.0, 0.0),
             rotate: Quat::from_angle_y(Rad(0.0)),
@@ -144,6 +148,7 @@ pub fn render(
                 let roughness_texture = assets.get(material.roughness_texture).unwrap();
                 let metallic_texture = assets.get(material.metallic_texture).unwrap();
                 let ao_texture = assets.get(material.ao_texture).unwrap();
+                let normal_texture = assets.get(material.normal_texture).unwrap();
 
                 let proj_view = globals
                     .get::<ProjView>()
@@ -196,6 +201,11 @@ pub fn render(
                                         "AoTexture",
                                         Stage::Fragment,
                                         &ao_texture.buffer,
+                                    ),
+                                    Binding::Texture(
+                                        "NormalTexture",
+                                        Stage::Fragment,
+                                        &normal_texture.buffer,
                                     ),
                                     Binding::Uniform("Joints", Stage::Vertex, &pose.uniform),
                                 ],

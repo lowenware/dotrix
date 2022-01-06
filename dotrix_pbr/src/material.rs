@@ -24,6 +24,8 @@ pub struct Material {
     pub ao: f32,
     /// Id of a ao texture asset
     pub ao_texture: Id<Texture>,
+    /// Id of a normal map asset
+    pub normal_texture: Id<Texture>,
     /// Pipeline buffer
     pub uniform: UniformBuffer,
 }
@@ -46,6 +48,9 @@ impl Material {
         if self.ao_texture.is_null() {
             self.ao_texture = dummy_id;
         }
+        if self.normal_texture.is_null() {
+            self.normal_texture = dummy_id;
+        }
 
         if let Some(texture) = assets.get_mut(self.texture) {
             texture.load(renderer);
@@ -67,19 +72,27 @@ impl Material {
         } else {
             return false;
         }
+        if let Some(texture) = assets.get_mut(self.normal_texture) {
+            texture.load(renderer);
+        } else {
+            return false;
+        }
 
         let mut has_texture: u32 = 0;
         if self.texture != dummy_id {
-            has_texture |= 0b0001;
+            has_texture |= 0b00001;
         }
         if self.roughness_texture != dummy_id {
-            has_texture |= 0b0010;
+            has_texture |= 0b00010;
         }
         if self.metallic_texture != dummy_id {
-            has_texture |= 0b0100;
+            has_texture |= 0b00100;
         }
         if self.ao_texture != dummy_id {
-            has_texture |= 0b1000;
+            has_texture |= 0b01000;
+        }
+        if self.normal_texture != dummy_id {
+            has_texture |= 0b10000;
         }
 
         let uniform = Uniform {

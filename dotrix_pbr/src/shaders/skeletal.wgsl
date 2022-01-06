@@ -6,7 +6,9 @@ struct VertexOutput {
     [[builtin(position)]] position: vec4<f32>;
     [[location(0)]] world_position: vec4<f32>;
     [[location(1)]] normal: vec3<f32>;
-    [[location(2)]] tex_uv: vec2<f32>;
+    [[location(2)]] tangent: vec3<f32>;
+    [[location(3)]] bitangent: vec3<f32>;
+    [[location(4)]] tex_uv: vec2<f32>;
 };
 
 
@@ -26,16 +28,18 @@ var<uniform> u_model: Model;
 struct Joints {
     transform: [[stride(64)]] array<mat4x4<f32>, MAX_JOINTS_COUNT>;
 };
-[[group(1), binding(6)]]
+[[group(1), binding(7)]]
 var<uniform> u_joints: Joints;
 
 [[stage(vertex)]]
 fn vs_main(
     [[location(0)]] position: vec3<f32>,
     [[location(1)]] normal: vec3<f32>,
-    [[location(2)]] tex_uv: vec2<f32>,
-    [[location(3)]] weights: vec4<f32>,
-    [[location(4)]] joints: vec4<u32>,
+    [[location(2)]] tangent: vec3<f32>,
+    [[location(3)]] bitangent: vec3<f32>,
+    [[location(4)]] tex_uv: vec2<f32>,
+    [[location(5)]] weights: vec4<f32>,
+    [[location(6)]] joints: vec4<u32>,
 ) -> VertexOutput {
     var out: VertexOutput;
     out.tex_uv = tex_uv;
@@ -79,6 +83,28 @@ fn vs_main(
             u_model.transform.z.xyz
         ) * normal
     );
+    out.tangent = normalize(
+        mat3x3<f32>(
+            skin_transform.x.xyz,
+            skin_transform.y.xyz,
+            skin_transform.z.xyz
+        ) * mat3x3<f32>(
+            u_model.transform.x.xyz,
+            u_model.transform.y.xyz,
+            u_model.transform.z.xyz
+        ) * tangent
+    );
+    out.bitangent = normalize(
+        mat3x3<f32>(
+            skin_transform.x.xyz,
+            skin_transform.y.xyz,
+            skin_transform.z.xyz
+        ) * mat3x3<f32>(
+            u_model.transform.x.xyz,
+            u_model.transform.y.xyz,
+            u_model.transform.z.xyz
+        ) * bitangent
+    );
 
     let pos = u_model.transform * skin_transform * vec4<f32>(position, 1.0);
     out.world_position = pos;
@@ -109,6 +135,9 @@ var r_metallic_texture: texture_2d<f32>;
 
 [[group(1), binding(5)]]
 var r_ao_texture: texture_2d<f32>;
+
+[[group(1), binding(6)]]
+var r_normal_texture: texture_2d<f32>;
 
 [[group(0), binding(1)]]
 var r_sampler: sampler;
@@ -153,9 +182,19 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
         ao = u_material.ao;
     }
 
+    var normal: vec3<f32>;
+    if ((u_material.has_texture & 16u) == 16u) {
+      let t_b_n = mat3x3<f32>(in.tangent.xyz, in.bitangent.xyz, in.normal);
+      normal = textureSample(r_normal_texture, r_sampler, in.tex_uv).xyz;
+      normal = normal * 2.0 - 1.0;
+      normal = normalize(t_b_n * normal);
+    } else {
+      normal = in.normal.xyz;
+    }
+
     return calculate_lighting(
         in.world_position.xyz,
-        in.normal.xyz,
+        normal,
         albedo.rgb,
         roughness,
         metallic,
