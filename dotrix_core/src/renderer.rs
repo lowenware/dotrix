@@ -7,7 +7,7 @@ use dotrix_math::Mat4;
 
 use crate::assets::{Mesh, Shader};
 use crate::ecs::{Const, Mut};
-use crate::{Assets, Color, Globals, Pipeline, Window};
+use crate::{Assets, Color, Globals, Id, Pipeline, Window};
 
 pub use backend::{
     Bindings, PipelineBackend, Sampler, ShaderModule, StorageBuffer, TextureBuffer, UniformBuffer,
@@ -108,6 +108,21 @@ impl Renderer {
     /// Forces engine to reload shaders
     pub fn reload(&mut self) {
         self.loaded = false;
+        self.drop_all_pipelines();
+    }
+
+    /// Drop the backend pipeline for a shader
+    ///
+    /// This should be called when a shader is removed.
+    pub fn drop_pipeline(&mut self, shader: Id<Shader>) {
+        self.loaded = false;
+        self.backend_mut().drop_pipeline(shader);
+    }
+
+    /// Drop all loaded backend pipelines for all shader
+    pub fn drop_all_pipelines(&mut self) {
+        self.loaded = false;
+        self.backend_mut().drop_all_pipelines();
     }
 
     /// Binds uniforms and other data to the pipeline

@@ -17,12 +17,12 @@ pub use skin::Skin;
 pub use texture::*;
 
 use std::{
-    collections::{hash_map, HashMap},
+    collections::{hash_map, HashMap, HashSet},
     sync::{mpsc, Arc, Mutex},
     vec::Vec,
 };
 
-use crate::id::Id;
+use crate::{ecs::Mut, id::Id, Renderer};
 
 const THREADS_COUNT: usize = 4;
 
@@ -49,6 +49,8 @@ pub struct Assets {
     sender: mpsc::Sender<Request>,
     receiver: mpsc::Receiver<Response>,
     id_generator: u64,
+    removed_shaders: HashSet<Id<Shader>>,
+    hot_reload: bool,
 }
 
 impl Assets {
@@ -81,6 +83,8 @@ impl Assets {
             sender,
             receiver,
             id_generator: 1,
+            removed_shaders: HashSet::new(),
+            hot_reload: true,
         }
     }
 
@@ -179,6 +183,7 @@ impl Assets {
     where
         Self: AssetMapGetter<T>,
     {
+        self.map_removed_mut().map(|l| l.insert(handle));
         self.map_mut().remove(&handle)
     }
 
@@ -225,6 +230,37 @@ impl Assets {
             };
         }
     }
+
+    /// Enable/Disable hot reload of certain assets. If this is
+    /// disabled certain assets like `Shaders` need to be
+    /// cleaned up manually with `renderer.drop_pipeline`
+    pub fn hot_reload_enable(&mut self, enable: bool) {
+        self.hot_reload = enable;
+    }
+}
+
+/// Reload assets and cleanup any assets that need some post process
+/// after `assets.remove`
+pub fn release(mut assets: Mut<Assets>, mut renderer: Mut<Renderer>) {
+    if !assets.hot_reload {
+        return;
+    }
+    // Shaders that no longer exist need to be removed from the renderer
+    // by dropping their pipeline
+    for removed_shader in &assets.removed_shaders {
+        if assets.get::<Shader>(*removed_shader).is_none() {
+            renderer.drop_pipeline(*removed_shader);
+        }
+    }
+    assets.removed_shaders.clear();
+
+    // Any shader that has its shader module dropped/uninitalised should have it's
+    // pipeline dropped from the renderer
+    for (id, shader) in &assets.shaders {
+        if !shader.loaded() {
+            renderer.drop_pipeline(*id);
+        }
+    }
 }
 
 /// Asset map getting trait
@@ -233,6 +269,17 @@ pub trait AssetMapGetter<T> {
     fn map(&self) -> &HashMap<Id<T>, T>;
     /// Returns mutable HashMap reference for selected asset type
     fn map_mut(&mut self) -> &mut HashMap<Id<T>, T>;
+
+    /// Returns HashSet reference for selected asset type that have been removed
+    /// since last clean up
+    fn map_removed(&self) -> Option<&HashSet<Id<T>>> {
+        None
+    }
+    /// Returns mutable HashSet reference for selected asset type that have been removed
+    /// since last clean up
+    fn map_removed_mut(&mut self) -> Option<&mut HashSet<Id<T>>> {
+        None
+    }
 }
 
 impl AssetMapGetter<Animation> for Assets {
@@ -292,6 +339,13 @@ impl AssetMapGetter<Shader> for Assets {
 
     fn map_mut(&mut self) -> &mut HashMap<Id<Shader>, Shader> {
         &mut self.shaders
+    }
+
+    fn map_removed(&self) -> Option<&HashSet<Id<Shader>>> {
+        Some(&self.removed_shaders)
+    }
+    fn map_removed_mut(&mut self) -> Option<&mut HashSet<Id<Shader>>> {
+        Some(&mut self.removed_shaders)
     }
 }
 
