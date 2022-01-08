@@ -109,7 +109,7 @@ impl Context {
         self.pipelines.get(&shader)
     }
 
-    pub(crate) fn run_pipeline(
+    pub(crate) fn run_render_pipeline(
         &mut self,
         shader: Id<Shader>,
         vertex_buffer: &VertexBuffer,
@@ -117,7 +117,8 @@ impl Context {
         options: &Options,
     ) {
         if let Some(pipeline) = self.pipelines.get(&shader) {
-            let depth_buffer_mode = pipeline.depth_buffer_mode;
+            let pipeline_backend = pipeline.instance.render();
+            let depth_buffer_mode = pipeline_backend.depth_buffer_mode;
             let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
 
             let frame = self.frame.as_ref().expect("WGPU frame must be set");
@@ -149,7 +150,7 @@ impl Context {
             });
 
             rpass.push_debug_group("Prepare to run pipeline");
-            rpass.set_pipeline(&pipeline.wgpu_pipeline);
+            rpass.set_pipeline(&pipeline_backend.wgpu_pipeline);
 
             if let Some(scissors_rect) = options.scissors_rect.as_ref() {
                 rpass.set_scissor_rect(
@@ -176,6 +177,27 @@ impl Context {
                 rpass.insert_debug_marker("Draw");
                 rpass.draw(0..count, 0..1);
             }
+        }
+    }
+
+    pub(crate) fn run_compute_pipeline(
+        &mut self,
+        shader: Id<Shader>,
+        bindings: &Bindings,
+        work_groups: &WorkGroups,
+    ) {
+        if let Some(pipeline) = self.pipelines.get(&shader) {
+            let pipeline_backend = pipeline.instance.compute();
+            let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
+
+            // compute pass
+            let mut cpass =
+                encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
+            cpass.set_pipeline(&pipeline_backend.wgpu_pipeline);
+            for (index, wgpu_bind_group) in bindings.wgpu_bind_groups.iter().enumerate() {
+                cpass.set_bind_group(index as u32, wgpu_bind_group, &[]);
+            }
+            cpass.dispatch(work_groups.x, work_groups.y, work_groups.z);
         }
     }
 }
@@ -566,13 +588,56 @@ impl StorageBuffer {
     }
 }
 
+/// Render pipeline backend
+pub struct RenderPipelineBackend {
+    /// WGPU pipeline
+    wgpu_pipeline: wgpu::RenderPipeline,
+    depth_buffer_mode: DepthBufferMode,
+}
+
+/// Compute pipeline backend
+pub struct ComputePipelineBackend {
+    /// WGPU pipeline
+    wgpu_pipeline: wgpu::ComputePipeline,
+}
+
 /// Pipeline backend
+pub enum PipelineInstance {
+    Render(RenderPipelineBackend),
+    Compute(ComputePipelineBackend),
+}
+
+impl PipelineInstance {
+    fn render(&self) -> &RenderPipelineBackend {
+        match self {
+            Self::Render(pipeline) => pipeline,
+            Self::Compute(_) => panic!("Compute pipeline used for rendering"),
+        }
+    }
+    fn compute(&self) -> &ComputePipelineBackend {
+        match self {
+            Self::Compute(pipeline) => pipeline,
+            Self::Render(_) => panic!("Render pipeline used for rendering"),
+        }
+    }
+}
+
+/// Numbers of Work Groups in all directions
+pub struct WorkGroups {
+    /// Number of Work Groups in X direction
+    pub x: u32,
+    /// Number of Work Groups in Y direction
+    pub y: u32,
+    /// Number of Work Groups in Z direction
+    pub z: u32,
+}
+
+/// Compute pipeline backend
 pub struct PipelineBackend {
     /// WGPU bind group layout
     wgpu_bind_group_layouts: Vec<wgpu::BindGroupLayout>,
     /// WGPU pipeline
-    wgpu_pipeline: wgpu::RenderPipeline,
-    depth_buffer_mode: DepthBufferMode,
+    instance: PipelineInstance,
 }
 
 #[inline(always)]
@@ -587,7 +652,6 @@ fn visibility(stage: &Stage) -> wgpu::ShaderStages {
 
 impl PipelineBackend {
     pub(crate) fn new(ctx: &Context, pipeline: &PipelineLayout) -> Self {
-        let depth_buffer_mode = pipeline.options.depth_buffer_mode;
         let wgpu_shader_module = pipeline.shader.module.get();
         let wgpu_bind_group_layouts = pipeline
             .bindings
@@ -607,116 +671,134 @@ impl PipelineBackend {
                 push_constant_ranges: &[],
             });
 
-        // prepare vertex buffers layout
-        let mut vertex_array_stride = 0;
-        let vertex_attributes = pipeline
-            .mesh
-            .expect("Mesh must be defined for render pipeline")
-            .vertex_buffer_layout()
-            .iter()
-            .enumerate()
-            .map(|(index, attr)| {
-                let offset = vertex_array_stride;
-                vertex_array_stride += attr.size();
-                wgpu::VertexAttribute {
-                    format: match attr {
-                        AttributeFormat::Float32 => wgpu::VertexFormat::Float32,
-                        AttributeFormat::Float32x2 => wgpu::VertexFormat::Float32x2,
-                        AttributeFormat::Float32x3 => wgpu::VertexFormat::Float32x3,
-                        AttributeFormat::Float32x4 => wgpu::VertexFormat::Float32x4,
-                        AttributeFormat::Uint16x2 => wgpu::VertexFormat::Uint16x2,
-                        AttributeFormat::Uint16x4 => wgpu::VertexFormat::Uint16x4,
-                        AttributeFormat::Uint32 => wgpu::VertexFormat::Uint32,
-                        AttributeFormat::Uint32x2 => wgpu::VertexFormat::Uint32x2,
-                        AttributeFormat::Uint32x3 => wgpu::VertexFormat::Uint32x3,
-                        AttributeFormat::Uint32x4 => wgpu::VertexFormat::Uint32x4,
-                    },
-                    offset: offset as u64,
-                    shader_location: index as u32,
-                }
-            })
-            .collect::<Vec<_>>();
+        let instance = if let Some(mesh) = pipeline.mesh {
+            let depth_buffer_mode = pipeline.options.depth_buffer_mode;
 
-        let vertex_buffers = [wgpu::VertexBufferLayout {
-            array_stride: vertex_array_stride as u64,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: vertex_attributes.as_slice(),
-        }];
-
-        // create the pipeline
-        let wgpu_pipeline = ctx
-            .device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(&pipeline.label),
-                layout: Some(&pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: wgpu_shader_module,
-                    entry_point: "vs_main",
-                    buffers: &vertex_buffers,
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: wgpu_shader_module,
-                    entry_point: "fs_main",
-                    targets: &[if depth_buffer_mode == DepthBufferMode::Disabled {
-                        wgpu::ColorTargetState {
-                            format: ctx.sur_desc.format,
-                            blend: Some(wgpu::BlendState {
-                                color: wgpu::BlendComponent {
-                                    src_factor: wgpu::BlendFactor::One,
-                                    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                                    operation: wgpu::BlendOperation::Add,
-                                },
-                                alpha: wgpu::BlendComponent {
-                                    src_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                                    dst_factor: wgpu::BlendFactor::One,
-                                    operation: wgpu::BlendOperation::Add,
-                                },
-                            }),
-                            write_mask: wgpu::ColorWrites::ALL,
-                        }
-                    } else {
-                        wgpu::ColorTargetState {
-                            format: ctx.sur_desc.format,
-                            blend: Some(wgpu::BlendState {
-                                color: wgpu::BlendComponent::REPLACE,
-                                alpha: wgpu::BlendComponent::REPLACE,
-                            }),
-                            write_mask: wgpu::ColorWrites::ALL,
-                        }
-                    }],
-                }),
-                primitive: wgpu::PrimitiveState {
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: if !pipeline.options.disable_cull_mode {
-                        Some(wgpu::Face::Back)
-                    } else {
-                        None
-                    },
-                    ..Default::default()
-                },
-                depth_stencil: if depth_buffer_mode != DepthBufferMode::Disabled {
-                    Some(wgpu::DepthStencilState {
-                        format: wgpu::TextureFormat::Depth32Float,
-                        depth_write_enabled: depth_buffer_mode == DepthBufferMode::Write,
-                        depth_compare: wgpu::CompareFunction::Less,
-                        stencil: wgpu::StencilState::default(),
-                        bias: wgpu::DepthBiasState {
-                            constant: 2, // corresponds to bilinear filtering
-                            slope_scale: 2.0,
-                            clamp: 0.0,
+            // render pipeline: prepare vertex buffers layout
+            let mut vertex_array_stride = 0;
+            let vertex_attributes = mesh
+                .vertex_buffer_layout()
+                .iter()
+                .enumerate()
+                .map(|(index, attr)| {
+                    let offset = vertex_array_stride;
+                    vertex_array_stride += attr.size();
+                    wgpu::VertexAttribute {
+                        format: match attr {
+                            AttributeFormat::Float32 => wgpu::VertexFormat::Float32,
+                            AttributeFormat::Float32x2 => wgpu::VertexFormat::Float32x2,
+                            AttributeFormat::Float32x3 => wgpu::VertexFormat::Float32x3,
+                            AttributeFormat::Float32x4 => wgpu::VertexFormat::Float32x4,
+                            AttributeFormat::Uint16x2 => wgpu::VertexFormat::Uint16x2,
+                            AttributeFormat::Uint16x4 => wgpu::VertexFormat::Uint16x4,
+                            AttributeFormat::Uint32 => wgpu::VertexFormat::Uint32,
+                            AttributeFormat::Uint32x2 => wgpu::VertexFormat::Uint32x2,
+                            AttributeFormat::Uint32x3 => wgpu::VertexFormat::Uint32x3,
+                            AttributeFormat::Uint32x4 => wgpu::VertexFormat::Uint32x4,
                         },
-                    })
-                } else {
-                    None
-                },
-                multisample: wgpu::MultisampleState::default(),
-                multiview: None,
-            });
+                        offset: offset as u64,
+                        shader_location: index as u32,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            let vertex_buffers = [wgpu::VertexBufferLayout {
+                array_stride: vertex_array_stride as u64,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: vertex_attributes.as_slice(),
+            }];
+
+            // create the pipeline
+            let wgpu_pipeline =
+                ctx.device
+                    .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                        label: Some(&pipeline.label),
+                        layout: Some(&pipeline_layout),
+                        vertex: wgpu::VertexState {
+                            module: wgpu_shader_module,
+                            entry_point: "vs_main",
+                            buffers: &vertex_buffers,
+                        },
+                        fragment: Some(wgpu::FragmentState {
+                            module: wgpu_shader_module,
+                            entry_point: "fs_main",
+                            targets: &[if depth_buffer_mode == DepthBufferMode::Disabled {
+                                wgpu::ColorTargetState {
+                                    format: ctx.sur_desc.format,
+                                    blend: Some(wgpu::BlendState {
+                                        color: wgpu::BlendComponent {
+                                            src_factor: wgpu::BlendFactor::One,
+                                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                                            operation: wgpu::BlendOperation::Add,
+                                        },
+                                        alpha: wgpu::BlendComponent {
+                                            src_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                                            dst_factor: wgpu::BlendFactor::One,
+                                            operation: wgpu::BlendOperation::Add,
+                                        },
+                                    }),
+                                    write_mask: wgpu::ColorWrites::ALL,
+                                }
+                            } else {
+                                wgpu::ColorTargetState {
+                                    format: ctx.sur_desc.format,
+                                    blend: Some(wgpu::BlendState {
+                                        color: wgpu::BlendComponent::REPLACE,
+                                        alpha: wgpu::BlendComponent::REPLACE,
+                                    }),
+                                    write_mask: wgpu::ColorWrites::ALL,
+                                }
+                            }],
+                        }),
+                        primitive: wgpu::PrimitiveState {
+                            front_face: wgpu::FrontFace::Ccw,
+                            cull_mode: if !pipeline.options.disable_cull_mode {
+                                Some(wgpu::Face::Back)
+                            } else {
+                                None
+                            },
+                            ..Default::default()
+                        },
+                        depth_stencil: if depth_buffer_mode != DepthBufferMode::Disabled {
+                            Some(wgpu::DepthStencilState {
+                                format: wgpu::TextureFormat::Depth32Float,
+                                depth_write_enabled: depth_buffer_mode == DepthBufferMode::Write,
+                                depth_compare: wgpu::CompareFunction::Less,
+                                stencil: wgpu::StencilState::default(),
+                                bias: wgpu::DepthBiasState {
+                                    constant: 2, // corresponds to bilinear filtering
+                                    slope_scale: 2.0,
+                                    clamp: 0.0,
+                                },
+                            })
+                        } else {
+                            None
+                        },
+                        multisample: wgpu::MultisampleState::default(),
+                        multiview: None,
+                    });
+
+            PipelineInstance::Render(RenderPipelineBackend {
+                wgpu_pipeline,
+                depth_buffer_mode,
+            })
+        } else {
+            // compute pipeline
+            let wgpu_pipeline =
+                ctx.device
+                    .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                        label: Some(&pipeline.label),
+                        layout: Some(&pipeline_layout),
+                        module: &wgpu_shader_module,
+                        entry_point: "main",
+                    });
+
+            PipelineInstance::Compute(ComputePipelineBackend { wgpu_pipeline })
+        };
 
         Self {
             wgpu_bind_group_layouts,
-            wgpu_pipeline,
-            depth_buffer_mode,
+            instance,
         }
     }
 

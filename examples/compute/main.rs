@@ -55,8 +55,12 @@ fn compute(assets: Const<Assets>, world: Const<World>, mut renderer: Mut<Rendere
                         bindings: &[BindGroup::new(
                             "Globals",
                             vec![
-                                Binding::Uniform("Input", Stage::Compute, &particle.params),
-                                Binding::Storage("Output", Stage::Compute, &particle.transforms),
+                                Binding::Uniform("Params", Stage::Compute, &particle.params),
+                                Binding::Storage(
+                                    "Transforms",
+                                    Stage::Compute,
+                                    &particle.transforms,
+                                ),
                             ],
                         )],
                         options: PipelineOptions::default(),
@@ -66,7 +70,7 @@ fn compute(assets: Const<Assets>, world: Const<World>, mut renderer: Mut<Rendere
         }
 
         // Run the pipeline
-        renderer.compute(pipeline);
+        renderer.compute(pipeline, WorkGroups { x: 1, y: 1, z: 1 });
     }
 }
 

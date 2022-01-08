@@ -11,7 +11,7 @@ use crate::{Assets, Color, Globals, Id, Pipeline, Window};
 
 pub use backend::{
     Bindings, PipelineBackend, Sampler, ShaderModule, StorageBuffer, TextureBuffer, UniformBuffer,
-    VertexBuffer,
+    VertexBuffer, WorkGroups,
 };
 
 /// Conversion matrix
@@ -142,7 +142,7 @@ impl Renderer {
 
     /// Runs the render pipeline for a mesh
     pub fn run(&mut self, pipeline: &mut Pipeline, mesh: &Mesh) {
-        self.backend_mut().run_pipeline(
+        self.backend_mut().run_render_pipeline(
             pipeline.shader,
             &mesh.vertex_buffer,
             &pipeline.bindings,
@@ -151,7 +151,10 @@ impl Renderer {
     }
 
     /// Runs the compute pipeline
-    pub fn compute(&mut self, pipeline: &mut Pipeline) {}
+    pub fn compute(&mut self, pipeline: &mut Pipeline, work_groups: WorkGroups) {
+        self.backend_mut()
+            .run_compute_pipeline(pipeline.shader, &pipeline.bindings, &work_groups);
+    }
 }
 
 impl Default for Renderer {
