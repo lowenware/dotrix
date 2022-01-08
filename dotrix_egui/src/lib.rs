@@ -19,7 +19,7 @@ use dotrix_core::{Application, Assets, Id, Input, Pipeline, Window};
 
 use dotrix_overlay::{Overlay, Ui, Widget};
 
-pub use egui::*;
+pub use egui::{self, *};
 
 const TEXTURE_NAME: &str = "egui::texture";
 const SCROLL_SENSITIVITY: f32 = 10.0;
