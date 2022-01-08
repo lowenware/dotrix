@@ -199,7 +199,7 @@ pub fn render(
                         pipeline,
                         PipelineLayout {
                             label: String::from(PIPELINE_LABEL),
-                            mesh: &widget.mesh,
+                            mesh: Some(&widget.mesh),
                             shader,
                             bindings: &[
                                 BindGroup::new(

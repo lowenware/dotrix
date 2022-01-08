@@ -611,6 +611,7 @@ impl PipelineBackend {
         let mut vertex_array_stride = 0;
         let vertex_attributes = pipeline
             .mesh
+            .expect("Mesh must be defined for render pipeline")
             .vertex_buffer_layout()
             .iter()
             .enumerate()
