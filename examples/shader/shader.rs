@@ -123,7 +123,7 @@ pub fn render(
                     pipeline,
                     PipelineLayout {
                         label: String::from(PIPELINE_LABEL),
-                        mesh,
+                        mesh: Some(mesh),
                         shader,
                         bindings: &[BindGroup::new(
                             "Globals",

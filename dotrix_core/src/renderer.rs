@@ -140,18 +140,18 @@ impl Renderer {
         pipeline.bindings = bindings;
     }
 
-    /// Runs the pipeline for a mesh
+    /// Runs the render pipeline for a mesh
     pub fn run(&mut self, pipeline: &mut Pipeline, mesh: &Mesh) {
-        // TODO: it is not good to copy backend here, find another solution
-        // let mut backend = self.backend.take();
         self.backend_mut().run_pipeline(
             pipeline.shader,
             &mesh.vertex_buffer,
             &pipeline.bindings,
             &pipeline.options,
         );
-        // self.backend = backend;
     }
+
+    /// Runs the compute pipeline
+    pub fn compute(&mut self, pipeline: &mut Pipeline) {}
 }
 
 impl Default for Renderer {
@@ -240,7 +240,7 @@ pub struct PipelineLayout<'a> {
     /// Name of the Pipeline
     pub label: String,
     /// Mesh object to construct the pipeline
-    pub mesh: &'a Mesh,
+    pub mesh: Option<&'a Mesh>,
     /// Shader module
     pub shader: &'a Shader,
     /// Pipeline bindings
