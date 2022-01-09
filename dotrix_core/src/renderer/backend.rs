@@ -172,10 +172,10 @@ impl Context {
             if let Some(indices_buffer) = vertex_buffer.indices().as_ref() {
                 rpass.insert_debug_marker("Draw indexed");
                 rpass.set_index_buffer(indices_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                rpass.draw_indexed(0..count, 0, 0..1);
+                rpass.draw_indexed(0..count, 0, options.start_index..options.end_index);
             } else {
                 rpass.insert_debug_marker("Draw");
-                rpass.draw(0..count, 0..1);
+                rpass.draw(0..count, options.start_index..options.end_index);
             }
         }
     }
@@ -553,10 +553,13 @@ impl StorageBuffer {
         } else {
             let usage = match self.mode {
                 StorageBufferMode::Read => {
-                    wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST
+                    wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::UNIFORM
+                        | wgpu::BufferUsages::COPY_DST
                 }
                 StorageBufferMode::ReadWrite => {
                     wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::UNIFORM
                         | wgpu::BufferUsages::COPY_DST
                         | wgpu::BufferUsages::COPY_SRC
                 }
@@ -857,6 +860,16 @@ impl PipelineBackend {
                         count: None,
                     }
                 }
+                Binding::StorageAsUniform(_, stage, _) => wgpu::BindGroupLayoutEntry {
+                    binding: index as u32,
+                    visibility: visibility(stage),
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             })
             .collect::<Vec<_>>();
 
@@ -905,6 +918,9 @@ impl Bindings {
                                     wgpu::BindingResource::Sampler(sampler.get())
                                 }
                                 Binding::Storage(_, _, storage) => {
+                                    storage.get().as_entire_binding()
+                                }
+                                Binding::StorageAsUniform(_, _, storage) => {
                                     storage.get().as_entire_binding()
                                 }
                             },

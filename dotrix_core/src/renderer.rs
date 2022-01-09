@@ -35,10 +35,23 @@ pub struct ScissorsRect {
 }
 
 /// Pipeline options
-#[derive(Default)]
 pub struct Options {
     /// Scissors Rectangle
     pub scissors_rect: Option<ScissorsRect>,
+    /// Indexed draw start
+    pub start_index: u32,
+    /// Indexed draw end
+    pub end_index: u32,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            scissors_rect: None,
+            start_index: 0,
+            end_index: 1,
+        }
+    }
 }
 
 /// Service providing an interface to `WGPU` and `WINIT`
@@ -50,6 +63,11 @@ pub struct Renderer {
 }
 
 impl Renderer {
+    /// Sets default clear color
+    pub fn set_clear_color(&mut self, color: Color) {
+        self.clear_color = color;
+    }
+
     fn backend(&self) -> &Backend {
         self.backend.as_ref().expect(RENDERER_STARTUP)
     }
@@ -318,6 +336,8 @@ pub enum Binding<'a> {
     Sampler(&'a str, Stage, &'a Sampler),
     /// Storage binding
     Storage(&'a str, Stage, &'a StorageBuffer),
+    /// Storage binding as Uniform
+    StorageAsUniform(&'a str, Stage, &'a StorageBuffer),
 }
 
 /// Rendering stage
