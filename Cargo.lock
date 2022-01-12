@@ -537,6 +537,7 @@ dependencies = [
  "dotrix_math",
  "dotrix_overlay",
  "dotrix_pbr",
+ "dotrix_primitives",
  "dotrix_sky",
  "dotrix_terrain",
  "noise",
@@ -594,6 +595,13 @@ dependencies = [
  "bytemuck",
  "dotrix_core",
  "dotrix_math",
+]
+
+[[package]]
+name = "dotrix_primitives"
+version = "0.1.0"
+dependencies = [
+ "dotrix_core",
 ]
 
 [[package]]
