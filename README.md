@@ -66,6 +66,11 @@ cargo run --release --example window
 cargo run --release --example shader
 ```
 
+**Features:** compute shader, particles, instanced rendering, storage buffer
+```
+cargo run --release --example compute
+```
+
 ## Sponsors
 
 * Johan Andersson <[@repi](https://github.com/repi)>
