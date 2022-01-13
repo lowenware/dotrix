@@ -220,7 +220,7 @@ pub(crate) async fn init(window: &winit::window::Window) -> Context {
         .request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                features: wgpu::Features::empty(),
+                features: wgpu::Features::VERTEX_WRITABLE_STORAGE,
                 limits: wgpu::Limits::default(),
             },
             None, // Some(&std::path::Path::new("./wgpu-trace/")),

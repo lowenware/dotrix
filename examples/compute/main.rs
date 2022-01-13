@@ -36,8 +36,10 @@ struct ParticlesSpawner {
 #[repr(C)]
 struct Params {
     position: [f32; 3],
-    time_delta: f32,
+    simulation_time: f32,
     gravity: f32,
+    start_color: [f32; 4],
+    end_color: [f32; 4],
     padding: [f32; 3],
 }
 
@@ -48,8 +50,10 @@ impl Default for Params {
     fn default() -> Self {
         Self {
             position: [0.0; 3],
-            time_delta: 0.0,
+            simulation_time: 0.0,
             gravity: -0.002,
+            start_color: [0.2, 0., 0., 1.],
+            end_color: [0.8, 0.3, 0.3, 1.],
             padding: [0.0; 3],
         }
     }
@@ -60,6 +64,9 @@ impl Default for Params {
 struct Particle {
     position: [f32; 4],
     velocity: [f32; 4],
+    color: [f32; 4],
+    life_time: f32,
+    padding: [f32; 3],
 }
 
 unsafe impl bytemuck::Zeroable for Particle {}
@@ -103,9 +110,10 @@ fn startup(
     let mut rng = rand::rngs::StdRng::seed_from_u64(16);
     let unif = Uniform::new_inclusive(-1.0, 1.0);
     for particle in particles.iter_mut() {
-        particle.velocity[0] = 0.01 * unif.sample(&mut rng); // X
-        particle.velocity[1] = 0.01 * (unif.sample(&mut rng) + 1.0) / 2.0; // Y
-        particle.velocity[2] = 0.01 * unif.sample(&mut rng); // Z
+        particle.velocity[0] = 0.1 * unif.sample(&mut rng); // X
+        particle.velocity[1] = 0.1 * (unif.sample(&mut rng) + 2.0) / 2.0; // Y
+        particle.velocity[2] = 0.1 * unif.sample(&mut rng); // Z
+        particle.life_time = 1.5 + unif.sample(&mut rng); // life time
     }
 
     renderer.load_storage_buffer(
@@ -160,7 +168,7 @@ fn compute(
         }
         // update time delta
         let params = Params {
-            time_delta: frame.delta().as_secs_f32(),
+            simulation_time: frame.time().as_secs_f32(),
             ..Default::default()
         };
         renderer.load_uniform_buffer(&mut spawner.params, bytemuck::cast_slice(&[params]));
@@ -241,11 +249,7 @@ fn render(
                             "Globals",
                             vec![
                                 Binding::Uniform("ProjView", Stage::Vertex, &proj_view.uniform),
-                                Binding::StorageAsUniform(
-                                    "Particles",
-                                    Stage::Vertex,
-                                    &spawner.particles,
-                                ),
+                                Binding::Storage("Particles", Stage::Vertex, &spawner.particles),
                             ],
                         )],
                         options: PipelineOptions::default(),
