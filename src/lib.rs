@@ -41,6 +41,9 @@ pub use dotrix_overlay as overlay;
 #[cfg(feature = "pbr")]
 pub use dotrix_pbr as pbr;
 
+#[cfg(feature = "primitives")]
+pub use dotrix_primitives as primitives;
+
 #[cfg(feature = "sky")]
 pub use dotrix_sky as sky;
 

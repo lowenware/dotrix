@@ -1,13 +1,13 @@
 use rand::distributions::{Distribution, Uniform};
 use rand::SeedableRng;
 
-use dotrix::assets::Mesh;
 use dotrix::assets::Shader;
 use dotrix::camera;
 use dotrix::camera::ProjView;
 use dotrix::egui::{self, Egui};
 use dotrix::overlay::{self, Overlay};
 use dotrix::prelude::*;
+use dotrix::primitives::Cube;
 use dotrix::renderer::{
     BindGroup, Binding, Options, PipelineLayout, PipelineOptions, Stage, StorageBuffer,
     UniformBuffer, WorkGroups,
@@ -150,7 +150,7 @@ fn startup(
     }
 
     // add mesh
-    let mut mesh = cube(0.01);
+    let mut mesh = Cube::builder(0.01).with_positions().mesh();
     mesh.load(&renderer);
     assets.store_as(mesh, PARTICLE_MESH);
 }
@@ -275,35 +275,4 @@ fn ui(overlay: Const<Overlay>, frame: Const<Frame>) {
                 format!("FPS: {:.1}", frame.fps()),
             );
         });
-}
-
-fn cube(width: f32) -> Mesh {
-    let half_width = width / 2.;
-
-    let verticies: Vec<[f32; 3]> = vec![
-        [-half_width, -half_width, -half_width],
-        [half_width, -half_width, -half_width],
-        [half_width, half_width, -half_width],
-        [-half_width, half_width, -half_width],
-        [-half_width, -half_width, half_width],
-        [half_width, -half_width, half_width],
-        [half_width, half_width, half_width],
-        [-half_width, half_width, half_width],
-    ];
-
-    let indicies: Vec<u32> = vec![
-        0, 2, 1, 0, 3, 2, // front
-        1, 6, 5, 1, 2, 6, // right
-        5, 7, 4, 5, 6, 7, // back
-        4, 3, 0, 4, 7, 3, // left
-        3, 6, 2, 3, 7, 6, // top
-        4, 1, 5, 4, 0, 1, // bottom
-    ];
-
-    let mut mesh = Mesh::default();
-
-    mesh.with_vertices(&verticies);
-    mesh.with_indices(&indicies);
-
-    mesh
 }

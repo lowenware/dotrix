@@ -1,0 +1,14 @@
+[package]
+name = "dotrix_primitives"
+version = "0.1.0"
+authors = ["Elias Kartashov <elias@lowenware.com>"]
+edition = "2018"
+
+description = "Primitives for Dotrix 3D Game Engine"
+license = "MIT"
+resolver = "2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dotrix_core = { version = "0.5", path = "../dotrix_core" }

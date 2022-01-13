@@ -15,7 +15,7 @@ struct Particle {
 };
 
 struct Particles {
-  particles : [[stride(64)]] array<Particle>;
+particles : [[stride(64)]] array<Particle>;
 };
 
 [[group(0), binding(0)]] var<uniform> uRenderer: Renderer;

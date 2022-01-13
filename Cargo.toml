@@ -16,11 +16,12 @@ name = "dotrix"
 path = "src/lib.rs"
 
 [features]
-default = [ "egui", "overlay", "pbr", "sky", "terrain" ]
+default = [ "egui", "overlay", "pbr", "primitives", "sky", "terrain" ]
 
 overlay = ["dotrix_overlay"]
 sky = ["dotrix_sky"]
 pbr = ["dotrix_pbr"]
+primitives = ["dotrix_primitives"]
 egui = ["dotrix_egui"]
 terrain = ["dotrix_terrain"]
 
@@ -30,6 +31,7 @@ members = [
   "dotrix_egui",
   "dotrix_overlay",
   "dotrix_pbr",
+  "dotrix_primitives",
   "dotrix_sky",
   "dotrix_terrain",
 ]
@@ -57,6 +59,11 @@ optional = true
 [dependencies.dotrix_pbr]
 version = "0.2"
 path = "./dotrix_pbr"
+optional = true
+
+[dependencies.dotrix_primitives]
+version = "0.1"
+path = "./dotrix_primitives"
 optional = true
 
 [dependencies.dotrix_sky]

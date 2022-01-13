@@ -792,7 +792,7 @@ impl PipelineBackend {
                     .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
                         label: Some(&pipeline.label),
                         layout: Some(&pipeline_layout),
-                        module: &wgpu_shader_module,
+                        module: wgpu_shader_module,
                         entry_point: "main",
                     });
 
