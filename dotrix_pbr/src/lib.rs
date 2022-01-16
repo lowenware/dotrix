@@ -21,7 +21,7 @@ pub use model::Model;
 pub fn extension(app: &mut Application) {
     app.add_system(System::from(material::startup));
     app.add_system(System::from(light::startup));
-    app.add_system(System::from(light::bind));
+    app.add_system(System::from(light::load));
 
     solid::extension(app);
     skeletal::extension(app);
