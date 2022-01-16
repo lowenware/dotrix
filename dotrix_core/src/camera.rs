@@ -126,7 +126,7 @@ pub fn startup(mut globals: Mut<Globals>) {
 }
 
 /// Loads the ProjView binding with current matrix value
-pub fn bind(
+pub fn load(
     mut globals: Mut<Globals>,
     mut camera: Mut<Camera>,
     renderer: Const<Renderer>,
