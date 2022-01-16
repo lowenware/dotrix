@@ -163,7 +163,8 @@ fn run(
             }
             Event::RedrawRequested(_) => {
                 scheduler.run_bind(&mut services, current_state_ptr);
-                scheduler.run_standard(&mut services, current_state_ptr);
+                scheduler.run_update(&mut services, current_state_ptr);
+                scheduler.run_load(&mut services, current_state_ptr);
                 scheduler.run_render(&mut services, current_state_ptr);
                 scheduler.run_release(&mut services, current_state_ptr);
             }
@@ -203,10 +204,11 @@ impl Services {
 
 /// Systems scheduler
 struct Scheduler {
-    render: Vec<Box<dyn Systemized>>,
-    standard: Vec<Box<dyn Systemized>>,
     startup: Vec<Box<dyn Systemized>>,
     bind: Vec<Box<dyn Systemized>>,
+    update: Vec<Box<dyn Systemized>>,
+    load: Vec<Box<dyn Systemized>>,
+    render: Vec<Box<dyn Systemized>>,
     release: Vec<Box<dyn Systemized>>,
     resize: Vec<Box<dyn Systemized>>,
 }
@@ -214,10 +216,11 @@ struct Scheduler {
 impl Scheduler {
     pub fn new() -> Self {
         Self {
-            render: Vec::new(),
-            standard: Vec::new(),
             startup: Vec::new(),
             bind: Vec::new(),
+            update: Vec::new(),
+            load: Vec::new(),
+            render: Vec::new(),
             release: Vec::new(),
             resize: Vec::new(),
         }
@@ -227,10 +230,11 @@ impl Scheduler {
         let System { data, run_level } = system;
 
         let storage = match run_level {
-            RunLevel::Render => &mut self.render,
-            RunLevel::Standard => &mut self.standard,
             RunLevel::Startup => &mut self.startup,
             RunLevel::Bind => &mut self.bind,
+            RunLevel::Update => &mut self.update,
+            RunLevel::Load => &mut self.load,
+            RunLevel::Render => &mut self.render,
             RunLevel::Release => &mut self.release,
             RunLevel::Resize => &mut self.resize,
         };
@@ -250,8 +254,8 @@ impl Scheduler {
         }
     }
 
-    pub fn run_standard(&mut self, services: &mut Services, state_ptr: *const StateId) {
-        for system in &mut self.standard {
+    pub fn run_update(&mut self, services: &mut Services, state_ptr: *const StateId) {
+        for system in &mut self.update {
             let state = unsafe { *state_ptr };
             system.run(services, state);
         }
@@ -266,6 +270,13 @@ impl Scheduler {
 
     pub fn run_bind(&mut self, services: &mut Services, state_ptr: *const StateId) {
         for system in &mut self.bind {
+            let state = unsafe { *state_ptr };
+            system.run(services, state);
+        }
+    }
+
+    pub fn run_load(&mut self, services: &mut Services, state_ptr: *const StateId) {
+        for system in &mut self.load {
             let state = unsafe { *state_ptr };
             system.run(services, state);
         }

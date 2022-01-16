@@ -68,17 +68,19 @@ pub struct System {
 /// Defines when and how often a system should run.
 #[derive(Debug, Eq, PartialEq)]
 pub enum RunLevel {
-    /// Only once on application startup
+    /// One time execution on application startup
     Startup,
-    /// Begin of rendering request handling
+    /// Execution on the beginning of each frame
     Bind,
-    /// Before rendering stage
-    Standard,
-    /// Rendering stage
+    /// Execution on every frame for most of the calculations and updates (Default)
+    Update,
+    /// Execution on every frame to load data to GPU buffers right before rendering
+    Load,
+    /// Execution on every frame to submit rendering passes
     Render,
-    /// End of the rendering request handling
+    /// Execution everytime after a frame was rendered
     Release,
-    /// Execution after window resizing
+    /// One-time execution after window resizing
     Resize,
 }
 
@@ -88,6 +90,8 @@ impl From<&str> for RunLevel {
             RunLevel::Startup
         } else if name.ends_with("::bind") {
             RunLevel::Bind
+        } else if name.ends_with("::load") {
+            RunLevel::Load
         } else if name.ends_with("::render") {
             RunLevel::Render
         } else if name.ends_with("::release") {
@@ -95,7 +99,7 @@ impl From<&str> for RunLevel {
         } else if name.ends_with("::resize") {
             RunLevel::Resize
         } else {
-            RunLevel::Standard
+            RunLevel::Update
         }
     }
 }
@@ -460,6 +464,7 @@ mod tests {
 
     fn startup(_service: Const<MyService>) {}
     fn bind(_service: Const<MyService>) {}
+    fn load(_service: Const<MyService>) {}
     fn render(_service: Const<MyService>) {}
     fn release(_service: Const<MyService>) {}
     fn resize(_service: Const<MyService>) {}
@@ -472,6 +477,9 @@ mod tests {
         let system = System::from(bind);
         assert_eq!(system.run_level, RunLevel::Bind);
 
+        let system = System::from(load);
+        assert_eq!(system.run_level, RunLevel::Load);
+
         let system = System::from(render);
         assert_eq!(system.run_level, RunLevel::Render);
 
@@ -482,6 +490,6 @@ mod tests {
         assert_eq!(system.run_level, RunLevel::Resize);
 
         let system = System::from(my_system_with_context);
-        assert_eq!(system.run_level, RunLevel::Standard);
+        assert_eq!(system.run_level, RunLevel::Update);
     }
 }
