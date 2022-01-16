@@ -165,6 +165,7 @@ fn run(
                 scheduler.run_bind(&mut services, current_state_ptr);
                 scheduler.run_update(&mut services, current_state_ptr);
                 scheduler.run_load(&mut services, current_state_ptr);
+                scheduler.run_compute(&mut services, current_state_ptr);
                 scheduler.run_render(&mut services, current_state_ptr);
                 scheduler.run_release(&mut services, current_state_ptr);
             }
@@ -208,6 +209,7 @@ struct Scheduler {
     bind: Vec<Box<dyn Systemized>>,
     update: Vec<Box<dyn Systemized>>,
     load: Vec<Box<dyn Systemized>>,
+    compute: Vec<Box<dyn Systemized>>,
     render: Vec<Box<dyn Systemized>>,
     release: Vec<Box<dyn Systemized>>,
     resize: Vec<Box<dyn Systemized>>,
@@ -220,6 +222,7 @@ impl Scheduler {
             bind: Vec::new(),
             update: Vec::new(),
             load: Vec::new(),
+            compute: Vec::new(),
             render: Vec::new(),
             release: Vec::new(),
             resize: Vec::new(),
@@ -234,6 +237,7 @@ impl Scheduler {
             RunLevel::Bind => &mut self.bind,
             RunLevel::Update => &mut self.update,
             RunLevel::Load => &mut self.load,
+            RunLevel::Compute => &mut self.compute,
             RunLevel::Render => &mut self.render,
             RunLevel::Release => &mut self.release,
             RunLevel::Resize => &mut self.resize,
@@ -247,52 +251,42 @@ impl Scheduler {
         });
     }
 
-    pub fn run_render(&mut self, services: &mut Services, state_ptr: *const StateId) {
-        for system in &mut self.render {
-            let state = unsafe { *state_ptr };
-            system.run(services, state);
-        }
-    }
-
-    pub fn run_update(&mut self, services: &mut Services, state_ptr: *const StateId) {
-        for system in &mut self.update {
+    fn run(list: &mut [Box<dyn Systemized>], services: &mut Services, state_ptr: *const StateId) {
+        for system in list.iter_mut() {
             let state = unsafe { *state_ptr };
             system.run(services, state);
         }
     }
 
     pub fn run_startup(&mut self, services: &mut Services, state_ptr: *const StateId) {
-        for system in &mut self.startup {
-            let state = unsafe { *state_ptr };
-            system.run(services, state);
-        }
+        Self::run(&mut self.startup, services, state_ptr);
     }
 
     pub fn run_bind(&mut self, services: &mut Services, state_ptr: *const StateId) {
-        for system in &mut self.bind {
-            let state = unsafe { *state_ptr };
-            system.run(services, state);
-        }
+        Self::run(&mut self.bind, services, state_ptr);
+    }
+
+    pub fn run_update(&mut self, services: &mut Services, state_ptr: *const StateId) {
+        Self::run(&mut self.update, services, state_ptr);
     }
 
     pub fn run_load(&mut self, services: &mut Services, state_ptr: *const StateId) {
-        for system in &mut self.load {
-            let state = unsafe { *state_ptr };
-            system.run(services, state);
-        }
+        Self::run(&mut self.load, services, state_ptr);
+    }
+
+    pub fn run_compute(&mut self, services: &mut Services, state_ptr: *const StateId) {
+        Self::run(&mut self.compute, services, state_ptr);
+    }
+
+    pub fn run_render(&mut self, services: &mut Services, state_ptr: *const StateId) {
+        Self::run(&mut self.render, services, state_ptr);
     }
 
     pub fn run_release(&mut self, services: &mut Services, state_ptr: *const StateId) {
-        for system in &mut self.release {
-            let state = unsafe { *state_ptr };
-            system.run(services, state);
-        }
+        Self::run(&mut self.release, services, state_ptr);
     }
 
     pub fn run_resize(&mut self, services: &mut Services, state_ptr: *const StateId) {
-        for system in &mut self.resize {
-            let state = unsafe { *state_ptr };
-            system.run(services, state);
-        }
+        Self::run(&mut self.resize, services, state_ptr);
     }
 }
