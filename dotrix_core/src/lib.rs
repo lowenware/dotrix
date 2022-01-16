@@ -128,7 +128,7 @@ impl Dotrix {
         // Recalculate FPS and delta time
         app.add_system(System::from(frame::bind));
         // load proj_view matrices
-        app.add_system(System::from(camera::bind));
+        app.add_system(System::from(camera::load));
 
         // Calculate skeletal animations
         app.add_system(System::from(animation::skeletal));
