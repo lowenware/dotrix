@@ -150,8 +150,8 @@ pub fn startup(mut globals: Mut<Globals>) {
     globals.set(Lights::default());
 }
 
-/// Lights binding system
-pub fn bind(
+/// Lights loading system
+pub fn load(
     world: Const<World>,
     renderer: Const<Renderer>,
     mut globals: Mut<Globals>,
