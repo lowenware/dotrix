@@ -76,6 +76,8 @@ pub enum RunLevel {
     Update,
     /// Execution on every frame to load data to GPU buffers right before rendering
     Load,
+    /// Execution on every frame to submit compute passes
+    Compute,
     /// Execution on every frame to submit rendering passes
     Render,
     /// Execution everytime after a frame was rendered
@@ -92,6 +94,8 @@ impl From<&str> for RunLevel {
             RunLevel::Bind
         } else if name.ends_with("::load") {
             RunLevel::Load
+        } else if name.ends_with("::compute") {
+            RunLevel::Compute
         } else if name.ends_with("::render") {
             RunLevel::Render
         } else if name.ends_with("::release") {
@@ -465,6 +469,7 @@ mod tests {
     fn startup(_service: Const<MyService>) {}
     fn bind(_service: Const<MyService>) {}
     fn load(_service: Const<MyService>) {}
+    fn compute(_service: Const<MyService>) {}
     fn render(_service: Const<MyService>) {}
     fn release(_service: Const<MyService>) {}
     fn resize(_service: Const<MyService>) {}
@@ -482,6 +487,9 @@ mod tests {
 
         let system = System::from(render);
         assert_eq!(system.run_level, RunLevel::Render);
+
+        let system = System::from(compute);
+        assert_eq!(system.run_level, RunLevel::Compute);
 
         let system = System::from(release);
         assert_eq!(system.run_level, RunLevel::Release);
