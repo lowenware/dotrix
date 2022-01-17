@@ -13,6 +13,7 @@ pub use backend::{
     Bindings, PipelineBackend, Sampler, ShaderModule, StorageBuffer, TextureBuffer, UniformBuffer,
     VertexBuffer, WorkGroups,
 };
+pub use wgpu::{StorageTextureAccess, TextureFormat, TextureUsages};
 
 /// Conversion matrix
 pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
@@ -100,7 +101,25 @@ impl Renderer {
         height: u32,
         layers: &'a [&'a [u8]],
     ) {
-        buffer.load(self.backend(), width, height, layers);
+        self.load_texture_buffer_with_usage(
+            buffer,
+            width,
+            height,
+            layers,
+            wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        );
+    }
+
+    /// Loads the texture buffer to GPU with usages
+    pub fn load_texture_buffer_with_usage<'a>(
+        &self,
+        buffer: &mut TextureBuffer,
+        width: u32,
+        height: u32,
+        layers: &'a [&'a [u8]],
+        usages: wgpu::TextureUsages,
+    ) {
+        buffer.load(self.backend(), width, height, layers, usages);
     }
 
     /// Loads the uniform buffer to GPU
@@ -332,6 +351,8 @@ pub enum Binding<'a> {
     Texture(&'a str, Stage, &'a TextureBuffer),
     /// 3D Texture binding
     Texture3D(&'a str, Stage, &'a TextureBuffer),
+    /// Storage texture binding
+    StorageTexture(&'a str, Stage, &'a TextureBuffer),
     /// Texture sampler binding
     Sampler(&'a str, Stage, &'a Sampler),
     /// Storage binding

@@ -349,14 +349,53 @@ impl VertexBuffer {
 }
 
 /// Texture Buffer
-#[derive(Default)]
 pub struct TextureBuffer {
     wgpu_texture_view: Option<wgpu::TextureView>,
+    mode: wgpu::StorageTextureAccess,
+    format: wgpu::TextureFormat,
+    filterable: bool,
+}
+
+impl Default for TextureBuffer {
+    fn default() -> Self {
+        Self {
+            mode: wgpu::StorageTextureAccess::ReadOnly,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            wgpu_texture_view: None,
+            filterable: true,
+        }
+    }
 }
 
 impl TextureBuffer {
+    /// Create a texture with alternate storage texture access/formats
+    ///
+    /// * mode: Storage texture access mode (only used when binding a storage texture)
+    /// * format: Pixel format
+    /// * filterable: Specifies if the pixel format can be sampled with a filtering sampler
+    ///               not all pixel formats can be filtered
+    pub fn new(
+        mode: wgpu::StorageTextureAccess,
+        format: wgpu::TextureFormat,
+        filterable: bool,
+    ) -> Self {
+        Self {
+            mode,
+            format,
+            filterable,
+            wgpu_texture_view: Default::default(),
+        }
+    }
+
     /// Loads data into the texture buffer
-    pub(crate) fn load<'a>(&mut self, ctx: &Context, width: u32, height: u32, layers: &[&'a [u8]]) {
+    pub(crate) fn load<'a>(
+        &mut self,
+        ctx: &Context,
+        width: u32,
+        height: u32,
+        layers: &[&'a [u8]],
+        usage: wgpu::TextureUsages,
+    ) {
         let depth_or_array_layers = layers.len() as u32;
 
         let size = wgpu::Extent3d {
@@ -378,12 +417,13 @@ impl TextureBuffer {
             mip_level_count: max_mips as u32,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            format: self.format,
+            usage,
         });
 
         self.wgpu_texture_view = Some(texture.create_view(&wgpu::TextureViewDescriptor {
             label: None,
+            format: Some(self.format),
             dimension: Some(if depth_or_array_layers == 6 {
                 wgpu::TextureViewDimension::Cube
             } else {
@@ -821,23 +861,37 @@ impl PipelineBackend {
                     },
                     count: None,
                 },
-                Binding::Texture(_, stage, _) => wgpu::BindGroupLayoutEntry {
+                Binding::Texture(_, stage, texture) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
                     visibility: visibility(stage),
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        sample_type: wgpu::TextureSampleType::Float {
+                            filterable: texture.filterable,
+                        },
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
                 },
-                Binding::Texture3D(_, stage, _) => wgpu::BindGroupLayoutEntry {
+                Binding::Texture3D(_, stage, texture) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
                     visibility: visibility(stage),
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        sample_type: wgpu::TextureSampleType::Float {
+                            filterable: texture.filterable,
+                        },
                         view_dimension: wgpu::TextureViewDimension::Cube,
+                    },
+                    count: None,
+                },
+                Binding::StorageTexture(_, stage, texture) => wgpu::BindGroupLayoutEntry {
+                    binding: index as u32,
+                    visibility: visibility(stage),
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: texture.mode,
+                        format: texture.format,
+                        view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
                 },
@@ -911,7 +965,8 @@ impl Bindings {
                                     uniform.get().as_entire_binding()
                                 }
                                 Binding::Texture(_, _, texture)
-                                | Binding::Texture3D(_, _, texture) => {
+                                | Binding::Texture3D(_, _, texture)
+                                | Binding::StorageTexture(_, _, texture) => {
                                     wgpu::BindingResource::TextureView(texture.get())
                                 }
                                 Binding::Sampler(_, _, sampler) => {
