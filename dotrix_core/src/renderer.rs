@@ -1,6 +1,7 @@
 //! Rendering service and system, pipelines, abstractions for models, transformation, skybox,
 //! lights and overlay
 mod backend;
+mod mapped_wgpu;
 
 use backend::Context as Backend;
 use dotrix_math::Mat4;
@@ -13,7 +14,8 @@ pub use backend::{
     Bindings, PipelineBackend, Sampler, ShaderModule, StorageBuffer, TextureBuffer, UniformBuffer,
     VertexBuffer, WorkGroups,
 };
-pub use wgpu::{StorageTextureAccess, TextureFormat, TextureUsages};
+pub use mapped_wgpu::TextureUsages;
+pub use wgpu::{StorageTextureAccess, TextureFormat};
 
 /// Conversion matrix
 pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
@@ -106,7 +108,7 @@ impl Renderer {
             width,
             height,
             layers,
-            wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            TextureUsages::create().texture().write(),
         );
     }
 
@@ -117,9 +119,9 @@ impl Renderer {
         width: u32,
         height: u32,
         layers: &'a [&'a [u8]],
-        usages: wgpu::TextureUsages,
+        usages: TextureUsages,
     ) {
-        buffer.load(self.backend(), width, height, layers, usages);
+        buffer.load(self.backend(), width, height, layers, usages.into());
     }
 
     /// Loads the uniform buffer to GPU

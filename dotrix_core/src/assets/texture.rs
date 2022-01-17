@@ -26,7 +26,7 @@ impl Default for Texture {
             height: 0,
             depth: 0,
             data: vec![],
-            usages: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+            usages: TextureUsages::create().texture().write(),
             buffer: Default::default(),
             changed: false,
         }
