@@ -86,7 +86,7 @@ impl Default for Entity {
             roughness_texture: Id::default(),
             metallic: 0.,
             metallic_texture: Id::default(),
-            ao: 0.,
+            ao: 0.5,
             ao_texture: Id::default(),
             normal_texture: Id::default(),
             shader: Id::default(),

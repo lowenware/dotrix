@@ -6,7 +6,6 @@ use dotrix_core::{Assets, Color, Id, Renderer};
 const DUMMY_TEXTURE: &str = "dotrix::dummy_texture";
 
 /// Material component
-#[derive(Default)]
 pub struct Material {
     /// Id of a texture asset
     pub texture: Id<Texture>,
@@ -28,6 +27,23 @@ pub struct Material {
     pub normal_texture: Id<Texture>,
     /// Pipeline buffer
     pub uniform: UniformBuffer,
+}
+
+impl Default for Material {
+    fn default() -> Self {
+        Self {
+            texture: Id::default(),
+            albedo: Color::white(),
+            roughness: 1.0,
+            roughness_texture: Id::default(),
+            metallic: 0.0,
+            metallic_texture: Id::default(),
+            ao: 0.5,
+            ao_texture: Id::default(),
+            normal_texture: Id::default(),
+            uniform: UniformBuffer::default(),
+        }
+    }
 }
 
 impl Material {

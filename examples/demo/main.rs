@@ -162,7 +162,8 @@ fn init_player(world: &mut World, assets: &mut Assets, input: &mut Input) {
         Model::from(mesh),
         Pose::from(skin),
         Material {
-            albedo: Color::grey(),
+            albedo: Color::rgb(0.2, 0.2, 0.2),
+            ao: 0.2,
             ..Default::default()
         },
         Transform {
@@ -193,7 +194,7 @@ fn init_light(world: &mut World) {
     // spawn source of white light at (0.0, 100.0, 0.0)
     world.spawn(Some((Light::Ambient {
         color: Color::white(),
-        intensity: 0.5,
+        intensity: 0.2,
     },)));
 }
 
