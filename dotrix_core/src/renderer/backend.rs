@@ -360,7 +360,7 @@ impl Default for TextureBuffer {
     fn default() -> Self {
         Self {
             mode: super::StorageTextureAccess::Read,
-            format: super::TextureFormat::create().r().g().b().a().unorm_srgb(),
+            format: super::TextureFormat::create().rgba().unorm_srgb(),
             wgpu_texture_view: None,
             filterable: true,
         }

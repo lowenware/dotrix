@@ -211,6 +211,11 @@ impl TextureFormat {
         self.a = true;
         self
     }
+    /// Incule all four rgba channels
+    #[must_use]
+    pub fn rgba(self) -> Self {
+        self.r().g().b().a()
+    }
     /// Use 8 bit channels (this will supercede any prior size)
     #[must_use]
     pub fn bits8(mut self) -> Self {
