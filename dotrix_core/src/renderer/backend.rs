@@ -1,5 +1,5 @@
 /// WGPU backend wrapper module
-use std::{borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, collections::HashMap, convert::TryInto};
 use wgpu;
 use wgpu::util::DeviceExt;
 use winit;
@@ -351,16 +351,16 @@ impl VertexBuffer {
 /// Texture Buffer
 pub struct TextureBuffer {
     wgpu_texture_view: Option<wgpu::TextureView>,
-    mode: wgpu::StorageTextureAccess,
-    format: wgpu::TextureFormat,
+    mode: super::StorageTextureAccess,
+    format: super::TextureFormat,
     filterable: bool,
 }
 
 impl Default for TextureBuffer {
     fn default() -> Self {
         Self {
-            mode: wgpu::StorageTextureAccess::ReadOnly,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            mode: super::StorageTextureAccess::Read,
+            format: super::TextureFormat::create().r().g().b().a().unorm_srgb(),
             wgpu_texture_view: None,
             filterable: true,
         }
@@ -375,8 +375,8 @@ impl TextureBuffer {
     /// * filterable: Specifies if the pixel format can be sampled with a filtering sampler
     ///               not all pixel formats can be filtered
     pub fn new(
-        mode: wgpu::StorageTextureAccess,
-        format: wgpu::TextureFormat,
+        mode: super::StorageTextureAccess,
+        format: super::TextureFormat,
         filterable: bool,
     ) -> Self {
         Self {
@@ -410,6 +410,8 @@ impl TextureBuffer {
         };
 
         let max_mips = 1; //layer_size.max_mips();
+        let format: wgpu::TextureFormat =
+            self.format.try_into().expect("Texture format is invalid");
 
         let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("TextureBuffer"),
@@ -417,13 +419,13 @@ impl TextureBuffer {
             mip_level_count: max_mips as u32,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: self.format,
+            format,
             usage,
         });
 
         self.wgpu_texture_view = Some(texture.create_view(&wgpu::TextureViewDescriptor {
             label: None,
-            format: Some(self.format),
+            format: Some(format),
             dimension: Some(if depth_or_array_layers == 6 {
                 wgpu::TextureViewDimension::Cube
             } else {
@@ -889,8 +891,11 @@ impl PipelineBackend {
                     binding: index as u32,
                     visibility: visibility(stage),
                     ty: wgpu::BindingType::StorageTexture {
-                        access: texture.mode,
-                        format: texture.format,
+                        access: texture.mode.into(),
+                        format: texture
+                            .format
+                            .try_into()
+                            .expect("Texture format is invalid"),
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,

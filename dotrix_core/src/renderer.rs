@@ -14,8 +14,7 @@ pub use backend::{
     Bindings, PipelineBackend, Sampler, ShaderModule, StorageBuffer, TextureBuffer, UniformBuffer,
     VertexBuffer, WorkGroups,
 };
-pub use mapped_wgpu::TextureUsages;
-pub use wgpu::{StorageTextureAccess, TextureFormat};
+pub use mapped_wgpu::{StorageTextureAccess, TextureFormat, TextureUsages};
 
 /// Conversion matrix
 pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
