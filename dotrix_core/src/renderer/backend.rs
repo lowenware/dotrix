@@ -353,16 +353,17 @@ pub struct TextureBuffer {
     wgpu_texture_view: Option<wgpu::TextureView>,
     mode: super::StorageTextureAccess,
     format: super::TextureFormat,
-    filterable: bool,
 }
 
 impl Default for TextureBuffer {
     fn default() -> Self {
         Self {
             mode: super::StorageTextureAccess::Read,
-            format: super::TextureFormat::create().rgba().unorm_srgb(),
+            format: super::TextureFormat::Rgba {
+                channel_bits: 8,
+                channel_format: super::ChannelFormat::UnormSrgb,
+            },
             wgpu_texture_view: None,
-            filterable: true,
         }
     }
 }
@@ -374,15 +375,10 @@ impl TextureBuffer {
     /// * format: Pixel format
     /// * filterable: Specifies if the pixel format can be sampled with a filtering sampler
     ///               not all pixel formats can be filtered
-    pub fn new(
-        mode: super::StorageTextureAccess,
-        format: super::TextureFormat,
-        filterable: bool,
-    ) -> Self {
+    pub fn new(mode: super::StorageTextureAccess, format: super::TextureFormat) -> Self {
         Self {
             mode,
             format,
-            filterable,
             wgpu_texture_view: Default::default(),
         }
     }
@@ -869,7 +865,7 @@ impl PipelineBackend {
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
                         sample_type: wgpu::TextureSampleType::Float {
-                            filterable: texture.filterable,
+                            filterable: texture.format.filterable(),
                         },
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
@@ -881,7 +877,7 @@ impl PipelineBackend {
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
                         sample_type: wgpu::TextureSampleType::Float {
-                            filterable: texture.filterable,
+                            filterable: texture.format.filterable(),
                         },
                         view_dimension: wgpu::TextureViewDimension::Cube,
                     },
