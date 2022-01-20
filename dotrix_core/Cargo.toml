@@ -34,9 +34,6 @@ features = ["std", "executor"]
 version = "0.15"
 features = ["extras", "names"]
 
-[dependencies.lazy_static]
-version = "1.4.0"
-
 [dependencies.log]
 version = "0.4"
 
@@ -49,9 +46,6 @@ features = ["derive"]
 
 [dependencies.serde_json]
 version = "1.0"
-
-[dependencies.thiserror]
-version = "1.0.30"
 
 [dependencies.wgpu]
 version = "0.12"

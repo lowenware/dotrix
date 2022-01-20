@@ -1,5 +1,5 @@
 /// WGPU backend wrapper module
-use std::{borrow::Cow, collections::HashMap, convert::TryInto};
+use std::{borrow::Cow, collections::HashMap};
 use wgpu;
 use wgpu::util::DeviceExt;
 use winit;
@@ -359,10 +359,7 @@ impl Default for TextureBuffer {
     fn default() -> Self {
         Self {
             mode: super::StorageTextureAccess::Read,
-            format: super::TextureFormat::Rgba {
-                channel_bits: 8,
-                channel_format: super::ChannelFormat::UnormSrgb,
-            },
+            format: super::TextureFormat::rgba_u8norm_srgb(),
             wgpu_texture_view: None,
         }
     }
@@ -406,8 +403,7 @@ impl TextureBuffer {
         };
 
         let max_mips = 1; //layer_size.max_mips();
-        let format: wgpu::TextureFormat =
-            self.format.try_into().expect("Texture format is invalid");
+        let format: wgpu::TextureFormat = self.format.into();
 
         let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("TextureBuffer"),
@@ -865,7 +861,7 @@ impl PipelineBackend {
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
                         sample_type: wgpu::TextureSampleType::Float {
-                            filterable: texture.format.filterable(),
+                            filterable: texture.format.filterable,
                         },
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
@@ -877,7 +873,7 @@ impl PipelineBackend {
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
                         sample_type: wgpu::TextureSampleType::Float {
-                            filterable: texture.format.filterable(),
+                            filterable: texture.format.filterable,
                         },
                         view_dimension: wgpu::TextureViewDimension::Cube,
                     },
@@ -888,10 +884,7 @@ impl PipelineBackend {
                     visibility: visibility(stage),
                     ty: wgpu::BindingType::StorageTexture {
                         access: texture.mode.into(),
-                        format: texture
-                            .format
-                            .try_into()
-                            .expect("Texture format is invalid"),
+                        format: texture.format.into(),
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
