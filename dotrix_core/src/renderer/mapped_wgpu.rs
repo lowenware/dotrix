@@ -135,8 +135,6 @@ impl From<StorageTextureAccess> for wgpu::StorageTextureAccess {
 pub struct TextureFormat {
     /// The raw `[wgpu::TextureFormat]`
     pub wgpu_texture_format: WgpuTextureFormat,
-    /// Defines if the channel data is filterable with a filtering sampler
-    pub filterable: bool,
 }
 
 impl TextureFormat {
@@ -144,28 +142,24 @@ impl TextureFormat {
     pub fn r_u8() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::R8Uint,
-            filterable: false,
         }
     }
     /// Red channel signed 8 bit integer
     pub fn r_i8() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::R8Sint,
-            filterable: false,
         }
     }
     /// Red channel unsigned 8 bit integer normalised to 0..1 in the shader
     pub fn r_u8norm() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::R8Unorm,
-            filterable: true,
         }
     }
     /// Red channel signed 8 bit integer normalised to -1..1 in the shader
     pub fn r_i8norm() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::R8Snorm,
-            filterable: true,
         }
     }
 
@@ -173,56 +167,48 @@ impl TextureFormat {
     pub fn r_u16() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::R16Uint,
-            filterable: false,
         }
     }
     /// Red channel signed 16 bit integer
     pub fn r_i16() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::R16Sint,
-            filterable: false,
         }
     }
     /// Red channel unsigned 16 bit integer normalised to 0..1 in the shader
     pub fn r_u16norm() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::R16Unorm,
-            filterable: true,
         }
     }
     /// Red channel signed 16 bit integer normalised to -1..1 in the shader
     pub fn r_i16norm() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::R16Snorm,
-            filterable: true,
         }
     }
     /// Red channel unsigned 16 bit float
     pub fn r_f16() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::R16Float,
-            filterable: false,
         }
     }
     /// Red channel unsigned 32 bit integer
     pub fn r_u32() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::R32Uint,
-            filterable: false,
         }
     }
     /// Red channel signed 32 bit integer
     pub fn r_i32() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::R32Sint,
-            filterable: false,
         }
     }
     /// Red channel 32 bit float
     pub fn r_f32() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::R32Float,
-            filterable: false,
         }
     }
 
@@ -231,28 +217,24 @@ impl TextureFormat {
     pub fn rg_u8() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rg8Uint,
-            filterable: false,
         }
     }
     /// Red and green channel signed 8 bit integer
     pub fn rg_i8() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rg8Sint,
-            filterable: false,
         }
     }
     /// Red and green channel unsigned 8 bit integer normalised to 0..1 in the shader
     pub fn rg_u8norm() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rg8Unorm,
-            filterable: true,
         }
     }
     /// Red and green channel signed 8 bit integer normalised to -1..1 in the shader
     pub fn rg_i8norm() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rg8Snorm,
-            filterable: true,
         }
     }
 
@@ -260,56 +242,48 @@ impl TextureFormat {
     pub fn rg_u16() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rg16Uint,
-            filterable: false,
         }
     }
     /// Red and green channel signed 16 bit integer
     pub fn rg_i16() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rg16Sint,
-            filterable: false,
         }
     }
     /// Red and green channel unsigned 16 bit integer normalised to 0..1 in the shader
     pub fn rg_u16norm() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rg16Unorm,
-            filterable: true,
         }
     }
     /// Red and green channel signed 16 bit integer normalised to -1..1 in the shader
     pub fn rg_i16norm() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rg16Snorm,
-            filterable: true,
         }
     }
     /// Red and green channel unsigned 16 bit float
     pub fn rg_f16() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rg16Float,
-            filterable: false,
         }
     }
     /// Red and green channel unsigned 32 bit integer
     pub fn rg_u32() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rg32Uint,
-            filterable: false,
         }
     }
     /// Red and green channel signed 32 bit integer
     pub fn rg_i32() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rg32Sint,
-            filterable: false,
         }
     }
     /// Red and green channel 32 bit float
     pub fn rg_f32() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rg32Float,
-            filterable: false,
         }
     }
 
@@ -318,21 +292,18 @@ impl TextureFormat {
     pub fn rgba_u8() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba8Uint,
-            filterable: false,
         }
     }
     /// Red, green, blue and aplha channel signed 8 bit integer
     pub fn rgba_i8() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba8Sint,
-            filterable: false,
         }
     }
     /// Red, green, blue and aplha channel unsigned 8 bit integer normalised to 0..1 in the shader
     pub fn rgba_u8norm() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba8Unorm,
-            filterable: true,
         }
     }
     /// Red, green, blue and aplha channel unsigned 8 bit integer normalised to 0..1 in the shader
@@ -340,14 +311,12 @@ impl TextureFormat {
     pub fn rgba_u8norm_srgb() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba8UnormSrgb,
-            filterable: true,
         }
     }
     /// Red, green, blue and aplha channel signed 8 bit integer normalised to -1..1 in the shader
     pub fn rgba_i8norm() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba8Snorm,
-            filterable: true,
         }
     }
 
@@ -355,57 +324,56 @@ impl TextureFormat {
     pub fn rgba_u16() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba16Uint,
-            filterable: false,
         }
     }
     /// Red, green, blue and aplha channel signed 16 bit integer
     pub fn rgba_i16() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba16Sint,
-            filterable: false,
         }
     }
     /// Red, green, blue and aplha channel unsigned 16 bit integer normalised to 0..1 in the shader
     pub fn rgba_u16norm() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba16Unorm,
-            filterable: true,
         }
     }
     /// Red, green, blue and aplha channel signed 16 bit integer normalised to -1..1 in the shader
     pub fn rgba_i16norm() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba16Snorm,
-            filterable: true,
         }
     }
     /// Red, green, blue and aplha channel unsigned 16 bit float
     pub fn rgba_f16() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba16Float,
-            filterable: false,
         }
     }
     /// Red, green, blue and aplha channel unsigned 32 bit integer
     pub fn rgba_u32() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba32Uint,
-            filterable: false,
         }
     }
     /// Red, green, blue and aplha channel signed 32 bit integer
     pub fn rgba_i32() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba32Sint,
-            filterable: false,
         }
     }
     /// Red, green, blue and aplha channel 32 bit float
     pub fn rgba_f32() -> Self {
         Self {
             wgpu_texture_format: WgpuTextureFormat::Rgba32Float,
-            filterable: false,
         }
+    }
+
+    pub(crate) fn is_filterable(&self) -> bool {
+        self.wgpu_texture_format
+            .describe()
+            .guaranteed_format_features
+            .filterable
     }
 }
 

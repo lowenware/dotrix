@@ -370,8 +370,6 @@ impl TextureBuffer {
     ///
     /// * mode: Storage texture access mode (only used when binding a storage texture)
     /// * format: Pixel format
-    /// * filterable: Specifies if the pixel format can be sampled with a filtering sampler
-    ///               not all pixel formats can be filtered
     pub fn new(mode: super::StorageTextureAccess, format: super::TextureFormat) -> Self {
         Self {
             mode,
@@ -861,7 +859,7 @@ impl PipelineBackend {
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
                         sample_type: wgpu::TextureSampleType::Float {
-                            filterable: texture.format.filterable,
+                            filterable: texture.format.is_filterable(),
                         },
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
@@ -873,7 +871,7 @@ impl PipelineBackend {
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
                         sample_type: wgpu::TextureSampleType::Float {
-                            filterable: texture.format.filterable,
+                            filterable: texture.format.is_filterable(),
                         },
                         view_dimension: wgpu::TextureViewDimension::Cube,
                     },
