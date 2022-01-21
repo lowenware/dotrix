@@ -22,24 +22,28 @@ impl Cube {
     }
 
     /// Add vertices to mesh
+    #[must_use]
     pub fn with_positions(mut self) -> Self {
         self.mesh_attributes.push(MeshAttribute::Positions);
         self
     }
 
     /// Add normals to mesh
+    #[must_use]
     pub fn with_normals(mut self) -> Self {
         self.mesh_attributes.push(MeshAttribute::Normals);
         self
     }
 
     /// Add tangents bitangents to mesh
+    #[must_use]
     pub fn with_tangents_bitangents(mut self) -> Self {
         self.mesh_attributes.push(MeshAttribute::TangentsBitangents);
         self
     }
 
     /// Add texture UVs
+    #[must_use]
     pub fn with_uvs(mut self, uvs: Vec<[f32; 2]>) -> Self {
         self.mesh_attributes.push(MeshAttribute::UVs);
         self.uvs = Some(uvs);
