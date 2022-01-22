@@ -54,6 +54,11 @@ impl Mesh {
             offset += self.layout[i].size();
         }
         let size = offset + self.layout[index].size();
+
+        if self.layout[index].type_id() != std::any::TypeId::of::<T>() {
+            panic!("Wrong attribute type");
+        }
+
         self.vertices
             .iter()
             .map(|v| bytemuck::cast_slice::<u8, T>(&v[offset..size])[0])
@@ -359,5 +364,28 @@ mod tests {
         assert_eq!(verticies_test_original_2, verticies_test_2);
         assert_eq!(verticies_test_original_3, verticies_test_3);
         assert_eq!(indices_test_original, indices_test);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_vertices_as_typecheck() {
+        let width = 2.0;
+
+        let verticies_test_original_1: Vec<[f32; 3]> = vec![
+            [-width, -width, -width],
+            [width, -width, -width],
+            [width, width, -width],
+            [-width, width, -width],
+            [-width, -width, width],
+            [width, -width, width],
+            [width, width, width],
+            [-width, width, width],
+        ];
+
+        let mut mesh = Mesh::default();
+
+        mesh.with_vertices(&verticies_test_original_1);
+
+        mesh.vertices_as::<[u32; 3]>(0);
     }
 }
