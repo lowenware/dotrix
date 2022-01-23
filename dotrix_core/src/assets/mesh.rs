@@ -2,6 +2,7 @@
 use crate::renderer::{AttributeFormat, Renderer, VertexBuffer};
 use bytemuck::{Pod, Zeroable};
 use dotrix_math::{InnerSpace, Vec2, Vec3, VectorSpace};
+use std::marker::PhantomData;
 
 /// Asset with 3D model data
 #[derive(Default)]
@@ -44,9 +45,39 @@ impl Mesh {
         self.layout.push(format);
     }
 
-    /// Sets indicies to the mesh
+    /// Get vertices with type casting
+    pub fn vertices_as<T>(&self, index: usize) -> AttributeIter<T>
+    where
+        T: VertexAttribute + Pod + Zeroable,
+    {
+        if self.layout[index].type_id() != std::any::TypeId::of::<T>() {
+            panic!("Wrong attribute type");
+        }
+
+        let mut offset = 0;
+        for i in 0..index {
+            offset += self.layout[i].size();
+        }
+        let size = offset + self.layout[index].size();
+
+        AttributeIter {
+            iter: self.vertices.iter(),
+            offset,
+            size,
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Sets indices to the mesh
     pub fn with_indices(&mut self, indices: &[u32]) {
         self.indices = Some(Vec::from(bytemuck::cast_slice(indices)));
+    }
+
+    /// Get vertices with type casting
+    pub fn indices(&self) -> Option<&[u32]> {
+        self.indices
+            .as_ref()
+            .map(|v| bytemuck::cast_slice(v.as_slice()))
     }
 
     /// Load the [`Mesh`] buffer
@@ -265,5 +296,117 @@ impl VertexAttribute for [u32; 3] {
 impl VertexAttribute for [u32; 4] {
     fn format() -> AttributeFormat {
         AttributeFormat::Uint32x4
+    }
+}
+
+/// Iterator over Vertices Attributes
+pub struct AttributeIter<'a, T> {
+    iter: std::slice::Iter<'a, Vec<u8>>,
+    offset: usize,
+    size: usize,
+    _phantom: PhantomData<T>,
+}
+
+impl<'a, T> Iterator for AttributeIter<'a, T>
+where
+    T: VertexAttribute + Pod + Zeroable,
+{
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter
+            .next()
+            .map(|v| bytemuck::cast_slice::<u8, T>(&v[self.offset..self.size])[0])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vertices_as() {
+        let mut width = 2.0;
+
+        let verticies_test_original_1: Vec<[f32; 3]> = vec![
+            [-width, -width, -width],
+            [width, -width, -width],
+            [width, width, -width],
+            [-width, width, -width],
+            [-width, -width, width],
+            [width, -width, width],
+            [width, width, width],
+            [-width, width, width],
+        ];
+
+        width = width / 2.0;
+
+        let verticies_test_original_2: Vec<[f32; 3]> = vec![
+            [-width, -width, -width],
+            [width, -width, -width],
+            [width, width, -width],
+            [-width, width, -width],
+            [-width, -width, width],
+            [width, -width, width],
+            [width, width, width],
+            [-width, width, width],
+        ];
+
+        width = width / 2.0;
+
+        let verticies_test_original_3: Vec<[u32; 3]> = vec![
+            [-width as u32, -width as u32, -width as u32],
+            [width as u32, -width as u32, -width as u32],
+            [width as u32, width as u32, -width as u32],
+            [-width as u32, width as u32, -width as u32],
+            [-width as u32, -width as u32, width as u32],
+            [width as u32, -width as u32, width as u32],
+            [width as u32, width as u32, width as u32],
+            [-width as u32, width as u32, width as u32],
+        ];
+
+        let indices_test_original = [
+            0, 2, 1, 0, 3, 2, 1, 6, 5, 1, 2, 6, 5, 7, 4, 5, 6, 7, 4, 3, 0, 4, 7, 3, 3, 6, 2, 3, 7,
+            6, 4, 1, 5, 4, 0, 1,
+        ];
+
+        let mut mesh = Mesh::default();
+
+        mesh.with_vertices(&verticies_test_original_1);
+        mesh.with_vertices(&verticies_test_original_2);
+        mesh.with_vertices(&verticies_test_original_3);
+        mesh.with_indices(&indices_test_original);
+
+        let verticies_test_1 = mesh.vertices_as::<[f32; 3]>(0).collect::<Vec<_>>();
+        let verticies_test_2 = mesh.vertices_as::<[f32; 3]>(1).collect::<Vec<_>>();
+        let verticies_test_3 = mesh.vertices_as::<[u32; 3]>(2).collect::<Vec<_>>();
+        let indices_test = mesh.indices().unwrap();
+
+        assert_eq!(verticies_test_original_1, verticies_test_1);
+        assert_eq!(verticies_test_original_2, verticies_test_2);
+        assert_eq!(verticies_test_original_3, verticies_test_3);
+        assert_eq!(&indices_test_original, indices_test);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_vertices_as_typecheck() {
+        let width = 2.0;
+
+        let verticies_test_original_1: Vec<[f32; 3]> = vec![
+            [-width, -width, -width],
+            [width, -width, -width],
+            [width, width, -width],
+            [-width, width, -width],
+            [-width, -width, width],
+            [width, -width, width],
+            [width, width, width],
+            [-width, width, width],
+        ];
+
+        let mut mesh = Mesh::default();
+
+        mesh.with_vertices(&verticies_test_original_1);
+
+        mesh.vertices_as::<[u32; 3]>(0).for_each(drop);
     }
 }
