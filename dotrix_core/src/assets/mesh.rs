@@ -50,15 +50,15 @@ impl Mesh {
     where
         T: VertexAttribute + Pod + Zeroable,
     {
+        if self.layout[index].type_id() != std::any::TypeId::of::<T>() {
+            panic!("Wrong attribute type");
+        }
+
         let mut offset = 0;
         for i in 0..index {
             offset += self.layout[i].size();
         }
         let size = offset + self.layout[index].size();
-
-        if self.layout[index].type_id() != std::any::TypeId::of::<T>() {
-            panic!("Wrong attribute type");
-        }
 
         AttributeIter {
             iter: self.vertices.iter(),
