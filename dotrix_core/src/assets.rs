@@ -90,7 +90,26 @@ impl Assets {
 
     /// Imports an asset file by its path and returns [`Id`] of the [`Resource`]
     pub fn import(&mut self, path_str: &str) -> Id<Resource> {
-        let path = std::path::Path::new(path_str);
+        // TODO: implement conditional import logic by device type
+        let path_buf = match std::path::Path::new(path_str).exists() {
+            true => {
+                let mut new_path = std::path::PathBuf::new();
+                new_path.push(path_str);
+                new_path
+            }
+            false => {
+                let mut new_path = std::env::current_exe()
+                    .map(|path| {
+                        path.parent()
+                            .map(|exe_parent_path| exe_parent_path.to_owned())
+                            .unwrap()
+                    })
+                    .unwrap();
+                new_path.push(path_str);
+                new_path
+            }
+        };
+        let path = path_buf.as_path();
         let name = path.file_stem().map(|n| n.to_str().unwrap()).unwrap();
         let resource = Resource::new(name.to_string(), path_str.to_string());
         let id = self.store_as::<Resource>(resource, name);
