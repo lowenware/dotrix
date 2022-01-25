@@ -78,6 +78,7 @@ cargo run --release --example compute
 ## Contributors
 
 * Andrew King <[@QuantumEntangledAndy](https://github.com/QuantumEntangledAndy)>
+* Russell Wong <[@russellwmy](https://github.com/russellwmy)>
 
 ### 3rd Party Assets
 
