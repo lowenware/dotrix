@@ -1,7 +1,10 @@
 //! Rendering service and system, pipelines, abstractions for models, transformation, skybox,
 //! lights and overlay
 mod backend;
+mod buffer;
 mod mapped_wgpu;
+mod shader;
+mod texture;
 
 use backend::Context as Backend;
 use dotrix_math::Mat4;

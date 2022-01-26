@@ -8,17 +8,17 @@ use crate::{assets::Shader, color::Color, id::Id};
 
 use super::{AttributeFormat, BindGroup, Binding, DepthBufferMode, Options, PipelineLayout, Stage};
 
-pub(crate) struct Context {
+pub struct Context {
     #[allow(dead_code)]
-    adapter: wgpu::Adapter,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    surface: wgpu::Surface,
-    sur_desc: wgpu::SurfaceConfiguration,
-    depth_buffer: wgpu::TextureView,
-    frame: Option<wgpu::SurfaceTexture>,
-    encoder: Option<wgpu::CommandEncoder>,
-    pipelines: HashMap<Id<Shader>, PipelineBackend>,
+    pub adapter: wgpu::Adapter,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub surface: wgpu::Surface,
+    pub sur_desc: wgpu::SurfaceConfiguration,
+    pub depth_buffer: wgpu::TextureView,
+    pub frame: Option<wgpu::SurfaceTexture>,
+    pub encoder: Option<wgpu::CommandEncoder>,
+    pub pipelines: HashMap<Id<Shader>, PipelineBackend>,
 }
 
 impl Context {
