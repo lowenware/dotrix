@@ -6,10 +6,9 @@ use dotrix::math::{Point3, Quat, Rad, Rotation3, Vec3};
 use dotrix::overlay::{self, Overlay};
 use dotrix::pbr::{self, Light, Material, Model};
 use dotrix::prelude::*;
+use dotrix::renderer::Render;
 use dotrix::sky::{skybox, SkyBox};
-use dotrix::{
-    Animator, Assets, Camera, Color, CubeMap, Frame, Input, Pipeline, Pose, Transform, World,
-};
+use dotrix::{Animator, Assets, Camera, Color, CubeMap, Frame, Input, Pose, Transform, World};
 
 use std::f32::consts::PI;
 
@@ -75,7 +74,7 @@ fn init_skybox(world: &mut World, assets: &mut Assets) {
             front: assets.register("skybox_front"),
             ..Default::default()
         },
-        Pipeline::default(),
+        Render::default(),
     )));
 }
 
@@ -172,7 +171,7 @@ fn init_player(world: &mut World, assets: &mut Assets, input: &mut Input) {
             ..Default::default()
         },
         Animator::new(run), // Animation control (stopped by default)
-        Pipeline::default(),
+        Render::default(),
         Player { is_running: false },
     )));
 

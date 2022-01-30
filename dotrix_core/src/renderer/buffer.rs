@@ -1,4 +1,4 @@
-use super::backend::Context;
+use super::Context;
 use wgpu;
 use wgpu::util::DeviceExt;
 
@@ -18,7 +18,7 @@ impl Buffer {
         Self {
             label: label.into(),
             wgpu_buffer: None,
-            usage: wgpu::BufferUsages::empty(),
+            usage: wgpu::BufferUsages::COPY_DST,
         }
     }
 
@@ -96,6 +96,11 @@ impl Buffer {
         self
     }
 
+    /// Return true if buffer is writable
+    pub fn can_write(&self) -> bool {
+        self.usage.contains(wgpu::BufferUsages::COPY_SRC)
+    }
+
     /// Load data into the buffer
     pub fn load<'a>(&mut self, ctx: &Context, data: &'a [u8]) {
         if let Some(buffer) = self.wgpu_buffer.as_ref() {
@@ -111,7 +116,7 @@ impl Buffer {
         }
     }
 
-    /// Check if buffer is loaded
+    /// Check if buffer isloaded
     pub fn loaded(&self) -> bool {
         self.wgpu_buffer.is_some()
     }
@@ -124,6 +129,11 @@ impl Buffer {
     /// Get unwrapped reference to WGPU buffer
     pub fn get(&self) -> &wgpu::Buffer {
         self.wgpu_buffer.as_ref().expect("Buffer must be loaded")
+    }
+
+    /// Get optional reference to WGPU buffer
+    pub fn as_ref(&self) -> Option<&wgpu::Buffer> {
+        self.wgpu_buffer.as_ref()
     }
 }
 

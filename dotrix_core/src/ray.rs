@@ -1,8 +1,6 @@
 //! Mouse ray implementation
-use crate::{
-    ecs::{Const, Mut},
-    services::{Camera, Input, Window},
-};
+use crate::ecs::{Const, Mut};
+use crate::{Camera, Input, Window};
 use dotrix_math::{InnerSpace, SquareMatrix, Vec2, Vec3, Vec4};
 
 /// Represents ray and provides method for various calculations

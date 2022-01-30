@@ -1,11 +1,10 @@
 //! Mesh Asset
-use crate::renderer::{AttributeFormat, Renderer, VertexBuffer};
+use crate::renderer::{AttributeFormat, Buffer, Renderer};
 use bytemuck::{Pod, Zeroable};
 use dotrix_math::{InnerSpace, Vec2, Vec3, VectorSpace};
 use std::marker::PhantomData;
 
 /// Asset with 3D model data
-#[derive(Default)]
 pub struct Mesh {
     /// Packed array of vertices data
     pub vertices: Vec<Vec<u8>>,
@@ -15,10 +14,26 @@ pub struct Mesh {
     pub layout: Vec<AttributeFormat>,
     /// Optional indices
     pub indices: Option<Vec<u8>>,
-    /// vertex buffer instance
-    pub vertex_buffer: VertexBuffer,
+    /// vertex attributes buffer
+    pub vertex_buffer: Buffer,
+    /// index buffer
+    pub index_buffer: Buffer,
     /// Flag to react on the mesh changes
     pub changed: bool,
+}
+
+impl Default for Mesh {
+    fn default() -> Self {
+        Self {
+            vertices: vec![],
+            stride: 0,
+            layout: vec![],
+            indices: None,
+            vertex_buffer: Buffer::vertex("Mesh Vertices"),
+            index_buffer: Buffer::index("Mesh Indices"),
+            changed: false,
+        }
+    }
 }
 
 impl Mesh {
@@ -82,31 +97,32 @@ impl Mesh {
 
     /// Load the [`Mesh`] buffer
     pub fn load(&mut self, renderer: &Renderer) {
-        if !self.changed && !self.vertex_buffer.is_empty() {
+        if !self.changed && self.vertex_buffer.loaded() {
             return;
         }
 
-        let count = self
-            .indices
-            .as_ref()
-            .map(|indices| indices.len() / 4)
-            .unwrap_or_else(|| self.vertices.len());
-
         let buffer: Vec<u8> = self.vertices.iter().flatten().copied().collect::<Vec<_>>();
 
-        renderer.load_vertex_buffer(
-            &mut self.vertex_buffer,
-            buffer.as_slice(),
-            self.indices.as_deref(),
-            count,
-        );
+        renderer.load_buffer(&mut self.vertex_buffer, buffer.as_slice());
+
+        if let Some(indices) = self.indices.as_ref() {
+            renderer.load_buffer(&mut self.index_buffer, indices.as_slice());
+        }
 
         self.changed = false;
     }
 
+    /// Get vertices count
+    pub fn count_vertices(&self) -> u32 {
+        self.indices
+            .as_ref()
+            .map(|indices| indices.len() / std::mem::size_of::<u32>())
+            .unwrap_or_else(|| self.vertices.len()) as u32
+    }
+
     /// Unloads the [`Mesh`] buffer
     pub fn unload(&mut self) {
-        self.vertex_buffer.empty();
+        self.vertex_buffer.unload();
     }
 
     /// Returns actual mesh vertex buffer layout

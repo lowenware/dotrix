@@ -4,7 +4,7 @@ use crate::{
         Assets,
     },
     id::Id,
-    renderer::{Renderer, UniformBuffer},
+    renderer::{Buffer, Renderer},
 };
 
 use dotrix_math::{Mat4, SquareMatrix};
@@ -16,7 +16,7 @@ pub struct Pose {
     /// Transformations of the [`Skin`] joints
     pub joints: Vec<JointTransform>,
     /// Joints transformations buffer
-    pub uniform: UniformBuffer,
+    pub uniform: Buffer,
 }
 
 impl Pose {
@@ -24,7 +24,7 @@ impl Pose {
     pub fn load(&mut self, renderer: &Renderer, assets: &Assets) -> bool {
         if let Some(skin) = assets.get(self.skin) {
             let joints_matrices = self.matrices(&skin.index);
-            renderer.load_uniform_buffer(
+            renderer.load_buffer(
                 &mut self.uniform,
                 bytemuck::cast_slice(joints_matrices.as_slice()),
             );
@@ -62,7 +62,7 @@ impl From<Id<Skin>> for Pose {
         Self {
             skin,
             joints: vec![JointTransform::default(); MAX_JOINTS], // 32 -> MAX_JOINTS
-            uniform: UniformBuffer::default(),
+            uniform: Buffer::uniform("Pose Buffer"),
         }
     }
 }

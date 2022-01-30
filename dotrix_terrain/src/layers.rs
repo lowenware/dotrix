@@ -1,4 +1,4 @@
-use dotrix_core::renderer::UniformBuffer;
+use dotrix_core::renderer::Buffer;
 use dotrix_core::{Color, Renderer};
 
 pub const MAX_LAYERS: usize = 16;
@@ -24,21 +24,29 @@ impl Default for Layer {
 }
 
 /// Terrain layers container
-#[derive(Default)]
 pub struct Layers {
     /// List of terrain layers
     pub list: Vec<Layer>,
     /// Layers uniform buffer
-    pub uniform: UniformBuffer,
+    pub uniform: Buffer,
 }
 
 impl Layers {
     /// Loads layers uniform into GPU
     pub fn load(&mut self, renderer: &Renderer) {
-        renderer.load_uniform_buffer(
+        renderer.load_buffer(
             &mut self.uniform,
             bytemuck::cast_slice(&[Uniform::from(self.list.as_slice())]),
         );
+    }
+}
+
+impl Default for Layers {
+    fn default() -> Self {
+        Self {
+            list: vec![],
+            uniform: Buffer::uniform("Terrain Layers Buffer"),
+        }
     }
 }
 

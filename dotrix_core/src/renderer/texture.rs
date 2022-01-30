@@ -1,4 +1,4 @@
-use super::backend::Context;
+use super::Context;
 use wgpu;
 
 /// GPU Texture Implementation
@@ -29,7 +29,7 @@ impl Texture {
     pub fn new(label: &str) -> Self {
         Self {
             label: String::from(label),
-            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             ..Default::default()
         }
     }
@@ -38,7 +38,7 @@ impl Texture {
     pub fn storage(label: &str) -> Self {
         Self {
             label: String::from(label),
-            usage: wgpu::TextureUsages::STORAGE_BINDING,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_DST,
             ..Default::default()
         }
     }
@@ -47,7 +47,7 @@ impl Texture {
     pub fn attachment(label: &str) -> Self {
         Self {
             label: String::from(label),
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_DST,
             ..Default::default()
         }
     }
@@ -177,5 +177,10 @@ impl Texture {
         self.wgpu_texture_view
             .as_ref()
             .expect("Texture must be loaded")
+    }
+
+    /// Check if the texture format is filterable
+    pub fn is_filterable(&self) -> bool {
+        self.format.describe().guaranteed_format_features.filterable
     }
 }

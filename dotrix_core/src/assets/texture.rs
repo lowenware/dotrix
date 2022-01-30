@@ -1,5 +1,5 @@
 //! Texture asset
-use crate::renderer::{Renderer, TextureBuffer, TextureUsages};
+use crate::renderer::{Renderer, Texture as TextureBuffer};
 
 /// Texture asset
 pub struct Texture {
@@ -11,8 +11,6 @@ pub struct Texture {
     pub depth: u32,
     /// Raw texture data
     pub data: Vec<u8>,
-    /// Permitted texture usages
-    pub usages: TextureUsages,
     /// Texture buffer
     pub buffer: TextureBuffer,
     /// Was the asset changed
@@ -26,8 +24,7 @@ impl Default for Texture {
             height: 0,
             depth: 0,
             data: vec![],
-            usages: TextureUsages::create().texture().write(),
-            buffer: Default::default(),
+            buffer: TextureBuffer::new("Texture"),
             changed: false,
         }
     }
@@ -40,13 +37,7 @@ impl Texture {
             return;
         }
 
-        renderer.load_texture_buffer_with_usage(
-            &mut self.buffer,
-            self.width,
-            self.height,
-            &[&self.data],
-            self.usages,
-        );
+        renderer.load_texture(&mut self.buffer, self.width, self.height, &[&self.data]);
         self.changed = false;
     }
 

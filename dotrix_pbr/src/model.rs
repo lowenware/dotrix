@@ -1,14 +1,13 @@
 use dotrix_core::assets::{Assets, Mesh};
-use dotrix_core::renderer::UniformBuffer;
+use dotrix_core::renderer::Buffer;
 use dotrix_core::{Id, Renderer, Transform};
 
 /// Model component
-#[derive(Default)]
 pub struct Model {
     /// [`Id`] of a [`Mesh`] asset
     pub mesh: Id<Mesh>,
     /// Model transformation uniform
-    pub transform: UniformBuffer,
+    pub transform: Buffer,
 }
 
 impl Model {
@@ -25,7 +24,16 @@ impl Model {
     pub fn transform(&mut self, renderer: &Renderer, transform: &Transform) {
         let transform_matrix = transform.matrix();
         let transform_raw = AsRef::<[f32; 16]>::as_ref(&transform_matrix);
-        renderer.load_uniform_buffer(&mut self.transform, bytemuck::cast_slice(transform_raw));
+        renderer.load_buffer(&mut self.transform, bytemuck::cast_slice(transform_raw));
+    }
+}
+
+impl Default for Model {
+    fn default() -> Self {
+        Self {
+            mesh: Id::default(),
+            transform: Buffer::uniform("Model Transform Matrix"),
+        }
     }
 }
 

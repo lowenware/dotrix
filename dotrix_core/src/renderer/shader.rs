@@ -1,16 +1,16 @@
+use super::Context;
 use std::borrow::Cow;
-use super::backend::Context;
 use wgpu;
 
 /// Shader Module
-pub struct Shader {
+pub struct ShaderModule {
     /// Shader Label
     pub label: String,
     /// WGPU Shader Module
     pub wgpu_shader_module: Option<wgpu::ShaderModule>,
 }
 
-impl Shader {
+impl ShaderModule {
     /// Constructs new shader module
     pub fn new(label: &str) -> Self {
         Self {
@@ -43,14 +43,14 @@ impl Shader {
     pub fn get(&self) -> &wgpu::ShaderModule {
         self.wgpu_shader_module
             .as_ref()
-            .expect("Shader model must be loaded")
+            .expect("Shader module must be loaded")
     }
 }
 
-impl Default for Shader {
+impl Default for ShaderModule {
     fn default() -> Self {
         Self {
-            label: String::from("Noname shader"),
+            label: String::from("Noname shader module"),
             wgpu_shader_module: None,
         }
     }

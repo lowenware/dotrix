@@ -3,10 +3,10 @@
 use dotrix_core::assets::{Mesh, Shader};
 use dotrix_core::ecs::{Const, Mut, System};
 use dotrix_core::renderer::{
-    BindGroup, Binding, DepthBufferMode, PipelineLayout, PipelineOptions, Sampler, Stage,
-    UniformBuffer,
+    BindGroup, Binding, Buffer, DepthBufferMode, DrawArgs, Pipeline, PipelineLayout, Render,
+    RenderOptions, Sampler, Stage,
 };
-use dotrix_core::{Application, Assets, Camera, CubeMap, Globals, Pipeline, Renderer, World};
+use dotrix_core::{Application, Assets, Camera, CubeMap, Globals, Renderer, World};
 
 use dotrix_math::Mat4;
 
@@ -22,10 +22,18 @@ pub const PIPELINE_LABEL: &str = "skybox";
 /// Dotrix provides a simple
 /// [example](https://github.com/lowenware/dotrix/blob/main/examples/skybox/main.rs) of how to
 /// use the [`SkyBox`].
-#[derive(Default)]
 pub struct SkyBox {
     pub view_range: f32,
-    pub uniform: UniformBuffer,
+    pub uniform: Buffer,
+}
+
+impl Default for SkyBox {
+    fn default() -> Self {
+        Self {
+            view_range: 300.0,
+            uniform: Buffer::uniform("SkyBox Buffer"),
+        }
+    }
 }
 
 /// Skybox startup system
@@ -93,9 +101,9 @@ pub fn render(
     globals: Const<Globals>,
     world: Const<World>,
 ) {
-    let query = world.query::<(&mut SkyBox, &mut CubeMap, &mut Pipeline)>();
+    let query = world.query::<(&mut SkyBox, &mut CubeMap, &mut Render)>();
 
-    for (skybox, cubemap, pipeline) in query {
+    for (skybox, cubemap, render) in query {
         let proj_view_mx = camera.proj.as_ref().unwrap() * camera.view_matrix_static();
         let scale = if skybox.view_range > 0.1 {
             skybox.view_range
@@ -107,16 +115,16 @@ pub fn render(
             scale: Mat4::from_scale(scale).into(),
         };
 
-        if pipeline.shader.is_null() {
-            pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+        if render.pipeline.shader.is_null() {
+            render.pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
         }
 
         // check if model is disabled or already rendered
-        if !pipeline.cycle(&renderer) {
+        if !render.pipeline.cycle(&renderer) {
             continue;
         }
 
-        renderer.load_uniform_buffer(&mut skybox.uniform, bytemuck::cast_slice(&[uniform]));
+        renderer.load_buffer(&mut skybox.uniform, bytemuck::cast_slice(&[uniform]));
 
         if !cubemap.load(&renderer, &mut assets) {
             continue;
@@ -130,17 +138,17 @@ pub fn render(
             )
             .unwrap();
 
-        if !pipeline.ready() {
-            if let Some(shader) = assets.get(pipeline.shader) {
+        if !render.pipeline.ready() {
+            if let Some(shader) = assets.get(render.pipeline.shader) {
                 let sampler = globals
                     .get::<Sampler>()
                     .expect("Sampler buffer must be loaded");
 
                 renderer.bind(
-                    pipeline,
-                    PipelineLayout {
+                    &mut render.pipeline,
+                    PipelineLayout::Render {
                         label: String::from(PIPELINE_LABEL),
-                        mesh: Some(mesh),
+                        mesh,
                         shader,
                         bindings: &[
                             BindGroup::new(
@@ -159,8 +167,8 @@ pub fn render(
                                 )],
                             ),
                         ],
-                        options: PipelineOptions {
-                            depth_buffer_mode: DepthBufferMode::Read,
+                        options: RenderOptions {
+                            depth_buffer_mode: DepthBufferMode::ReadWrite,
                             ..Default::default()
                         },
                     },
@@ -168,7 +176,7 @@ pub fn render(
             }
         }
 
-        renderer.run(pipeline, mesh);
+        renderer.draw(&mut render.pipeline, mesh, &DrawArgs::default());
     }
 }
 
