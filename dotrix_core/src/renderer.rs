@@ -21,8 +21,8 @@ pub use buffer::Buffer;
 pub use context::Context;
 pub use mesh::AttributeFormat;
 pub use pipelines::{
-    Compute, ComputeArgs, DepthBufferMode, DrawArgs, Pipeline, PipelineInstance, PipelineLayout,
-    Render, RenderOptions, ScissorsRect,
+    Compute, ComputeArgs, ComputeOptions, DepthBufferMode, DrawArgs, Pipeline, PipelineInstance,
+    PipelineLayout, Render, RenderOptions, ScissorsRect, WorkGroups,
 };
 pub use sampler::Sampler;
 pub use shader::ShaderModule;

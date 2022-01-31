@@ -408,6 +408,6 @@ pub struct ComputeOptions<'a> {
 
 impl Default for ComputeOptions<'_> {
     fn default() -> Self {
-        Self { cs_main: "_main" }
+        Self { cs_main: "cs_main" }
     }
 }
