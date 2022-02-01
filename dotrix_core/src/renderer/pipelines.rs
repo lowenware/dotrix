@@ -1,6 +1,4 @@
-use super::{
-    AttributeFormat, BindGroup, Binding, Bindings, Context, Renderer, ShaderModule, Stage,
-};
+use super::{BindGroup, Bindings, Context, Renderer};
 use crate::assets::{Mesh, Shader};
 use crate::Id;
 
@@ -140,19 +138,23 @@ pub struct ComputePipeline {
     pub wgpu_bind_groups_layout: Vec<wgpu::BindGroupLayout>,
 }
 
-/// Pipeline
+/// Pipeline Instance
 pub enum PipelineInstance {
+    /// Rendering Pipeline Instance
     Render(RenderPipeline),
+    /// Compute Pipeline Instance
     Compute(ComputePipeline),
 }
 
 impl PipelineInstance {
+    /// Unwrap render pipeline reference
     pub fn render(&self) -> &RenderPipeline {
         match self {
             Self::Render(pipeline) => pipeline,
             Self::Compute(_) => panic!("Compute pipeline used for rendering"),
         }
     }
+    /// Unwrap compute pipeline reference
     pub fn compute(&self) -> &ComputePipeline {
         match self {
             Self::Compute(pipeline) => pipeline,
@@ -163,6 +165,7 @@ impl PipelineInstance {
 
 /// Pipeline layout
 pub enum PipelineLayout<'a> {
+    /// Rendering Pipeline Layout
     Render {
         /// Name of the Pipeline
         label: String,
@@ -175,6 +178,7 @@ pub enum PipelineLayout<'a> {
         /// Pipeline options
         options: RenderOptions<'a>,
     },
+    /// Compute Pipeline Layout
     Compute {
         /// Name of the Pipeline
         label: String,

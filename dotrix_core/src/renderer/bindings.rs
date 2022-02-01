@@ -13,10 +13,9 @@ pub enum Stage {
     All,
 }
 
-impl Stage {
-    #[inline(always)]
-    pub fn visibility(self) -> wgpu::ShaderStages {
-        match self {
+impl From<&Stage> for wgpu::ShaderStages {
+    fn from(obj: &Stage) -> Self {
+        match obj {
             Stage::All => wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
             Stage::Vertex => wgpu::ShaderStages::VERTEX,
             Stage::Fragment => wgpu::ShaderStages::FRAGMENT,
@@ -43,7 +42,9 @@ pub enum Binding<'a> {
 
 /// Bind Group holding bindings
 pub struct BindGroup<'a> {
+    /// Text label of the Bind group
     pub label: &'a str,
+    /// List of bindings
     pub bindings: Vec<Binding<'a>>,
 }
 
@@ -62,7 +63,7 @@ impl<'a> BindGroup<'a> {
             .map(|(index, binding)| match binding {
                 Binding::Uniform(_, stage, _) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
-                    visibility: stage.visibility(),
+                    visibility: stage.into(),
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -72,7 +73,7 @@ impl<'a> BindGroup<'a> {
                 },
                 Binding::Texture(_, stage, texture) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
-                    visibility: stage.visibility(),
+                    visibility: stage.into(),
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
                         sample_type: wgpu::TextureSampleType::Float {
@@ -84,7 +85,7 @@ impl<'a> BindGroup<'a> {
                 },
                 Binding::Texture3D(_, stage, texture) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
-                    visibility: stage.visibility(),
+                    visibility: stage.into(),
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
                         sample_type: wgpu::TextureSampleType::Float {
@@ -96,7 +97,7 @@ impl<'a> BindGroup<'a> {
                 },
                 Binding::StorageTexture(_, stage, texture, access) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
-                    visibility: stage.visibility(),
+                    visibility: stage.into(),
                     ty: wgpu::BindingType::StorageTexture {
                         access: access.into(),
                         format: texture.format.into(),
@@ -106,7 +107,7 @@ impl<'a> BindGroup<'a> {
                 },
                 Binding::Sampler(_, stage, _) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
-                    visibility: stage.visibility(),
+                    visibility: stage.into(),
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
@@ -114,7 +115,7 @@ impl<'a> BindGroup<'a> {
                     let read_only = !storage.can_write();
                     wgpu::BindGroupLayoutEntry {
                         binding: index as u32,
-                        visibility: stage.visibility(),
+                        visibility: stage.into(),
                         ty: wgpu::BindingType::Buffer {
                             ty: wgpu::BufferBindingType::Storage { read_only },
                             has_dynamic_offset: false,
@@ -136,6 +137,7 @@ impl<'a> BindGroup<'a> {
 /// Pipeline Bindings
 #[derive(Default)]
 pub struct Bindings {
+    /// List of `wgpu::BindGroup`
     pub wgpu_bind_groups: Vec<wgpu::BindGroup>,
 }
 

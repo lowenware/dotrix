@@ -1,27 +1,32 @@
 /// WGPU backend wrapper module
-use std::{borrow::Cow, collections::HashMap};
+use std::collections::HashMap;
 use wgpu;
-use wgpu::util::DeviceExt;
 use winit;
 
 use crate::assets::{Mesh, Shader};
 use crate::{Color, Id};
 
-use super::{
-    AttributeFormat, BindGroup, Binding, Bindings, ComputeArgs, DepthBufferMode, DrawArgs,
-    PipelineInstance, PipelineLayout, RenderOptions, Stage,
-};
+use super::{Bindings, ComputeArgs, DepthBufferMode, DrawArgs, PipelineInstance};
 
+/// Renderer Context
 pub struct Context {
-    #[allow(dead_code)]
+    /// WGPU Adapter
     pub adapter: wgpu::Adapter,
+    /// WGPU Device
     pub device: wgpu::Device,
+    /// WGPU Queue
     pub queue: wgpu::Queue,
+    /// WGPU Surface
     pub surface: wgpu::Surface,
+    /// WGPU Surface Configuration
     pub sur_desc: wgpu::SurfaceConfiguration,
+    /// Depth Buffer implementation
     pub depth_buffer: wgpu::TextureView,
+    /// Frame Surface Texture
     pub frame: Option<wgpu::SurfaceTexture>,
+    /// WGPU command encoder
     pub encoder: Option<wgpu::CommandEncoder>,
+    /// List of Pipeline Instances
     pub pipelines: HashMap<Id<Shader>, PipelineInstance>,
 }
 

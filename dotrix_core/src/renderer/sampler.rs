@@ -3,6 +3,7 @@ use super::Context;
 /// Texture Sampler
 #[derive(Default)]
 pub struct Sampler {
+    /// WGPU sampler instance
     pub wgpu_sampler: Option<wgpu::Sampler>,
 }
 
@@ -33,6 +34,7 @@ impl Sampler {
         self.wgpu_sampler.take();
     }
 
+    /// Unwraps WGPU Sampler
     pub fn get(&self) -> &wgpu::Sampler {
         self.wgpu_sampler.as_ref().expect("Sampler must be loaded")
     }

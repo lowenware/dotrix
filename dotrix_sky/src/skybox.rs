@@ -3,8 +3,8 @@
 use dotrix_core::assets::{Mesh, Shader};
 use dotrix_core::ecs::{Const, Mut, System};
 use dotrix_core::renderer::{
-    BindGroup, Binding, Buffer, DepthBufferMode, DrawArgs, Pipeline, PipelineLayout, Render,
-    RenderOptions, Sampler, Stage,
+    BindGroup, Binding, Buffer, DepthBufferMode, DrawArgs, PipelineLayout, Render, RenderOptions,
+    Sampler, Stage,
 };
 use dotrix_core::{Application, Assets, Camera, CubeMap, Globals, Renderer, World};
 

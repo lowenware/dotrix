@@ -1,3 +1,4 @@
+//! Frame service implementations and systems
 use crate::ecs::Mut;
 use std::time::{Duration, Instant};
 
