@@ -1,8 +1,10 @@
 use dotrix::assets::{Mesh, Shader};
 use dotrix::camera::ProjView;
 use dotrix::ecs::{Const, Mut, System};
-use dotrix::renderer::{BindGroup, Binding, PipelineLayout, PipelineOptions, Stage, UniformBuffer};
-use dotrix::{Application, Assets, Globals, Id, Pipeline, Renderer, World};
+use dotrix::renderer::{
+    BindGroup, Binding, Buffer, DrawArgs, PipelineLayout, Render, RenderOptions, Stage,
+};
+use dotrix::{Application, Assets, Globals, Id, Renderer, World};
 
 pub const PIPELINE_LABEL: &str = "example::gradient";
 
@@ -45,9 +47,8 @@ unsafe impl bytemuck::Zeroable for GradientUniform {}
 unsafe impl bytemuck::Pod for GradientUniform {}
 
 /// This holds the gpu uniform buffer
-#[derive(Default)]
 pub struct GradientBuffer {
-    pub uniform: UniformBuffer,
+    pub uniform: Buffer,
 }
 
 /// startup system
@@ -57,7 +58,9 @@ pub struct GradientBuffer {
 ///
 /// We also compile our shader
 pub fn startup(mut globals: Mut<Globals>, renderer: Const<Renderer>, mut assets: Mut<Assets>) {
-    globals.set(GradientBuffer::default());
+    globals.set(GradientBuffer {
+        uniform: Buffer::uniform("Gradient Buffer"),
+    });
 
     let mut shader = Shader {
         name: String::from(PIPELINE_LABEL),
@@ -80,11 +83,11 @@ pub fn render(
     mut globals: Mut<Globals>,
     assets: Const<Assets>,
 ) {
-    for (gradient, pipeline) in world.query::<(&Gradient, &mut Pipeline)>() {
+    for (gradient, render) in world.query::<(&Gradient, &mut Render)>() {
         // Update the uniform
         if let Some(uniform_buffer) = globals.get_mut::<GradientBuffer>() {
             let uniform: GradientUniform = gradient.into();
-            renderer.load_uniform_buffer(
+            renderer.load_buffer(
                 &mut uniform_buffer.uniform,
                 bytemuck::cast_slice(&[uniform]),
             );
@@ -101,29 +104,29 @@ pub fn render(
             .expect("ProjView buffer must be loaded");
 
         // Set the shader on the pipeline
-        if pipeline.shader.is_null() {
-            pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+        if render.pipeline.shader.is_null() {
+            render.pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
         }
 
         // check if model is disabled or already rendered
-        if !pipeline.cycle(&renderer) {
+        if !render.pipeline.cycle(&renderer) {
             continue;
         }
 
         let mesh = assets.get(gradient.mesh).expect("Mesh must be loaded");
 
         // Bind the uniforms to the shader
-        if !pipeline.ready() {
-            if let Some(shader) = assets.get(pipeline.shader) {
+        if !render.pipeline.ready() {
+            if let Some(shader) = assets.get(render.pipeline.shader) {
                 if !shader.loaded() {
                     continue;
                 }
 
                 renderer.bind(
-                    pipeline,
-                    PipelineLayout {
+                    &mut render.pipeline,
+                    PipelineLayout::Render {
                         label: String::from(PIPELINE_LABEL),
-                        mesh: Some(mesh),
+                        mesh,
                         shader,
                         bindings: &[BindGroup::new(
                             "Globals",
@@ -136,14 +139,14 @@ pub fn render(
                                 ),
                             ],
                         )],
-                        options: PipelineOptions::default(),
+                        options: RenderOptions::default(),
                     },
                 );
             }
         }
 
         // Run the pipeline
-        renderer.run(pipeline, mesh);
+        renderer.draw(&mut render.pipeline, mesh, &DrawArgs::default());
     }
 }
 

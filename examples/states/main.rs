@@ -3,8 +3,9 @@ use dotrix::egui::{self, Egui};
 use dotrix::input::{ActionMapper, Button, KeyCode, Mapper};
 use dotrix::overlay::{self, Overlay};
 use dotrix::prelude::*;
+use dotrix::renderer::Render;
 use dotrix::sky::{skybox, SkyBox};
-use dotrix::{Assets, CubeMap, Frame, Input, Pipeline, State, World};
+use dotrix::{Assets, CubeMap, Frame, Input, State, World};
 
 /// In main state you can rotate camera and see FPS counter
 struct MainState {
@@ -69,7 +70,7 @@ fn startup(
             front: assets.register("skybox_front"),
             ..Default::default()
         },
-        Pipeline::default(),
+        Render::default(),
     )));
 
     // Map Escape key to Pause the game
