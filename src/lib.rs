@@ -54,6 +54,7 @@ pub mod prelude {
     pub use crate::Dotrix;
     pub use dotrix_core::ecs::{Const, Context, Mut, System};
     pub use dotrix_core::Service;
+    pub use dotrix_core::{Color, Id};
 }
 
 /// Application Builder
