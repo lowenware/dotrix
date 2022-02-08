@@ -30,7 +30,7 @@ pub struct Compute {
 }
 
 impl Pipeline {
-    /// Constructs new instance of `Compute` component with defined Shader
+    /// Constructs new instance of `Compute` pipeline component with defined Shader
     pub fn compute(shader: Id<Shader>) -> Compute {
         Compute {
             pipeline: Pipeline {
@@ -40,7 +40,7 @@ impl Pipeline {
         }
     }
 
-    /// Constructs new instance of `Compute` component with defined Shader
+    /// Constructs new instance of `Render` pipeline component with defined Shader
     pub fn render(shader: Id<Shader>) -> Render {
         Render {
             pipeline: Pipeline {
