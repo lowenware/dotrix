@@ -340,7 +340,7 @@ impl TextureFormat {
     }
     /// Red, green, blue and aplha channel signed 16 bit integer normalised to -1..1 in the shader
     pub fn rgba_i16norm() -> Self {
-        Self {
+        Self {Rgba8UnormSrgb
             wgpu_texture_format: WgpuTextureFormat::Rgba16Snorm,
         }
     }

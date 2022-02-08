@@ -1,9 +1,7 @@
 //! Dotrix camera implementation
-use crate::{
-    ecs::{Const, Mut},
-    renderer::UniformBuffer,
-    services::{Frame, Globals, Input, Renderer, Window},
-};
+use crate::ecs::{Const, Mut};
+use crate::renderer::Buffer;
+use crate::{Frame, Globals, Input, Renderer, Window};
 
 use dotrix_math::{perspective, Mat4, Point3, Rad, Vec3};
 use std::f32::consts::PI;
@@ -15,7 +13,7 @@ const ZOOM_SPEED: f32 = 10.0;
 #[derive(Default)]
 pub struct ProjView {
     /// Uniform Buffer of ProjView matrix
-    pub uniform: UniformBuffer,
+    pub uniform: Buffer,
 }
 
 /// Camera management service
@@ -121,7 +119,9 @@ impl Default for Camera {
 /// Camera startup system
 /// Initializes the ProjView binding
 pub fn startup(mut globals: Mut<Globals>) {
-    let proj_view = ProjView::default();
+    let proj_view = ProjView {
+        uniform: Buffer::uniform("ProjView buffer"),
+    };
     globals.set(proj_view);
 }
 
@@ -150,7 +150,7 @@ pub fn load(
         let matrix = camera.proj.as_ref().unwrap() * camera.view.as_ref().unwrap();
         let matrix_raw = AsRef::<[f32; 16]>::as_ref(&matrix);
 
-        renderer.load_uniform_buffer(&mut proj_view.uniform, bytemuck::cast_slice(matrix_raw));
+        renderer.load_buffer(&mut proj_view.uniform, bytemuck::cast_slice(matrix_raw));
     }
 }
 

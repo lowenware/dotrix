@@ -1,12 +1,11 @@
 use crate::assets::{Assets, Texture};
-use crate::renderer::{Renderer, TextureBuffer};
+use crate::renderer::{Renderer, Texture as TextureBuffer};
 use crate::Id;
 
 /// Holds number of faces of a cubemap
 pub const FACES_COUNT: usize = 6;
 
 /// Material component
-#[derive(Default)]
 pub struct CubeMap {
     /// Id of the right cube side
     pub right: Id<Texture>,
@@ -22,6 +21,20 @@ pub struct CubeMap {
     pub front: Id<Texture>,
     /// Pipeline buffer
     pub buffer: TextureBuffer,
+}
+
+impl Default for CubeMap {
+    fn default() -> Self {
+        Self {
+            right: Id::default(),
+            left: Id::default(),
+            top: Id::default(),
+            bottom: Id::default(),
+            back: Id::default(),
+            front: Id::default(),
+            buffer: TextureBuffer::new("CubeMap Texture Buffer"),
+        }
+    }
 }
 
 impl CubeMap {
@@ -52,7 +65,7 @@ impl CubeMap {
             }
         }
 
-        renderer.load_texture_buffer(&mut self.buffer, width, height, textures.as_slice());
+        renderer.load_texture(&mut self.buffer, width, height, textures.as_slice());
 
         true
     }

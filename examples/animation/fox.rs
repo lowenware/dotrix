@@ -9,7 +9,8 @@
 use dotrix::assets::{Animation, Mesh, Skin, Texture};
 use dotrix::ecs::Mut;
 use dotrix::pbr::{Material, Model};
-use dotrix::{Animator, Assets, Id, Pipeline, Pose, Transform, World};
+use dotrix::renderer::Render;
+use dotrix::{Animator, Assets, Id, Pose, Transform, World};
 
 use std::collections::HashMap;
 
@@ -51,7 +52,7 @@ pub fn startup(mut world: Mut<World>, mut assets: Mut<Assets>) {
         },
         Transform::default(),
         Animator::looped(walk),
-        Pipeline::default(),
+        Render::default(),
         Fox { animations },
     )));
 }
