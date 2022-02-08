@@ -28,6 +28,9 @@ pub use sampler::Sampler;
 pub use shader::ShaderModule;
 pub use texture::Texture;
 
+// Ree-export native wgpu module
+pub use wgpu;
+
 /// Conversion matrix
 pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
     1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.5, 1.0,
