@@ -139,7 +139,7 @@ impl Assets {
     /// use dotrix_core::{
     ///     assets::Texture,
     ///     ecs::Mut,
-    ///     services::Assets,
+    ///     Assets,
     /// };
     ///
     /// fn my_system(mut assets: Mut<Assets>) {
