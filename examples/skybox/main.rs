@@ -14,7 +14,7 @@ fn main() {
 
 fn startup(mut camera: Mut<Camera>, mut world: Mut<World>, mut assets: Mut<Assets>) {
     camera.distance = 1.0;
-    camera.xz_angle = 0.0;
+    camera.tilt = 0.0;
 
     // Import skybox textures
     assets.import("assets/skybox-day/skybox_right.png");

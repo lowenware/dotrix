@@ -26,5 +26,5 @@ fn main() {
 
 fn startup(mut camera: Mut<Camera>) {
     camera.distance = 1.0;
-    camera.xz_angle = 0.0;
+    camera.tilt = 0.0;
 }

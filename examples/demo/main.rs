@@ -44,8 +44,8 @@ fn startup(
 }
 
 fn init_camera(camera: &mut Camera) {
-    camera.y_angle = PI / 2.0;
-    camera.xz_angle = 0.0;
+    camera.pan = PI / 2.0;
+    camera.tilt = 0.0;
     camera.target = Point3::new(0.0, CAMERA_HEIGHT, 0.0);
     camera.distance = 5.0;
 }
@@ -232,13 +232,13 @@ fn player_control(
         };
 
         // get camera angle around Y axis
-        let y_angle = camera.y_angle;
+        let pan = camera.pan;
         // rotate model to the right direction
-        transform.rotate = Quat::from_angle_y(Rad(-(PI / 2.0 + y_angle)));
+        transform.rotate = Quat::from_angle_y(Rad(-(PI / 2.0 + pan)));
         if distance > 0.00001 {
             // calculate X and Z deltas if player is moving
-            let dx = distance * y_angle.cos();
-            let dz = distance * y_angle.sin();
+            let dx = distance * pan.cos();
+            let dz = distance * pan.sin();
             // calculate new model positions
             let mut pos_x = transform.translate.x - dx;
             let mut pos_z = transform.translate.z - dz;

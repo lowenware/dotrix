@@ -18,8 +18,8 @@ pub struct Settings {
     pub anim_speed: f32,
 
     pub cam_distance: f32,
-    pub cam_y_angle: f32,
-    pub cam_xz_angle: f32,
+    pub cam_pan: f32,
+    pub cam_tilt: f32,
     pub cam_target: Point3,
 
     // Lights here are only structs, not real components.
@@ -53,8 +53,8 @@ impl Default for Settings {
             anim_speed: 1.0,
 
             cam_distance: 222.0,
-            cam_y_angle: 0.74,
-            cam_xz_angle: 0.25,
+            cam_pan: 0.74,
+            cam_tilt: 0.25,
             cam_target: Point3::new(0.0, 0.5, 0.0),
 
             simple_light_color: Color::white(),
@@ -213,11 +213,11 @@ pub fn ui(mut settings: Mut<Settings>, overlay: Const<Overlay>) {
                     ui.end_row();
 
                     ui.label("Y Angle");
-                    ui.add(DragValue::new(&mut settings.cam_y_angle).speed(0.01));
+                    ui.add(DragValue::new(&mut settings.cam_pan).speed(0.01));
                     ui.end_row();
 
                     ui.label("YZ Angle");
-                    ui.add(DragValue::new(&mut settings.cam_xz_angle).speed(0.01));
+                    ui.add(DragValue::new(&mut settings.cam_tilt).speed(0.01));
                     ui.end_row();
                 });
             });
@@ -315,37 +315,37 @@ pub fn update_camera(
     // Get values from settings
     let mut distance = settings.cam_distance;
     let target = settings.cam_target;
-    let mut y_angle = settings.cam_y_angle;
-    let mut xz_angle = settings.cam_xz_angle;
+    let mut pan = settings.cam_pan;
+    let mut tilt = settings.cam_tilt;
 
     // Calculate new values
     distance -= ZOOM_SPEED * mouse_scroll * time_delta;
     distance = if distance > -1.0 { distance } else { -1.0 };
 
     if input.button_state(Button::MouseRight) == Some(InputState::Hold) {
-        y_angle += mouse_delta.x * ROTATE_SPEED * time_delta;
-        xz_angle = camera.xz_angle + mouse_delta.y * ROTATE_SPEED * time_delta;
+        pan += mouse_delta.x * ROTATE_SPEED * time_delta;
+        tilt = camera.tilt + mouse_delta.y * ROTATE_SPEED * time_delta;
         let half_pi = PI / 2.0;
 
-        xz_angle = if xz_angle >= half_pi {
+        tilt = if tilt >= half_pi {
             half_pi - 0.01
-        } else if xz_angle <= -half_pi {
+        } else if tilt <= -half_pi {
             -half_pi + 0.01
         } else {
-            xz_angle
+            tilt
         };
     }
 
     // Apply values to settings
     settings.cam_distance = distance;
-    settings.cam_y_angle = y_angle;
-    settings.cam_xz_angle = xz_angle;
+    settings.cam_pan = pan;
+    settings.cam_tilt = tilt;
 
     // Apply values to camera
     camera.target = target;
     camera.distance = distance;
-    camera.y_angle = y_angle;
-    camera.xz_angle = xz_angle;
+    camera.pan = pan;
+    camera.tilt = tilt;
 }
 
 /// This func updates fox's entity based on values in settings

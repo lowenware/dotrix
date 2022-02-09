@@ -23,7 +23,7 @@ fn startup(
 ) {
     camera.target = [0., 0., 0.].into();
     camera.distance = 2.0;
-    camera.xz_angle = 0.0;
+    camera.tilt = 0.0;
 
     let mut mesh = Cube::builder(0.5).with_positions().mesh();
 
