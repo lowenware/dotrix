@@ -18,6 +18,8 @@ pub struct World {
     index: HashMap<Entity, usize>,
     /// Spawn counter for Entity ID generation
     counter: u64,
+    /// Buffer to track spawned entities
+    spawned: Vec<Entity>,
 }
 
 impl World {
@@ -27,6 +29,7 @@ impl World {
             content: Vec::new(),
             index: HashMap::new(),
             counter: 0,
+            spawned: Vec::with_capacity(16),
         }
     }
 
@@ -37,7 +40,7 @@ impl World {
     /// ```no_run
     /// use dotrix_core::{
     ///     ecs::Mut,
-    ///     services::World,
+    ///     World,
     /// };
     ///
     /// // First component
@@ -61,7 +64,7 @@ impl World {
     /// _NOTE: if your entity has only one component, don't forget to put trailing comma after it
     /// as it is shown in the example above. Otherwise it won't be parsed by Rust compiler as
     /// a tuple.
-    pub fn spawn<T, I>(&mut self, iter: I)
+    pub fn spawn<T, I>(&mut self, iter: I) -> &[Entity]
     where
         T: Archetype + Pattern,
         I: IntoIterator<Item = T>,
@@ -81,12 +84,18 @@ impl World {
             (index, self.content.last_mut().unwrap())
         };
 
-        for entity in iter {
+        self.spawned.clear();
+
+        for tuple in iter {
             let entity_id = self.counter;
-            entity.store(container, entity_id);
-            self.index.insert(Entity::from(entity_id), index);
+            let entity = Entity::from(entity_id);
+            tuple.store(container, entity_id);
+            self.index.insert(entity, index);
             self.counter += 1;
+            self.spawned.push(entity)
         }
+
+        self.spawned.as_slice()
     }
 
     /// Query entities from the World
@@ -95,7 +104,7 @@ impl World {
     /// ```no_run
     /// use dotrix_core::{
     ///     ecs::Mut,
-    ///     services::World,
+    ///     World,
     /// };
     /// // First component
     /// struct Component1(u32);
@@ -125,13 +134,48 @@ impl World {
         Matches { iter }
     }
 
+    /// Get componets dor specified entity
+    ///
+    /// ## Example:
+    /// ```no_run
+    /// use dotrix_core::ecs::{Entity, Mut};
+    /// use dotrix_core::World;
+    ///
+    /// // First component
+    /// struct Component1(u32);
+    ///
+    /// // Second component
+    /// struct Component2(u32);
+    ///
+    /// fn my_system(mut world: Mut<World>) {
+    ///     let entity = Entity::from(0); // mockup entity
+    ///     if let Some((c1, c2)) = world.get::<(&Component1, &mut Component2)>(entity) {
+    ///         // do stuff
+    ///         println!("Component1({}), Component2({})", c1.0, c2.0);
+    ///     }
+    /// }
+    pub fn get<'w, Q>(&'w self, entity: Entity) -> Option<Q>
+    where
+        Q: Query<'w>,
+    {
+        self.index.get(&entity).map(|&index| {
+            let entity_offset = self.content[index]
+                .get::<Entity>()
+                .unwrap()
+                .iter()
+                .position(|&e| e == entity)
+                .unwrap();
+            Q::pick(&self.content[index], entity_offset)
+        })
+    }
+
     /// Exiles an entity from the world
     ///
     /// ## Example:
     /// ```no_run
     /// use dotrix_core::{
     ///     ecs::{Mut, Entity},
-    ///     services::World,
+    ///     World,
     /// };
     /// // First component
     /// struct Component(u32);
@@ -219,6 +263,8 @@ pub trait Query<'w> {
     fn select(container: &'w Container) -> Self::Iter;
     /// Checks if [`Query`] matches the [`Container`]
     fn matches(container: &'w Container) -> bool;
+    /// Pick specific entity by its index in container
+    fn pick(container: &'w Container, entity_index: usize) -> Self;
 }
 
 /// Iterator or Query result
@@ -253,12 +299,13 @@ pub trait Selector<'w> {
     type Component: Component;
 
     fn borrow(container: &'w Container) -> Self::Iter;
+    fn borrow_by_index(container: &'w Container, entity_index: usize) -> Self;
     fn matches(container: &'w Container) -> bool {
         container.has(TypeId::of::<Self::Component>())
     }
 }
 
-impl<'w, C> Selector<'w> for &'_ C
+impl<'w, C> Selector<'w> for &'w C
 where
     C: Component,
 {
@@ -268,9 +315,13 @@ where
     fn borrow(container: &'w Container) -> Self::Iter {
         container.get::<C>().unwrap().iter()
     }
+
+    fn borrow_by_index(container: &'w Container, entity_index: usize) -> Self {
+        &container.get::<C>().unwrap()[entity_index]
+    }
 }
 
-impl<'w, C> Selector<'w> for &'_ mut C
+impl<'w, C> Selector<'w> for &'w mut C
 where
     C: Component,
 {
@@ -279,6 +330,10 @@ where
 
     fn borrow(container: &'w Container) -> Self::Iter {
         container.get_mut::<C>().unwrap().iter_mut()
+    }
+
+    fn borrow_by_index(container: &'w Container, entity_index: usize) -> Self {
+        &mut container.get_mut::<C>().unwrap()[entity_index]
     }
 }
 
@@ -329,6 +384,9 @@ macro_rules! impl_tuples {
         {
             type Iter = Zipper<'w, ($($i::Iter,)*)>;
             // type Iter = Zipper<'w, ($(std::slice::Iter<'w, $i>,)*)>;
+            fn pick(container: &'w Container, entity_index: usize) -> ($($i,)*) {
+                ($({$i::borrow_by_index(container, entity_index)},)*)
+            }
 
             fn select(container: &'w Container) -> Self::Iter {
                 Zipper {
@@ -375,7 +433,9 @@ mod tests {
     use super::World;
     use crate::ecs::Entity;
 
+    #[derive(Debug, Eq, PartialEq, Copy, Clone)]
     struct Armor(u32);
+    #[derive(Debug, Eq, PartialEq, Copy, Clone)]
     struct Health(u32);
     struct Speed(u32);
     struct Damage(u32);
@@ -461,6 +521,18 @@ mod tests {
             }
 
             assert_eq!(entities_before - 1, entities_after);
+        }
+    }
+
+    #[test]
+    fn spawn_and_get_by_entity() {
+        let mut world = spawn();
+        let entity = Entity::from(0);
+        let query = world.get::<(&Armor, &Health)>(entity);
+        assert_eq!(query.is_some(), true);
+        if let Some((&armor, &health)) = query {
+            assert_eq!(armor, Armor(100));
+            assert_eq!(health, Health(100));
         }
     }
 }
