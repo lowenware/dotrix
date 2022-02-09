@@ -39,8 +39,8 @@ struct Editable;
 /// Spawn editable lights. Light properties is set with settings.
 fn startup(mut camera: Mut<Camera>, mut world: Mut<World>) {
     camera.distance = 6.6;
-    camera.y_angle = 2.5;
-    camera.xz_angle = 0.275;
+    camera.pan = 2.5;
+    camera.tilt = 0.275;
     camera.target = Point3::new(0.0, 0.5, 0.0);
 
     world.spawn(Some((Light::ambient(), Editable {})));

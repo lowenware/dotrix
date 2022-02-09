@@ -99,8 +99,8 @@ fn startup(
     // set up camera
     camera.target = [0., 0., 0.].into();
     camera.distance = 2.0;
-    camera.xz_angle = 0.0;
-    camera.y_angle = std::f32::consts::PI / 2.0;
+    camera.tilt = 0.0;
+    camera.pan = std::f32::consts::PI / 2.0;
 
     // set up particles spawner
     let mut spawner = ParticlesSpawner {
