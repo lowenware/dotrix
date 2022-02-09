@@ -16,6 +16,8 @@ pub use winit::event::{ModifiersState as Modifiers, VirtualKeyCode as KeyCode};
 pub enum Button {
     /// Key by the code
     Key(KeyCode), // TODO: consider support for Key{scancode: u32}?
+    /// Modified Key
+    Mod(KeyCode, Modifiers),
     /// Left mouse button
     MouseLeft,
     /// Right Mouse Button
@@ -104,6 +106,11 @@ impl Input {
     {
         if let Some(button) = self.action_mapped(action) {
             if let Some(state) = self.states.get(button) {
+                if let Button::Mod(_, modifiers) = button {
+                    if !self.modifiers.contains(*modifiers) {
+                        return None;
+                    }
+                }
                 return Some(*state);
             }
         }
@@ -397,15 +404,28 @@ where
         }
     }
 
+    /// Constructs new [`Mapper`] from actions list
+    pub fn with_actions<I>(actions: I) -> Self
+    where
+        I: IntoIterator<Item = (T, Button)>,
+    {
+        let mut mapper = Self::new();
+        mapper.set(actions);
+        mapper
+    }
+
     /// Add a new action to mapper. If action already exists, it will be overridden
     pub fn add_action(&mut self, action: T, button: Button) {
         self.map.insert(action, button);
     }
 
     /// Add multiple actions to mapper. Existing actions will be overridden
-    pub fn add_actions(&mut self, actions: Vec<(T, Button)>) {
-        for (action, button) in actions.iter() {
-            self.map.insert(*action, *button);
+    pub fn add_actions<I>(&mut self, actions: I)
+    where
+        I: IntoIterator<Item = (T, Button)>,
+    {
+        for (action, button) in actions {
+            self.map.insert(action, button);
         }
     }
 
@@ -427,7 +447,10 @@ where
     }
 
     /// Removes all actions and set new ones
-    pub fn set(&mut self, actions: Vec<(T, Button)>) {
+    pub fn set<I>(&mut self, actions: I)
+    where
+        I: IntoIterator<Item = (T, Button)>,
+    {
         self.map.clear();
         self.add_actions(actions);
     }
