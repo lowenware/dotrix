@@ -50,6 +50,9 @@ pub use dotrix_sky as sky;
 #[cfg(feature = "terrain")]
 pub use dotrix_terrain as terrain;
 
+#[cfg(feature = "voxel")]
+pub use dotrix_voxel as voxel;
+
 pub mod prelude {
     pub use dotrix_core::ecs::{Const, Context, Mut, System};
     pub use dotrix_core::Dotrix;
