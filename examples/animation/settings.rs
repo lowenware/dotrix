@@ -20,6 +20,7 @@ pub struct Settings {
     pub cam_distance: f32,
     pub cam_pan: f32,
     pub cam_tilt: f32,
+    pub cam_roll: f32,
     pub cam_target: Point3,
 
     // Lights here are only structs, not real components.
@@ -55,6 +56,8 @@ impl Default for Settings {
             cam_distance: 222.0,
             cam_pan: 0.74,
             cam_tilt: 0.25,
+            cam_roll: 0.0,
+
             cam_target: Point3::new(0.0, 0.5, 0.0),
 
             simple_light_color: Color::white(),
@@ -212,12 +215,16 @@ pub fn ui(mut settings: Mut<Settings>, overlay: Const<Overlay>) {
                     ui.add(DragValue::new(&mut settings.cam_distance).speed(0.1));
                     ui.end_row();
 
-                    ui.label("Y Angle");
+                    ui.label("Pan Angle");
                     ui.add(DragValue::new(&mut settings.cam_pan).speed(0.01));
                     ui.end_row();
 
-                    ui.label("YZ Angle");
+                    ui.label("Tilt Angle");
                     ui.add(DragValue::new(&mut settings.cam_tilt).speed(0.01));
+                    ui.end_row();
+
+                    ui.label("Roll Angle");
+                    ui.add(DragValue::new(&mut settings.cam_roll).speed(0.01));
                     ui.end_row();
                 });
             });
@@ -346,6 +353,7 @@ pub fn update_camera(
     camera.distance = distance;
     camera.pan = pan;
     camera.tilt = tilt;
+    camera.roll = settings.cam_roll;
 }
 
 /// This func updates fox's entity based on values in settings
