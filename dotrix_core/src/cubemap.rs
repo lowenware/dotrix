@@ -52,7 +52,7 @@ impl CubeMap {
             }
         }
 
-        renderer.load_texture_buffer(&mut self.buffer, width, height, textures.as_slice());
+        renderer.load_texture_buffer(&mut self.buffer, width, height, 1, textures.as_slice());
 
         true
     }

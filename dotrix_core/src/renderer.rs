@@ -100,12 +100,14 @@ impl Renderer {
         buffer: &mut TextureBuffer,
         width: u32,
         height: u32,
+        depth: u32,
         layers: &'a [&'a [u8]],
     ) {
         self.load_texture_buffer_with_usage(
             buffer,
             width,
             height,
+            depth,
             layers,
             TextureUsages::create().texture().write(),
         );
@@ -117,10 +119,11 @@ impl Renderer {
         buffer: &mut TextureBuffer,
         width: u32,
         height: u32,
+        depth: u32,
         layers: &'a [&'a [u8]],
         usages: TextureUsages,
     ) {
-        buffer.load(self.backend(), width, height, layers, usages.into());
+        buffer.load(self.backend(), width, height, depth, layers, usages.into());
     }
 
     /// Loads the uniform buffer to GPU

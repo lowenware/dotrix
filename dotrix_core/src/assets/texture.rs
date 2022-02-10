@@ -40,11 +40,21 @@ impl Texture {
             return;
         }
 
+        let depth: u32 = std::cmp::max(1, self.depth);
+
+        assert!(self.data.len() % depth as usize == 0);
+        let data_per_depth = self.data.len() / depth as usize;
+
         renderer.load_texture_buffer_with_usage(
             &mut self.buffer,
             self.width,
             self.height,
-            &[&self.data],
+            depth,
+            &self
+                .data
+                .as_slice()
+                .chunks(data_per_depth)
+                .collect::<Vec<&[u8]>>(),
             self.usages,
         );
         self.changed = false;

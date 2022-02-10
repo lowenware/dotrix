@@ -384,6 +384,7 @@ impl TextureBuffer {
         ctx: &Context,
         width: u32,
         height: u32,
+        depth: u32,
         layers: &[&'a [u8]],
         usage: wgpu::TextureUsages,
     ) {
@@ -408,7 +409,11 @@ impl TextureBuffer {
             size,
             mip_level_count: max_mips as u32,
             sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
+            dimension: if depth > 1 {
+                wgpu::TextureDimension::D3
+            } else {
+                wgpu::TextureDimension::D2
+            },
             format,
             usage,
         });
@@ -416,8 +421,10 @@ impl TextureBuffer {
         self.wgpu_texture_view = Some(texture.create_view(&wgpu::TextureViewDescriptor {
             label: None,
             format: Some(format),
-            dimension: Some(if depth_or_array_layers == 6 {
+            dimension: Some(if layers.len() == 6 && depth == 1 {
                 wgpu::TextureViewDimension::Cube
+            } else if depth > 1 {
+                wgpu::TextureViewDimension::D3
             } else {
                 wgpu::TextureViewDimension::D2
             }),
