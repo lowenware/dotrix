@@ -64,7 +64,7 @@ impl World {
     /// _NOTE: if your entity has only one component, don't forget to put trailing comma after it
     /// as it is shown in the example above. Otherwise it won't be parsed by Rust compiler as
     /// a tuple.
-    pub fn spawn<T, I>(&mut self, iter: I) -> &[Entity]
+    pub fn spawn<T, I>(&mut self, iter: I) -> SpawnedIter
     where
         T: Archetype + Pattern,
         I: IntoIterator<Item = T>,
@@ -95,7 +95,16 @@ impl World {
             self.spawned.push(entity)
         }
 
-        self.spawned.as_slice()
+        let count = self.spawned.len();
+        let first = self.spawned[0];
+        let last = self.spawned[count - 1];
+
+        SpawnedIter {
+            iter: self.spawned.iter(),
+            first,
+            last,
+            count,
+        }
     }
 
     /// Query entities from the World
@@ -337,6 +346,59 @@ where
     }
 }
 
+/// Iterator over Vertices Attributes
+pub struct SpawnedIter<'a> {
+    iter: std::slice::Iter<'a, Entity>,
+    first: Entity,
+    last: Entity,
+    count: usize,
+}
+
+impl<'a> SpawnedIter<'a> {
+    /// get first spawned entity
+    pub fn first(&mut self) -> Entity {
+        self.first
+    }
+
+    /// get number of spawned entities
+    pub fn entities(&self) -> usize {
+        self.count
+    }
+}
+
+impl<'a> Iterator for SpawnedIter<'a> {
+    type Item = Entity;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|e| *e)
+    }
+    fn last(self) -> Option<Entity> {
+        Some(self.last)
+    }
+    fn count(self) -> usize {
+        self.entities()
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = self.count;
+        (size, Some(size))
+    }
+}
+
+impl<'a> ExactSizeIterator for SpawnedIter<'a> {
+    fn len(&self) -> usize {
+        self.count
+    }
+}
+
+impl<'a> From<SpawnedIter<'a>> for Vec<Entity> {
+    fn from(iter: SpawnedIter<'a>) -> Self {
+        let mut result = Vec::with_capacity(iter.entities());
+        for e in iter {
+            result.push(e);
+        }
+        result
+    }
+}
+
 /// Macros implementing all necessary archetyoes, patterns, querries and iterators for different
 /// types of tuples
 #[macro_export]
@@ -526,13 +588,37 @@ mod tests {
 
     #[test]
     fn spawn_and_get_by_entity() {
-        let mut world = spawn();
+        let world = spawn();
         let entity = Entity::from(0);
         let query = world.get::<(&Armor, &Health)>(entity);
         assert_eq!(query.is_some(), true);
         if let Some((&armor, &health)) = query {
             assert_eq!(armor, Armor(100));
             assert_eq!(health, Health(100));
+        }
+    }
+
+    #[test]
+    fn spawn_and_check_entities() {
+        let mut world = World::default();
+        let mut spawned = world.spawn(Some((Armor(1),)));
+
+        assert_eq!(spawned.next(), Some(Entity::from(0)));
+        assert_eq!(spawned.first(), Entity::from(0));
+        assert_eq!(spawned.last(), Some(Entity::from(0)));
+
+        let spawned: Vec<Entity> = world
+            .spawn([
+                (Armor(2), Health(100)),
+                (Armor(4), Health(80)),
+                (Armor(4), Health(90)),
+            ])
+            .into();
+
+        assert_eq!(spawned.len(), 3);
+
+        for i in 0..3 {
+            assert_eq!(spawned[i], Entity::from(i as u64 + 1));
         }
     }
 }
