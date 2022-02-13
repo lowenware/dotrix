@@ -86,6 +86,12 @@ impl Camera {
         Vec3::new(self.target.x + dx, self.target.y + dy, self.target.z + dz)
     }
 
+    /// Returns normalized direction vector
+    pub fn direction(&self) -> Vec3 {
+        let position = self.position();
+        (Vec3::new(self.target.x, self.target.y, self.target.z) - position).normalize()
+    }
+
     /// Returns view matrix
     pub fn view_matrix(&self) -> Mat4 {
         let dy = self.distance * self.tilt.sin();
@@ -100,8 +106,8 @@ impl Camera {
             (self.target, position)
         };
 
-        let direction = target - position;
-        let roll = Quat::from_axis_angle(direction.normalize(), Rad(self.roll));
+        let direction = (target - position).normalize();
+        let roll = Quat::from_axis_angle(direction, Rad(self.roll));
         let camera_right = direction.cross(Vec3::unit_y());
         let camera_up = roll * camera_right.cross(direction);
 
