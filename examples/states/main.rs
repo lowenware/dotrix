@@ -1,6 +1,6 @@
 use dotrix::camera;
 use dotrix::egui::{self, Egui};
-use dotrix::input::{ActionMapper, Button, KeyCode, Mapper};
+use dotrix::input::{ActionMapper, Button, KeyCode, Mapper, Modifiers};
 use dotrix::overlay::{self, Overlay};
 use dotrix::prelude::*;
 use dotrix::renderer::Render;
@@ -74,9 +74,11 @@ fn startup(
     )));
 
     // Map Escape key to Pause the game
-    input
-        .mapper_mut::<Mapper<Action>>()
-        .set(vec![(Action::TogglePause, Button::Key(KeyCode::Escape))]);
+    input.mapper_mut::<Mapper<Action>>().set(&[(
+        Action::TogglePause,
+        Button::Key(KeyCode::Escape),
+        Modifiers::empty(),
+    )]);
 }
 
 /// Enumeration of actions provided by the game
@@ -170,7 +172,7 @@ fn ui_paused(mut state: Mut<State>, input: Const<Input>, overlay: Const<Overlay>
 
 /// Bind Inputs and Actions
 impl ActionMapper<Action> for Input {
-    fn action_mapped(&self, action: Action) -> Option<&Button> {
+    fn action_mapped(&self, action: Action) -> Option<(Button, Modifiers)> {
         let mapper = self.mapper::<Mapper<Action>>();
         mapper.get_button(action)
     }

@@ -15,9 +15,7 @@ pub use winit::event::{ModifiersState as Modifiers, VirtualKeyCode as KeyCode};
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)] // TODO: add support for serialization
 pub enum Button {
     /// Key by the code
-    Key(KeyCode), // TODO: consider support for Key{scancode: u32}?
-    /// Modified Key
-    Mod(KeyCode, Modifiers),
+    Key(KeyCode),
     /// Left mouse button
     MouseLeft,
     /// Right Mouse Button
@@ -67,7 +65,7 @@ pub struct KeyEvent {
 /// Collects input events, tracks state changes and provides mapping to game actions
 pub struct Input {
     mapper: Box<dyn std::any::Any + Send + Sync>,
-    states: HashMap<Button, State>,
+    states: HashMap<Button, (State, Modifiers)>,
     mouse_scroll_delta: f32,
     mouse_horizontal_scroll_delta: f32,
     mouse_position: Option<Vec2>,
@@ -102,16 +100,13 @@ impl Input {
     pub fn action_state<T>(&self, action: T) -> Option<State>
     where
         Self: ActionMapper<T>,
-        T: Copy + Eq + std::hash::Hash,
+        T: Copy + Eq + std::hash::Hash + std::fmt::Debug,
     {
-        if let Some(button) = self.action_mapped(action) {
-            if let Some(state) = self.states.get(button) {
-                if let Button::Mod(_, modifiers) = button {
-                    if !self.modifiers.contains(*modifiers) {
-                        return None;
-                    }
+        if let Some((button, modifiers)) = self.action_mapped(action) {
+            if let Some((state, state_modifiers)) = self.states.get(&button) {
+                if state_modifiers.contains(modifiers) {
+                    return Some(*state);
                 }
-                return Some(*state);
             }
         }
         None
@@ -119,14 +114,14 @@ impl Input {
 
     /// Returns the status of the raw input
     pub fn button_state(&self, button: Button) -> Option<State> {
-        self.states.get(&button).copied()
+        self.states.get(&button).map(|(state, _modifiers)| *state)
     }
 
     /// Checks if mapped action button is pressed
     pub fn is_action_activated<T>(&self, action: T) -> bool
     where
         Self: ActionMapper<T>,
-        T: Copy + Eq + std::hash::Hash,
+        T: Copy + Eq + std::hash::Hash + std::fmt::Debug,
     {
         self.action_state(action)
             .map(|state| state == State::Activated)
@@ -137,7 +132,7 @@ impl Input {
     pub fn is_action_deactivated<T>(&self, action: T) -> bool
     where
         Self: ActionMapper<T>,
-        T: Copy + Eq + std::hash::Hash,
+        T: Copy + Eq + std::hash::Hash + std::fmt::Debug,
     {
         self.action_state(action)
             .map(|state| state == State::Deactivated)
@@ -148,7 +143,7 @@ impl Input {
     pub fn is_action_hold<T>(&self, action: T) -> bool
     where
         Self: ActionMapper<T>,
-        T: Copy + Eq + std::hash::Hash,
+        T: Copy + Eq + std::hash::Hash + std::fmt::Debug,
     {
         self.action_state(action)
             .map(|state| state == State::Hold || state == State::Activated)
@@ -233,7 +228,7 @@ impl Input {
         self.mouse_scroll_delta = 0.0;
         self.mouse_horizontal_scroll_delta = 0.0;
 
-        self.states.retain(|_btn, state| match state {
+        self.states.retain(|_btn, (state, _modifiers)| match state {
             State::Activated => {
                 *state = State::Hold;
                 true
@@ -294,24 +289,31 @@ impl Input {
 
     fn on_keyboard_event(&mut self, input: &KeyboardInput) {
         if let Some(key_code) = input.virtual_keycode {
+            let modifiers = self.modifiers;
             self.events.push(Event::Key(KeyEvent {
                 key_code,
-                modifiers: self.modifiers,
+                modifiers,
                 pressed: input.state == ElementState::Pressed,
             }));
-            self.on_button_state(Button::Key(key_code), input.state);
+            self.on_button_state(Button::Key(key_code), input.state, modifiers);
         }
     }
 
-    fn on_button_state(&mut self, btn: Button, state: ElementState) {
+    fn on_button_state(&mut self, btn: Button, state: ElementState, modifiers: Modifiers) {
         match state {
             ElementState::Pressed => {
-                if *self.states.get(&btn).unwrap_or(&State::Deactivated) == State::Deactivated {
-                    self.states.insert(btn, State::Activated);
+                if *self
+                    .states
+                    .get(&btn)
+                    .map(|(state, _modifiers)| state)
+                    .unwrap_or(&State::Deactivated)
+                    == State::Deactivated
+                {
+                    self.states.insert(btn, (State::Activated, modifiers));
                 }
             }
             ElementState::Released => {
-                self.states.insert(btn, State::Deactivated);
+                self.states.insert(btn, (State::Deactivated, modifiers));
             }
         }
     }
@@ -324,7 +326,7 @@ impl Input {
             MouseButton::Other(num) => Button::MouseOther(num),
         };
 
-        self.on_button_state(btn, state);
+        self.on_button_state(btn, state, self.modifiers);
     }
 
     fn on_mouse_wheel_event(&mut self, delta: &MouseScrollDelta) {
@@ -384,13 +386,13 @@ impl Default for Input {
 
 /// Game action to input mapping
 pub trait ActionMapper<T: Copy + Eq + std::hash::Hash> {
-    /// Checks if action is mapped and returns an appropriate button
-    fn action_mapped(&self, action: T) -> Option<&Button>;
+    /// Checks if action is mapped and returns an appropriate button and modifiers
+    fn action_mapped(&self, action: T) -> Option<(Button, Modifiers)>;
 }
 
 /// Standard Mapper
 pub struct Mapper<T> {
-    map: HashMap<T, Button>,
+    map: HashMap<T, (Button, Modifiers)>,
 }
 
 impl<T> Mapper<T>
@@ -405,33 +407,27 @@ where
     }
 
     /// Constructs new [`Mapper`] from actions list
-    pub fn with_actions<I>(actions: I) -> Self
-    where
-        I: IntoIterator<Item = (T, Button)>,
-    {
+    pub fn with_actions(actions: &[(T, Button, Modifiers)]) -> Self {
         let mut mapper = Self::new();
         mapper.set(actions);
         mapper
     }
 
     /// Add a new action to mapper. If action already exists, it will be overridden
-    pub fn add_action(&mut self, action: T, button: Button) {
-        self.map.insert(action, button);
+    pub fn add_action(&mut self, action: T, button: Button, modifiers: Modifiers) {
+        self.map.insert(action, (button, modifiers));
     }
 
     /// Add multiple actions to mapper. Existing actions will be overridden
-    pub fn add_actions<I>(&mut self, actions: I)
-    where
-        I: IntoIterator<Item = (T, Button)>,
-    {
-        for (action, button) in actions {
-            self.map.insert(action, button);
+    pub fn add_actions(&mut self, actions: &[(T, Button, Modifiers)]) {
+        for (action, button, modifiers) in actions {
+            self.map.insert(*action, (*button, *modifiers));
         }
     }
 
     /// Get button that is binded to that action
-    pub fn get_button(&self, action: T) -> Option<&Button> {
-        self.map.get(&action)
+    pub fn get_button(&self, action: T) -> Option<(Button, Modifiers)> {
+        self.map.get(&action).map(|(b, m)| (*b, *m))
     }
 
     /// Remove action from mapper
@@ -447,10 +443,7 @@ where
     }
 
     /// Removes all actions and set new ones
-    pub fn set<I>(&mut self, actions: I)
-    where
-        I: IntoIterator<Item = (T, Button)>,
-    {
+    pub fn set(&mut self, actions: &[(T, Button, Modifiers)]) {
         self.map.clear();
         self.add_actions(actions);
     }
