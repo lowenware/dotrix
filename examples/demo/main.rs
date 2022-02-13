@@ -1,7 +1,7 @@
 use dotrix::assets::Mesh;
 use dotrix::camera;
 use dotrix::egui::{self, Egui};
-use dotrix::input::{ActionMapper, Button, KeyCode, Mapper};
+use dotrix::input::{ActionMapper, Button, KeyCode, Mapper, Modifiers};
 use dotrix::math::{Point3, Quat, Rad, Rotation3, Vec3};
 use dotrix::overlay::{self, Overlay};
 use dotrix::pbr::{self, Light, Material, Model};
@@ -176,9 +176,11 @@ fn init_player(world: &mut World, assets: &mut Assets, input: &mut Input) {
     )));
 
     // Map W key to Run Action
-    input
-        .mapper_mut::<Mapper<Action>>()
-        .set(vec![(Action::Run, Button::Key(KeyCode::W))]);
+    input.mapper_mut::<Mapper<Action>>().set(&[(
+        Action::Run,
+        Button::Key(KeyCode::W),
+        Modifiers::empty(),
+    )]);
 }
 
 fn init_light(world: &mut World) {
@@ -288,7 +290,7 @@ fn ui(overlay: Const<Overlay>, frame: Const<Frame>) {
 
 /// Bind Inputs and Actions
 impl ActionMapper<Action> for Input {
-    fn action_mapped(&self, action: Action) -> Option<&Button> {
+    fn action_mapped(&self, action: Action) -> Option<(Button, Modifiers)> {
         let mapper = self.mapper::<Mapper<Action>>();
         mapper.get_button(action)
     }
