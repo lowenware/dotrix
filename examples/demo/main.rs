@@ -270,7 +270,6 @@ fn player_control(
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 enum Action {
     Run,
-    // Jump,
 }
 
 fn ui(overlay: Const<Overlay>, frame: Const<Frame>) {

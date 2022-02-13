@@ -83,7 +83,7 @@ pub struct Input {
 }
 
 /// Sample input Actions enumeration
-#[derive(Hash, Eq, PartialEq, Clone, Copy)]
+#[derive(Hash, Eq, PartialEq, Clone, Copy, Debug)]
 pub enum Action {
     /// Move forward
     MoveForward,
@@ -95,12 +95,17 @@ pub enum Action {
     MoveRight,
 }
 
+/// Action requirements trait
+pub trait IntoAction: Copy + Eq + std::hash::Hash + std::fmt::Debug {}
+
+impl<T: Copy + Eq + Send + Sync + std::hash::Hash + std::fmt::Debug> IntoAction for T {}
+
 impl Input {
     /// Returns the status of the mapped action.
     pub fn action_state<T>(&self, action: T) -> Option<State>
     where
         Self: ActionMapper<T>,
-        T: Copy + Eq + std::hash::Hash + std::fmt::Debug,
+        T: IntoAction,
     {
         if let Some((button, modifiers)) = self.action_mapped(action) {
             if let Some((state, state_modifiers)) = self.states.get(&button) {
@@ -121,7 +126,7 @@ impl Input {
     pub fn is_action_activated<T>(&self, action: T) -> bool
     where
         Self: ActionMapper<T>,
-        T: Copy + Eq + std::hash::Hash + std::fmt::Debug,
+        T: IntoAction,
     {
         self.action_state(action)
             .map(|state| state == State::Activated)
@@ -132,7 +137,7 @@ impl Input {
     pub fn is_action_deactivated<T>(&self, action: T) -> bool
     where
         Self: ActionMapper<T>,
-        T: Copy + Eq + std::hash::Hash + std::fmt::Debug,
+        T: IntoAction,
     {
         self.action_state(action)
             .map(|state| state == State::Deactivated)
@@ -143,7 +148,7 @@ impl Input {
     pub fn is_action_hold<T>(&self, action: T) -> bool
     where
         Self: ActionMapper<T>,
-        T: Copy + Eq + std::hash::Hash + std::fmt::Debug,
+        T: IntoAction,
     {
         self.action_state(action)
             .map(|state| state == State::Hold || state == State::Activated)
@@ -385,19 +390,19 @@ impl Default for Input {
 }
 
 /// Game action to input mapping
-pub trait ActionMapper<T: Copy + Eq + std::hash::Hash> {
+pub trait ActionMapper<T: IntoAction> {
     /// Checks if action is mapped and returns an appropriate button and modifiers
     fn action_mapped(&self, action: T) -> Option<(Button, Modifiers)>;
 }
 
 /// Standard Mapper
-pub struct Mapper<T> {
+pub struct Mapper<T: IntoAction> {
     map: HashMap<T, (Button, Modifiers)>,
 }
 
 impl<T> Mapper<T>
 where
-    T: Copy + Eq + std::hash::Hash,
+    T: IntoAction,
 {
     /// Constructs new [`Mapper`]
     pub fn new() -> Self {
@@ -449,7 +454,7 @@ where
     }
 }
 
-impl<T: Copy + Eq + std::hash::Hash> Default for Mapper<T> {
+impl<T: IntoAction> Default for Mapper<T> {
     fn default() -> Self {
         Self::new()
     }
