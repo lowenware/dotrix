@@ -231,14 +231,17 @@ fn load_texture(
     info!("importing texture as `{}`", name);
 
     let (data, format) = match source {
-        gltf::image::Source::Uri { uri, mime_type } => {
+        gltf::image::Source::Uri { uri, .. } => {
             const URI_IMAGE_PNG: &str = "data:image/png;base64,";
 
             if !uri.starts_with(URI_IMAGE_PNG) {
+                return Ok(());
+                /* TODO: this should be permissive
                 return Err(ImportError::NotImplemented(
                     "mime type",
                     mime_type.map(String::from),
                 ));
+                */
             }
 
             let data = base64::decode(&uri[URI_IMAGE_PNG.len()..])?;
