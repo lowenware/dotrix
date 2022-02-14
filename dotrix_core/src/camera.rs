@@ -27,7 +27,9 @@ pub struct Camera {
     /// Roll angle
     pub roll: f32,
     /// Camera target coordinate
-    pub target: Point3,
+    pub target: Vec3,
+    /// Camera position (if set, distance, pan and tilt properties will be ignored)
+    pub position: Option<Vec3>,
     /// Field of View
     pub fov: f32,
     /// Near plane
@@ -47,7 +49,7 @@ impl Camera {
         let pan = -PI / 2.0;
         let tilt = PI / 4.0;
         let roll = 0.0;
-        let target = Point3::new(0.0, 5.0, 0.0);
+        let target = Vec3::new(0.0, 5.0, 0.0);
         let fov = 1.1;
         let near_plane = 0.0625;
         let far_plane = 524288.06;
@@ -58,6 +60,7 @@ impl Camera {
             tilt,
             roll,
             target,
+            position: None,
             view: None,
             fov,
             near_plane,
@@ -79,11 +82,13 @@ impl Camera {
 
     /// Returns calculated camera position
     pub fn position(&self) -> Vec3 {
-        let dy = self.distance * self.tilt.sin();
-        let dxz = self.distance * self.tilt.cos();
-        let dx = dxz * self.pan.cos();
-        let dz = dxz * self.pan.sin();
-        Vec3::new(self.target.x + dx, self.target.y + dy, self.target.z + dz)
+        self.position.as_ref().map(|p| *p).unwrap_or_else(|| {
+            let dy = self.distance * self.tilt.sin();
+            let dxz = self.distance * self.tilt.cos();
+            let dx = dxz * self.pan.cos();
+            let dz = dxz * self.pan.sin();
+            Vec3::new(self.target.x + dx, self.target.y + dy, self.target.z + dz)
+        })
     }
 
     /// Returns normalized direction vector
@@ -94,24 +99,18 @@ impl Camera {
 
     /// Returns view matrix
     pub fn view_matrix(&self) -> Mat4 {
-        let dy = self.distance * self.tilt.sin();
-        let dxz = self.distance * self.tilt.cos();
-        let dx = dxz * self.pan.cos();
-        let dz = dxz * self.pan.sin();
-        let position = Point3::new(self.target.x + dx, self.target.y + dy, self.target.z + dz);
-
-        let (position, target) = if self.distance > 0.0 {
-            (position, self.target)
-        } else {
-            (self.target, position)
-        };
-
+        let position = self.position();
+        let target = self.target;
         let direction = (target - position).normalize();
         let roll = Quat::from_axis_angle(direction, Rad(self.roll));
         let camera_right = direction.cross(Vec3::unit_y());
         let camera_up = roll * camera_right.cross(direction);
 
-        Mat4::look_at(position, target, camera_up)
+        Mat4::look_at(
+            Point3::new(position.x, position.y, position.z),
+            Point3::new(target.x, target.y, target.z),
+            camera_up,
+        )
     }
 
     /// Returns a reference to view matrix
