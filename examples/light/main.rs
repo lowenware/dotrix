@@ -3,7 +3,7 @@ mod settings;
 mod skybox;
 mod terrain;
 
-use dotrix::math::Point3;
+use dotrix::math::Vec3;
 use dotrix::pbr::Light;
 use dotrix::prelude::*;
 use dotrix::{egui, overlay, pbr, sky};
@@ -41,7 +41,7 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>) {
     camera.distance = 6.6;
     camera.pan = 2.5;
     camera.tilt = 0.275;
-    camera.target = Point3::new(0.0, 0.5, 0.0);
+    camera.target = Vec3::new(0.0, 0.5, 0.0);
 
     world.spawn(Some((Light::ambient(), Editable {})));
     world.spawn(Some((Light::directional(), Editable {})));
