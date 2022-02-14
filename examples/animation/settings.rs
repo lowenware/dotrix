@@ -3,7 +3,7 @@ use dotrix::animation::State as AnimState;
 use dotrix::ecs::{Const, Mut};
 use dotrix::egui::{CollapsingHeader, ComboBox, DragValue, Egui, Grid, SidePanel, Slider};
 use dotrix::input::{Button, State as InputState};
-use dotrix::math::{Point3, Vec3};
+use dotrix::math::Vec3;
 use dotrix::overlay::Overlay;
 use dotrix::pbr::Light;
 use dotrix::{Animator, Camera, Color, Frame, Input, Transform, World};
@@ -21,7 +21,7 @@ pub struct Settings {
     pub cam_pan: f32,
     pub cam_tilt: f32,
     pub cam_roll: f32,
-    pub cam_target: Point3,
+    pub cam_target: Vec3,
 
     // Lights here are only structs, not real components.
     pub ambient_light_color: Color,
@@ -58,7 +58,7 @@ impl Default for Settings {
             cam_tilt: 0.25,
             cam_roll: 0.0,
 
-            cam_target: Point3::new(0.0, 0.5, 0.0),
+            cam_target: Vec3::new(0.0, 0.5, 0.0),
 
             simple_light_color: Color::white(),
             simple_light_intensity: 0.8,

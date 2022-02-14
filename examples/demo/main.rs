@@ -2,7 +2,7 @@ use dotrix::assets::Mesh;
 use dotrix::camera;
 use dotrix::egui::{self, Egui};
 use dotrix::input::{ActionMapper, Button, KeyCode, Mapper, Modifiers};
-use dotrix::math::{Point3, Quat, Rad, Rotation3, Vec3};
+use dotrix::math::{Quat, Rad, Rotation3, Vec3};
 use dotrix::overlay::{self, Overlay};
 use dotrix::pbr::{self, Light, Material, Model};
 use dotrix::prelude::*;
@@ -46,7 +46,7 @@ fn startup(
 fn init_camera(camera: &mut Camera) {
     camera.pan = PI / 2.0;
     camera.tilt = 0.0;
-    camera.target = Point3::new(0.0, CAMERA_HEIGHT, 0.0);
+    camera.target = Vec3::new(0.0, CAMERA_HEIGHT, 0.0);
     camera.distance = 5.0;
 }
 
@@ -261,7 +261,9 @@ fn player_control(
             transform.translate.z = pos_z;
 
             // make camera following the player
-            camera.target = Point3::new(pos_x, CAMERA_HEIGHT, pos_z);
+            camera.target.x = pos_x;
+            camera.target.y = CAMERA_HEIGHT;
+            camera.target.z = pos_z;
         }
     }
 }
