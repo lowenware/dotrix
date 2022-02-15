@@ -138,7 +138,7 @@ pub fn render(
             )
             .unwrap();
 
-        if !render.pipeline.ready() {
+        if !render.pipeline.ready(&renderer) {
             if let Some(shader) = assets.get(render.pipeline.shader) {
                 let sampler = globals
                     .get::<Sampler>()

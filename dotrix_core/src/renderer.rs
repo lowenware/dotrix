@@ -45,6 +45,8 @@ pub struct Renderer {
     pub clear_color: Color,
     /// Auto-incrementing rendering cylce
     pub cycle: usize,
+    /// Antialiasing
+    pub antialiasing: Antialiasing,
     /// Low-level rendering context
     pub context: Option<Context>,
     /// When dirty, renderer will try to load missing pipelines on frame binding
@@ -122,6 +124,11 @@ impl Renderer {
         self.context_mut().drop_pipeline(shader);
     }
 
+    /// Returns true if renderer has pipeline for the sahder
+    pub fn has_pipeline(&self, shader: Id<Shader>) -> bool {
+        self.context().has_pipeline(shader)
+    }
+
     /// Drop all loaded context pipelines for all shader
     pub fn drop_all_pipelines(&mut self) {
         self.dirty = true;
@@ -158,6 +165,31 @@ impl Renderer {
     }
 }
 
+/// Antialiasing modes enumeration
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Antialiasing {
+    /// Enable antialiasing
+    Enabled,
+    /// Disable antialiasing
+    Disabled,
+    /// Manual control of number of samples for multisampled antialiasing
+    MSAA {
+        /// Number od samples for MSAA
+        sample_count: u32,
+    },
+}
+
+impl Antialiasing {
+    /// get sample count for the antaliasing mode
+    pub fn sample_count(self) -> u32 {
+        match self {
+            Antialiasing::Enabled => 4,
+            Antialiasing::Disabled => 1,
+            Antialiasing::MSAA { sample_count } => sample_count,
+        }
+    }
+}
+
 impl Default for Renderer {
     /// Constructs new instance of the service
     fn default() -> Self {
@@ -166,6 +198,7 @@ impl Default for Renderer {
             cycle: 1,
             context: None,
             dirty: true,
+            antialiasing: Antialiasing::Enabled,
         }
     }
 }
@@ -175,9 +208,14 @@ unsafe impl Sync for Renderer {}
 
 /// Startup system
 pub fn startup(mut renderer: Mut<Renderer>, mut globals: Mut<Globals>, window: Mut<Window>) {
-    // Init context context
+    // get sample count
+    let sample_count = renderer.antialiasing.sample_count();
+    // Init context
     if renderer.context.is_none() {
-        renderer.context = Some(futures::executor::block_on(context::init(window.get())));
+        renderer.context = Some(futures::executor::block_on(context::init(
+            window.get(),
+            sample_count,
+        )));
     }
 
     // Create texture sampler and store it with Globals
@@ -189,9 +227,13 @@ pub fn startup(mut renderer: Mut<Renderer>, mut globals: Mut<Globals>, window: M
 /// Frame binding system
 pub fn bind(mut renderer: Mut<Renderer>, mut assets: Mut<Assets>) {
     let clear_color = renderer.clear_color;
-    renderer.context_mut().bind_frame(&clear_color);
+    let sample_count = renderer.antialiasing.sample_count();
+    // NOTE: other option here is to check sample_count != context.sample_count
+    let reload_request = renderer
+        .context_mut()
+        .bind_frame(&clear_color, sample_count);
 
-    if !renderer.dirty {
+    if !renderer.dirty && !reload_request {
         return;
     }
 

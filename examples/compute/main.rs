@@ -166,7 +166,7 @@ fn compute(
         renderer.load_buffer(&mut spawner.params, bytemuck::cast_slice(&[params]));
 
         // Bind the uniforms to the shader
-        if !compute.pipeline.ready() {
+        if !compute.pipeline.ready(&renderer) {
             if let Some(shader) = assets.get(compute.pipeline.shader) {
                 if !shader.loaded() {
                     continue;

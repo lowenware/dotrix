@@ -116,7 +116,7 @@ pub fn render(
         let mesh = assets.get(gradient.mesh).expect("Mesh must be loaded");
 
         // Bind the uniforms to the shader
-        if !render.pipeline.ready() {
+        if !render.pipeline.ready(&renderer) {
             if let Some(shader) = assets.get(render.pipeline.shader) {
                 if !shader.loaded() {
                     continue;

@@ -135,7 +135,7 @@ pub fn render(
 
         let mesh = assets.get(model.mesh).unwrap();
 
-        if !render.pipeline.ready() {
+        if !render.pipeline.ready(&renderer) {
             if let Some(shader) = assets.get(render.pipeline.shader) {
                 if !shader.loaded() {
                     continue;

@@ -190,7 +190,7 @@ pub fn render(
                 continue;
             }
 
-            if !pipeline.ready() {
+            if !pipeline.ready(&renderer) {
                 if let Some(shader) = assets.get(pipeline.shader) {
                     let sampler = globals
                         .get::<Sampler>()
