@@ -254,7 +254,7 @@ pub fn render(
 
         let mesh = assets.get(tile.mesh).unwrap();
 
-        if !pipeline.ready() {
+        if !pipeline.ready(&renderer) {
             if let Some(shader) = assets.get(pipeline.shader) {
                 if !shader.loaded() {
                     continue;

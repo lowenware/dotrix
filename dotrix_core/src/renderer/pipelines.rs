@@ -56,8 +56,8 @@ impl Pipeline {
     }
 
     /// Returns true if Pipeline is ready to run
-    pub fn ready(&self) -> bool {
-        self.bindings.loaded()
+    pub fn ready(&self, renderer: &Renderer) -> bool {
+        renderer.has_pipeline(self.shader) && self.bindings.loaded()
     }
 }
 
@@ -314,7 +314,10 @@ impl PipelineLayout<'_> {
                 } else {
                     None
                 },
-                multisample: wgpu::MultisampleState::default(),
+                multisample: wgpu::MultisampleState {
+                    count: ctx.sample_count,
+                    ..Default::default()
+                },
                 multiview: None,
             });
 

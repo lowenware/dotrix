@@ -22,16 +22,21 @@ pub struct Context {
     pub sur_desc: wgpu::SurfaceConfiguration,
     /// Depth Buffer implementation
     pub depth_buffer: wgpu::TextureView,
+    /// Multisampled Framebuffer for Antialiasing
+    pub multisampled_framebuffer: wgpu::TextureView,
     /// Frame Surface Texture
     pub frame: Option<wgpu::SurfaceTexture>,
     /// WGPU command encoder
     pub encoder: Option<wgpu::CommandEncoder>,
     /// List of Pipeline Instances
     pub pipelines: HashMap<Id<Shader>, PipelineInstance>,
+    /// Sample count for MSAA
+    pub sample_count: u32,
 }
 
 impl Context {
-    pub(crate) fn bind_frame(&mut self, clear_color: &Color) {
+    pub(crate) fn bind_frame(&mut self, clear_color: &Color, sample_count: u32) -> bool {
+        let mut reload_request = false;
         let frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(_) => {
@@ -42,6 +47,15 @@ impl Context {
             }
         };
 
+        if sample_count != self.sample_count {
+            self.multisampled_framebuffer =
+                create_multisampled_framebuffer(&self.device, &self.sur_desc, sample_count);
+            self.depth_buffer = create_depth_buffer(&self.device, &self.sur_desc, sample_count);
+            self.drop_all_pipelines();
+            self.sample_count = sample_count;
+            reload_request = true;
+        }
+
         let command_encoder_descriptor = wgpu::CommandEncoderDescriptor { label: None };
         let view = frame
             .texture
@@ -50,21 +64,35 @@ impl Context {
             .device
             .create_command_encoder(&command_encoder_descriptor);
         {
-            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachment {
+            let clear_color = wgpu::Color {
+                r: clear_color.r as f64,
+                g: clear_color.g as f64,
+                b: clear_color.b as f64,
+                a: clear_color.a as f64,
+            };
+            let rpass_color_attachment = if self.sample_count == 1 {
+                wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: clear_color.r as f64,
-                            g: clear_color.g as f64,
-                            b: clear_color.b as f64,
-                            a: clear_color.a as f64,
-                        }),
+                        load: wgpu::LoadOp::Clear(clear_color),
                         store: true,
                     },
-                }],
+                }
+            } else {
+                wgpu::RenderPassColorAttachment {
+                    view: &self.multisampled_framebuffer,
+                    resolve_target: Some(&view),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear_color),
+                        store: true,
+                    },
+                }
+            };
+
+            encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[rpass_color_attachment],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &self.depth_buffer,
                     depth_ops: Some(wgpu::Operations {
@@ -77,6 +105,7 @@ impl Context {
         }
         self.encoder = Some(encoder);
         self.frame = Some(frame);
+        reload_request
     }
 
     pub(crate) fn release_frame(&mut self) {
@@ -94,7 +123,10 @@ impl Context {
             self.sur_desc.height = height;
 
             self.surface.configure(&self.device, &self.sur_desc);
-            self.depth_buffer = create_depth_buffer(&self.device, width, height);
+            self.depth_buffer =
+                create_depth_buffer(&self.device, &self.sur_desc, self.sample_count);
+            self.multisampled_framebuffer =
+                create_multisampled_framebuffer(&self.device, &self.sur_desc, self.sample_count);
         }
     }
 
@@ -128,22 +160,35 @@ impl Context {
         if let Some(pipeline_instance) = self.pipelines.get(&shader) {
             let render_pipeline = pipeline_instance.render();
             let depth_buffer_mode = render_pipeline.depth_buffer_mode;
-            let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
 
             let frame = self.frame.as_ref().expect("WGPU frame must be set");
             let view = frame
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[wgpu::RenderPassColorAttachment {
+            let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
+            let rpass_color_attachment = if self.sample_count == 1 {
+                wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Load,
                         store: true,
                     },
-                }],
+                }
+            } else {
+                wgpu::RenderPassColorAttachment {
+                    view: &self.multisampled_framebuffer,
+                    resolve_target: Some(&view),
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: true,
+                    },
+                }
+            };
+
+            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[rpass_color_attachment],
                 depth_stencil_attachment: if depth_buffer_mode != DepthBufferMode::Disabled {
                     Some(wgpu::RenderPassDepthStencilAttachment {
                         view: &self.depth_buffer,
@@ -211,7 +256,7 @@ impl Context {
     }
 }
 
-pub(crate) async fn init(window: &winit::window::Window) -> Context {
+pub(crate) async fn init(window: &winit::window::Window, sample_count: u32) -> Context {
     let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
     let surface = unsafe { instance.create_surface(window) };
     let adapter = instance
@@ -248,7 +293,9 @@ pub(crate) async fn init(window: &winit::window::Window) -> Context {
     };
 
     surface.configure(&device, &sur_desc);
-    let depth_buffer = create_depth_buffer(&device, size.width, size.height);
+    let depth_buffer = create_depth_buffer(&device, &sur_desc, sample_count);
+    let multisampled_framebuffer =
+        create_multisampled_framebuffer(&device, &sur_desc, sample_count);
 
     Context {
         adapter,
@@ -259,14 +306,20 @@ pub(crate) async fn init(window: &winit::window::Window) -> Context {
         depth_buffer,
         frame: None,
         encoder: None,
+        multisampled_framebuffer,
         pipelines: std::collections::HashMap::new(),
+        sample_count,
     }
 }
 
-fn create_depth_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
+fn create_depth_buffer(
+    device: &wgpu::Device,
+    config: &wgpu::SurfaceConfiguration,
+    sample_count: u32,
+) -> wgpu::TextureView {
     let buffer_extent = wgpu::Extent3d {
-        width,
-        height,
+        width: config.width,
+        height: config.height,
         depth_or_array_layers: 1,
     };
 
@@ -274,7 +327,7 @@ fn create_depth_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgpu::
         label: Some("Depth Buffer"),
         size: buffer_extent,
         mip_level_count: 1,
-        sample_count: 1,
+        sample_count,
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Depth32Float,
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT
@@ -284,5 +337,30 @@ fn create_depth_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgpu::
 
     device
         .create_texture(&texture)
+        .create_view(&wgpu::TextureViewDescriptor::default())
+}
+
+fn create_multisampled_framebuffer(
+    device: &wgpu::Device,
+    config: &wgpu::SurfaceConfiguration,
+    sample_count: u32,
+) -> wgpu::TextureView {
+    let multisampled_texture_extent = wgpu::Extent3d {
+        width: config.width,
+        height: config.height,
+        depth_or_array_layers: 1,
+    };
+    let multisampled_frame_descriptor = &wgpu::TextureDescriptor {
+        size: multisampled_texture_extent,
+        mip_level_count: 1,
+        sample_count,
+        dimension: wgpu::TextureDimension::D2,
+        format: config.format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        label: None,
+    };
+
+    device
+        .create_texture(multisampled_frame_descriptor)
         .create_view(&wgpu::TextureViewDescriptor::default())
 }
