@@ -224,7 +224,7 @@ fn render(
             .get(assets.find(PARTICLE_MESH).expect("Mesh must be loaded"))
             .unwrap();
 
-        if !render.pipeline.ready() {
+        if !render.pipeline.ready(&renderer) {
             if let Some(shader) = assets.get(render.pipeline.shader) {
                 if !shader.loaded() {
                     continue;
