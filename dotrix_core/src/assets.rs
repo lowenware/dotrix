@@ -72,9 +72,7 @@ impl Assets {
             ));
         }
 
-        let root = std::env::current_dir()
-            .expect("Current working directory must be accessible")
-            .to_owned();
+        let root = std::env::current_dir().expect("Current working directory must be accessible");
 
         Self {
             registry: HashMap::new(),

@@ -369,7 +369,7 @@ impl<'a> SpawnedIter<'a> {
 impl<'a> Iterator for SpawnedIter<'a> {
     type Item = Entity;
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|e| *e)
+        self.iter.next().copied()
     }
     fn last(self) -> Option<Entity> {
         Some(self.last)

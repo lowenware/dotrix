@@ -100,7 +100,7 @@ impl<'a> BindGroup<'a> {
                     visibility: stage.into(),
                     ty: wgpu::BindingType::StorageTexture {
                         access: access.into(),
-                        format: texture.format.into(),
+                        format: texture.format,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,

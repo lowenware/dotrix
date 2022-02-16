@@ -82,7 +82,7 @@ impl Camera {
 
     /// Returns calculated camera position
     pub fn position(&self) -> Vec3 {
-        self.position.as_ref().map(|p| *p).unwrap_or_else(|| {
+        self.position.as_ref().copied().unwrap_or_else(|| {
             let dy = self.distance * self.tilt.sin();
             let dxz = self.distance * self.tilt.cos();
             let dx = dxz * self.pan.cos();
