@@ -213,7 +213,7 @@ impl FileDialog {
 
         // Rows with files
         ui.separator();
-        ScrollArea::from_max_height(320.0).show(ui, |ui| {
+        ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
             match &self.files {
                 Ok(files) => {
                     for path in files {

@@ -94,8 +94,8 @@ impl Ui for Egui {
 
         let mouse_pos = input
             .mouse_position()
-            .map(|p| egui::math::Pos2::new(p.x / scale_factor, p.y / scale_factor))
-            .unwrap_or_else(|| egui::math::Pos2::new(0.0, 0.0));
+            .map(|p| egui::Pos2::new(p.x / scale_factor, p.y / scale_factor))
+            .unwrap_or_else(|| egui::Pos2::new(0.0, 0.0));
 
         let mouse_used: Vec<bool> = [Button::MouseLeft, Button::MouseRight, Button::MouseMiddle]
             .iter()
@@ -185,30 +185,36 @@ impl Ui for Egui {
             (0., 0.)
         };
 
+        if scroll_delta_x != 0.0 || scroll_delta_y != 0.0 {
+            events.push(egui::Event::Scroll(egui::vec2(
+                scroll_delta_x,
+                scroll_delta_y,
+            )));
+        }
+
         self.ctx.begin_frame(egui::RawInput {
-            screen_rect: Some(egui::math::Rect::from_min_size(
+            screen_rect: Some(egui::Rect::from_min_size(
                 Default::default(),
-                egui::math::vec2(surface_width as f32, surface_height as f32) / scale_factor,
+                egui::vec2(surface_width as f32, surface_height as f32) / scale_factor,
             )),
             pixels_per_point: Some(scale_factor),
             events,
             dropped_files,
             hovered_files,
-            scroll_delta: egui::math::vec2(scroll_delta_x, scroll_delta_y),
             ..Default::default()
         });
 
-        let texture = self.ctx.texture();
+        let font_image = self.ctx.font_image();
 
         if let Some(texture_id) = self.texture {
-            if self.texture_version != Some(texture.version) {
+            if self.texture_version != Some(font_image.version) {
                 let mut asset_texture = assets
                     .get_mut::<Texture>(texture_id)
                     .expect("EGUI texture must be loaded already");
 
-                asset_texture.data = egui_texture_to_rgba(&texture);
-                asset_texture.width = texture.width as u32;
-                asset_texture.height = texture.height as u32;
+                asset_texture.data = from_egui_font_image(&font_image);
+                asset_texture.width = font_image.width as u32;
+                asset_texture.height = font_image.height as u32;
                 asset_texture.unload();
             } else {
                 return;
@@ -216,9 +222,9 @@ impl Ui for Egui {
         } else {
             self.texture = Some(assets.store_as(
                 Texture {
-                    width: texture.width as u32,
-                    height: texture.height as u32,
-                    data: egui_texture_to_rgba(&texture),
+                    width: font_image.width as u32,
+                    height: font_image.height as u32,
+                    data: from_egui_font_image(&font_image),
                     depth: 1,
                     changed: true,
                     ..Default::default()
@@ -226,7 +232,7 @@ impl Ui for Egui {
                 TEXTURE_NAME,
             ));
         }
-        self.texture_version = Some(texture.version);
+        self.texture_version = Some(font_image.version);
     }
 
     fn tessellate(&mut self, window: &Window) -> &mut [(Widget, Pipeline)] {
@@ -277,7 +283,7 @@ impl Ui for Egui {
                             v.color.r() as f32,
                             v.color.g() as f32,
                             v.color.b() as f32,
-                            v.color.a() as f32 / 255.0,
+                            v.color.a() as f32,
                         ]);
                         [v.pos.x, v.pos.y]
                     })
@@ -319,17 +325,15 @@ impl Ui for Egui {
     }
 }
 
-fn egui_texture_to_rgba(texture: &egui::Texture) -> Vec<u8> {
-    let mut data = Vec::with_capacity(4 * texture.pixels.len());
-
-    for &alpha in texture.pixels.iter() {
-        data.extend(
-            egui::paint::color::Color32::from_white_alpha(alpha)
-                .to_array()
-                .iter(),
-        );
+fn from_egui_font_image(font_image: &egui::FontImage) -> Vec<u8> {
+    let mut pixels: Vec<u8> = Vec::with_capacity(font_image.pixels.len() * 4);
+    for srgba in font_image.srgba_pixels(1.0) {
+        pixels.push(srgba.r());
+        pixels.push(srgba.g());
+        pixels.push(srgba.b());
+        pixels.push(srgba.a());
     }
-    data
+    pixels
 }
 
 /// Translates winit to egui keycodes.
