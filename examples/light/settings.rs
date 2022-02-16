@@ -108,7 +108,7 @@ pub fn ui(mut settings: Mut<Settings>, overlay: Mut<Overlay>) {
         .expect("Renderer does not contain an Overlay instance");
 
     SidePanel::left("side_panel").show(&egui.ctx, |ui| {
-        ScrollArea::auto_sized().show(ui, |ui| {
+        ScrollArea::vertical().show(ui, |ui| {
             CollapsingHeader::new("Car Settings")
                 .default_open(true)
                 .show(ui, |ui| {

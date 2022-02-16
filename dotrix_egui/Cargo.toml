@@ -18,4 +18,4 @@ version = "0.1"
 path = "../dotrix_overlay"
 
 [dependencies.egui]
-version = "0.14.2"
+version = "0.16.1"
