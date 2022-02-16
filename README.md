@@ -71,6 +71,21 @@ cargo run --release --example shader
 cargo run --release --example compute
 ```
 
+**Features:** PBR materials (textureless)
+```
+cargo run --release --example pbr
+```
+
+**Features:** PBR materials (Normal mapping)
+```
+cargo run --release --example normal_map
+```
+
+**Features:** Multisample Antialiasing (msaa), PBR materials (fully textured)
+```
+cargo run --release --example msaa
+```
+
 ## Sponsors
 
 * Johan Andersson <[@repi](https://github.com/repi)>
@@ -88,3 +103,4 @@ Following 3rd party assets are being used in examples
 * [Car Model](https://free3d.com/3d-model/cartoon-vehicles-low-poly-cars-free-874937.html)
 * [Fox Model](https://github.com/KhronosGroup/glTF-Sample-Models/tree/master/2.0/Fox)
 * [Day Skybox](https://opengameart.org/content/elyvisions-skyboxes)
+* [PBR Crate](https://3dtextures.me/2021/12/20/stylized-crate-002/)
