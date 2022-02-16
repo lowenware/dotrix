@@ -276,18 +276,25 @@ impl PipelineLayout<'_> {
                 fragment: Some(wgpu::FragmentState {
                     module: wgpu_shader_module,
                     entry_point: options.fs_main,
-                    targets: &[if depth_buffer_mode == DepthBufferMode::Disabled {
-                        wgpu::ColorTargetState {
-                            format: ctx.sur_desc.format,
-                            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                            write_mask: wgpu::ColorWrites::ALL,
-                        }
-                    } else {
-                        wgpu::ColorTargetState {
-                            format: ctx.sur_desc.format,
-                            blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                            write_mask: wgpu::ColorWrites::ALL,
-                        }
+                    targets: &[wgpu::ColorTargetState {
+                        format: ctx.sur_desc.format,
+                        blend: match depth_buffer_mode {
+                            DepthBufferMode::ReadOnly => None,
+                            DepthBufferMode::ReadWrite => Some(wgpu::BlendState::ALPHA_BLENDING),
+                            DepthBufferMode::Disabled => Some(wgpu::BlendState {
+                                color: wgpu::BlendComponent {
+                                    src_factor: wgpu::BlendFactor::One,
+                                    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                                    operation: wgpu::BlendOperation::Add,
+                                },
+                                alpha: wgpu::BlendComponent {
+                                    src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
+                                    dst_factor: wgpu::BlendFactor::One,
+                                    operation: wgpu::BlendOperation::Add,
+                                },
+                            }),
+                        },
+                        write_mask: wgpu::ColorWrites::ALL,
                     }],
                 }),
                 primitive: wgpu::PrimitiveState {
