@@ -155,7 +155,7 @@ impl Renderer {
     /// Runs the render pipeline for a mesh
     pub fn draw(&mut self, pipeline: &mut Pipeline, mesh: &Mesh, args: &DrawArgs) {
         self.context_mut()
-            .run_render_pipeline(pipeline.shader, &mesh, &pipeline.bindings, args);
+            .run_render_pipeline(pipeline.shader, mesh, &pipeline.bindings, args);
     }
 
     /// Runs the compute pipeline
