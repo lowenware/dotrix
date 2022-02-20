@@ -29,7 +29,7 @@ pub use assets::Assets;
 pub use camera::Camera;
 pub use color::Color;
 pub use cubemap::CubeMap;
-pub use ecs::{Priority, RunLevel, StateId, System};
+pub use ecs::{Priority, RunLevel, System};
 pub use frame::Frame;
 pub use globals::Globals;
 pub use id::Id;

@@ -10,13 +10,8 @@ use winit::{
     window::{Window as WinitWindow, WindowBuilder},
 };
 
-use crate::{
-    assets::Assets,
-    ecs::{RunLevel, StateId, System, Systemized},
-    input::Input,
-    window::Window,
-    State,
-};
+use crate::ecs::{RunLevel, System, Systemized};
+use crate::{Assets, Id, Input, State, Window};
 
 /// Application data to maintain the process
 ///
@@ -101,8 +96,8 @@ fn run(
     }: Application,
 ) {
     // Global application state
-    let current_state: StateId = StateId::of::<bool>();
-    let current_state_ptr: *const StateId = &current_state;
+    let current_state = State::meta();
+    let current_state_ptr: *const Id<State> = &current_state;
 
     let (mut pool, _spawner) = {
         let local_pool = futures::executor::LocalPool::new();
@@ -119,7 +114,7 @@ fn run(
     }
 
     if let Some(state) = services.get_mut::<State>() {
-        state.set_pointer(current_state_ptr as usize);
+        state.set_pointer(current_state_ptr);
     }
 
     scheduler.run_startup(&mut services, current_state_ptr);
@@ -251,42 +246,42 @@ impl Scheduler {
         });
     }
 
-    fn run(list: &mut [Box<dyn Systemized>], services: &mut Services, state_ptr: *const StateId) {
+    fn run(list: &mut [Box<dyn Systemized>], services: &mut Services, state_ptr: *const Id<State>) {
         for system in list.iter_mut() {
             let state = unsafe { *state_ptr };
             system.run(services, state);
         }
     }
 
-    pub fn run_startup(&mut self, services: &mut Services, state_ptr: *const StateId) {
+    pub fn run_startup(&mut self, services: &mut Services, state_ptr: *const Id<State>) {
         Self::run(&mut self.startup, services, state_ptr);
     }
 
-    pub fn run_bind(&mut self, services: &mut Services, state_ptr: *const StateId) {
+    pub fn run_bind(&mut self, services: &mut Services, state_ptr: *const Id<State>) {
         Self::run(&mut self.bind, services, state_ptr);
     }
 
-    pub fn run_update(&mut self, services: &mut Services, state_ptr: *const StateId) {
+    pub fn run_update(&mut self, services: &mut Services, state_ptr: *const Id<State>) {
         Self::run(&mut self.update, services, state_ptr);
     }
 
-    pub fn run_load(&mut self, services: &mut Services, state_ptr: *const StateId) {
+    pub fn run_load(&mut self, services: &mut Services, state_ptr: *const Id<State>) {
         Self::run(&mut self.load, services, state_ptr);
     }
 
-    pub fn run_compute(&mut self, services: &mut Services, state_ptr: *const StateId) {
+    pub fn run_compute(&mut self, services: &mut Services, state_ptr: *const Id<State>) {
         Self::run(&mut self.compute, services, state_ptr);
     }
 
-    pub fn run_render(&mut self, services: &mut Services, state_ptr: *const StateId) {
+    pub fn run_render(&mut self, services: &mut Services, state_ptr: *const Id<State>) {
         Self::run(&mut self.render, services, state_ptr);
     }
 
-    pub fn run_release(&mut self, services: &mut Services, state_ptr: *const StateId) {
+    pub fn run_release(&mut self, services: &mut Services, state_ptr: *const Id<State>) {
         Self::run(&mut self.release, services, state_ptr);
     }
 
-    pub fn run_resize(&mut self, services: &mut Services, state_ptr: *const StateId) {
+    pub fn run_resize(&mut self, services: &mut Services, state_ptr: *const Id<State>) {
         Self::run(&mut self.resize, services, state_ptr);
     }
 }
