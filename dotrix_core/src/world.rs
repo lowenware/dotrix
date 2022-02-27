@@ -237,6 +237,19 @@ impl World {
     pub fn counter(&self) -> u64 {
         self.counter
     }
+
+    /// Clear all entities from the world
+    pub fn clear(&mut self) {
+        self.content.clear();
+        self.spawned.clear();
+        self.index.clear();
+    }
+
+    /// Clear entities from the world and reset to initial state
+    pub fn reset(&mut self) {
+        self.clear();
+        self.counter = 0;
+    }
 }
 
 unsafe impl Send for World {}
