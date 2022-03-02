@@ -8,10 +8,10 @@ use std::{
 use dotrix_core::assets::Shader;
 use dotrix_core::ecs::{Const, Mut, Priority, System};
 use dotrix_core::renderer::{
-    BindGroup, Binding, DepthBufferMode, PipelineLayout, PipelineOptions, Sampler, Stage,
-    UniformBuffer,
+    BindGroup, Binding, Buffer, DepthBufferMode, Pipeline, PipelineLayout, RenderOptions, Sampler,
+    Stage,
 };
-use dotrix_core::{Application, Assets, Globals, Input, Pipeline, Renderer, Window};
+use dotrix_core::{Application, Assets, Globals, Input, Renderer, Window};
 
 const PIPELINE_LABEL: &str = "dotrix::overlay";
 
@@ -21,7 +21,7 @@ pub use widget::Widget;
 #[derive(Default)]
 pub struct Overlay {
     providers: HashMap<TypeId, Box<dyn Ui>>,
-    uniform: Option<UniformBuffer>,
+    uniform: Option<Buffer>,
 }
 
 unsafe impl Sync for Overlay {}
@@ -153,12 +153,15 @@ pub fn render(
     globals: Const<Globals>,
     window: Const<Window>,
 ) {
-    let mut overlay_uniform = overlay.uniform.take().unwrap_or_default();
+    let mut overlay_uniform = overlay
+        .uniform
+        .take()
+        .unwrap_or_else(|| Buffer::uniform("Overlay Buffer"));
 
     let window_size = window.inner_size();
     let scale_factor = window.scale_factor();
 
-    renderer.load_uniform_buffer(
+    renderer.load_buffer(
         &mut overlay_uniform,
         bytemuck::cast_slice(&[Uniform {
             window_size: [
@@ -187,7 +190,7 @@ pub fn render(
                 continue;
             }
 
-            if !pipeline.ready() {
+            if !pipeline.ready(&renderer) {
                 if let Some(shader) = assets.get(pipeline.shader) {
                     let sampler = globals
                         .get::<Sampler>()
@@ -197,9 +200,9 @@ pub fn render(
 
                     renderer.bind(
                         pipeline,
-                        PipelineLayout {
+                        PipelineLayout::Render {
                             label: String::from(PIPELINE_LABEL),
-                            mesh: Some(&widget.mesh),
+                            mesh: &widget.mesh,
                             shader,
                             bindings: &[
                                 BindGroup::new(
@@ -222,15 +225,16 @@ pub fn render(
                                     ],
                                 ),
                             ],
-                            options: PipelineOptions {
+                            options: RenderOptions {
                                 depth_buffer_mode: DepthBufferMode::Disabled,
                                 disable_cull_mode: true,
+                                ..Default::default()
                             },
                         },
                     );
                 }
             }
-            renderer.run(pipeline, &widget.mesh);
+            renderer.draw(pipeline, &widget.mesh, &widget.draw_args);
         }
     }
 

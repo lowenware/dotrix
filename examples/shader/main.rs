@@ -1,7 +1,8 @@
 use dotrix::camera;
 use dotrix::prelude::*;
 use dotrix::primitives::Cube;
-use dotrix::{Assets, Camera, Pipeline, Renderer, World};
+use dotrix::renderer::Render;
+use dotrix::{Assets, Camera, Renderer, World};
 mod shader;
 
 use shader::Gradient;
@@ -22,7 +23,7 @@ fn startup(
 ) {
     camera.target = [0., 0., 0.].into();
     camera.distance = 2.0;
-    camera.xz_angle = 0.0;
+    camera.tilt = 0.0;
 
     let mut mesh = Cube::builder(0.5).with_positions().mesh();
 
@@ -37,6 +38,6 @@ fn startup(
             zenith_color: [0.2, 0.4, 0.8, 1.],
             mesh: mesh_handle,
         },
-        Pipeline::default(),
+        Render::default(),
     )));
 }

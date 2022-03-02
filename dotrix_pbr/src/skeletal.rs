@@ -1,10 +1,10 @@
 use dotrix_core::assets::{Mesh, Shader, Skin, Texture};
 use dotrix_core::camera::ProjView;
 use dotrix_core::ecs::{Const, Mut, System};
-use dotrix_core::renderer::{BindGroup, Binding, PipelineLayout, PipelineOptions, Sampler, Stage};
-use dotrix_core::{
-    Application, Assets, Color, Globals, Id, Pipeline, Pose, Renderer, Transform, World,
+use dotrix_core::renderer::{
+    BindGroup, Binding, DrawArgs, Pipeline, PipelineLayout, Render, RenderOptions, Sampler, Stage,
 };
+use dotrix_core::{Application, Assets, Color, Globals, Id, Pose, Renderer, Transform, World};
 
 use dotrix_math::{Quat, Rad, Rotation3, Vec3};
 
@@ -46,7 +46,7 @@ pub struct Entity {
 }
 
 impl Entity {
-    pub fn some(self) -> Option<(Model, Pose, Material, Transform, Pipeline)> {
+    pub fn some(self) -> Option<(Model, Pose, Material, Transform, Render)> {
         Some((
             Model::from(self.mesh),
             Pose::from(self.skin),
@@ -67,10 +67,7 @@ impl Entity {
                 rotate: self.rotate,
                 scale: self.scale,
             },
-            Pipeline {
-                shader: self.shader,
-                ..Default::default()
-            },
+            Pipeline::render(self.shader),
         ))
     }
 }
@@ -108,16 +105,16 @@ pub fn render(
         &mut Pose,
         &mut Material,
         &mut Transform,
-        &mut Pipeline,
+        &mut Render,
     )>();
 
-    for (model, pose, material, transform, pipeline) in query {
-        if pipeline.shader.is_null() {
-            pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+    for (model, pose, material, transform, render) in query {
+        if render.pipeline.shader.is_null() {
+            render.pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
         }
 
         // check if model is disabled or already rendered
-        if !pipeline.cycle(&renderer) {
+        if !render.pipeline.cycle(&renderer) {
             continue;
         }
 
@@ -138,8 +135,8 @@ pub fn render(
 
         let mesh = assets.get(model.mesh).unwrap();
 
-        if !pipeline.ready() {
-            if let Some(shader) = assets.get(pipeline.shader) {
+        if !render.pipeline.ready(&renderer) {
+            if let Some(shader) = assets.get(render.pipeline.shader) {
                 if !shader.loaded() {
                     continue;
                 }
@@ -163,10 +160,10 @@ pub fn render(
                     .expect("Lights buffer must be loaded");
 
                 renderer.bind(
-                    pipeline,
-                    PipelineLayout {
+                    &mut render.pipeline,
+                    PipelineLayout::Render {
                         label: String::from(PIPELINE_LABEL),
-                        mesh: Some(mesh),
+                        mesh,
                         shader,
                         bindings: &[
                             BindGroup::new(
@@ -211,13 +208,13 @@ pub fn render(
                                 ],
                             ),
                         ],
-                        options: PipelineOptions::default(),
+                        options: RenderOptions::default(),
                     },
                 );
             }
         }
 
-        renderer.run(pipeline, mesh);
+        renderer.draw(&mut render.pipeline, mesh, &DrawArgs::default());
     }
 }
 

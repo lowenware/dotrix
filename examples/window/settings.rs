@@ -81,7 +81,7 @@ pub fn ui(
 
     SidePanel::left("side_panel")
     .show(&egui.ctx, |ui| {
-        ScrollArea::auto_sized().show(ui, |ui| {
+        ScrollArea::vertical().show(ui, |ui| {
             CollapsingHeader::new("ℹ Info")
             .default_open(false)
             .show(ui, |ui| {

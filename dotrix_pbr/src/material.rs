@@ -1,6 +1,6 @@
 use dotrix_core::assets::Texture;
 use dotrix_core::ecs::Mut;
-use dotrix_core::renderer::UniformBuffer;
+use dotrix_core::renderer::Buffer;
 use dotrix_core::{Assets, Color, Id, Renderer};
 
 const DUMMY_TEXTURE: &str = "dotrix::dummy_texture";
@@ -26,7 +26,7 @@ pub struct Material {
     /// Id of a normal map asset
     pub normal_texture: Id<Texture>,
     /// Pipeline buffer
-    pub uniform: UniformBuffer,
+    pub uniform: Buffer,
 }
 
 impl Default for Material {
@@ -36,12 +36,12 @@ impl Default for Material {
             albedo: Color::white(),
             roughness: 1.0,
             roughness_texture: Id::default(),
-            metallic: 0.0,
+            metallic: 1.0,
             metallic_texture: Id::default(),
-            ao: 0.5,
+            ao: 1.0,
             ao_texture: Id::default(),
             normal_texture: Id::default(),
-            uniform: UniformBuffer::default(),
+            uniform: Buffer::uniform("Material Buffer"),
         }
     }
 }
@@ -119,7 +119,7 @@ impl Material {
             ao: self.ao,
         };
 
-        renderer.load_uniform_buffer(&mut self.uniform, bytemuck::cast_slice(&[uniform]));
+        renderer.load_buffer(&mut self.uniform, bytemuck::cast_slice(&[uniform]));
         true
     }
 }

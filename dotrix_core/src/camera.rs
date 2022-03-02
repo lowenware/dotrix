@@ -1,11 +1,9 @@
 //! Dotrix camera implementation
-use crate::{
-    ecs::{Const, Mut},
-    renderer::UniformBuffer,
-    services::{Frame, Globals, Input, Renderer, Window},
-};
+use crate::ecs::{Const, Mut};
+use crate::renderer::Buffer;
+use crate::{Frame, Globals, Input, Renderer, Window};
 
-use dotrix_math::{perspective, Mat4, Point3, Rad, Vec3};
+use dotrix_math::{perspective, InnerSpace, Mat4, Point3, Quat, Rad, Rotation3, Vec3};
 use std::f32::consts::PI;
 
 const ROTATE_SPEED: f32 = PI / 10.0;
@@ -15,21 +13,23 @@ const ZOOM_SPEED: f32 = 10.0;
 #[derive(Default)]
 pub struct ProjView {
     /// Uniform Buffer of ProjView matrix
-    pub uniform: UniformBuffer,
+    pub uniform: Buffer,
 }
 
 /// Camera management service
 pub struct Camera {
     /// Distance between the camera and a target
     pub distance: f32,
-    /// Angle around the Y axis
-    pub y_angle: f32,
-    /// Angle in horizontal plane
-    pub xz_angle: f32,
+    /// Pan angle in horizontal plane (ex. y_angle)
+    pub pan: f32,
+    /// Tilt Angle (ex. xz_angle)
+    pub tilt: f32,
+    /// Roll angle
+    pub roll: f32,
     /// Camera target coordinate
-    pub target: Point3,
-    /// View matri
-    pub view: Option<Mat4>,
+    pub target: Vec3,
+    /// Camera position (if set, distance, pan and tilt properties will be ignored)
+    pub position: Option<Vec3>,
     /// Field of View
     pub fov: f32,
     /// Near plane
@@ -38,24 +38,29 @@ pub struct Camera {
     pub far_plane: f32,
     /// Projection matrix
     pub proj: Option<Mat4>,
+    /// View matri
+    pub view: Option<Mat4>,
 }
 
 impl Camera {
     /// Creates new Camera instance
     pub fn new() -> Self {
         let distance = 15.0;
-        let y_angle = -PI / 2.0;
-        let xz_angle = PI / 4.0;
-        let target = Point3::new(0.0, 5.0, 0.0);
+        let pan = -PI / 2.0;
+        let tilt = PI / 4.0;
+        let roll = 0.0;
+        let target = Vec3::new(0.0, 5.0, 0.0);
         let fov = 1.1;
         let near_plane = 0.0625;
         let far_plane = 524288.06;
 
         Self {
             distance,
-            y_angle,
-            xz_angle,
+            pan,
+            tilt,
+            roll,
             target,
+            position: None,
             view: None,
             fov,
             near_plane,
@@ -77,28 +82,35 @@ impl Camera {
 
     /// Returns calculated camera position
     pub fn position(&self) -> Vec3 {
-        let dy = self.distance * self.xz_angle.sin();
-        let dxz = self.distance * self.xz_angle.cos();
-        let dx = dxz * self.y_angle.cos();
-        let dz = dxz * self.y_angle.sin();
-        Vec3::new(self.target.x + dx, self.target.y + dy, self.target.z + dz)
+        self.position.as_ref().copied().unwrap_or_else(|| {
+            let dy = self.distance * self.tilt.sin();
+            let dxz = self.distance * self.tilt.cos();
+            let dx = dxz * self.pan.cos();
+            let dz = dxz * self.pan.sin();
+            Vec3::new(self.target.x + dx, self.target.y + dy, self.target.z + dz)
+        })
+    }
+
+    /// Returns normalized direction vector
+    pub fn direction(&self) -> Vec3 {
+        let position = self.position();
+        (Vec3::new(self.target.x, self.target.y, self.target.z) - position).normalize()
     }
 
     /// Returns view matrix
     pub fn view_matrix(&self) -> Mat4 {
-        let dy = self.distance * self.xz_angle.sin();
-        let dxz = self.distance * self.xz_angle.cos();
-        let dx = dxz * self.y_angle.cos();
-        let dz = dxz * self.y_angle.sin();
-        let position = Point3::new(self.target.x + dx, self.target.y + dy, self.target.z + dz);
+        let position = self.position();
+        let target = self.target;
+        let direction = (target - position).normalize();
+        let roll = Quat::from_axis_angle(direction, Rad(self.roll));
+        let camera_right = direction.cross(Vec3::unit_y());
+        let camera_up = roll * camera_right.cross(direction);
 
-        let (position, target) = if self.distance > 0.0 {
-            (position, self.target)
-        } else {
-            (self.target, position)
-        };
-
-        Mat4::look_at(position, target, Vec3::unit_y())
+        Mat4::look_at(
+            Point3::new(position.x, position.y, position.z),
+            Point3::new(target.x, target.y, target.z),
+            camera_up,
+        )
     }
 
     /// Returns a reference to view matrix
@@ -121,7 +133,9 @@ impl Default for Camera {
 /// Camera startup system
 /// Initializes the ProjView binding
 pub fn startup(mut globals: Mut<Globals>) {
-    let proj_view = ProjView::default();
+    let proj_view = ProjView {
+        uniform: Buffer::uniform("ProjView buffer"),
+    };
     globals.set(proj_view);
 }
 
@@ -150,7 +164,7 @@ pub fn load(
         let matrix = camera.proj.as_ref().unwrap() * camera.view.as_ref().unwrap();
         let matrix_raw = AsRef::<[f32; 16]>::as_ref(&matrix);
 
-        renderer.load_uniform_buffer(&mut proj_view.uniform, bytemuck::cast_slice(matrix_raw));
+        renderer.load_buffer(&mut proj_view.uniform, bytemuck::cast_slice(matrix_raw));
     }
 }
 
@@ -174,16 +188,16 @@ pub fn control(mut camera: Mut<Camera>, input: Const<Input>, frame: Const<Frame>
     let distance = camera.distance - ZOOM_SPEED * mouse_scroll * time_delta;
     camera.distance = if distance > -1.0 { distance } else { -1.0 };
 
-    camera.y_angle += mouse_delta.x * ROTATE_SPEED * time_delta;
+    camera.pan += mouse_delta.x * ROTATE_SPEED * time_delta;
 
-    let xz_angle = camera.xz_angle + mouse_delta.y * ROTATE_SPEED * time_delta;
+    let tilt = camera.tilt + mouse_delta.y * ROTATE_SPEED * time_delta;
     let half_pi = PI / 2.0;
 
-    camera.xz_angle = if xz_angle >= half_pi {
+    camera.tilt = if tilt >= half_pi {
         half_pi - 0.01
-    } else if xz_angle <= -half_pi {
+    } else if tilt <= -half_pi {
         -half_pi + 0.01
     } else {
-        xz_angle
+        tilt
     };
 }

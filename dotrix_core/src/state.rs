@@ -1,43 +1,62 @@
-use crate::ecs::{Rule, StateId};
+use crate::id::OfType;
+use crate::Id;
 use std::any::Any;
 
+/// Application state when system should run
+#[derive(Eq, PartialEq, Debug, Hash, Clone, Copy)]
+pub enum Rule {
+    /// System runs ar any state
+    Always,
+    /// System runs at specific state
+    StateOn(Id<State>),
+    /// System does not run at specific state
+    StateOff(Id<State>),
+}
+
 struct Entry {
-    state_id: StateId,
+    state_id: Id<State>,
     name: String,
     boxed: Box<dyn IntoState>,
 }
 
+/// Initial Meta state
+///
+/// Not in stack by default. Used for default value of internal state pointer
+struct Meta;
+
 /// Application States stack service
-#[derive(Default)]
 pub struct State {
     stack: Vec<Entry>,
-    state_ptr: usize,
+    state_ptr: *const Id<State>,
 }
+
+// Secured by state_ptr controls
+unsafe impl Send for State {}
+unsafe impl Sync for State {}
 
 impl State {
     /// Sets pointer to data, holding information about the application state
-    pub(crate) fn set_pointer(&mut self, state_ptr: usize) {
+    pub(crate) fn set_pointer(&mut self, state_ptr: *const Id<State>) {
         self.state_ptr = state_ptr;
     }
 
-    fn write_pointer(&self, value: StateId) {
-        let state_ptr = self.state_ptr as *const StateId;
-        if !state_ptr.is_null() {
+    fn write_pointer(&self, value: Id<State>) {
+        if !self.state_ptr.is_null() {
             unsafe {
-                *(self.state_ptr as *mut StateId) = value;
+                *(self.state_ptr as *mut Id<State>) = value;
             }
         }
     }
 
     /// Returns a rule, so the system will run when the state is ON
     pub fn on<T: IntoState>() -> Rule {
-        let state_id = StateId::of::<T>();
+        let state_id: Id<State> = Id::of::<T>();
         Rule::StateOn(state_id)
     }
 
     /// Returns a rule, so the system will run when the state is OFF
     pub fn off<T: IntoState>() -> Rule {
-        Rule::StateOff(StateId::of::<T>())
+        Rule::StateOff(Id::of::<T>())
     }
 
     /// Pushes the application state to the stack
@@ -45,7 +64,7 @@ impl State {
     where
         T: IntoState,
     {
-        let state_id = StateId::of::<T>();
+        let state_id: Id<State> = Id::of::<T>();
         let name = String::from(std::any::type_name::<T>());
         self.stack.push(Entry {
             state_id,
@@ -78,7 +97,7 @@ impl State {
             .stack
             .last()
             .map(|entry| entry.state_id)
-            .unwrap_or_else(StateId::of::<bool>);
+            .unwrap_or_else(Self::meta);
         self.write_pointer(state_id);
         last.map(|entry| entry.boxed)
     }
@@ -99,8 +118,8 @@ impl State {
             .unwrap_or(None)
     }
 
-    /// Returns [`StateId`] of current state
-    pub fn id(&self) -> Option<StateId> {
+    /// Returns [`Id<State>`] of current state
+    pub fn id(&self) -> Option<Id<State>> {
         self.stack.last().map(|entry| entry.state_id)
     }
 
@@ -110,6 +129,32 @@ impl State {
             .iter()
             .map(|entry| entry.name.as_str())
             .collect::<Vec<_>>()
+    }
+
+    /// Clears states stack
+    pub fn clear(&mut self) {
+        self.stack.clear();
+        self.write_pointer(Self::meta());
+    }
+
+    /// Get id of meta state (one defines the state with empty stack)
+    pub fn meta() -> Id<State> {
+        Id::of::<Meta>()
+    }
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            stack: vec![],
+            state_ptr: std::ptr::null(),
+        }
+    }
+}
+
+impl OfType for Id<State> {
+    fn of<T: std::any::Any>() -> Self {
+        Id::from(std::any::TypeId::of::<T>())
     }
 }
 
@@ -174,5 +219,24 @@ mod tests {
 
         let last: SimpleState = state.pop().unwrap();
         assert_eq!(last, SimpleState {});
+    }
+
+    #[test]
+    fn state_clear() {
+        let current_state: Id<State> = State::meta();
+        let mut state = State::default();
+        state.set_pointer(&current_state);
+
+        let state_id = unsafe { *(state.state_ptr as *const Id<State>) };
+
+        assert_eq!(state_id, Id::of::<Meta>());
+
+        state.push(SimpleState {});
+        state.push(StateWithData(123));
+        state.push(StateWithAllocation(String::from("Allocated string")));
+
+        state.clear();
+        let state_id = unsafe { *(state.state_ptr as *const Id<State>) };
+        assert_eq!(state_id, Id::of::<Meta>());
     }
 }

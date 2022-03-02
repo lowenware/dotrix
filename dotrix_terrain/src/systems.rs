@@ -4,9 +4,9 @@ use dotrix_core::assets::{Assets, Mesh, Shader};
 use dotrix_core::camera::ProjView;
 use dotrix_core::ecs::{Const, Context, Entity, Mut};
 use dotrix_core::renderer::{
-    BindGroup, Binding, PipelineLayout, PipelineOptions, Renderer, Sampler, Stage,
+    BindGroup, Binding, DrawArgs, Pipeline, PipelineLayout, RenderOptions, Renderer, Sampler, Stage,
 };
-use dotrix_core::{Camera, Color, Globals, Id, Pipeline, World};
+use dotrix_core::{Camera, Color, Globals, Id, World};
 
 use dotrix_pbr::{Lights, Material};
 
@@ -254,7 +254,7 @@ pub fn render(
 
         let mesh = assets.get(tile.mesh).unwrap();
 
-        if !pipeline.ready() {
+        if !pipeline.ready(&renderer) {
             if let Some(shader) = assets.get(pipeline.shader) {
                 if !shader.loaded() {
                     continue;
@@ -280,9 +280,9 @@ pub fn render(
 
                 renderer.bind(
                     pipeline,
-                    PipelineLayout {
+                    PipelineLayout::Render {
                         label: String::from(PIPELINE_LABEL),
-                        mesh: Some(mesh),
+                        mesh,
                         shader,
                         bindings: &[
                             BindGroup::new(
@@ -302,12 +302,12 @@ pub fn render(
                                 ],
                             ),
                         ],
-                        options: PipelineOptions::default(),
+                        options: RenderOptions::default(),
                     },
                 );
             }
         }
 
-        renderer.run(pipeline, mesh);
+        renderer.draw(pipeline, mesh, &DrawArgs::default());
     }
 }

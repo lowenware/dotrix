@@ -1,7 +1,8 @@
 use dotrix::camera;
 use dotrix::prelude::*;
+use dotrix::renderer::Render;
 use dotrix::sky::{skybox, SkyBox};
-use dotrix::{Assets, Camera, CubeMap, Pipeline, World};
+use dotrix::{Assets, Camera, CubeMap, World};
 
 fn main() {
     Dotrix::application("Dotrix: SkyBox Example")
@@ -13,7 +14,7 @@ fn main() {
 
 fn startup(mut camera: Mut<Camera>, mut world: Mut<World>, mut assets: Mut<Assets>) {
     camera.distance = 1.0;
-    camera.xz_angle = 0.0;
+    camera.tilt = 0.0;
 
     // Import skybox textures
     assets.import("assets/skybox-day/skybox_right.png");
@@ -38,6 +39,6 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>, mut assets: Mut<Asset
             front: assets.register("skybox_front"),
             ..Default::default()
         },
-        Pipeline::default(),
+        Render::default(),
     )));
 }

@@ -5,7 +5,7 @@ use crate::renderer::{Renderer, ShaderModule};
 #[derive(Default)]
 pub struct Shader {
     /// Shader name
-    pub name: String,
+    pub name: String, // TODO: set module.label instead
     /// Shader code
     pub code: String,
     /// Shader Module
@@ -16,7 +16,7 @@ impl Shader {
     /// Loads the shader to GPU
     pub fn load(&mut self, renderer: &Renderer) {
         if !self.module.loaded() {
-            renderer.load_shader_module(&mut self.module, &self.name, &self.code);
+            renderer.load_shader(&mut self.module, &self.code);
         }
     }
 

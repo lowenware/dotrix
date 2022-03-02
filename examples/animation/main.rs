@@ -1,7 +1,7 @@
 mod fox;
 mod settings;
 
-use dotrix::math::{Point3, Vec3};
+use dotrix::math::Vec3;
 use dotrix::pbr::{self, Light};
 use dotrix::prelude::*;
 use dotrix::{egui, overlay};
@@ -26,9 +26,9 @@ fn main() {
 
 pub fn startup(mut camera: Mut<Camera>, mut world: Mut<World>) {
     camera.distance = 222.0;
-    camera.y_angle = 0.74;
-    camera.xz_angle = 0.25;
-    camera.target = Point3::new(0.0, 0.5, 0.0);
+    camera.pan = 0.74;
+    camera.tilt = 0.25;
+    camera.target = Vec3::new(0.0, 0.5, 0.0);
 
     world.spawn(vec![
         (Light::ambient(),),

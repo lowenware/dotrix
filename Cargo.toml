@@ -126,5 +126,9 @@ name = "pbr"
 path = "examples/pbr/main.rs"
 
 [[example]]
+name = "msaa"
+path = "examples/msaa/main.rs"
+
+[[example]]
 name = "normal_map"
 path = "examples/normal_map/main.rs"

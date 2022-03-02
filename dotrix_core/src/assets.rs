@@ -51,6 +51,7 @@ pub struct Assets {
     id_generator: u64,
     removed_shaders: HashSet<Id<Shader>>,
     hot_reload: bool,
+    root: std::path::PathBuf,
 }
 
 impl Assets {
@@ -71,6 +72,8 @@ impl Assets {
             ));
         }
 
+        let root = std::env::current_dir().expect("Current working directory must be accessible");
+
         Self {
             registry: HashMap::new(),
             resources: HashMap::new(),
@@ -85,20 +88,38 @@ impl Assets {
             id_generator: 1,
             removed_shaders: HashSet::new(),
             hot_reload: true,
+            root,
         }
     }
 
-    /// Imports an asset file by its path and returns [`Id`] of the [`Resource`]
+    /// Set assets root directory
+    pub fn set_root(&mut self, root: std::path::PathBuf) {
+        self.root = root;
+    }
+
+    /// Get assets root directory
+    pub fn root(&self) -> &std::path::Path {
+        self.root.as_path()
+    }
+
+    /// Imports an asset file by its relative path and returns [`Id`] of the [`Resource`]
     pub fn import(&mut self, path_str: &str) -> Id<Resource> {
-        let path = std::path::Path::new(path_str);
-        let name = path.file_stem().map(|n| n.to_str().unwrap()).unwrap();
-        let resource = Resource::new(name.to_string(), path_str.to_string());
-        let id = self.store_as::<Resource>(resource, name);
-        // TODO: start loading in separate thread
-        let task = Task {
-            path: path.to_path_buf(),
-            name: name.to_string(),
-        };
+        let path = self.root.as_path().join(path_str);
+        self.import_from(path)
+    }
+
+    /// Imports an asset file from specified absolute or relative path and returns [`Id`] of the
+    /// [`Resource`]
+    pub fn import_from(&mut self, path: std::path::PathBuf) -> Id<Resource> {
+        let name = path
+            .file_stem()
+            .map(|n| n.to_str().unwrap())
+            .unwrap()
+            .to_string();
+        let resource = Resource::new(name.clone(), path.as_path().display().to_string());
+        let id = self.store_as::<Resource>(resource, &name);
+
+        let task = Task { path, name };
         self.sender.send(Request::Import(task)).unwrap();
         id
     }
@@ -116,7 +137,7 @@ impl Assets {
     /// use dotrix_core::{
     ///     assets::Texture,
     ///     ecs::Mut,
-    ///     services::Assets,
+    ///     Assets,
     /// };
     ///
     /// fn my_system(mut assets: Mut<Assets>) {

@@ -108,7 +108,7 @@ pub fn ui(mut settings: Mut<Settings>, overlay: Mut<Overlay>) {
         .expect("Renderer does not contain an Overlay instance");
 
     SidePanel::left("side_panel").show(&egui.ctx, |ui| {
-        ScrollArea::auto_sized().show(ui, |ui| {
+        ScrollArea::vertical().show(ui, |ui| {
             CollapsingHeader::new("Car Settings")
                 .default_open(true)
                 .show(ui, |ui| {
@@ -427,8 +427,8 @@ pub fn update_camera(
     // Get values from camera
     let mut distance = camera.distance;
     let target = camera.target;
-    let mut y_angle = camera.y_angle;
-    let mut xz_angle = camera.xz_angle;
+    let mut pan = camera.pan;
+    let mut tilt = camera.tilt;
 
     // Calculate new values
     if !egui.wants_pointer_input() {
@@ -436,16 +436,16 @@ pub fn update_camera(
         distance = if distance > -1.0 { distance } else { -1.0 };
 
         if input.button_state(Button::MouseRight) == Some(InputState::Hold) {
-            y_angle += mouse_delta.x * ROTATE_SPEED * time_delta;
-            xz_angle = camera.xz_angle + mouse_delta.y * ROTATE_SPEED * time_delta;
+            pan += mouse_delta.x * ROTATE_SPEED * time_delta;
+            tilt = camera.tilt + mouse_delta.y * ROTATE_SPEED * time_delta;
             let half_pi = PI / 2.0;
 
-            xz_angle = if xz_angle >= half_pi {
+            tilt = if tilt >= half_pi {
                 half_pi - 0.01
-            } else if xz_angle <= -half_pi {
+            } else if tilt <= -half_pi {
                 -half_pi + 0.01
             } else {
-                xz_angle
+                tilt
             };
         }
     }
@@ -453,8 +453,8 @@ pub fn update_camera(
     // Apply values to camera
     camera.target = target;
     camera.distance = distance;
-    camera.y_angle = y_angle;
-    camera.xz_angle = xz_angle;
+    camera.pan = pan;
+    camera.tilt = tilt;
 }
 
 /// This func updates all editable light entities based on values in settings, and car settings.

@@ -9,10 +9,10 @@ use dotrix::overlay::{self, Overlay};
 use dotrix::prelude::*;
 use dotrix::primitives::Cube;
 use dotrix::renderer::{
-    BindGroup, Binding, Options, PipelineLayout, PipelineOptions, Stage, StorageBuffer,
-    UniformBuffer, WorkGroups,
+    BindGroup, Binding, Buffer, Compute, ComputeArgs, ComputeOptions, DrawArgs, PipelineLayout,
+    Render, RenderOptions, Stage, WorkGroups,
 };
-use dotrix::{Assets, Camera, Color, Frame, Globals, Pipeline, Renderer, World};
+use dotrix::{Assets, Camera, Color, Frame, Globals, Renderer, World};
 
 const PARTICLES_COUNT: usize = 2000;
 const PARTICLES_PER_WORKGROUP: usize = 32;
@@ -20,16 +20,20 @@ const COMPUTE_PIPELINE: &str = "dotrix::example::compute";
 const RENDER_PIPELINE: &str = "dotrix::example::render";
 const PARTICLE_MESH: &str = "dotrix::example::particle";
 
-#[derive(Default)]
-struct Compute {
-    pipeline: Pipeline,
+struct ParticlesSpawner {
+    params: Buffer,
+    particles: Buffer,
+    work_group_size: u32,
 }
 
-#[derive(Default)]
-struct ParticlesSpawner {
-    params: UniformBuffer,
-    particles: StorageBuffer,
-    work_group_size: u32,
+impl Default for ParticlesSpawner {
+    fn default() -> Self {
+        Self {
+            params: Buffer::uniform("Particles params"),
+            particles: Buffer::storage("Particles Instances").allow_write(),
+            work_group_size: 0,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -95,12 +99,11 @@ fn startup(
     // set up camera
     camera.target = [0., 0., 0.].into();
     camera.distance = 2.0;
-    camera.xz_angle = 0.0;
-    camera.y_angle = std::f32::consts::PI / 2.0;
+    camera.tilt = 0.0;
+    camera.pan = std::f32::consts::PI / 2.0;
 
     // set up particles spawner
     let mut spawner = ParticlesSpawner {
-        particles: StorageBuffer::new_readwrite(),
         work_group_size: (PARTICLES_COUNT as f32 / PARTICLES_PER_WORKGROUP as f32).ceil() as u32,
         ..Default::default()
     };
@@ -116,23 +119,12 @@ fn startup(
         particle.life_time = 1.5 + unif.sample(&mut rng); // life time
     }
 
-    renderer.load_storage_buffer(
+    renderer.load_buffer(
         &mut spawner.particles,
         bytemuck::cast_slice(particles.as_slice()),
     );
 
-    world.spawn(Some((
-        spawner,
-        Compute::default(),
-        Pipeline {
-            options: Options {
-                start_index: 0,
-                end_index: PARTICLES_COUNT as u32,
-                ..Default::default()
-            },
-            ..Default::default()
-        },
-    )));
+    world.spawn(Some((spawner, Compute::default(), Render::default())));
 
     // load shaders
     let shaders = [
@@ -171,10 +163,10 @@ fn compute(
             simulation_time: frame.time().as_secs_f32(),
             ..Default::default()
         };
-        renderer.load_uniform_buffer(&mut spawner.params, bytemuck::cast_slice(&[params]));
+        renderer.load_buffer(&mut spawner.params, bytemuck::cast_slice(&[params]));
 
         // Bind the uniforms to the shader
-        if !compute.pipeline.ready() {
+        if !compute.pipeline.ready(&renderer) {
             if let Some(shader) = assets.get(compute.pipeline.shader) {
                 if !shader.loaded() {
                     continue;
@@ -182,9 +174,8 @@ fn compute(
 
                 renderer.bind(
                     &mut compute.pipeline,
-                    PipelineLayout {
+                    PipelineLayout::Compute {
                         label: "Compute Particles".into(),
-                        mesh: None,
                         shader,
                         bindings: &[BindGroup::new(
                             "Globals",
@@ -193,7 +184,10 @@ fn compute(
                                 Binding::Storage("Particles", Stage::Compute, &spawner.particles),
                             ],
                         )],
-                        options: PipelineOptions::default(),
+                        options: ComputeOptions {
+                            cs_main: "main",
+                            ..Default::default()
+                        },
                     },
                 );
             }
@@ -203,10 +197,12 @@ fn compute(
         let work_group_size = spawner.work_group_size;
         renderer.compute(
             &mut compute.pipeline,
-            WorkGroups {
-                x: work_group_size,
-                y: 1,
-                z: 1,
+            &ComputeArgs {
+                work_groups: WorkGroups {
+                    x: work_group_size,
+                    y: 1,
+                    z: 1,
+                },
             },
         );
     }
@@ -218,18 +214,18 @@ fn render(
     assets: Const<Assets>,
     mut renderer: Mut<Renderer>,
 ) {
-    for (spawner, pipeline) in world.query::<(&mut ParticlesSpawner, &mut Pipeline)>() {
+    for (spawner, render) in world.query::<(&mut ParticlesSpawner, &mut Render)>() {
         // Set the shader on the pipeline
-        if pipeline.shader.is_null() {
-            pipeline.shader = assets.find::<Shader>(RENDER_PIPELINE).unwrap_or_default();
+        if render.pipeline.shader.is_null() {
+            render.pipeline.shader = assets.find::<Shader>(RENDER_PIPELINE).unwrap_or_default();
         }
 
         let mesh = assets
             .get(assets.find(PARTICLE_MESH).expect("Mesh must be loaded"))
             .unwrap();
 
-        if !pipeline.ready() {
-            if let Some(shader) = assets.get(pipeline.shader) {
+        if !render.pipeline.ready(&renderer) {
+            if let Some(shader) = assets.get(render.pipeline.shader) {
                 if !shader.loaded() {
                     continue;
                 }
@@ -240,10 +236,10 @@ fn render(
                     .expect("ProjView buffer must be loaded");
 
                 renderer.bind(
-                    pipeline,
-                    PipelineLayout {
+                    &mut render.pipeline,
+                    PipelineLayout::Render {
                         label: String::from(RENDER_PIPELINE),
-                        mesh: Some(mesh),
+                        mesh,
                         shader,
                         bindings: &[BindGroup::new(
                             "Globals",
@@ -252,13 +248,21 @@ fn render(
                                 Binding::Storage("Particles", Stage::Vertex, &spawner.particles),
                             ],
                         )],
-                        options: PipelineOptions::default(),
+                        options: RenderOptions::default(),
                     },
                 );
             }
         }
 
-        renderer.run(pipeline, mesh);
+        renderer.draw(
+            &mut render.pipeline,
+            mesh,
+            &DrawArgs {
+                start_index: 0,
+                end_index: PARTICLES_COUNT as u32,
+                ..Default::default()
+            },
+        );
     }
 }
 

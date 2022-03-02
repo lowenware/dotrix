@@ -1,15 +1,14 @@
 use dotrix::assets::Mesh;
 use dotrix::camera;
 use dotrix::egui::{self, Egui};
-use dotrix::input::{ActionMapper, Button, KeyCode, Mapper};
-use dotrix::math::{Point3, Quat, Rad, Rotation3, Vec3};
+use dotrix::input::{ActionMapper, Button, KeyCode, Mapper, Modifiers};
+use dotrix::math::{Quat, Rad, Rotation3, Vec3};
 use dotrix::overlay::{self, Overlay};
 use dotrix::pbr::{self, Light, Material, Model};
 use dotrix::prelude::*;
+use dotrix::renderer::Render;
 use dotrix::sky::{skybox, SkyBox};
-use dotrix::{
-    Animator, Assets, Camera, Color, CubeMap, Frame, Input, Pipeline, Pose, Transform, World,
-};
+use dotrix::{Animator, Assets, Camera, Color, CubeMap, Frame, Input, Pose, Transform, World};
 
 use std::f32::consts::PI;
 
@@ -45,9 +44,9 @@ fn startup(
 }
 
 fn init_camera(camera: &mut Camera) {
-    camera.y_angle = PI / 2.0;
-    camera.xz_angle = 0.0;
-    camera.target = Point3::new(0.0, CAMERA_HEIGHT, 0.0);
+    camera.pan = PI / 2.0;
+    camera.tilt = 0.0;
+    camera.target = Vec3::new(0.0, CAMERA_HEIGHT, 0.0);
     camera.distance = 5.0;
 }
 
@@ -75,7 +74,7 @@ fn init_skybox(world: &mut World, assets: &mut Assets) {
             front: assets.register("skybox_front"),
             ..Default::default()
         },
-        Pipeline::default(),
+        Render::default(),
     )));
 }
 
@@ -172,14 +171,16 @@ fn init_player(world: &mut World, assets: &mut Assets, input: &mut Input) {
             ..Default::default()
         },
         Animator::new(run), // Animation control (stopped by default)
-        Pipeline::default(),
+        Render::default(),
         Player { is_running: false },
     )));
 
     // Map W key to Run Action
-    input
-        .mapper_mut::<Mapper<Action>>()
-        .set(vec![(Action::Run, Button::Key(KeyCode::W))]);
+    input.mapper_mut::<Mapper<Action>>().set(&[(
+        Action::Run,
+        Button::Key(KeyCode::W),
+        Modifiers::empty(),
+    )]);
 }
 
 fn init_light(world: &mut World) {
@@ -233,13 +234,13 @@ fn player_control(
         };
 
         // get camera angle around Y axis
-        let y_angle = camera.y_angle;
+        let pan = camera.pan;
         // rotate model to the right direction
-        transform.rotate = Quat::from_angle_y(Rad(-(PI / 2.0 + y_angle)));
+        transform.rotate = Quat::from_angle_y(Rad(-(PI / 2.0 + pan)));
         if distance > 0.00001 {
             // calculate X and Z deltas if player is moving
-            let dx = distance * y_angle.cos();
-            let dz = distance * y_angle.sin();
+            let dx = distance * pan.cos();
+            let dz = distance * pan.sin();
             // calculate new model positions
             let mut pos_x = transform.translate.x - dx;
             let mut pos_z = transform.translate.z - dz;
@@ -260,7 +261,9 @@ fn player_control(
             transform.translate.z = pos_z;
 
             // make camera following the player
-            camera.target = Point3::new(pos_x, CAMERA_HEIGHT, pos_z);
+            camera.target.x = pos_x;
+            camera.target.y = CAMERA_HEIGHT;
+            camera.target.z = pos_z;
         }
     }
 }
@@ -269,7 +272,6 @@ fn player_control(
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 enum Action {
     Run,
-    // Jump,
 }
 
 fn ui(overlay: Const<Overlay>, frame: Const<Frame>) {
@@ -289,7 +291,7 @@ fn ui(overlay: Const<Overlay>, frame: Const<Frame>) {
 
 /// Bind Inputs and Actions
 impl ActionMapper<Action> for Input {
-    fn action_mapped(&self, action: Action) -> Option<&Button> {
+    fn action_mapped(&self, action: Action) -> Option<(Button, Modifiers)> {
         let mapper = self.mapper::<Mapper<Action>>();
         mapper.get_button(action)
     }

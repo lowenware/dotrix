@@ -1,12 +1,10 @@
 //! Entity Component System
 
 use crate::application::{IntoService, Services};
+use crate::state::Rule;
+use crate::{Id, State};
 use core::ops::{Deref, DerefMut};
-use std::any::TypeId;
 use std::hash::Hash;
-
-/// StateID type def
-pub type StateId = TypeId;
 
 /// Entity structure has only id field and represent an agregation of components
 #[derive(Eq, PartialEq, Debug, Hash, Clone, Copy)]
@@ -44,17 +42,6 @@ impl From<Priority> for u32 {
             Priority::Custom(value) => value,
         }
     }
-}
-
-/// Application state when system should run
-#[derive(Eq, PartialEq, Debug, Hash, Clone, Copy)]
-pub enum Rule {
-    /// System runs ar any state
-    Always,
-    /// System runs at specific state
-    StateOn(StateId),
-    /// System does not run at specific state
-    StateOff(StateId),
 }
 
 /// Wrapper for system functions
@@ -176,7 +163,7 @@ pub trait Systemized: Send + Sync {
     /// Returns name of the system
     fn name(&self) -> &'static str;
     /// Executes system cylce
-    fn run(&mut self, app: &mut Services, state: StateId);
+    fn run(&mut self, app: &mut Services, state: Id<State>);
     /// Returns priority of the system
     fn priority(&self) -> Priority;
     /// Sets priority for the system
@@ -184,7 +171,7 @@ pub trait Systemized: Send + Sync {
     /// Pushes system execution rule
     fn push_rule(&mut self, rule: Rule);
     /// Returns true is system can run at state
-    fn run_at_state(&self, state: StateId) -> bool;
+    fn run_at_state(&self, state: Id<State>) -> bool;
 }
 
 impl<Run, Ctx> Systemized for SystemData<Run, Ctx>
@@ -196,7 +183,7 @@ where
         self.name
     }
 
-    fn run(&mut self, app: &mut Services, state: StateId) {
+    fn run(&mut self, app: &mut Services, state: Id<State>) {
         if self.run_at_state(state) {
             (self.run)(&mut self.ctx, app);
         }
@@ -214,7 +201,7 @@ where
         self.rules.push(rule);
     }
 
-    fn run_at_state(&self, state: StateId) -> bool {
+    fn run_at_state(&self, state: Id<State>) -> bool {
         if !self.rules.is_empty() {
             let mut no_match_result = false;
             for rule in self.rules.iter() {
@@ -425,11 +412,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        application::Services,
-        ecs::{Const, Context, Mut, RunLevel, StateId, System},
-        world::World,
-    };
+    use crate::application::Services;
+    use crate::ecs::{Const, Context, Mut, RunLevel, System};
+    use crate::{State, World};
 
     struct MyComponent(u64);
 
@@ -442,7 +427,7 @@ mod tests {
         let mut services = Services::new();
         services.add(World::new());
         let mut s = System::from(my_system);
-        s.data.run(&mut services, StateId::of::<bool>());
+        s.data.run(&mut services, State::meta());
         assert_eq!(services.get::<World>().unwrap().counter(), 1);
     }
 
@@ -462,7 +447,7 @@ mod tests {
         let mut services = Services::new();
         services.add(MyService { data: 123 });
         let mut s = System::from(my_system_with_context);
-        s.data.run(&mut services, StateId::of::<bool>());
+        s.data.run(&mut services, State::meta());
         assert_eq!(services.get::<MyService>().unwrap().data, 0);
     }
 

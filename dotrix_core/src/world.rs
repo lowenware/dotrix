@@ -18,6 +18,8 @@ pub struct World {
     index: HashMap<Entity, usize>,
     /// Spawn counter for Entity ID generation
     counter: u64,
+    /// Buffer to track spawned entities
+    spawned: Vec<Entity>,
 }
 
 impl World {
@@ -27,6 +29,7 @@ impl World {
             content: Vec::new(),
             index: HashMap::new(),
             counter: 0,
+            spawned: Vec::with_capacity(16),
         }
     }
 
@@ -37,7 +40,7 @@ impl World {
     /// ```no_run
     /// use dotrix_core::{
     ///     ecs::Mut,
-    ///     services::World,
+    ///     World,
     /// };
     ///
     /// // First component
@@ -61,7 +64,7 @@ impl World {
     /// _NOTE: if your entity has only one component, don't forget to put trailing comma after it
     /// as it is shown in the example above. Otherwise it won't be parsed by Rust compiler as
     /// a tuple.
-    pub fn spawn<T, I>(&mut self, iter: I)
+    pub fn spawn<T, I>(&mut self, iter: I) -> SpawnedIter
     where
         T: Archetype + Pattern,
         I: IntoIterator<Item = T>,
@@ -81,11 +84,26 @@ impl World {
             (index, self.content.last_mut().unwrap())
         };
 
-        for entity in iter {
+        self.spawned.clear();
+
+        for tuple in iter {
             let entity_id = self.counter;
-            entity.store(container, entity_id);
-            self.index.insert(Entity::from(entity_id), index);
+            let entity = Entity::from(entity_id);
+            tuple.store(container, entity_id);
+            self.index.insert(entity, index);
             self.counter += 1;
+            self.spawned.push(entity)
+        }
+
+        let count = self.spawned.len();
+        let first = self.spawned[0];
+        let last = self.spawned[count - 1];
+
+        SpawnedIter {
+            iter: self.spawned.iter(),
+            first,
+            last,
+            count,
         }
     }
 
@@ -95,7 +113,7 @@ impl World {
     /// ```no_run
     /// use dotrix_core::{
     ///     ecs::Mut,
-    ///     services::World,
+    ///     World,
     /// };
     /// // First component
     /// struct Component1(u32);
@@ -125,13 +143,48 @@ impl World {
         Matches { iter }
     }
 
+    /// Get componets dor specified entity
+    ///
+    /// ## Example:
+    /// ```no_run
+    /// use dotrix_core::ecs::{Entity, Mut};
+    /// use dotrix_core::World;
+    ///
+    /// // First component
+    /// struct Component1(u32);
+    ///
+    /// // Second component
+    /// struct Component2(u32);
+    ///
+    /// fn my_system(mut world: Mut<World>) {
+    ///     let entity = Entity::from(0); // mockup entity
+    ///     if let Some((c1, c2)) = world.get::<(&Component1, &mut Component2)>(entity) {
+    ///         // do stuff
+    ///         println!("Component1({}), Component2({})", c1.0, c2.0);
+    ///     }
+    /// }
+    pub fn get<'w, Q>(&'w self, entity: Entity) -> Option<Q>
+    where
+        Q: Query<'w>,
+    {
+        self.index.get(&entity).map(|&index| {
+            let entity_offset = self.content[index]
+                .get::<Entity>()
+                .unwrap()
+                .iter()
+                .position(|&e| e == entity)
+                .unwrap();
+            Q::pick(&self.content[index], entity_offset)
+        })
+    }
+
     /// Exiles an entity from the world
     ///
     /// ## Example:
     /// ```no_run
     /// use dotrix_core::{
     ///     ecs::{Mut, Entity},
-    ///     services::World,
+    ///     World,
     /// };
     /// // First component
     /// struct Component(u32);
@@ -184,6 +237,19 @@ impl World {
     pub fn counter(&self) -> u64 {
         self.counter
     }
+
+    /// Clear all entities from the world
+    pub fn clear(&mut self) {
+        self.content.clear();
+        self.spawned.clear();
+        self.index.clear();
+    }
+
+    /// Clear entities from the world and reset to initial state
+    pub fn reset(&mut self) {
+        self.clear();
+        self.counter = 0;
+    }
 }
 
 unsafe impl Send for World {}
@@ -219,6 +285,8 @@ pub trait Query<'w> {
     fn select(container: &'w Container) -> Self::Iter;
     /// Checks if [`Query`] matches the [`Container`]
     fn matches(container: &'w Container) -> bool;
+    /// Pick specific entity by its index in container
+    fn pick(container: &'w Container, entity_index: usize) -> Self;
 }
 
 /// Iterator or Query result
@@ -253,12 +321,13 @@ pub trait Selector<'w> {
     type Component: Component;
 
     fn borrow(container: &'w Container) -> Self::Iter;
+    fn borrow_by_index(container: &'w Container, entity_index: usize) -> Self;
     fn matches(container: &'w Container) -> bool {
         container.has(TypeId::of::<Self::Component>())
     }
 }
 
-impl<'w, C> Selector<'w> for &'_ C
+impl<'w, C> Selector<'w> for &'w C
 where
     C: Component,
 {
@@ -268,9 +337,13 @@ where
     fn borrow(container: &'w Container) -> Self::Iter {
         container.get::<C>().unwrap().iter()
     }
+
+    fn borrow_by_index(container: &'w Container, entity_index: usize) -> Self {
+        &container.get::<C>().unwrap()[entity_index]
+    }
 }
 
-impl<'w, C> Selector<'w> for &'_ mut C
+impl<'w, C> Selector<'w> for &'w mut C
 where
     C: Component,
 {
@@ -279,6 +352,63 @@ where
 
     fn borrow(container: &'w Container) -> Self::Iter {
         container.get_mut::<C>().unwrap().iter_mut()
+    }
+
+    fn borrow_by_index(container: &'w Container, entity_index: usize) -> Self {
+        &mut container.get_mut::<C>().unwrap()[entity_index]
+    }
+}
+
+/// Iterator over Vertices Attributes
+pub struct SpawnedIter<'a> {
+    iter: std::slice::Iter<'a, Entity>,
+    first: Entity,
+    last: Entity,
+    count: usize,
+}
+
+impl<'a> SpawnedIter<'a> {
+    /// get first spawned entity
+    pub fn first(&mut self) -> Entity {
+        self.first
+    }
+
+    /// get number of spawned entities
+    pub fn entities(&self) -> usize {
+        self.count
+    }
+}
+
+impl<'a> Iterator for SpawnedIter<'a> {
+    type Item = Entity;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().copied()
+    }
+    fn last(self) -> Option<Entity> {
+        Some(self.last)
+    }
+    fn count(self) -> usize {
+        self.entities()
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = self.count;
+        (size, Some(size))
+    }
+}
+
+impl<'a> ExactSizeIterator for SpawnedIter<'a> {
+    fn len(&self) -> usize {
+        self.count
+    }
+}
+
+impl<'a> From<SpawnedIter<'a>> for Vec<Entity> {
+    fn from(iter: SpawnedIter<'a>) -> Self {
+        let mut result = Vec::with_capacity(iter.entities());
+        for e in iter {
+            result.push(e);
+        }
+        result
     }
 }
 
@@ -329,6 +459,9 @@ macro_rules! impl_tuples {
         {
             type Iter = Zipper<'w, ($($i::Iter,)*)>;
             // type Iter = Zipper<'w, ($(std::slice::Iter<'w, $i>,)*)>;
+            fn pick(container: &'w Container, entity_index: usize) -> ($($i,)*) {
+                ($({$i::borrow_by_index(container, entity_index)},)*)
+            }
 
             fn select(container: &'w Container) -> Self::Iter {
                 Zipper {
@@ -375,7 +508,9 @@ mod tests {
     use super::World;
     use crate::ecs::Entity;
 
+    #[derive(Debug, Eq, PartialEq, Copy, Clone)]
     struct Armor(u32);
+    #[derive(Debug, Eq, PartialEq, Copy, Clone)]
     struct Health(u32);
     struct Speed(u32);
     struct Damage(u32);
@@ -461,6 +596,42 @@ mod tests {
             }
 
             assert_eq!(entities_before - 1, entities_after);
+        }
+    }
+
+    #[test]
+    fn spawn_and_get_by_entity() {
+        let world = spawn();
+        let entity = Entity::from(0);
+        let query = world.get::<(&Armor, &Health)>(entity);
+        assert_eq!(query.is_some(), true);
+        if let Some((&armor, &health)) = query {
+            assert_eq!(armor, Armor(100));
+            assert_eq!(health, Health(100));
+        }
+    }
+
+    #[test]
+    fn spawn_and_check_entities() {
+        let mut world = World::default();
+        let mut spawned = world.spawn(Some((Armor(1),)));
+
+        assert_eq!(spawned.next(), Some(Entity::from(0)));
+        assert_eq!(spawned.first(), Entity::from(0));
+        assert_eq!(spawned.last(), Some(Entity::from(0)));
+
+        let spawned: Vec<Entity> = world
+            .spawn([
+                (Armor(2), Health(100)),
+                (Armor(4), Health(80)),
+                (Armor(4), Health(90)),
+            ])
+            .into();
+
+        assert_eq!(spawned.len(), 3);
+
+        for i in 0..3 {
+            assert_eq!(spawned[i], Entity::from(i as u64 + 1));
         }
     }
 }
