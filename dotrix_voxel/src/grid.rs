@@ -1,7 +1,7 @@
 use super::Voxel;
 use dotrix_core::{
-    assets::Texture,
-    renderer::{StorageTextureAccess, TextureBuffer, TextureFormat, TextureUsages},
+    renderer::{wgpu, Texture as TextureBuffer},
+    Assets, Renderer,
 };
 
 /// A grid of voxels
@@ -14,8 +14,10 @@ pub struct Grid {
     pub position: [f32; 3],
     /// The voxels
     pub voxels: Vec<Voxel>,
-    /// Revision should be updated on each change
-    pub revision: u32,
+    /// 3D Texture buffer
+    pub buffer: TextureBuffer,
+    /// Tracks if changed since last load
+    pub changed: bool,
 }
 
 impl Default for Grid {
@@ -25,7 +27,12 @@ impl Default for Grid {
             voxel_dimensions: [0.1, 0.1, 0.1],
             position: [0., 0., 0.],
             voxels: vec![Default::default(); 16 * 16 * 16],
-            revision: 1,
+            buffer: {
+                let mut buffer = TextureBuffer::new_3d("VoxelGrid");
+                buffer.format = wgpu::TextureFormat::Rg8Unorm;
+                buffer
+            },
+            changed: false,
         }
     }
 }
@@ -41,17 +48,17 @@ impl Grid {
         let count: usize = (dimensions[0] * dimensions[1] * dimensions[2]) as usize;
         // Resize number of voxels to match
         self.voxels.resize(count, Default::default());
-        self
+        Self::flag_changed(self)
     }
     #[must_use]
     pub fn with_voxel_dimensions<T: Into<[f32; 3]>>(mut self, voxel_dimensions: T) -> Self {
         self.voxel_dimensions = voxel_dimensions.into();
-        self
+        Self::flag_changed(self)
     }
     #[must_use]
     pub fn with_position<T: Into<[f32; 3]>>(mut self, position: T) -> Self {
         self.position = position.into();
-        self
+        Self::flag_changed(self)
     }
     #[must_use]
     pub fn with_values<T: AsRef<[u8]>>(mut self, values: T) -> Self {
@@ -66,7 +73,7 @@ impl Grid {
             .iter_mut()
             .enumerate()
             .for_each(|(i, v)| (v).value = input[i]);
-        self
+        Self::flag_changed(self)
     }
     #[must_use]
     pub fn with_materials<T: AsRef<[u8]>>(mut self, values: T) -> Self {
@@ -81,27 +88,13 @@ impl Grid {
             .iter_mut()
             .enumerate()
             .for_each(|(i, v)| (v).material = input[i]);
-        self
+        Self::flag_changed(self)
     }
 
-    /// Create a 3d texture of this grid
-    ///
-    /// r channel will contain the value
-    /// g channel will contain the material
-    pub fn gen_texture(&self) -> Texture {
-        Texture {
-            width: self.dimensions[0],
-            height: self.dimensions[1],
-            depth: self.dimensions[2],
-            data: self
-                .voxels
-                .iter()
-                .flat_map(|v| [v.value, v.material])
-                .collect(),
-            usages: TextureUsages::create().texture().write(),
-            buffer: TextureBuffer::new(StorageTextureAccess::Read, TextureFormat::rg_u8()),
-            changed: false,
-        }
+    #[must_use]
+    pub fn flag_changed(mut self) -> Self {
+        self.changed = true;
+        self
     }
 
     /// Get's the total size of the voxels in all dimensions
@@ -111,5 +104,38 @@ impl Grid {
             self.voxel_dimensions[1] * self.dimensions[1] as f32,
             self.voxel_dimensions[2] * self.dimensions[2] as f32,
         ]
+    }
+
+    pub fn load(&mut self, renderer: &Renderer, _assets: &mut Assets) {
+        if !self.changed && self.buffer.loaded() {
+            return;
+        }
+
+        let data: Vec<Vec<u8>> = self
+            .voxels
+            .chunks(self.dimensions[0] as usize * self.dimensions[1] as usize)
+            .map(|chunk| {
+                chunk
+                    .iter()
+                    .flat_map(|voxel| [voxel.value, voxel.material])
+                    .collect()
+            })
+            .collect();
+
+        let slices: Vec<&[u8]> = data.iter().map(|chunk| chunk.as_slice()).collect();
+
+        renderer.load_texture(
+            &mut self.buffer,
+            self.dimensions[0],
+            self.dimensions[1],
+            slices.as_slice(),
+        );
+
+        self.changed = false;
+    }
+
+    /// Unloads the [`Texture`] data from the buffer
+    pub fn unload(&mut self) {
+        self.buffer.unload();
     }
 }

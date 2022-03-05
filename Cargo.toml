@@ -132,3 +132,8 @@ path = "examples/msaa/main.rs"
 [[example]]
 name = "normal_map"
 path = "examples/normal_map/main.rs"
+
+[[example]]
+name = "voxel_load"
+path = "examples/voxel_load/main.rs"
+required-features = ["voxel"]
