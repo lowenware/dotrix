@@ -134,7 +134,7 @@ impl Grid {
         self.changed = false;
     }
 
-    /// Unloads the [`Texture`] data from the buffer
+    /// Unloads the [`Grid`] data from the GPU
     pub fn unload(&mut self) {
         self.buffer.unload();
     }

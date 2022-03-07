@@ -38,13 +38,13 @@ fn is_sameside(reference: bool, coord: vec3<i32>) {
 
 // Write location of current nearest seed for this pixel
 // Written into the RGB channels
-fn set_value(value: vec3<f32>, coord: vec3<i32>) {
+fn set_value_at(value: vec3<f32>, coord: vec3<i32>) {
 
 }
 
 /// Marks a cell as being invalid with no known data yet
 fn set_invalid_at(coord: vec3<i32>) {
-  set_value(vec3<f32>(1.0e999, 1.0e999, 1.0e999), coord);
+  set_value_at(vec3<f32>(1.0e999, 1.0e999, 1.0e999), coord);
 }
 
 /// Checks if it is has an invalid seed location
@@ -143,7 +143,7 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
       let approximate_location: vec3<f32> = pixel_origin + direction * approximate_distance;
 
       // Write the location of the closest seed into the pixel
-      set_value(approximate_location, pixel_loc);
+      set_value_at(approximate_location, pixel_loc);
     }
 
     // Wait for seed to be set everywhere
@@ -158,6 +158,9 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
     //  For n = 16, k= n/2, n/4, n/8, n/16
     //  For n = 17, k= n/2, n/4, n/8, n/16, n/32
     //  k = n/(2^(i))
+    //
+    //  Look in all seeds at location of origin±k
+    //  If seed found in neighbouring cell is better than current use that one
     let n: u32 = 8;
     var i: u32 = 1u;
     var k: u32 = n / pow(2u, i);
@@ -182,6 +185,8 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
           }
         }
       }
+
+      set_value_at(pixel_loc, best_seed);
 
       i =  i + 1u;
       k = n / pow(2u, i);
