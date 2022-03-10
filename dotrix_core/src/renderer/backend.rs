@@ -872,7 +872,7 @@ impl PipelineBackend {
                     },
                     count: None,
                 },
-                Binding::Texture3D(_, stage, texture) => wgpu::BindGroupLayoutEntry {
+                Binding::TextureCube(_, stage, texture) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
                     visibility: visibility(stage),
                     ty: wgpu::BindingType::Texture {
@@ -884,6 +884,18 @@ impl PipelineBackend {
                     },
                     count: None,
                 },
+                Binding::Texture3D(_, stage, texture) => wgpu::BindGroupLayoutEntry {
+                    binding: index as u32,
+                    visibility: visibility(stage),
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        sample_type: wgpu::TextureSampleType::Float {
+                            filterable: texture.format.is_filterable(),
+                        },
+                        view_dimension: wgpu::TextureViewDimension::D3,
+                    },
+                    count: None,
+                },
                 Binding::StorageTexture(_, stage, texture) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
                     visibility: visibility(stage),
@@ -891,6 +903,16 @@ impl PipelineBackend {
                         access: texture.mode.into(),
                         format: texture.format.into(),
                         view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                },
+                Binding::StorageTexture3D(_, stage, texture) => wgpu::BindGroupLayoutEntry {
+                    binding: index as u32,
+                    visibility: visibility(stage),
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: texture.mode.into(),
+                        format: texture.format.into(),
+                        view_dimension: wgpu::TextureViewDimension::D3,
                     },
                     count: None,
                 },
@@ -964,8 +986,10 @@ impl Bindings {
                                     uniform.get().as_entire_binding()
                                 }
                                 Binding::Texture(_, _, texture)
+                                | Binding::TextureCube(_, _, texture)
                                 | Binding::Texture3D(_, _, texture)
-                                | Binding::StorageTexture(_, _, texture) => {
+                                | Binding::StorageTexture(_, _, texture)
+                                | Binding::StorageTexture3D(_, _, texture) => {
                                     wgpu::BindingResource::TextureView(texture.get())
                                 }
                                 Binding::Sampler(_, _, sampler) => {
