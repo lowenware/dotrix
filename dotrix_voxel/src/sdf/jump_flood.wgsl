@@ -1,155 +1,92 @@
-struct Intermediate {
-  distances: array<f32>;
+// This compute applies the jump flood algorithm
+//
+// The algorithm is a fast (approximate) method
+// for voronoi diagrams and distance transforms
+//
+// It is O(log(n))
+//
+// This algorihm should be called as a ping pong buffer
+// Each call should decrease k until k==1
+// while swapping the input/output texture buffers
+//
+// Texture buffers are of kind:
+// r,g,b,a where r,g,b are the xyz values of the nearest seed
+// and a is used as a flag for invalid seed when a<0
+
+struct Data {
+  // Voxel origin of voxel at the 0,0,0 position in world space
+  origin: vec3<f32>;
+  // Dimensions of a single voxel
+  dimensions: vec3<f32>;
+  // The current iterations step size must be >=1
+  k: i32;
 };
 
-var<storage,read_write> intermediate: Intermediate;
+[[group(0), binding(0)]]
+var<uniform> data: Data;
 
-fn value(index: u32) -> f32 {
+// The previous run seed values stored in each pixel
+[[group(0), binding(1)]]
+var init_seeds: texture_3d<f32>;
 
-}
+// The next run's seed values
+[[group(0), binding(2)]]
+var out_seeds: texture_storage_3d<rgba32float,write>;
 
-fn index(coord: vec3<i32>) -> u32 {
-
-}
-
-fn value_at(coord: vec3<i32>) -> f32 {
-  return value(index(coord));
-}
-
-// For a given pixel get its gradient in world space
-fn gradient(coord: vec3<i32>) -> vec3<f32> {
-
-}
-
-fn is_out_of_bounds(coord: vec3<i32>) -> bool {
-
-}
-
-fn is_outside(coord: vec3<i32>) -> bool {
-  return select(true, false, value_at(coord) >= 0.);
-}
-
-fn is_sameside(reference: bool, coord: vec3<i32>) {
-  if (is_out_of_bounds(coord)) {
-    return true;
-  }
-  return (is_outside(coord) == reference);
+fn value_at(coord: vec3<i32>) -> vec3<f32> {
+  return textureLoad(init_seeds, coord, 0).rgb;
 }
 
 // Write location of current nearest seed for this pixel
 // Written into the RGB channels
-fn set_value_at(value: vec3<f32>, coord: vec3<i32>) {
-
-}
-
-/// Marks a cell as being invalid with no known data yet
-fn set_invalid_at(coord: vec3<i32>) {
-  set_value_at(vec3<f32>(1.0e999, 1.0e999, 1.0e999), coord);
+fn set_value_at(coord: vec3<i32>, value: vec3<f32>) {
+  textureStore(out_seeds, coord, vec4<f32>(value, 0.));
 }
 
 /// Checks if it is has an invalid seed location
-fn is_invalid(value: vec3<f32>) -> bool {
-  return value == vec3<f32>(1.0e999, 1.0e999, 1.0e999);
+fn is_invalid_at(coord: vec3<i32>) -> bool {
+  return textureLoad(init_seeds, coord, 0).a < 0.;
 }
 
-/// Checks if pixel has an invalid seed location
-fn is_invalid_at(coord: vec3<i32>) -> bool {
-  return is_invalid(value_at(coord));
+fn is_out_of_bounds(coord: vec3<i32>) -> bool {
+  return (
+       coord[0] < 0
+    || coord[1] < 0
+    || coord[2] < 0
+    || coord[0] >= i32(data.dimensions[0])
+    || coord[1] >= i32(data.dimensions[1])
+    || coord[2] >= i32(data.dimensions[2])
+  );
+}
+
+// For a given voxel get its origin in world space
+fn origin(coord: vec3<i32>) -> vec3<f32> {
+  return data.origin + vec3<f32>(f32(coord[0]),f32(coord[1]),f32(coord[2])) * data.dimensions;
 }
 
 // For a given pixel tries to read the seed value,
 // then compares to a reference seed distance
 // and identifies if it is a better seed distance
-fn is_seed_better(coord: vec3<i32>, reference_seed: vec3<f32>, origin: vec3<f32>) -> bool {
+fn is_seed_better(coord: vec3<i32>, origin_coord: vec3<i32>) -> bool {
   if (is_out_of_bounds(coord)) {
     return false;
   }
-  let new_seed: vec3<f32> = value_at(coord);
-  if (is_invalid(new_seed)) {
+  if (is_invalid_at(coord)) {
     return false;
   }
-  if (is_invalid(reference_seed)) {
+  if (is_invalid_at(origin_coord)) {
     return true;
   }
-  return distance(new_seed, origin) < distance(reference_seed, origin);
+
+  let new_seed: vec3<f32> = value_at(coord);
+  let reference_seed: vec3<f32> = value_at(origin_coord);
+  let origin_coord: vec3<f32> = origin(origin_coord);
+  return distance(new_seed, origin_coord) < distance(reference_seed, origin_coord);
 }
 
-// For a given pixel get its origin in world space
-fn origin(coord: vec3<i32>) -> vec3<f32> {
 
-}
-
-// Write final distance to isosurface
-fn write_output(coord: vec3<i32>, dist: f32) {
-}
-
-[[stage(compute), workgroup_size(64)]]
+[[stage(compute), workgroup_size(8,8,4)]]
 fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
-    // We calculate the distance from o
-    // to the isosurface as represented
-    // by the densities on x
-    //  ---x---
-    // |   |   |
-    // x---o---x
-    // |   |   |
-    //  ---x---
-    // Using the approximate jump flooding algorithm
-    //
-
-    let pixel_loc: vec3<i32> = vec3<i32>(
-      i32(global_invocation_id[0]),
-      i32(global_invocation_id[1]),
-      i32(global_invocation_id[2]),
-    );
-
-    // First clear init cells with a null value
-    let idx: u32 = index(pixel_loc);
-    intermediate.distances[idx] = 1e99;
-
-    // Now place seeds
-    // If the density of o±1 crosses the root
-    // then the isosurface is close by
-    //
-    let center_side: bool = is_outside(pixel_loc);
-    var is_seed: bool = (
-         !is_sameside(center_side, vec3<i32>(pixel_loc[0] + 1, pixel_loc[1], pixel_loc[2]))
-      || !is_sameside(center_side, vec3<i32>(pixel_loc[0] - 1, pixel_loc[1], pixel_loc[2]))
-      || !is_sameside(center_side, vec3<i32>(pixel_loc[0], pixel_loc[1] + 1, pixel_loc[2]))
-      || !is_sameside(center_side, vec3<i32>(pixel_loc[0], pixel_loc[1] - 1, pixel_loc[2]))
-      || !is_sameside(center_side, vec3<i32>(pixel_loc[0], pixel_loc[1], pixel_loc[2] + 1))
-      || !is_sameside(center_side, vec3<i32>(pixel_loc[0], pixel_loc[1], pixel_loc[2] - 1))
-    );
-
-    let pixel_origin: vec3<f32> = origin(pixel_loc);
-
-    if (is_seed) {
-      // We use the numerical gradient to approximate
-      // it's distance to the isosurface
-      //
-      // This uses linear approximation
-      // TODO: Test quadratic approximation
-
-      // Gradient is the rate of change and the direction towards nearest isosurface
-      let m: vec3<f32> = gradient(pixel_loc);
-      let direction: vec3<f32> = normalize(m);
-
-      // Just need to know how far to go in that direction
-      // We assume linear where travelling one unit length of the gradient's direction
-      // will reduce the value of the isosurface by m
-      // How many m's doing we need?
-      let approximate_distance: f32 = (value_at(pixel_loc) - 0.) / m;
-
-      // Approximate location of nearest isosurface is as follows
-      let approximate_location: vec3<f32> = pixel_origin + direction * approximate_distance;
-
-      // Write the location of the closest seed into the pixel
-      set_value_at(approximate_location, pixel_loc);
-    }
-
-    // Wait for seed to be set everywhere
-    storageBarrier();
-    workgroupBarrier();
-
     // Jump Flood Algorithm:
     //
     // n = number of pixels in largest dimension
@@ -161,41 +98,36 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
     //
     //  Look in all seeds at location of origin±k
     //  If seed found in neighbouring cell is better than current use that one
-    let n: u32 = 8;
-    var i: u32 = 1u;
-    var k: u32 = n / pow(2u, i);
+    var k: i32 = data.k;
+    if (k<1) {
+      return;
+    }
 
-    while (k >= 1u) {
-      var best_seed: vec3<f32> = value_at(pixel_loc);
+    let origin_coord: vec3<i32> = vec3<i32>(
+      i32(global_invocation_id[0]),
+      i32(global_invocation_id[1]),
+      i32(global_invocation_id[2]),
+    );
 
-      for (var dx = -1, dx<=1; dx = dx + 1) {
-        for (var dy = -1, dy<=1; dy = dy + 1) {
-          for (var dz = -1, dz<=1; dz = dz + 1) {
-            if (dx == 0 && dy == 0 && dz == 0) {
-              continue;
-            }
-            let check_coord: vec3<i32> = vec3<i32>(
-              pixel_loc[0] - dx,
-              pixel_loc[1] - dy,
-              pixel_loc[2] - dz,
-            );
-            if (is_seed_better(check_coord, best_seed, pixel_origin))
-              best_seed = value_at(check_coord);
-            }
+    var best_seed: vec3<f32> = value_at(origin_coord);
+
+    for (var dx: i32 = -1; dx<=1; dx = dx + 1) {
+      for (var dy: i32 = -1; dy<=1; dy = dy + 1) {
+        for (var dz: i32 = -1; dz<=1; dz = dz + 1) {
+          if (dx == 0 && dy == 0 && dz == 0) {
+            continue;
+          }
+          let check_coord: vec3<i32> = vec3<i32>(
+            origin_coord[0] - dx*k,
+            origin_coord[1] - dy*k,
+            origin_coord[2] - dz*k,
+          );
+          if (is_seed_better(check_coord, origin_coord)) {
+            best_seed = value_at(check_coord);
           }
         }
       }
-
-      set_value_at(pixel_loc, best_seed);
-
-      i =  i + 1u;
-      k = n / pow(2u, i);
-
-      // Wait for round to finish
-      storageBarrier();
-      workgroupBarrier();
     }
 
-    // Jump flood complete write distance map
-    write_output(pixel_loc, distance(pixel_origin, value_at(pixel_loc)));
+    set_value_at(origin_coord, best_seed);
 }
