@@ -1,4 +1,4 @@
-use crate::Grid;
+use crate::{Grid, TexSdf};
 use dotrix_core::{
     assets::Shader,
     ecs::{Const, Mut},
@@ -26,6 +26,8 @@ pub struct VoxelJumpFlood {
     pub pong_buffer: TextureBuffer,
     pub init_pipeline: Option<Compute>,
     pub jumpflood_pipelines: Vec<Compute>,
+    pub jumpflood_data: Vec<Buffer>,
+    pub sdf_pipeline: Option<Compute>,
 }
 
 impl Default for VoxelJumpFlood {
@@ -48,6 +50,8 @@ impl Default for VoxelJumpFlood {
             },
             init_pipeline: None,
             jumpflood_pipelines: vec![],
+            jumpflood_data: vec![],
+            sdf_pipeline: None,
         }
     }
 }
@@ -85,6 +89,7 @@ impl VoxelJumpFlood {
         let data = Data {
             origin: grid.position,
             dimensions: grid.voxel_dimensions,
+            k: 1,
             padding: Default::default(),
         };
         renderer.load_buffer(&mut self.data, bytemuck::cast_slice(&[data]));
@@ -97,7 +102,8 @@ impl VoxelJumpFlood {
 struct Data {
     origin: [f32; 3],
     dimensions: [f32; 3],
-    padding: [f32; 2],
+    k: u32,
+    padding: [f32; 1],
 }
 unsafe impl bytemuck::Zeroable for Data {}
 unsafe impl bytemuck::Pod for Data {}
@@ -105,7 +111,7 @@ unsafe impl bytemuck::Pod for Data {}
 pub(super) fn startup(renderer: Const<Renderer>, mut assets: Mut<Assets>) {
     let mut shader = Shader {
         name: String::from(JUMP_FLOOD_PIPELINE),
-        code: String::from(include_str!("./jump_flood.wgsl")),
+        code: String::from(include_str!("./jump_flood/jump_flood.wgsl")),
         ..Default::default()
     };
     shader.load(&renderer);
@@ -114,17 +120,26 @@ pub(super) fn startup(renderer: Const<Renderer>, mut assets: Mut<Assets>) {
 
     let mut shader = Shader {
         name: String::from(VOXEL_TO_JUMP_FLOOD_PIPELINE),
-        code: String::from(include_str!("./jump_flood_voxel_seed.wgsl")),
+        code: String::from(include_str!("./jump_flood/jump_flood_voxel_seed.wgsl")),
         ..Default::default()
     };
     shader.load(&renderer);
 
     assets.store_as(shader, VOXEL_TO_JUMP_FLOOD_PIPELINE);
+
+    let mut shader = Shader {
+        name: String::from(JUMP_FLOOD_TO_DF_PIPELINE),
+        code: String::from(include_str!("./jump_flood/jump_flood_df.wgsl")),
+        ..Default::default()
+    };
+    shader.load(&renderer);
+
+    assets.store_as(shader, JUMP_FLOOD_TO_DF_PIPELINE);
 }
 
 // Compute the SDF from the grid
 pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: Mut<Renderer>) {
-    for (grid, jump_flood) in world.query::<(&mut Grid, &mut VoxelJumpFlood)>() {
+    for (grid, jump_flood, sdf) in world.query::<(&mut Grid, &mut VoxelJumpFlood, &mut TexSdf)>() {
         let workgroup_size_x =
             (grid.dimensions[0] as f32 / VOXELS_PER_WORKGROUP[0] as f32).ceil() as u32;
         let workgroup_size_y =
@@ -183,6 +198,132 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                 );
 
                 jump_flood.init_pipeline = Some(voxel_to_jump_flood);
+            }
+        }
+
+        if jump_flood.init_pipeline.is_some() && jump_flood.jumpflood_pipelines.is_empty() {
+            let n = *grid.dimensions.iter().max().unwrap();
+
+            let mut ping_buffer = &jump_flood.ping_buffer;
+            let mut pong_buffer = &jump_flood.pong_buffer;
+
+            for i in 1..((n as f32).log2().ceil() as usize) {
+                let k = n / 2u32.pow(i as u32);
+
+                let mut buffer = Buffer::uniform("Jump Flood Params");
+                let data = Data {
+                    origin: grid.position,
+                    dimensions: grid.voxel_dimensions,
+                    k,
+                    padding: Default::default(),
+                };
+                renderer.load_buffer(&mut buffer, bytemuck::cast_slice(&[data]));
+
+                let mut jump_flood_compute: Compute = Default::default();
+
+                if jump_flood_compute.pipeline.shader.is_null() {
+                    jump_flood_compute.pipeline.shader = assets
+                        .find::<Shader>(JUMP_FLOOD_PIPELINE)
+                        .unwrap_or_default();
+                }
+
+                if let Some(shader) = assets.get(jump_flood_compute.pipeline.shader) {
+                    if !shader.loaded() {
+                        continue;
+                    }
+
+                    renderer.bind(
+                        &mut jump_flood_compute.pipeline,
+                        PipelineLayout::Compute {
+                            label: "JumpFlood".into(),
+                            shader,
+                            bindings: &[BindGroup::new(
+                                "Globals",
+                                vec![
+                                    Binding::Uniform("Params", Stage::Compute, &buffer),
+                                    Binding::Texture3D("VoxelTexture", Stage::Compute, ping_buffer),
+                                    Binding::StorageTexture3D(
+                                        "InitSeeds",
+                                        Stage::Compute,
+                                        pong_buffer,
+                                        Access::WriteOnly,
+                                    ),
+                                ],
+                            )],
+                            options: ComputeOptions { cs_main: "main" },
+                        },
+                    );
+
+                    renderer.compute(
+                        &mut jump_flood_compute.pipeline,
+                        &ComputeArgs {
+                            work_groups: WorkGroups {
+                                x: workgroup_size_x,
+                                y: workgroup_size_y,
+                                z: workgroup_size_z,
+                            },
+                        },
+                    );
+
+                    jump_flood.jumpflood_pipelines.push(jump_flood_compute);
+                    jump_flood.jumpflood_data.push(buffer);
+                    (ping_buffer, pong_buffer) = (pong_buffer, ping_buffer);
+                }
+            }
+
+            // SDF conversion
+            if jump_flood.sdf_pipeline.is_none() {
+                sdf.load(&renderer, grid);
+
+                let mut jump_flood_df: Compute = Default::default();
+
+                if jump_flood_df.pipeline.shader.is_null() {
+                    jump_flood_df.pipeline.shader = assets
+                        .find::<Shader>(JUMP_FLOOD_TO_DF_PIPELINE)
+                        .unwrap_or_default();
+                }
+
+                if let Some(shader) = assets.get(jump_flood_df.pipeline.shader) {
+                    if !shader.loaded() {
+                        continue;
+                    }
+
+                    renderer.bind(
+                        &mut jump_flood_df.pipeline,
+                        PipelineLayout::Compute {
+                            label: "JumpFlood_2_SDF".into(),
+                            shader,
+                            bindings: &[BindGroup::new(
+                                "Globals",
+                                vec![
+                                    Binding::Uniform("Params", Stage::Compute, &jump_flood.data),
+                                    Binding::Texture3D("Voxel", Stage::Compute, &grid.buffer),
+                                    Binding::Texture3D("JumpFlood", Stage::Compute, pong_buffer),
+                                    Binding::StorageTexture3D(
+                                        "SDF",
+                                        Stage::Compute,
+                                        &sdf.buffer,
+                                        Access::WriteOnly,
+                                    ),
+                                ],
+                            )],
+                            options: ComputeOptions { cs_main: "main" },
+                        },
+                    );
+
+                    renderer.compute(
+                        &mut jump_flood_df.pipeline,
+                        &ComputeArgs {
+                            work_groups: WorkGroups {
+                                x: workgroup_size_x,
+                                y: workgroup_size_y,
+                                z: workgroup_size_z,
+                            },
+                        },
+                    );
+
+                    jump_flood.sdf_pipeline = Some(jump_flood_df);
+                }
             }
         }
     }

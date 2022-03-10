@@ -98,6 +98,10 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
     //
     //  Look in all seeds at location of origin±k
     //  If seed found in neighbouring cell is better than current use that one
+    //
+    //  This compute does only a single value of k
+    //  it must be enqueued multiple times to complete the jump flood
+    //  
     var k: i32 = data.k;
     if (k<1) {
       return;
