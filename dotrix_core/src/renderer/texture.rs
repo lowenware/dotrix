@@ -14,6 +14,8 @@ pub struct Texture {
     pub label: String,
     /// WGPU Texture view
     pub wgpu_texture_view: Option<wgpu::TextureView>,
+    /// WGPU Texture
+    pub wgpu_texture: Option<wgpu::Texture>,
     /// Texture usage
     pub usage: wgpu::TextureUsages,
     /// Texture kind
@@ -27,6 +29,7 @@ impl Default for Texture {
         Self {
             label: String::from("Noname Texture"),
             wgpu_texture_view: None,
+            wgpu_texture: None,
             usage: wgpu::TextureUsages::empty(),
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
             kind: TextureKind::D2,
@@ -212,6 +215,8 @@ impl Texture {
                 layer_size,
             );
         }
+
+        self.wgpu_texture = Some(texture);
     }
 
     /// Checks if texture is loaded

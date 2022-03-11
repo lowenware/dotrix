@@ -47,6 +47,16 @@ impl Buffer {
         Self::new(label).use_as_indirect()
     }
 
+    /// Construct new Map Read buffer
+    pub fn map_read(label: &str) -> Self {
+        Self::new(label).use_as_map_read()
+    }
+
+    /// Construct new Map Write buffer
+    pub fn map_write(label: &str) -> Self {
+        Self::new(label).use_as_map_write()
+    }
+
     /// Allow to use as Vertex Buffer
     #[must_use]
     pub fn use_as_vertex(mut self) -> Self {
@@ -82,6 +92,20 @@ impl Buffer {
         self
     }
 
+    /// Allow to use as Map Read Buffer
+    #[must_use]
+    pub fn use_as_map_read(mut self) -> Self {
+        self.usage |= wgpu::BufferUsages::MAP_READ;
+        self
+    }
+
+    /// Allow to use as Map Write Buffer
+    #[must_use]
+    pub fn use_as_map_write(mut self) -> Self {
+        self.usage |= wgpu::BufferUsages::MAP_WRITE;
+        self
+    }
+
     /// Allow reading from buffer
     #[must_use]
     pub fn allow_read(mut self) -> Self {
@@ -114,6 +138,18 @@ impl Buffer {
                 },
             ));
         }
+    }
+
+    /// Create buffer of size without data
+    ///
+    /// Typically used for staging buffers
+    pub fn create(&mut self, ctx: &Context, size: u32) {
+        self.wgpu_buffer = Some(ctx.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some(self.label.as_str()),
+            size: size as wgpu::BufferAddress,
+            usage: self.usage,
+            mapped_at_creation: false,
+        }));
     }
 
     /// Check if buffer isloaded

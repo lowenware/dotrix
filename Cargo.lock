@@ -720,6 +720,7 @@ dependencies = [
  "dotrix_math",
  "dotrix_pbr",
  "dotrix_primitives",
+ "futures",
  "num",
  "rand 0.8.4",
  "rayon",

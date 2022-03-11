@@ -254,6 +254,42 @@ impl Context {
             cpass.dispatch(args.work_groups.x, args.work_groups.y, args.work_groups.z);
         }
     }
+
+    pub(crate) fn run_copy_texture_to_buffer(
+        &mut self,
+        texture: &super::Texture,
+        buffer: &super::Buffer,
+        extent: [u32; 3],
+        bytes_per_pixel: u32,
+    ) {
+        let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
+        let bytes_per_row = std::num::NonZeroU32::new(bytes_per_pixel as u32 * extent[0]).unwrap();
+
+        encoder.copy_texture_to_buffer(
+            wgpu::ImageCopyTexture {
+                texture: texture
+                    .wgpu_texture
+                    .as_ref()
+                    .expect("Texture must be loaded"),
+                mip_level: 0,
+                origin: wgpu::Origin3d { x: 0, y: 0, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyBuffer {
+                buffer: buffer.wgpu_buffer.as_ref().expect("Buffer must be ready"),
+                layout: wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: Some(bytes_per_row),
+                    rows_per_image: Some(std::num::NonZeroU32::new(extent[1]).unwrap()),
+                },
+            },
+            wgpu::Extent3d {
+                width: extent[0],
+                height: extent[1],
+                depth_or_array_layers: extent[2],
+            },
+        );
+    }
 }
 
 pub(crate) async fn init(window: &winit::window::Window, sample_count: u32) -> Context {
