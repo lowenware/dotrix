@@ -3,7 +3,7 @@
 use super::data::*;
 use dotrix_core::{
     ecs::{Const, Mut},
-    renderer::StorageBuffer,
+    renderer::Buffer,
     Globals, Renderer, World,
 };
 
@@ -21,18 +21,25 @@ pub(super) struct GenericLight {
 unsafe impl bytemuck::Zeroable for GenericLight {}
 unsafe impl bytemuck::Pod for GenericLight {}
 
-#[derive(Default)]
-pub struct Buffer {
-    pub storage: StorageBuffer,
+pub struct LightStorageBuffer {
+    pub storage: Buffer,
+}
+
+impl Default for LightStorageBuffer {
+    fn default() -> Self {
+        Self {
+            storage: Buffer::storage("Light Storage"),
+        }
+    }
 }
 
 pub fn startup(mut globals: Mut<Globals>) {
-    globals.set(Buffer::default());
+    globals.set(LightStorageBuffer::default());
 }
 
 /// Lights binding system
 pub fn load(world: Const<World>, renderer: Const<Renderer>, mut globals: Mut<Globals>) {
-    if let Some(lights) = globals.get_mut::<Buffer>() {
+    if let Some(lights) = globals.get_mut::<LightStorageBuffer>() {
         let mut generic_lights: Vec<GenericLight> = world
             .query::<(&Light,)>()
             .flat_map(|(light,)| match light {
@@ -119,7 +126,7 @@ pub fn load(world: Const<World>, renderer: Const<Renderer>, mut globals: Mut<Glo
 
         generic_lights.push(ambient);
 
-        renderer.load_storage_buffer(
+        renderer.load_buffer(
             &mut lights.storage,
             bytemuck::cast_slice(generic_lights.as_slice()),
         );

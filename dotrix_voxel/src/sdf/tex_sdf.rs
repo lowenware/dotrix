@@ -16,7 +16,7 @@ impl Default for TexSdf {
     fn default() -> Self {
         Self {
             buffer: {
-                let mut buffer = TextureBuffer::new_3d("PingBuffer")
+                let mut buffer = TextureBuffer::new_3d("TexSDF")
                     .use_as_storage()
                     .allow_write();
                 buffer.format = wgpu::TextureFormat::Rg32Float;
