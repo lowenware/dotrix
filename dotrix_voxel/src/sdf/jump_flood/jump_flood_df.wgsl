@@ -1,35 +1,25 @@
 // Takes a jump flood result and computes the DF
 //
 
-struct Data {
-  // Voxel origin of voxel at the 0,0,0 position in world space
-  origin: vec3<f32>;
-  // Dimensions of a single voxel
-  dimensions: vec3<f32>;
-};
-
-[[group(0), binding(0)]]
-var<uniform> data: Data;
-
 // The density for the voxel should be stored in the r channel
 // The material should be in the g channel
-[[group(0), binding(1)]]
+[[group(0), binding(0)]]
 var voxels: texture_3d<f32>;
 
 // The rgb channels will be set to contain the nearest seed location
-[[group(0), binding(2)]]
+[[group(0), binding(1)]]
 var jump_flood: texture_3d<f32>;
 
 
 // The r channel will contain the DF
 // The g channel will copy the material ID from the voxel
-[[group(0), binding(3)]]
+[[group(0), binding(2)]]
 var sdf: texture_storage_3d<rg32float,write>;
 
 
-// For a given voxel get its origin in world space
+// For a given voxel get its origin in local space
 fn origin(coord: vec3<i32>) -> vec3<f32> {
-  return data.origin + vec3<f32>(f32(coord[0]),f32(coord[1]),f32(coord[2])) * data.dimensions;
+  return vec3<f32>(0.,0.,0.) + vec3<f32>(f32(coord[0]),f32(coord[1]),f32(coord[2])) * vec3<f32>(1.,1.,1.);
 }
 
 // Get the seed position from the jump flood

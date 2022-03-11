@@ -21,7 +21,6 @@ const VOXELS_PER_WORKGROUP: [usize; 3] = [8, 8, 4];
 /// algorithm, which is an approximate
 /// algorithm with O(log(n)) complexity
 pub struct VoxelJumpFlood {
-    pub data: Buffer,
     pub ping_buffer: TextureBuffer,
     pub pong_buffer: TextureBuffer,
     pub init_pipeline: Option<Compute>,
@@ -33,7 +32,6 @@ pub struct VoxelJumpFlood {
 impl Default for VoxelJumpFlood {
     fn default() -> Self {
         Self {
-            data: Buffer::uniform("Voxel-Jump Flood Params"),
             ping_buffer: {
                 let mut buffer = TextureBuffer::new_3d("PingBuffer")
                     .use_as_storage()
@@ -85,14 +83,6 @@ impl VoxelJumpFlood {
             grid.dimensions[1],
             slices.as_slice(),
         );
-
-        let data = Data {
-            origin: grid.position,
-            dimensions: grid.voxel_dimensions,
-            k: 1,
-            padding: Default::default(),
-        };
-        renderer.load_buffer(&mut self.data, bytemuck::cast_slice(&[data]));
     }
 }
 
@@ -100,10 +90,8 @@ impl VoxelJumpFlood {
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
 struct Data {
-    origin: [f32; 3],
-    dimensions: [f32; 3],
     k: u32,
-    padding: [f32; 1],
+    padding: [f32; 3],
 }
 unsafe impl bytemuck::Zeroable for Data {}
 unsafe impl bytemuck::Pod for Data {}
@@ -172,7 +160,6 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                         bindings: &[BindGroup::new(
                             "Globals",
                             vec![
-                                Binding::Uniform("Params", Stage::Compute, &jump_flood.data),
                                 Binding::Texture3D("VoxelTexture", Stage::Compute, &grid.buffer),
                                 Binding::StorageTexture3D(
                                     "InitSeeds",
@@ -212,8 +199,6 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
 
                 let mut buffer = Buffer::uniform("Jump Flood Params");
                 let data = Data {
-                    origin: grid.position,
-                    dimensions: grid.voxel_dimensions,
                     k,
                     padding: Default::default(),
                 };
@@ -296,7 +281,6 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                             bindings: &[BindGroup::new(
                                 "Globals",
                                 vec![
-                                    Binding::Uniform("Params", Stage::Compute, &jump_flood.data),
                                     Binding::Texture3D("Voxel", Stage::Compute, &grid.buffer),
                                     Binding::Texture3D("JumpFlood", Stage::Compute, pong_buffer),
                                     Binding::StorageTexture3D(

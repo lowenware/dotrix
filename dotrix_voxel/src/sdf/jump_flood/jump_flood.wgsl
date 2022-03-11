@@ -14,10 +14,6 @@
 // and a is used as a flag for invalid seed when a<0
 
 struct Data {
-  // Voxel origin of voxel at the 0,0,0 position in world space
-  origin: vec3<f32>;
-  // Dimensions of a single voxel
-  dimensions: vec3<f32>;
   // The current iterations step size must be >=1
   k: i32;
 };
@@ -49,19 +45,22 @@ fn is_invalid_at(coord: vec3<i32>) -> bool {
 }
 
 fn is_out_of_bounds(coord: vec3<i32>) -> bool {
+  let tex_dim: vec3<i32> = textureDimensions(init_seeds);
   return (
        coord[0] < 0
     || coord[1] < 0
     || coord[2] < 0
-    || coord[0] >= i32(data.dimensions[0])
-    || coord[1] >= i32(data.dimensions[1])
-    || coord[2] >= i32(data.dimensions[2])
+    || coord[0] >= tex_dim[0]
+    || coord[1] >= tex_dim[1]
+    || coord[2] >= tex_dim[2]
   );
 }
 
-// For a given voxel get its origin in world space
+// For a given voxel get its origin in local space
+//
+// TODO: Simplify this once it works
 fn origin(coord: vec3<i32>) -> vec3<f32> {
-  return data.origin + vec3<f32>(f32(coord[0]),f32(coord[1]),f32(coord[2])) * data.dimensions;
+  return vec3<f32>(0.,0.,0.) + vec3<f32>(f32(coord[0]),f32(coord[1]),f32(coord[2])) * vec3<f32>(1.,1.,1.);
 }
 
 // For a given pixel tries to read the seed value,
@@ -101,7 +100,7 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
     //
     //  This compute does only a single value of k
     //  it must be enqueued multiple times to complete the jump flood
-    //  
+    //
     var k: i32 = data.k;
     if (k<1) {
       return;

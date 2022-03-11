@@ -1,5 +1,5 @@
 use dotrix::{camera, ecs::Mut, Camera, Dotrix, System, World};
-use dotrix_voxel::{Grid, VoxelJumpFlood};
+use dotrix_voxel::{Grid, TexSdf, VoxelJumpFlood};
 
 fn main() {
     Dotrix::application("Dotrix: Voxel Load")
@@ -24,5 +24,5 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>) {
     values[42] = 1;
     values[43] = 1;
     let grid = Grid::default().with_values(values);
-    world.spawn(vec![(grid, VoxelJumpFlood::default())]);
+    world.spawn(vec![(grid, VoxelJumpFlood::default(), TexSdf::default())]);
 }

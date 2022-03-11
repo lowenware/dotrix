@@ -1,11 +1,31 @@
 use crate::Grid;
-use dotrix_core::renderer::{Renderer, Texture as TextureBuffer};
+use dotrix_core::renderer::{Buffer, Pipeline, Renderer, Texture as TextureBuffer};
 
 /// Object to hold the 3D texture containing an Sdf
 pub struct TexSdf {
     /// Texture buffer containing a 3d texture
     /// with r channel of the distance anf g channel of the material ID
     pub buffer: TextureBuffer,
+    /// Pipeline for renderering this SDF
+    pub pipeline: Pipeline,
+    /// Uniform that holds render related data
+    pub data: Buffer,
+}
+
+impl Default for TexSdf {
+    fn default() -> Self {
+        Self {
+            buffer: {
+                let mut buffer = TextureBuffer::new_3d("PingBuffer")
+                    .use_as_storage()
+                    .allow_write();
+                buffer.format = wgpu::TextureFormat::Rg32Float;
+                buffer
+            },
+            pipeline: Default::default(),
+            data: Buffer::uniform("TexSdf Data"),
+        }
+    }
 }
 
 impl TexSdf {

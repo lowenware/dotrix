@@ -3,22 +3,12 @@
 // jump flood algorithm
 //
 
-struct Data {
-  // Voxel origin of voxel at the 0,0,0 position in world space
-  origin: vec3<f32>;
-  // Dimensions of a single voxel
-  dimensions: vec3<f32>;
-};
-
-[[group(0), binding(0)]]
-var<uniform> data: Data;
-
 // The density for the voxel should be stored in the r channel
-[[group(0), binding(1)]]
+[[group(0), binding(0)]]
 var voxels: texture_3d<f32>;
 // The rgb channels will be set to contain the nearest seed location
 // of voxels that cross the root
-[[group(0), binding(2)]]
+[[group(0), binding(1)]]
 var init_seeds: texture_storage_3d<rgba32float,write>;
 
 // Write location of current nearest seed for this pixel
@@ -37,19 +27,22 @@ fn voxel_value_at(coord: vec3<i32>) -> f32 {
   return f32(textureLoad(voxels, coord, 0).x);
 }
 
-// For a given voxel get its origin in world space
+// For a given voxel get its origin in local space
+//
+// TODO: Simplify this once it works
 fn origin(coord: vec3<i32>) -> vec3<f32> {
-  return data.origin + vec3<f32>(f32(coord[0]),f32(coord[1]),f32(coord[2])) * data.dimensions;
+  return vec3<f32>(0.,0.,0.) + vec3<f32>(f32(coord[0]),f32(coord[1]),f32(coord[2])) * vec3<f32>(1.,1.,1.);
 }
 
 fn is_out_of_bounds(coord: vec3<i32>) -> bool {
+  let tex_dim: vec3<i32> = textureDimensions(init_seeds);
   return (
        coord[0] < 0
     || coord[1] < 0
     || coord[2] < 0
-    || coord[0] >= i32(data.dimensions[0])
-    || coord[1] >= i32(data.dimensions[1])
-    || coord[2] >= i32(data.dimensions[2])
+    || coord[0] >= tex_dim[0]
+    || coord[1] >= tex_dim[1]
+    || coord[2] >= tex_dim[2]
   );
 }
 
