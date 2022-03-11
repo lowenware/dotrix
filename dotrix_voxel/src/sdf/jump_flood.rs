@@ -128,7 +128,7 @@ pub(super) fn startup(renderer: Const<Renderer>, mut assets: Mut<Assets>) {
     assets.store_as(shader, JUMP_FLOOD_TO_DF_PIPELINE);
 }
 
-async fn print_debug_buffer(buffer: Buffer) {
+async fn print_debug_buffer(buffer: Buffer, dimensions: [u32; 3], channels: u32) {
     let wgpu_buffer = buffer.wgpu_buffer.expect("Buffer must be loaded");
     let buffer_slice = wgpu_buffer.slice(..);
     // Gets the future representing when `staging_buffer` can be read from
@@ -152,7 +152,18 @@ async fn print_debug_buffer(buffer: Buffer) {
                              //   myPointer = NULL;
                              // It effectively frees the memory
                              //
-        println!("Data: {:?}", result);
+
+        result
+            .chunks((dimensions[0] * dimensions[1] * channels) as usize)
+            .enumerate()
+            .for_each(|(idx, img)| {
+                println!("Z={}", idx);
+                let collected: Vec<&[f32]> = img
+                    .chunks(channels as usize)
+                    .map(|pixel| pixel.into())
+                    .collect();
+                println!("{:?}", collected);
+            });
     }
 }
 
@@ -232,8 +243,9 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                 jump_flood.init_pipeline = Some(voxel_to_jump_flood);
             }
         } else if let Some(debug_buffer) = jump_flood.debug_buffer.take() {
+            let dim: [u32; 3] = grid.dimensions;
             std::thread::spawn(move || {
-                futures::executor::block_on(print_debug_buffer(debug_buffer))
+                futures::executor::block_on(print_debug_buffer(debug_buffer, dim, 4))
             });
         }
 

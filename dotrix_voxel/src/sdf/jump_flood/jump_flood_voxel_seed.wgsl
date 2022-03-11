@@ -70,28 +70,28 @@ fn gradient(coord: vec3<i32>) -> vec3<f32> {
     coord[1] + 1,
     coord[2]
   );
-  let y_plus: vec3<i32> = select(coord, y0, is_out_of_bounds(y0));
+  let y_plus: vec3<i32> = select(y0, coord, is_out_of_bounds(y0));
 
   let y1: vec3<i32> = vec3<i32>(
     coord[0],
     coord[1] - 1,
     coord[2]
   );
-  let y_minus: vec3<i32> = select(coord, y1, is_out_of_bounds(y1));
+  let y_minus: vec3<i32> = select(y1, coord, is_out_of_bounds(y1));
 
   let z0: vec3<i32> = vec3<i32>(
     coord[0],
     coord[1],
     coord[2] + 1
   );
-  let z_plus: vec3<i32> = select(coord, z0, is_out_of_bounds(z0));
+  let z_plus: vec3<i32> = select(z0, coord, is_out_of_bounds(z0));
 
   let z1: vec3<i32> = vec3<i32>(
     coord[0],
     coord[1],
     coord[2] - 1
   );
-  let z_minus: vec3<i32> = select(coord, z1, is_out_of_bounds(z1));
+  let z_minus: vec3<i32> = select(z1, coord, is_out_of_bounds(z1));
 
 
   return vec3<f32>(
@@ -102,7 +102,7 @@ fn gradient(coord: vec3<i32>) -> vec3<f32> {
 }
 
 fn is_outside(coord: vec3<i32>) -> bool {
-  return select(true, false, voxel_value_at(coord) >= 0.);
+  return voxel_value_at(coord) >= 0.;
 }
 
 fn is_sameside(reference: bool, coord: vec3<i32>) -> bool {
@@ -143,6 +143,8 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
       || !is_sameside(center_side, vec3<i32>(voxel_loc[0], voxel_loc[1], voxel_loc[2] - 1))
     );
 
+    is_seed = true;
+
     let pixel_origin: vec3<f32> = origin(voxel_loc);
 
     if (is_seed) {
@@ -168,7 +170,8 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
       let approximate_location: vec3<f32> = pixel_origin + direction * approximate_distance;
 
       // Write the location of the closest seed into the pixel
-      set_seed_at(approximate_location, voxel_loc);
+      //set_seed_at(approximate_location, voxel_loc);
+      set_seed_at(m, voxel_loc);
     } else {
       set_seed_invalid_at(voxel_loc);
     }
