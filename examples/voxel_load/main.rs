@@ -1,5 +1,6 @@
 use dotrix::{camera, ecs::Mut, Camera, Dotrix, System, World};
 use dotrix_voxel::{Grid, TexSdf, VoxelJumpFlood};
+use rand::Rng;
 
 fn main() {
     Dotrix::application("Dotrix: Voxel Load")
@@ -14,15 +15,18 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>) {
     camera.distance = 30.0;
     camera.tilt = 0.0;
 
-    let mut values = vec![0u8; 16 * 16 * 16];
-    values[30] = 1;
-    values[31] = 1;
-    values[32] = 1;
-    values[33] = 1;
-    values[40] = 1;
-    values[41] = 1;
-    values[42] = 1;
-    values[43] = 1;
+    let values: Vec<u8> = vec![0u8; 16 * 16 * 16]
+        .iter()
+        .map(|&v| {
+            let chance: u8 = rand::thread_rng().gen();
+            if chance > 100 {
+                rand::thread_rng().gen()
+            } else {
+                v
+            }
+        })
+        .collect();
+
     let grid = Grid::default().with_values(values);
     world.spawn(vec![(grid, VoxelJumpFlood::default(), TexSdf::default())]);
 }

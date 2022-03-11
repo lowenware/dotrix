@@ -24,8 +24,12 @@ struct SdfBufferData {
     // This transform scales the 1x1x1 cube so that it totally encloses the
     // voxels
     pub cube_transform: [[f32; 4]; 4],
+    // Inverse fo cube_transform
+    pub inv_cube_transform: [[f32; 4]; 4],
     // World transform of the voxel grid
     pub world_transform: [[f32; 4]; 4],
+    // Inverse of world_transform
+    pub inv_world_transform: [[f32; 4]; 4],
     // Dimensions of the voxel
     pub grid_dimensions: [f32; 3],
     pub padding: [f32; 1],
@@ -78,7 +82,9 @@ pub fn render(
         let scale = Mat4::from_nonuniform_scale(grid_size[0], grid_size[1], grid_size[2]);
         let uniform = SdfBufferData {
             cube_transform: scale.into(),
+            inv_cube_transform: scale.invert().unwrap().into(),
             world_transform: Mat4::identity().into(),
+            inv_world_transform: Mat4::identity().into(),
             grid_dimensions: grid_size,
             padding: Default::default(),
         };

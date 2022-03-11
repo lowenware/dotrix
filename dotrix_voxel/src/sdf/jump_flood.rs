@@ -8,6 +8,7 @@ use dotrix_core::{
     },
     Assets, Renderer, World,
 };
+use std::convert::TryInto;
 
 const VOXEL_TO_JUMP_FLOOD_PIPELINE: &str = "dotrix_voxel::sdf::jump_flood_voxel_seed";
 const JUMP_FLOOD_PIPELINE: &str = "dotrix_voxel::sdf::jump_flood";
@@ -27,6 +28,7 @@ pub struct VoxelJumpFlood {
     pub jumpflood_pipelines: Vec<Compute>,
     pub jumpflood_data: Vec<Buffer>,
     pub sdf_pipeline: Option<Compute>,
+    pub debug_buffer: Option<Buffer>,
 }
 
 impl Default for VoxelJumpFlood {
@@ -50,6 +52,7 @@ impl Default for VoxelJumpFlood {
             jumpflood_pipelines: vec![],
             jumpflood_data: vec![],
             sdf_pipeline: None,
+            debug_buffer: Some(Buffer::map_read("Debug buffer")),
         }
     }
 }
@@ -125,6 +128,34 @@ pub(super) fn startup(renderer: Const<Renderer>, mut assets: Mut<Assets>) {
     assets.store_as(shader, JUMP_FLOOD_TO_DF_PIPELINE);
 }
 
+async fn print_debug_buffer(buffer: Buffer) {
+    let wgpu_buffer = buffer.wgpu_buffer.expect("Buffer must be loaded");
+    let buffer_slice = wgpu_buffer.slice(..);
+    // Gets the future representing when `staging_buffer` can be read from
+    let buffer_future = buffer_slice.map_async(wgpu::MapMode::Read);
+
+    if let Ok(()) = buffer_future.await {
+        // Gets contents of buffer
+        let data = buffer_slice.get_mapped_range();
+        // Since contents are got in bytes, this converts these bytes back to f32
+        let result: Vec<f32> = data
+            .chunks_exact(4)
+            .map(|b| f32::from_ne_bytes(b.try_into().unwrap()))
+            .collect();
+
+        // With the current interface, we have to make sure all mapped views are
+        // dropped before we unmap the buffer.
+        drop(data);
+        wgpu_buffer.unmap(); // Unmaps buffer from memory
+                             // If you are familiar with C++ these 2 lines can be thought of similarly to:
+                             //   delete myPointer;
+                             //   myPointer = NULL;
+                             // It effectively frees the memory
+                             //
+        println!("Data: {:?}", result);
+    }
+}
+
 // Compute the SDF from the grid
 pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: Mut<Renderer>) {
     for (grid, jump_flood, sdf) in world.query::<(&mut Grid, &mut VoxelJumpFlood, &mut TexSdf)>() {
@@ -173,6 +204,7 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                     },
                 );
 
+                println!("Compute Seed");
                 renderer.compute(
                     &mut voxel_to_jump_flood.pipeline,
                     &ComputeArgs {
@@ -184,8 +216,25 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                     },
                 );
 
+                let bytes_per_pixel = 4 * 4;
+
+                renderer.create_buffer(
+                    jump_flood.debug_buffer.as_mut().unwrap(),
+                    grid.dimensions[0] * grid.dimensions[1] * grid.dimensions[2] * bytes_per_pixel,
+                );
+                renderer.copy_texture_to_buffer(
+                    &jump_flood.ping_buffer,
+                    jump_flood.debug_buffer.as_ref().unwrap(),
+                    grid.dimensions,
+                    bytes_per_pixel,
+                );
+
                 jump_flood.init_pipeline = Some(voxel_to_jump_flood);
             }
+        } else if let Some(debug_buffer) = jump_flood.debug_buffer.take() {
+            std::thread::spawn(move || {
+                futures::executor::block_on(print_debug_buffer(debug_buffer))
+            });
         }
 
         if jump_flood.init_pipeline.is_some() && jump_flood.jumpflood_pipelines.is_empty() {
@@ -194,8 +243,8 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
             let mut ping_buffer = &jump_flood.ping_buffer;
             let mut pong_buffer = &jump_flood.pong_buffer;
 
-            for i in 1..((n as f32).log2().ceil() as usize) {
-                let k = n / 2u32.pow(i as u32);
+            for i in 0..((n as f32).log2().ceil() as usize) {
+                let k = n / 2u32.pow(i as u32 + 1);
 
                 let mut buffer = Buffer::uniform("Jump Flood Params");
                 let data = Data {
@@ -239,6 +288,7 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                         },
                     );
 
+                    println!("Compute JumpFlood:{}", k);
                     renderer.compute(
                         &mut jump_flood_compute.pipeline,
                         &ComputeArgs {
@@ -295,6 +345,7 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                         },
                     );
 
+                    println!("Compute DF");
                     renderer.compute(
                         &mut jump_flood_df.pipeline,
                         &ComputeArgs {

@@ -29,7 +29,7 @@ impl Default for Grid {
             voxels: vec![Default::default(); 16 * 16 * 16],
             buffer: {
                 let mut buffer = TextureBuffer::new_3d("VoxelGrid");
-                buffer.format = wgpu::TextureFormat::Rg8Snorm;
+                buffer.format = wgpu::TextureFormat::Rg8Unorm;
                 buffer
             },
             changed: false,

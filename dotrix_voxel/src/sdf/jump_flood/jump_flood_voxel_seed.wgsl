@@ -2,6 +2,9 @@
 // and write the init seed location for the
 // jump flood algorithm
 //
+//
+
+let ISO_SURFACE: f32 = 0.5;
 
 // The density for the voxel should be stored in the r channel
 [[group(0), binding(0)]]
@@ -24,7 +27,7 @@ fn set_seed_invalid_at(coord: vec3<i32>) {
 
 // Get density from voxel
 fn voxel_value_at(coord: vec3<i32>) -> f32 {
-  return f32(textureLoad(voxels, coord, 0).x);
+  return f32(textureLoad(voxels, coord, 0).x) - ISO_SURFACE;
 }
 
 // For a given voxel get its origin in local space

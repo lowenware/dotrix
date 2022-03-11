@@ -15,8 +15,12 @@ struct SdfData {
   // This transform scales the 1x1x1 cube so that it totally encloses the
   // voxels
   cube_transform: mat4x4<f32>;
+  // Inverse cube_transform
+  inv_cube_transform: mat4x4<f32>;
   // World transform of the voxel grid
   world_transform: mat4x4<f32>;
+  // Inverse World transform of the voxel grid
+  inv_world_transform: mat4x4<f32>;
   // Dimensions of the voxel
   grid_dimensions: vec3<f32>;
 };
@@ -67,16 +71,26 @@ fn get_ray_direction(pixel: vec2<u32>, resolution: vec2<f32>) -> vec3<f32> {
 // Get distance to surface from a point
 fn map(p: vec3<f32>) -> f32
 {
-    let d: f32 = 4000.;
-
-    return d;
+    let local_p: vec4<f32> = (u_sdf.inv_world_transform * vec4<f32>(p, 1.));
+    let cube_p: vec4<f32> = u_sdf.inv_cube_transform * local_p;
+    if (cube_p.x > 0.5 || cube_p.x < -0.5 || cube_p.y > 0.5 || cube_p.y < -0.5  || cube_p.z > 0.5 || cube_p.z < -0.5 ) {
+      return 4000.; // Infinity so that it gets stoped by the raymarch max distance
+    } else {
+      let voxel_coords: vec3<i32> = vec3<i32>(i32(local_p.x),i32(local_p.y),i32(local_p.z));
+      return textureLoad(sdf_texture, voxel_coords, 0).r;
+    }
 }
 // Get the material id at a point
 fn map_material(p: vec3<f32>) -> u32
 {
-    let d: u32 = 0u;
-
-    return d;
+  let local_p: vec4<f32> = u_sdf.inv_world_transform * vec4<f32>(p, 1.);
+  let cube_p: vec4<f32> = u_sdf.inv_cube_transform * local_p;
+  if (cube_p.x > 0.5 || cube_p.x < -0.5 || cube_p.y > 0.5 || cube_p.y < -0.5  || cube_p.z > 0.5 || cube_p.z < -0.5 ) {
+    return 0u; // Infinity so that it gets stoped by the raymarch max distance
+  } else {
+    let voxel_coords: vec3<i32> = vec3<i32>(i32(local_p.x),i32(local_p.y),i32(local_p.z));
+    return u32(textureLoad(sdf_texture, voxel_coords, 0).g);
+  }
 }
 
 // Surface gradient (is the normal)
@@ -134,7 +148,8 @@ fn raymarch(t_in: f32, ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f
     rp = rc;
     rc = rn;
   }
-  discard;
+  return t;
+  // discard;
 }
 
 // AO
@@ -459,6 +474,13 @@ struct FragmentOutput {
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> FragmentOutput {
 
+  // var out: FragmentOutput;
+  // out.color = vec4<f32>(0.,0.,0., 1.);
+  // let pos_clip: vec4<f32> = u_camera.proj_view * vec4<f32>(in.world_position, 1.);
+  // out.depth = pos_clip.z / pos_clip.w;
+  //
+  // return out;
+
   let resolution: vec2<f32> = vec2<f32>(f32(u_camera.screen_resolution.x), f32(u_camera.screen_resolution.y));
   let pixel_coords: vec2<u32> = clip_to_pixels(in.position.xy, resolution);
 
@@ -538,8 +560,9 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
   // );
 
   var out: FragmentOutput;
-  out.color = vec4<f32>(total_radiance, 1.);
-  let pos_clip: vec4<f32> = u_camera.proj_view * vec4<f32>(pos, 1.);
+  out.color = vec4<f32>(t_out/10.);
+  // let pos_clip: vec4<f32> = u_camera.proj_view * vec4<f32>(pos, 1.);
+  let pos_clip: vec4<f32> = u_camera.proj_view * vec4<f32>(in.world_position, 1.);
   out.depth = pos_clip.z / pos_clip.w;
   return out;
 }
