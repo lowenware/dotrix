@@ -29,7 +29,7 @@ fn seed_position(coord: vec3<i32>) -> vec3<f32> {
 
 // Get the seed position from the jump flood
 fn material(coord: vec3<i32>) -> f32 {
-  return (textureLoad(voxels, coord, 0).g + 128.) * 256. ;
+  return (textureLoad(voxels, coord, 0).g) * 256. ;
 }
 
 // Get the seed position from the jump flood

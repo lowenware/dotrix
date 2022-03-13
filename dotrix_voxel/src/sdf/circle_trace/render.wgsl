@@ -2,7 +2,7 @@ struct Camera {
   proj_view: mat4x4<f32>;
   static_camera_trans: mat4x4<f32>;
   pos: vec4<f32>;
-  screen_resolution: vec2<u32>;
+  screen_resolution: vec2<f32>;
   fov: f32;
 };
 [[group(0), binding(0)]]
@@ -34,6 +34,7 @@ var sdf_texture: texture_3d<f32>;
 struct VertexOutput {
   [[builtin(position)]] position: vec4<f32>;
   [[location(0)]] world_position: vec3<f32>;
+  [[location(1)]] clip_coords: vec4<f32>;
 };
 
 [[stage(vertex)]]
@@ -48,6 +49,7 @@ fn vs_main(
     var out: VertexOutput;
     out.position = clip_coords;
     out.world_position = world_coords.xyz;
+    out.clip_coords = clip_coords;
     return out;
 }
 
@@ -71,13 +73,95 @@ fn get_ray_direction(pixel: vec2<u32>, resolution: vec2<f32>) -> vec3<f32> {
 // Get distance to surface from a point
 fn map(p: vec3<f32>) -> f32
 {
+    let debug: bool = true;
     let local_p: vec4<f32> = (u_sdf.inv_world_transform * vec4<f32>(p, 1.));
     let cube_p: vec4<f32> = u_sdf.inv_cube_transform * local_p;
-    if (cube_p.x > 0.5 || cube_p.x < -0.5 || cube_p.y > 0.5 || cube_p.y < -0.5  || cube_p.z > 0.5 || cube_p.z < -0.5 ) {
-      return 4000.; // Infinity so that it gets stoped by the raymarch max distance
+
+    if (debug) {
+       return distance(p.xyz, vec3<f32>(0.)) - 0.5;
     } else {
-      let voxel_coords: vec3<i32> = vec3<i32>(i32(local_p.x),i32(local_p.y),i32(local_p.z));
-      return textureLoad(sdf_texture, voxel_coords, 0).r;
+
+      if (cube_p.x > 0.5 || cube_p.x < -0.5 || cube_p.y > 0.5 || cube_p.y < -0.5  || cube_p.z > 0.5 || cube_p.z < -0.5 ) {
+        return 4000.; // Infinity so that it gets stoped by the raymarch max distance
+      } else  {
+        let tex_dim: vec3<i32> = textureDimensions(sdf_texture);
+        let i = i32(local_p.x);
+        let j = i32(local_p.y);
+        let k = i32(local_p.z);
+
+        if (i < 0 || i >= tex_dim[0] || j < 0 || j >= tex_dim[1] || k < 0 || k >= tex_dim[2]) {
+          return 4000.; // Infinity so that it gets stoped by the raymarch max distance
+        }
+
+        let f000: f32 = textureLoad(sdf_texture,
+          vec3<i32>(
+              i,
+              j,
+              k,
+          )
+        ,0).r;
+        let f001: f32 = textureLoad(sdf_texture,
+          vec3<i32>(
+              i,
+              j,
+              k + 1,
+          )
+        ,0).r;
+        let f010: f32 = textureLoad(sdf_texture,
+          vec3<i32>(
+              i,
+              j + 1,
+              k,
+          )
+        ,0).r;
+        let f011: f32 = textureLoad(sdf_texture,
+          vec3<i32>(
+              i,
+              j + 1,
+              k + 1,
+          )
+        ,0).r;
+        let f100: f32 = textureLoad(sdf_texture,
+          vec3<i32>(
+              i + 1,
+              j,
+              k,
+          )
+        ,0).r;
+        let f101: f32 = textureLoad(sdf_texture,
+          vec3<i32>(
+              i + 1,
+              j,
+              k + 1,
+          )
+        ,0).r;
+        let f110: f32 = textureLoad(sdf_texture,
+          vec3<i32>(
+              i + 1,
+              j + 1,
+              k,
+          )
+        ,0).r;
+        let f111: f32 = textureLoad(sdf_texture,
+          vec3<i32>(
+              i + 1,
+              j + 1,
+              k + 1,
+          )
+        ,0).r;
+
+        let x = local_p.x - f32(i);
+        let y = local_p.y - f32(j);
+        let z = local_p.z - f32(k);
+        return f000*(1.-x)*(1.-y)*(1.-z)
+              +f001*(1.-x)*(1.-y)*z
+              +f010*(1.-x)*y     *(1.-z)
+              +f011*(1.-x)*y     *z
+              +f100*x     *(1.-y)*(1.-z)
+              +f101*x     *(1.-y)*z
+              +f110*x     *y     *(1.-z)
+              +f111*x     *y     *z;
+      }
     }
 }
 // Get the material id at a point
@@ -109,9 +193,10 @@ fn map_normal (p: vec3<f32>) -> vec3<f32>
 
 // Use pixel based cones to get the size of the pizel
 fn pixel_radius(t: f32, direction: vec3<f32>, direction_x: vec3<f32>, direction_y: vec3<f32>) -> f32 {
-  let dx: f32 = length(t*(direction_x-direction));
-  let dy: f32 = length(t*(direction_y-direction));
-  return length(vec2<f32>(dx, dy)) * 0.4;
+  return 0.01;
+  // let dx: f32 = length(t*(direction_x-direction));
+  // let dy: f32 = length(t*(direction_y-direction));
+  // return length(vec2<f32>(dx, dy)) * 0.4;
 }
 
 // Accelerated raymarching
@@ -148,8 +233,8 @@ fn raymarch(t_in: f32, ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f
     rp = rc;
     rc = rn;
   }
-  return t;
-  // discard;
+  // return t;
+  discard;
 }
 
 // AO
@@ -481,8 +566,8 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
   //
   // return out;
 
-  let resolution: vec2<f32> = vec2<f32>(f32(u_camera.screen_resolution.x), f32(u_camera.screen_resolution.y));
-  let pixel_coords: vec2<u32> = clip_to_pixels(in.position.xy, resolution);
+  let resolution: vec2<f32> = u_camera.screen_resolution.xy;
+  let pixel_coords: vec2<u32> = vec2<u32>(u32(in.position.x), u32(resolution.y - in.position.y));
 
   let ro: vec3<f32> = u_camera.pos.xyz;
   // This can also be achieved by using world coords but we
@@ -490,6 +575,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
   let rd: vec3<f32> = get_ray_direction(pixel_coords.xy, resolution);
   let rdx: vec3<f32> = get_ray_direction(pixel_coords.xy + vec2<u32>(1u, 0u), resolution);
   let rdy: vec3<f32> = get_ray_direction(pixel_coords.xy + vec2<u32>(0u, 1u), resolution);
+  // let rd2: vec3<f32> = normalize(in.world_position - ro);
 
   // Current distance from camera to grid
   let t: f32 = length(in.world_position - ro);
@@ -522,8 +608,9 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let light_out: LightCalcOutput = calculate_light_ray_for(i, ro);
     let L: vec3<f32> = light_out.light_direction;
 
+    let intensity: f32 = dot(light_out.light_direction, nor);
     // If perpendicular don't bother (numerically unstable)
-    if (abs(dot(light_out.light_direction, nor)) > 0.1  ) {
+    if (abs(intensity) > 0.1  ) {
       var ray_in: SoftShadowInput;
       ray_in.origin = ro;
       ray_in.direction = light_out.light_direction;
@@ -534,7 +621,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 
       let ray_out: SoftShadowResult = softshadow(ray_in);
 
-      total_radiance = total_radiance + ray_out.radiance;
+      total_radiance = total_radiance + intensity * ray_out.radiance;
     }
   }
   total_radiance = clamp(vec3<f32>(0.), vec3<f32>(1.), total_radiance);
@@ -560,7 +647,17 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
   // );
 
   var out: FragmentOutput;
-  out.color = vec4<f32>(t_out/10.);
+  // out.color = vec4<f32>(in.clip_coords.xy, 0., 1.);
+  // out.color = vec4<f32>(rd, 1.);
+  // out.color = vec4<f32>(pixel_coords_f32/2000., 0., 1.);
+  // out.color = vec4<f32>(resolution, 0., 1.);
+  // out.color = vec4<f32>(ao);
+  // if (in.clip_coords.x > 0.)  {
+  //   out.color = vec4<f32>(rd, 1.);
+  // } else {
+  //   out.color = vec4<f32>(rd2, 1.);
+  // }
+  out.color = vec4<f32>(total_radiance, 1.);
   // let pos_clip: vec4<f32> = u_camera.proj_view * vec4<f32>(pos, 1.);
   let pos_clip: vec4<f32> = u_camera.proj_view * vec4<f32>(in.world_position, 1.);
   out.depth = pos_clip.z / pos_clip.w;

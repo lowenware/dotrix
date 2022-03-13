@@ -263,7 +263,13 @@ impl Context {
         bytes_per_pixel: u32,
     ) {
         let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
-        let bytes_per_row = std::num::NonZeroU32::new(bytes_per_pixel as u32 * extent[0]).unwrap();
+        let unpadded_bytes_per_row: u32 =
+            std::num::NonZeroU32::new(bytes_per_pixel as u32 * extent[0])
+                .unwrap()
+                .into();
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as u32;
+        let padded_bytes_per_row_padding = (align - unpadded_bytes_per_row % align) % align;
+        let padded_bytes_per_row = unpadded_bytes_per_row + padded_bytes_per_row_padding;
 
         encoder.copy_texture_to_buffer(
             wgpu::ImageCopyTexture {
@@ -279,7 +285,7 @@ impl Context {
                 buffer: buffer.wgpu_buffer.as_ref().expect("Buffer must be ready"),
                 layout: wgpu::ImageDataLayout {
                     offset: 0,
-                    bytes_per_row: Some(bytes_per_row),
+                    bytes_per_row: Some(std::num::NonZeroU32::new(padded_bytes_per_row).unwrap()),
                     rows_per_image: Some(std::num::NonZeroU32::new(extent[1]).unwrap()),
                 },
             },

@@ -56,6 +56,7 @@ pub(super) fn load(
         fov: camera.fov,
         padding: Default::default(),
     };
+    println!("screen_resolution: {:?}", uniform.screen_resolution);
     if let Some(uniform_buffer) = globals.get_mut::<CameraBuffer>() {
         renderer.load_buffer(
             &mut uniform_buffer.uniform,

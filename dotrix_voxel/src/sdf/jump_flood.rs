@@ -52,7 +52,7 @@ impl Default for VoxelJumpFlood {
             jumpflood_pipelines: vec![],
             jumpflood_data: vec![],
             sdf_pipeline: None,
-            debug_buffer: Some(Buffer::map_read("Debug buffer")),
+            debug_buffer: None,
         }
     }
 }
@@ -129,6 +129,15 @@ pub(super) fn startup(renderer: Const<Renderer>, mut assets: Mut<Assets>) {
 }
 
 async fn print_debug_buffer(buffer: Buffer, dimensions: [u32; 3], channels: u32) {
+    let bytes_per_pixel: u32 = channels * 4;
+    let unpadded_bytes_per_row: u32 =
+        std::num::NonZeroU32::new(bytes_per_pixel as u32 * dimensions[0])
+            .unwrap()
+            .into();
+    let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as u32;
+    let padded_bytes_per_row_padding = (align - unpadded_bytes_per_row % align) % align;
+    let padded_bytes_per_row = unpadded_bytes_per_row + padded_bytes_per_row_padding;
+
     let wgpu_buffer = buffer.wgpu_buffer.expect("Buffer must be loaded");
     let buffer_slice = wgpu_buffer.slice(..);
     // Gets the future representing when `staging_buffer` can be read from
@@ -138,9 +147,25 @@ async fn print_debug_buffer(buffer: Buffer, dimensions: [u32; 3], channels: u32)
         // Gets contents of buffer
         let data = buffer_slice.get_mapped_range();
         // Since contents are got in bytes, this converts these bytes back to f32
-        let result: Vec<f32> = data
-            .chunks_exact(4)
-            .map(|b| f32::from_ne_bytes(b.try_into().unwrap()))
+        let result: Vec<Vec<Vec<Vec<f32>>>> = data
+            .chunks_exact((padded_bytes_per_row * dimensions[1]) as usize)
+            .map(|img| {
+                let rows: Vec<Vec<Vec<f32>>> = img
+                    .chunks_exact(padded_bytes_per_row as usize)
+                    .map(|row| {
+                        let row_f32: Vec<f32> = row
+                            .chunks_exact(4)
+                            .map(|b| f32::from_ne_bytes(b.try_into().unwrap()))
+                            .collect();
+                        let pixels: Vec<Vec<f32>> = row_f32
+                            .chunks(channels as usize)
+                            .map(|pixels| pixels.to_vec())
+                            .collect();
+                        pixels[0..(dimensions[0] as usize)].to_vec()
+                    })
+                    .collect();
+                rows
+            })
             .collect();
 
         // With the current interface, we have to make sure all mapped views are
@@ -152,18 +177,12 @@ async fn print_debug_buffer(buffer: Buffer, dimensions: [u32; 3], channels: u32)
                              //   myPointer = NULL;
                              // It effectively frees the memory
                              //
-
-        result
-            .chunks((dimensions[0] * dimensions[1] * channels) as usize)
-            .enumerate()
-            .for_each(|(idx, img)| {
-                println!("Z={}", idx);
-                let collected: Vec<&[f32]> = img
-                    .chunks(channels as usize)
-                    .map(|pixel| pixel.into())
-                    .collect();
-                println!("{:?}", collected);
-            });
+        for (idx, img) in result.iter().enumerate() {
+            println!("Z={}", idx);
+            for row in img.iter() {
+                println!("{:?}", row);
+            }
+        }
     }
 }
 
@@ -227,26 +246,8 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                     },
                 );
 
-                let bytes_per_pixel = 4 * 4;
-
-                renderer.create_buffer(
-                    jump_flood.debug_buffer.as_mut().unwrap(),
-                    grid.dimensions[0] * grid.dimensions[1] * grid.dimensions[2] * bytes_per_pixel,
-                );
-                renderer.copy_texture_to_buffer(
-                    &jump_flood.ping_buffer,
-                    jump_flood.debug_buffer.as_ref().unwrap(),
-                    grid.dimensions,
-                    bytes_per_pixel,
-                );
-
                 jump_flood.init_pipeline = Some(voxel_to_jump_flood);
             }
-        } else if let Some(debug_buffer) = jump_flood.debug_buffer.take() {
-            let dim: [u32; 3] = grid.dimensions;
-            std::thread::spawn(move || {
-                futures::executor::block_on(print_debug_buffer(debug_buffer, dim, 4))
-            });
         }
 
         if jump_flood.init_pipeline.is_some() && jump_flood.jumpflood_pipelines.is_empty() {
@@ -370,8 +371,37 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                     );
 
                     jump_flood.sdf_pipeline = Some(jump_flood_df);
+
+                    let bytes_per_pixel = 4 * 2;
+
+                    jump_flood.debug_buffer = Some(Buffer::map_read("Debug buffer"));
+                    let unpadded_bytes_per_row: u32 =
+                        std::num::NonZeroU32::new(bytes_per_pixel as u32 * grid.dimensions[0])
+                            .unwrap()
+                            .into();
+                    let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as u32;
+                    let padded_bytes_per_row_padding =
+                        (align - unpadded_bytes_per_row % align) % align;
+                    let padded_bytes_per_row =
+                        unpadded_bytes_per_row + padded_bytes_per_row_padding;
+
+                    renderer.create_buffer(
+                        jump_flood.debug_buffer.as_mut().unwrap(),
+                        padded_bytes_per_row * grid.dimensions[1] * grid.dimensions[2],
+                    );
+                    renderer.copy_texture_to_buffer(
+                        &sdf.buffer,
+                        jump_flood.debug_buffer.as_ref().unwrap(),
+                        grid.dimensions,
+                        bytes_per_pixel,
+                    );
                 }
             }
+        } else if let Some(debug_buffer) = jump_flood.debug_buffer.take() {
+            let dim: [u32; 3] = grid.dimensions;
+            std::thread::spawn(move || {
+                futures::executor::block_on(print_debug_buffer(debug_buffer, dim, 2))
+            });
         }
     }
 }
