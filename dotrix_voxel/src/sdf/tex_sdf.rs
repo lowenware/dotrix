@@ -1,4 +1,3 @@
-use crate::Grid;
 use dotrix_core::renderer::{Buffer, Pipeline, Renderer, Texture as TextureBuffer};
 
 /// Object to hold the 3D texture containing an Sdf
@@ -29,16 +28,16 @@ impl Default for TexSdf {
 }
 
 impl TexSdf {
-    pub fn load(&mut self, renderer: &Renderer, grid: &Grid) {
+    pub fn load(&mut self, renderer: &Renderer, dimensions: &[u32; 3]) {
         let pixel_size = 4 * 2;
         let data: Vec<Vec<u8>> = vec![
             0u8;
             pixel_size
-                * grid.dimensions[0] as usize
-                * grid.dimensions[1] as usize
-                * grid.dimensions[2] as usize
+                * dimensions[0] as usize
+                * dimensions[1] as usize
+                * dimensions[2] as usize
         ]
-        .chunks(grid.dimensions[0] as usize * grid.dimensions[1] as usize * pixel_size)
+        .chunks(dimensions[0] as usize * dimensions[1] as usize * pixel_size)
         .map(|chunk| chunk.to_vec())
         .collect();
 
@@ -46,8 +45,8 @@ impl TexSdf {
 
         renderer.load_texture(
             &mut self.buffer,
-            grid.dimensions[0],
-            grid.dimensions[1],
+            dimensions[0],
+            dimensions[1],
             slices.as_slice(),
         );
     }

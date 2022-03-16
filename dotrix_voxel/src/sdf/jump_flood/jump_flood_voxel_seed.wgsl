@@ -8,7 +8,7 @@ let ISO_SURFACE: f32 = 0.5;
 
 // The density for the voxel should be stored in the r channel
 [[group(0), binding(0)]]
-var voxels: texture_3d<f32>;
+var voxels: texture_3d<u32>;
 // The rgb channels will be set to contain the nearest seed location
 // of voxels that cross the root
 [[group(0), binding(1)]]
@@ -26,153 +26,153 @@ fn set_seed_invalid_at(coord: vec3<i32>) {
 }
 
 // Get density from voxel
-fn voxel_value_at(coord: vec3<i32>) -> f32 {
-  return f32(textureLoad(voxels, coord, 0).x) - ISO_SURFACE;
+fn voxel_value(seed_coord: vec3<f32>) -> f32 {
+  let voxel_dim: vec3<i32> = textureDimensions(voxels) - vec3<i32>(1);
+  let voxel_dim_f32: vec3<f32> = vec3<f32>(f32(voxel_dim.x), f32(voxel_dim.y), f32(voxel_dim.z));
+  let seed_dim: vec3<i32> = textureDimensions(init_seeds) - vec3<i32>(1);
+  let seed_dim_f32: vec3<f32> = vec3<f32>(f32(seed_dim.x), f32(seed_dim.y), f32(seed_dim.z));
+
+  let coord: vec3<f32> = seed_coord / seed_dim_f32 * voxel_dim_f32;
+  let i: i32 = clamp(i32(coord.x), 0, voxel_dim.x);
+  let j: i32 = clamp(i32(coord.y), 0, voxel_dim.y);
+  let k: i32 = clamp(i32(coord.z), 0, voxel_dim.z);
+  let x: f32 = clamp(coord.x - f32(i), 0., 1.);
+  let y: f32 = clamp(coord.y - f32(j), 0., 1.);
+  let z: f32 = clamp(coord.z - f32(k), 0., 1.);
+
+  let f000: f32 = f32(textureLoad(voxels,
+    vec3<i32>(
+        i,
+        j,
+        k,
+    )
+  ,0).r);
+  let f001: f32 = f32(textureLoad(voxels,
+    vec3<i32>(
+        i,
+        j,
+        k + 1,
+    )
+  ,0).r);
+  let f010: f32 = f32(textureLoad(voxels,
+    vec3<i32>(
+        i,
+        j + 1,
+        k,
+    )
+  ,0).r);
+  let f011: f32 = f32(textureLoad(voxels,
+    vec3<i32>(
+        i,
+        j + 1,
+        k + 1,
+    )
+  ,0).r);
+  let f100: f32 = f32(textureLoad(voxels,
+    vec3<i32>(
+        i + 1,
+        j,
+        k,
+    )
+  ,0).r);
+  let f101: f32 = f32(textureLoad(voxels,
+    vec3<i32>(
+        i + 1,
+        j,
+        k + 1,
+    )
+  ,0).r);
+  let f110: f32 = f32(textureLoad(voxels,
+    vec3<i32>(
+        i + 1,
+        j + 1,
+        k,
+    )
+  ,0).r);
+  let f111: f32 = f32(textureLoad(voxels,
+    vec3<i32>(
+        i + 1,
+        j + 1,
+        k + 1,
+    )
+  ,0).r);
+
+  return
+        (
+           f000*(1.-x)*(1.-y)*(1.-z)
+          +f001*(1.-x)*(1.-y)*z
+          +f010*(1.-x)*y     *(1.-z)
+          +f011*(1.-x)*y     *z
+          +f100*x     *(1.-y)*(1.-z)
+          +f101*x     *(1.-y)*z
+          +f110*x     *y     *(1.-z)
+          +f111*x     *y     *z
+        ) - ISO_SURFACE;
 }
 
-// For a given voxel get its origin in local space
-//
-// TODO: Simplify this once it works
-fn origin(coord: vec3<i32>) -> vec3<f32> {
-  return vec3<f32>(0.,0.,0.) + vec3<f32>(f32(coord[0]),f32(coord[1]),f32(coord[2])) * vec3<f32>(1.,1.,1.);
+// For a given pixel get its pos in local seed space
+fn seed_coord(seed_pixel: vec3<i32>) -> vec3<f32> {
+  return vec3<f32>(f32(seed_pixel[0]),f32(seed_pixel[1]),f32(seed_pixel[2]));
 }
 
-fn is_out_of_bounds(coord: vec3<i32>) -> bool {
-  let tex_dim: vec3<i32> = textureDimensions(init_seeds);
-  return (
-       coord[0] < 0
-    || coord[1] < 0
-    || coord[2] < 0
-    || coord[0] >= tex_dim[0]
-    || coord[1] >= tex_dim[1]
-    || coord[2] >= tex_dim[2]
-  );
-}
+fn approximate_root(seed_pixel_a: vec3<i32>, delta: vec3<i32>, current_best: ptr<function,f32>) {
+  let seed_pixel_b: vec3<i32> = seed_pixel_a + delta;
+  let seed_pos_a: vec3<f32> = seed_coord(seed_pixel_a);
+  let seed_pos_b: vec3<f32> = seed_coord(seed_pixel_b);
+  let voxel_value_a = voxel_value(seed_pos_a);
+  let voxel_value_b = voxel_value(seed_pos_b);
+  let weight: f32 = voxel_value_a/(voxel_value_a-voxel_value_b);
 
-// For a given voxel get its gradient in world space
-fn gradient(coord: vec3<i32>) -> vec3<f32> {
-  let x0: vec3<i32> = vec3<i32>(
-    coord[0] + 1,
-    coord[1],
-    coord[2]
-  );
-  let x_plus: vec3<i32> = select(x0, coord, is_out_of_bounds(x0));
-
-  let x1: vec3<i32> = vec3<i32>(
-    coord[0] - 1,
-    coord[1],
-    coord[2]
-  );
-  let x_minus: vec3<i32> = select(x1, coord, is_out_of_bounds(x1));
-
-  let y0: vec3<i32> = vec3<i32>(
-    coord[0],
-    coord[1] + 1,
-    coord[2]
-  );
-  let y_plus: vec3<i32> = select(y0, coord, is_out_of_bounds(y0));
-
-  let y1: vec3<i32> = vec3<i32>(
-    coord[0],
-    coord[1] - 1,
-    coord[2]
-  );
-  let y_minus: vec3<i32> = select(y1, coord, is_out_of_bounds(y1));
-
-  let z0: vec3<i32> = vec3<i32>(
-    coord[0],
-    coord[1],
-    coord[2] + 1
-  );
-  let z_plus: vec3<i32> = select(z0, coord, is_out_of_bounds(z0));
-
-  let z1: vec3<i32> = vec3<i32>(
-    coord[0],
-    coord[1],
-    coord[2] - 1
-  );
-  let z_minus: vec3<i32> = select(z1, coord, is_out_of_bounds(z1));
-
-
-  return vec3<f32>(
-    (voxel_value_at(x_plus) - voxel_value_at(x_minus))/(origin(x_plus)[0] - origin(x_minus)[0]),
-    (voxel_value_at(y_plus) - voxel_value_at(y_minus))/(origin(y_plus)[1] - origin(y_minus)[1]),
-    (voxel_value_at(z_plus) - voxel_value_at(z_minus))/(origin(z_plus)[2] - origin(z_minus)[2]),
-  );
-}
-
-fn is_outside(coord: vec3<i32>) -> bool {
-  return voxel_value_at(coord) >= 0.;
-}
-
-fn is_sameside(reference: bool, coord: vec3<i32>) -> bool {
-  if (is_out_of_bounds(coord)) {
-    return true;
+  if (weight<0. || weight > 1.) {
+    return;
   }
-  return (is_outside(coord) == reference);
+
+  let root_pos: vec3<f32> = mix(seed_pos_a, seed_pos_b, weight);
+  let dist: f32 = distance(seed_pos_a, root_pos);
+  if (dist < *current_best) {
+    set_seed_at(root_pos, seed_pixel_a);
+    *current_best = dist;
+  }
+  return;
 }
 
 [[stage(compute), workgroup_size(8,8,4)]]
 fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
-    // We calculate the distance from o
-    // to the isosurface as represented
-    // by the densities on x
-    //  ---x---
-    // |   |   |
-    // x---o---x
-    // |   |   |
-    //  ---x---
-    //
-
-    let voxel_loc: vec3<i32> = vec3<i32>(
+    let seed_pixel: vec3<i32> = vec3<i32>(
       i32(global_invocation_id[0]),
       i32(global_invocation_id[1]),
       i32(global_invocation_id[2]),
     );
 
-    // If the density of origin±1 crosses the root
-    // then the isosurface is close by
-    //
-    let center_side: bool = is_outside(voxel_loc);
-    var is_seed: bool = (
-         !is_sameside(center_side, vec3<i32>(voxel_loc[0] + 1, voxel_loc[1], voxel_loc[2]))
-      || !is_sameside(center_side, vec3<i32>(voxel_loc[0] - 1, voxel_loc[1], voxel_loc[2]))
-      || !is_sameside(center_side, vec3<i32>(voxel_loc[0], voxel_loc[1] + 1, voxel_loc[2]))
-      || !is_sameside(center_side, vec3<i32>(voxel_loc[0], voxel_loc[1] - 1, voxel_loc[2]))
-      || !is_sameside(center_side, vec3<i32>(voxel_loc[0], voxel_loc[1], voxel_loc[2] + 1))
-      || !is_sameside(center_side, vec3<i32>(voxel_loc[0], voxel_loc[1], voxel_loc[2] - 1))
-    );
+    var best_value: f32 = 4000.;
+    set_seed_invalid_at(seed_pixel);
+    approximate_root(seed_pixel, vec3<i32>(-1,-1,-1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 0,-1,-1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 1,-1,-1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>(-1, 0,-1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 0, 0,-1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 1, 0,-1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>(-1, 1,-1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 0, 1,-1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 1, 1,-1), &best_value);
 
-    is_seed = true;
+    approximate_root(seed_pixel, vec3<i32>(-1,-1, 0), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 0,-1, 0), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 1,-1, 0), &best_value);
+    approximate_root(seed_pixel, vec3<i32>(-1, 0, 0), &best_value);
+    // approximate_root(seed_pixel, vec3<i32>( 0, 0, 0), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 1, 0, 0), &best_value);
+    approximate_root(seed_pixel, vec3<i32>(-1, 1, 0), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 0, 1, 0), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 1, 1, 0), &best_value);
 
-    let pixel_origin: vec3<f32> = origin(voxel_loc);
-
-    if (is_seed) {
-      // We use the numerical gradient to approximate
-      // it's distance to the isosurface
-      //
-      // This uses linear approximation
-      // TODO: Test quadratic approximation
-
-      // Gradient is the rate of change and the direction towards nearest isosurface
-      let m: vec3<f32> = gradient(voxel_loc);
-      let direction: vec3<f32> = normalize(m);
-
-      // Just need to know how far to go in that direction
-      // We assume linear where travelling one unit length of the gradient's direction
-      // will reduce the value of the isosurface by m
-      // How many m's doing we need?
-      let v0: f32 = voxel_value_at(voxel_loc);
-      let V0: vec3<f32> = vec3<f32>(v0);
-      let approximate_distance: vec3<f32> = V0 / m;
-
-      // Approximate location of nearest isosurface is as follows
-      let approximate_location: vec3<f32> = pixel_origin + direction * approximate_distance;
-
-      // Write the location of the closest seed into the pixel
-      //set_seed_at(approximate_location, voxel_loc);
-      set_seed_at(m, voxel_loc);
-    } else {
-      set_seed_invalid_at(voxel_loc);
-    }
+    approximate_root(seed_pixel, vec3<i32>(-1,-1, 1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 0,-1, 1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 1,-1, 1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>(-1, 0, 1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 0, 0, 1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 1, 0, 1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>(-1, 1, 1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 0, 1, 1), &best_value);
+    approximate_root(seed_pixel, vec3<i32>( 1, 1, 1), &best_value);
 }

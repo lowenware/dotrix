@@ -240,4 +240,9 @@ impl Texture {
     pub fn is_filterable(&self) -> bool {
         self.format.describe().guaranteed_format_features.filterable
     }
+
+    /// Get the texture sample type (float/uint etc)
+    pub fn sample_type(&self) -> wgpu::TextureSampleType {
+        self.format.describe().sample_type
+    }
 }

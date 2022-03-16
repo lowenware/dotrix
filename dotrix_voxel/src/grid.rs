@@ -4,6 +4,8 @@ use dotrix_core::{
     Assets, Renderer,
 };
 
+const DEFAULT_DIM: usize = 3;
+
 /// A grid of voxels
 pub struct Grid {
     /// The number of voxels per dimension
@@ -23,13 +25,13 @@ pub struct Grid {
 impl Default for Grid {
     fn default() -> Self {
         Grid {
-            dimensions: [16, 16, 16],
-            voxel_dimensions: [0.1, 0.1, 0.1],
+            dimensions: [DEFAULT_DIM as u32, DEFAULT_DIM as u32, DEFAULT_DIM as u32],
+            voxel_dimensions: [1.0, 1.0, 1.0],
             position: [0., 0., 0.],
-            voxels: vec![Default::default(); 16 * 16 * 16],
+            voxels: vec![Default::default(); DEFAULT_DIM * DEFAULT_DIM * DEFAULT_DIM],
             buffer: {
                 let mut buffer = TextureBuffer::new_3d("VoxelGrid");
-                buffer.format = wgpu::TextureFormat::Rg8Unorm;
+                buffer.format = wgpu::TextureFormat::Rg8Uint;
                 buffer
             },
             changed: false,

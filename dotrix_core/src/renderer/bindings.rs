@@ -80,9 +80,7 @@ impl<'a> BindGroup<'a> {
                     visibility: stage.into(),
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
-                        sample_type: wgpu::TextureSampleType::Float {
-                            filterable: texture.is_filterable(),
-                        },
+                        sample_type: texture.sample_type(),
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -92,9 +90,7 @@ impl<'a> BindGroup<'a> {
                     visibility: stage.into(),
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
-                        sample_type: wgpu::TextureSampleType::Float {
-                            filterable: texture.is_filterable(),
-                        },
+                        sample_type: texture.sample_type(),
                         view_dimension: wgpu::TextureViewDimension::Cube,
                     },
                     count: None,
@@ -104,9 +100,7 @@ impl<'a> BindGroup<'a> {
                     visibility: stage.into(),
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
-                        sample_type: wgpu::TextureSampleType::Float {
-                            filterable: texture.is_filterable(),
-                        },
+                        sample_type: texture.sample_type(),
                         view_dimension: wgpu::TextureViewDimension::D3,
                     },
                     count: None,

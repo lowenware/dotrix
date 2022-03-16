@@ -12,8 +12,9 @@ use std::convert::TryInto;
 
 const VOXEL_TO_JUMP_FLOOD_PIPELINE: &str = "dotrix_voxel::sdf::jump_flood_voxel_seed";
 const JUMP_FLOOD_PIPELINE: &str = "dotrix_voxel::sdf::jump_flood";
-const JUMP_FLOOD_TO_DF_PIPELINE: &str = "dotrix_voxel::sdf::jump_flood_df";
+const JUMP_FLOOD_TO_DF_PIPELINE: &str = "dotrix_voxel::sdf::jump_flood_sdf";
 const VOXELS_PER_WORKGROUP: [usize; 3] = [8, 8, 4];
+const SCALE_FACTOR: u32 = 2;
 
 /// Component for generating a SDF
 /// which tells the renderer how far
@@ -60,32 +61,22 @@ impl Default for VoxelJumpFlood {
 impl VoxelJumpFlood {
     pub fn load(&mut self, renderer: &Renderer, grid: &Grid) {
         let pixel_size = 4 * 4;
-        let data: Vec<Vec<u8>> = vec![
-            0u8;
-            pixel_size
-                * grid.dimensions[0] as usize
-                * grid.dimensions[1] as usize
-                * grid.dimensions[2] as usize
-        ]
-        .chunks(grid.dimensions[0] as usize * grid.dimensions[1] as usize * pixel_size)
-        .map(|chunk| chunk.to_vec())
-        .collect();
+        let dim: [u32; 3] = [
+            grid.dimensions[0] * SCALE_FACTOR,
+            grid.dimensions[1] * SCALE_FACTOR,
+            grid.dimensions[2] * SCALE_FACTOR,
+        ];
+        let data: Vec<Vec<u8>> =
+            vec![0u8; pixel_size * dim[0] as usize * dim[1] as usize * dim[2] as usize]
+                .chunks(dim[0] as usize * dim[1] as usize * pixel_size)
+                .map(|chunk| chunk.to_vec())
+                .collect();
 
         let slices: Vec<&[u8]> = data.iter().map(|chunk| chunk.as_slice()).collect();
 
-        renderer.load_texture(
-            &mut self.ping_buffer,
-            grid.dimensions[0],
-            grid.dimensions[1],
-            slices.as_slice(),
-        );
+        renderer.load_texture(&mut self.ping_buffer, dim[0], dim[1], slices.as_slice());
 
-        renderer.load_texture(
-            &mut self.pong_buffer,
-            grid.dimensions[0],
-            grid.dimensions[1],
-            slices.as_slice(),
-        );
+        renderer.load_texture(&mut self.pong_buffer, dim[0], dim[1], slices.as_slice());
     }
 }
 
@@ -120,7 +111,7 @@ pub(super) fn startup(renderer: Const<Renderer>, mut assets: Mut<Assets>) {
 
     let mut shader = Shader {
         name: String::from(JUMP_FLOOD_TO_DF_PIPELINE),
-        code: String::from(include_str!("./jump_flood/jump_flood_df.wgsl")),
+        code: String::from(include_str!("./jump_flood/jump_flood_sdf.wgsl")),
         ..Default::default()
     };
     shader.load(&renderer);
@@ -180,21 +171,35 @@ async fn print_debug_buffer(buffer: Buffer, dimensions: [u32; 3], channels: u32)
         for (idx, img) in result.iter().enumerate() {
             println!("Z={}", idx);
             for row in img.iter() {
-                println!("{:?}", row);
+                println!("{:.2?}", row);
             }
         }
     }
 }
 
+#[allow(dead_code)]
+enum DebugThing {
+    None,
+    Init,
+    Jfa,
+    Sdf,
+}
+
 // Compute the SDF from the grid
 pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: Mut<Renderer>) {
+    let debug_thing: DebugThing = DebugThing::None;
     for (grid, jump_flood, sdf) in world.query::<(&mut Grid, &mut VoxelJumpFlood, &mut TexSdf)>() {
+        let dimensions: [u32; 3] = [
+            grid.dimensions[0] * SCALE_FACTOR,
+            grid.dimensions[1] * SCALE_FACTOR,
+            grid.dimensions[2] * SCALE_FACTOR,
+        ];
         let workgroup_size_x =
-            (grid.dimensions[0] as f32 / VOXELS_PER_WORKGROUP[0] as f32).ceil() as u32;
+            (dimensions[0] as f32 / VOXELS_PER_WORKGROUP[0] as f32).ceil() as u32;
         let workgroup_size_y =
-            (grid.dimensions[1] as f32 / VOXELS_PER_WORKGROUP[1] as f32).ceil() as u32;
+            (dimensions[1] as f32 / VOXELS_PER_WORKGROUP[1] as f32).ceil() as u32;
         let workgroup_size_z =
-            (grid.dimensions[2] as f32 / VOXELS_PER_WORKGROUP[2] as f32).ceil() as u32;
+            (dimensions[2] as f32 / VOXELS_PER_WORKGROUP[2] as f32).ceil() as u32;
 
         if jump_flood.init_pipeline.is_none() {
             grid.load(&renderer, &assets);
@@ -247,11 +252,43 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                 );
 
                 jump_flood.init_pipeline = Some(voxel_to_jump_flood);
+
+                if let DebugThing::Init = debug_thing {
+                    let bytes_per_pixel = 4 * 4;
+                    jump_flood.debug_buffer = Some(Buffer::map_read("Debug buffer"));
+                    let unpadded_bytes_per_row: u32 =
+                        std::num::NonZeroU32::new(bytes_per_pixel as u32 * dimensions[0])
+                            .unwrap()
+                            .into();
+                    let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as u32;
+                    let padded_bytes_per_row_padding =
+                        (align - unpadded_bytes_per_row % align) % align;
+                    let padded_bytes_per_row =
+                        unpadded_bytes_per_row + padded_bytes_per_row_padding;
+
+                    renderer.create_buffer(
+                        jump_flood.debug_buffer.as_mut().unwrap(),
+                        padded_bytes_per_row * dimensions[1] * dimensions[2],
+                    );
+                    renderer.copy_texture_to_buffer(
+                        &jump_flood.ping_buffer,
+                        jump_flood.debug_buffer.as_ref().unwrap(),
+                        dimensions,
+                        bytes_per_pixel,
+                    );
+                }
+            }
+        } else if let DebugThing::Init = debug_thing {
+            if let Some(debug_buffer) = jump_flood.debug_buffer.take() {
+                let dim: [u32; 3] = dimensions;
+                std::thread::spawn(move || {
+                    futures::executor::block_on(print_debug_buffer(debug_buffer, dim, 4))
+                });
             }
         }
 
         if jump_flood.init_pipeline.is_some() && jump_flood.jumpflood_pipelines.is_empty() {
-            let n = *grid.dimensions.iter().max().unwrap();
+            let n = *dimensions.iter().max().unwrap();
 
             let mut ping_buffer = &jump_flood.ping_buffer;
             let mut pong_buffer = &jump_flood.pong_buffer;
@@ -321,23 +358,23 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
 
             // SDF conversion
             if jump_flood.sdf_pipeline.is_none() {
-                sdf.load(&renderer, grid);
+                sdf.load(&renderer, &dimensions);
 
-                let mut jump_flood_df: Compute = Default::default();
+                let mut jump_flood_sdf: Compute = Default::default();
 
-                if jump_flood_df.pipeline.shader.is_null() {
-                    jump_flood_df.pipeline.shader = assets
+                if jump_flood_sdf.pipeline.shader.is_null() {
+                    jump_flood_sdf.pipeline.shader = assets
                         .find::<Shader>(JUMP_FLOOD_TO_DF_PIPELINE)
                         .unwrap_or_default();
                 }
 
-                if let Some(shader) = assets.get(jump_flood_df.pipeline.shader) {
+                if let Some(shader) = assets.get(jump_flood_sdf.pipeline.shader) {
                     if !shader.loaded() {
                         continue;
                     }
 
                     renderer.bind(
-                        &mut jump_flood_df.pipeline,
+                        &mut jump_flood_sdf.pipeline,
                         PipelineLayout::Compute {
                             label: "JumpFlood_2_SDF".into(),
                             shader,
@@ -360,7 +397,7 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
 
                     println!("Compute DF");
                     renderer.compute(
-                        &mut jump_flood_df.pipeline,
+                        &mut jump_flood_sdf.pipeline,
                         &ComputeArgs {
                             work_groups: WorkGroups {
                                 x: workgroup_size_x,
@@ -370,38 +407,71 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                         },
                     );
 
-                    jump_flood.sdf_pipeline = Some(jump_flood_df);
+                    jump_flood.sdf_pipeline = Some(jump_flood_sdf);
 
-                    let bytes_per_pixel = 4 * 2;
+                    if let DebugThing::Jfa = debug_thing {
+                        let bytes_per_pixel = 4 * 4;
+                        jump_flood.debug_buffer = Some(Buffer::map_read("Debug buffer"));
+                        let unpadded_bytes_per_row: u32 =
+                            std::num::NonZeroU32::new(bytes_per_pixel as u32 * dimensions[0])
+                                .unwrap()
+                                .into();
+                        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as u32;
+                        let padded_bytes_per_row_padding =
+                            (align - unpadded_bytes_per_row % align) % align;
+                        let padded_bytes_per_row =
+                            unpadded_bytes_per_row + padded_bytes_per_row_padding;
 
-                    jump_flood.debug_buffer = Some(Buffer::map_read("Debug buffer"));
-                    let unpadded_bytes_per_row: u32 =
-                        std::num::NonZeroU32::new(bytes_per_pixel as u32 * grid.dimensions[0])
-                            .unwrap()
-                            .into();
-                    let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as u32;
-                    let padded_bytes_per_row_padding =
-                        (align - unpadded_bytes_per_row % align) % align;
-                    let padded_bytes_per_row =
-                        unpadded_bytes_per_row + padded_bytes_per_row_padding;
+                        renderer.create_buffer(
+                            jump_flood.debug_buffer.as_mut().unwrap(),
+                            padded_bytes_per_row * dimensions[1] * dimensions[2],
+                        );
+                        renderer.copy_texture_to_buffer(
+                            pong_buffer,
+                            jump_flood.debug_buffer.as_ref().unwrap(),
+                            dimensions,
+                            bytes_per_pixel,
+                        );
+                    } else if let DebugThing::Sdf = debug_thing {
+                        let bytes_per_pixel = 4 * 2;
+                        jump_flood.debug_buffer = Some(Buffer::map_read("Debug buffer"));
+                        let unpadded_bytes_per_row: u32 =
+                            std::num::NonZeroU32::new(bytes_per_pixel as u32 * dimensions[0])
+                                .unwrap()
+                                .into();
+                        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as u32;
+                        let padded_bytes_per_row_padding =
+                            (align - unpadded_bytes_per_row % align) % align;
+                        let padded_bytes_per_row =
+                            unpadded_bytes_per_row + padded_bytes_per_row_padding;
 
-                    renderer.create_buffer(
-                        jump_flood.debug_buffer.as_mut().unwrap(),
-                        padded_bytes_per_row * grid.dimensions[1] * grid.dimensions[2],
-                    );
-                    renderer.copy_texture_to_buffer(
-                        &sdf.buffer,
-                        jump_flood.debug_buffer.as_ref().unwrap(),
-                        grid.dimensions,
-                        bytes_per_pixel,
-                    );
+                        renderer.create_buffer(
+                            jump_flood.debug_buffer.as_mut().unwrap(),
+                            padded_bytes_per_row * dimensions[1] * dimensions[2],
+                        );
+                        renderer.copy_texture_to_buffer(
+                            &sdf.buffer,
+                            jump_flood.debug_buffer.as_ref().unwrap(),
+                            dimensions,
+                            bytes_per_pixel,
+                        );
+                    }
                 }
             }
-        } else if let Some(debug_buffer) = jump_flood.debug_buffer.take() {
-            let dim: [u32; 3] = grid.dimensions;
-            std::thread::spawn(move || {
-                futures::executor::block_on(print_debug_buffer(debug_buffer, dim, 2))
-            });
+        } else if let DebugThing::Jfa = debug_thing {
+            if let Some(debug_buffer) = jump_flood.debug_buffer.take() {
+                let dim: [u32; 3] = dimensions;
+                std::thread::spawn(move || {
+                    futures::executor::block_on(print_debug_buffer(debug_buffer, dim, 4))
+                });
+            }
+        } else if let DebugThing::Sdf = debug_thing {
+            if let Some(debug_buffer) = jump_flood.debug_buffer.take() {
+                let dim: [u32; 3] = dimensions;
+                std::thread::spawn(move || {
+                    futures::executor::block_on(print_debug_buffer(debug_buffer, dim, 2))
+                });
+            }
         }
     }
 }

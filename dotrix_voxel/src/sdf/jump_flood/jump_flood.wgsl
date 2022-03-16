@@ -56,11 +56,9 @@ fn is_out_of_bounds(coord: vec3<i32>) -> bool {
   );
 }
 
-// For a given voxel get its origin in local space
-//
-// TODO: Simplify this once it works
+// For a given voxel get its origin in local seed space
 fn origin(coord: vec3<i32>) -> vec3<f32> {
-  return vec3<f32>(0.,0.,0.) + vec3<f32>(f32(coord[0]),f32(coord[1]),f32(coord[2])) * vec3<f32>(1.,1.,1.);
+  return vec3<f32>(f32(coord[0]),f32(coord[1]),f32(coord[2]));
 }
 
 // For a given pixel tries to read the seed value,

@@ -22,7 +22,9 @@ struct SdfData {
   // Inverse World transform of the voxel grid
   inv_world_transform: mat4x4<f32>;
   // Dimensions of the voxel
-  grid_dimensions: vec3<f32>;
+  voxel_dimensions: vec4<f32>;
+  // Dimensions of the voxel
+  grid_dimensions: vec4<f32>;
 };
 [[group(1), binding(0)]]
 var<uniform> u_sdf: SdfData;
@@ -42,7 +44,7 @@ fn vs_main(
     [[location(0)]] position: vec3<f32>,
 ) -> VertexOutput {
     let pos_4: vec4<f32> = vec4<f32>(position, 1.);
-    let local_coords: vec4<f32> = u_sdf.cube_transform * pos_4;
+    let local_coords: vec4<f32> = u_sdf.cube_transform * (pos_4 * 0.99); // Made 1% smaller to avoid errors at surface interface
     let world_coords: vec4<f32> = u_sdf.world_transform * local_coords;
     let clip_coords: vec4<f32> =  u_camera.proj_view * world_coords;
 
@@ -70,98 +72,134 @@ fn get_ray_direction(pixel: vec2<u32>, resolution: vec2<f32>) -> vec3<f32> {
   return normalize(world_coordinate.xyz);
 }
 
+// Nearest point on a box, b is half box size
+fn nearestPointBox(p: vec3<f32>,b: vec3<f32>) -> vec3<f32> {
+  return clamp(p, -b, b);
+}
+// SDF for a box, b is half box size
+fn sdBox(p: vec3<f32>,b: vec3<f32>) -> f32
+{
+  let q: vec3<f32> = abs(p) - b;
+  return length(max(q,vec3<f32>(0.0))) + min(max(q.x,max(q.y,q.z)),0.0);
+}
+
 // Get distance to surface from a point
 fn map(p: vec3<f32>) -> f32
 {
-    let debug: bool = true;
+    let debug: bool = false;
     let local_p: vec4<f32> = (u_sdf.inv_world_transform * vec4<f32>(p, 1.));
-    let cube_p: vec4<f32> = u_sdf.inv_cube_transform * local_p;
+    let cube_p: vec4<f32> = (u_sdf.inv_cube_transform * local_p);
 
     if (debug) {
-       return distance(p.xyz, vec3<f32>(0.)) - 0.5;
+      var dist: f32 = distance(local_p.xyz - vec3<f32>(8.,8.,8.), vec3<f32>(0.0)) - 0.5;
+      dist = min(dist,
+        distance(local_p.xyz - vec3<f32>(1.,8.,1.), vec3<f32>(0.0)) - 0.5
+      );
+      dist = min(dist,
+        distance(local_p.xyz - vec3<f32>(8.,8.,1.), vec3<f32>(0.0)) - 0.5
+      );
+      dist = min(dist,
+        distance(local_p.xyz - vec3<f32>(1.,8.,8.), vec3<f32>(0.0)) - 0.5
+      );
+      dist = min(dist,
+        distance(local_p.xyz - vec3<f32>(8.,1.,8.), vec3<f32>(0.0)) - 0.5
+      );
+      return dist;
     } else {
+      // SDF Data is built on the assumption that each voxel is of size 1x1x1
+      // This is not always the case, so we apply a transform here
 
-      if (cube_p.x > 0.5 || cube_p.x < -0.5 || cube_p.y > 0.5 || cube_p.y < -0.5  || cube_p.z > 0.5 || cube_p.z < -0.5 ) {
-        return 4000.; // Infinity so that it gets stoped by the raymarch max distance
-      } else  {
-        let tex_dim: vec3<i32> = textureDimensions(sdf_texture);
-        let i = i32(local_p.x);
-        let j = i32(local_p.y);
-        let k = i32(local_p.z);
+      let seed_dim: vec3<i32> = textureDimensions(sdf_texture) - vec3<i32>(1);
+      let seed_dim_f32: vec3<f32> = vec3<f32>(f32(seed_dim.x), f32(seed_dim.y), f32(seed_dim.z));
+      let pixel_coords: vec3<f32> = ((cube_p.xyz + vec3<f32>(0.5)) /2.) * seed_dim_f32 * 2.;
 
-        if (i < 0 || i >= tex_dim[0] || j < 0 || j >= tex_dim[1] || k < 0 || k >= tex_dim[2]) {
-          return 4000.; // Infinity so that it gets stoped by the raymarch max distance
-        }
+      var i: i32 = i32(pixel_coords.x);
+      var j: i32 = i32(pixel_coords.y);
+      var k: i32 = i32(pixel_coords.z);
 
-        let f000: f32 = textureLoad(sdf_texture,
-          vec3<i32>(
-              i,
-              j,
-              k,
-          )
-        ,0).r;
-        let f001: f32 = textureLoad(sdf_texture,
-          vec3<i32>(
-              i,
-              j,
-              k + 1,
-          )
-        ,0).r;
-        let f010: f32 = textureLoad(sdf_texture,
-          vec3<i32>(
-              i,
-              j + 1,
-              k,
-          )
-        ,0).r;
-        let f011: f32 = textureLoad(sdf_texture,
-          vec3<i32>(
-              i,
-              j + 1,
-              k + 1,
-          )
-        ,0).r;
-        let f100: f32 = textureLoad(sdf_texture,
-          vec3<i32>(
-              i + 1,
-              j,
-              k,
-          )
-        ,0).r;
-        let f101: f32 = textureLoad(sdf_texture,
-          vec3<i32>(
-              i + 1,
-              j,
-              k + 1,
-          )
-        ,0).r;
-        let f110: f32 = textureLoad(sdf_texture,
-          vec3<i32>(
-              i + 1,
-              j + 1,
-              k,
-          )
-        ,0).r;
-        let f111: f32 = textureLoad(sdf_texture,
-          vec3<i32>(
-              i + 1,
-              j + 1,
-              k + 1,
-          )
-        ,0).r;
 
-        let x = local_p.x - f32(i);
-        let y = local_p.y - f32(j);
-        let z = local_p.z - f32(k);
-        return f000*(1.-x)*(1.-y)*(1.-z)
+      i = clamp(i, 0, seed_dim.x - 1);
+      j = clamp(j, 0, seed_dim.y - 1);
+      k = clamp(k, 0, seed_dim.z - 1);
+      let x: f32 = clamp(pixel_coords.x - f32(i), 0., 1.);
+      let y: f32 = clamp(pixel_coords.y - f32(j), 0., 1.);
+      let z: f32 = clamp(pixel_coords.z - f32(k), 0., 1.);
+
+      let f000: f32 = textureLoad(sdf_texture,
+        vec3<i32>(
+            i,
+            j,
+            k,
+        )
+      ,0).r;
+      let f001: f32 = textureLoad(sdf_texture,
+        vec3<i32>(
+            i,
+            j,
+            k + 1,
+        )
+      ,0).r;
+      let f010: f32 = textureLoad(sdf_texture,
+        vec3<i32>(
+            i,
+            j + 1,
+            k,
+        )
+      ,0).r;
+      let f011: f32 = textureLoad(sdf_texture,
+        vec3<i32>(
+            i,
+            j + 1,
+            k + 1,
+        )
+      ,0).r;
+      let f100: f32 = textureLoad(sdf_texture,
+        vec3<i32>(
+            i + 1,
+            j,
+            k,
+        )
+      ,0).r;
+      let f101: f32 = textureLoad(sdf_texture,
+        vec3<i32>(
+            i + 1,
+            j,
+            k + 1,
+        )
+      ,0).r;
+      let f110: f32 = textureLoad(sdf_texture,
+        vec3<i32>(
+            i + 1,
+            j + 1,
+            k,
+        )
+      ,0).r;
+      let f111: f32 = textureLoad(sdf_texture,
+        vec3<i32>(
+            i + 1,
+            j + 1,
+            k + 1,
+        )
+      ,0).r;
+
+      // Distance are built on the assumption that voxel size is one
+      // we must correct that
+      // If scale is non_uniform we can only provide a bound on the distance
+      //
+      let internal_dist: f32 =
+            (
+               f000*(1.-x)*(1.-y)*(1.-z)
               +f001*(1.-x)*(1.-y)*z
               +f010*(1.-x)*y     *(1.-z)
               +f011*(1.-x)*y     *z
               +f100*x     *(1.-y)*(1.-z)
               +f101*x     *(1.-y)*z
               +f110*x     *y     *(1.-z)
-              +f111*x     *y     *z;
-      }
+              +f111*x     *y     *z
+            );
+        let enclosing_box: f32 = sdBox(local_p.xyz, u_sdf.grid_dimensions.xyz/vec3<f32>(2.));
+        return max(enclosing_box, internal_dist);
+        // return internal_dist;
     }
 }
 // Get the material id at a point
@@ -170,7 +208,7 @@ fn map_material(p: vec3<f32>) -> u32
   let local_p: vec4<f32> = u_sdf.inv_world_transform * vec4<f32>(p, 1.);
   let cube_p: vec4<f32> = u_sdf.inv_cube_transform * local_p;
   if (cube_p.x > 0.5 || cube_p.x < -0.5 || cube_p.y > 0.5 || cube_p.y < -0.5  || cube_p.z > 0.5 || cube_p.z < -0.5 ) {
-    return 0u; // Infinity so that it gets stoped by the raymarch max distance
+    return 0u;
   } else {
     let voxel_coords: vec3<i32> = vec3<i32>(i32(local_p.x),i32(local_p.y),i32(local_p.z));
     return u32(textureLoad(sdf_texture, voxel_coords, 0).g);
@@ -193,22 +231,25 @@ fn map_normal (p: vec3<f32>) -> vec3<f32>
 
 // Use pixel based cones to get the size of the pizel
 fn pixel_radius(t: f32, direction: vec3<f32>, direction_x: vec3<f32>, direction_y: vec3<f32>) -> f32 {
-  return 0.01;
-  // let dx: f32 = length(t*(direction_x-direction));
-  // let dy: f32 = length(t*(direction_y-direction));
-  // return length(vec2<f32>(dx, dy)) * 0.4;
+  let dx: f32 = length(t*(direction_x-direction));
+  let dy: f32 = length(t*(direction_y-direction));
+  return length(vec2<f32>(dx, dy)) * 0.1;
 }
 
+struct RaymarchOut {
+  t: f32;
+  success: bool;
+};
 // Accelerated raymarching
 // https://www.researchgate.net/publication/331547302_Accelerating_Sphere_Tracing
-fn raymarch(t_in: f32, ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f32>) -> f32 {
+fn raymarch(t_in: f32, ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f32>) -> RaymarchOut {
   let o: vec3<f32> = ro;
   let d: vec3<f32> = rd;
   let dx: vec3<f32> = rdx;
   let dy: vec3<f32> = rdy;
 
   let STEP_SIZE_REDUCTION: f32 = 0.95;
-  let MAX_DISTANCE: f32 = t_in + length(u_sdf.grid_dimensions);
+  let MAX_DISTANCE: f32 = t_in + length(u_sdf.grid_dimensions.xyz);
   let MAX_ITERATIONS: u32 = 235u;
 
   var t: f32 = t_in;
@@ -218,6 +259,9 @@ fn raymarch(t_in: f32, ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f
 
   var di: f32 = 0.;
 
+  var out: RaymarchOut;
+  out.success = false;
+
   for(var i: u32 = 0u; i < MAX_ITERATIONS && t < MAX_DISTANCE; i = i + 1u)
   {
     di = rc + STEP_SIZE_REDUCTION * rc * max( (di - rp + rc) / (di + rp - rc), 0.6);
@@ -226,15 +270,18 @@ fn raymarch(t_in: f32, ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f
       di = rc;
       rn = map(o + (t + di)*d);
     }
-    if(rn < pixel_radius(t + di, d, dx, dy)) {
-      return t + di;
-    }
     t = t + di;
+    out.t = t;
+    if(rn < pixel_radius(t, d, dx, dy)) {
+      out.success = true;
+      return out;
+    }
+
     rp = rc;
     rc = rn;
   }
   // return t;
-  discard;
+  return out;
 }
 
 // AO
@@ -581,7 +628,11 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
   let t: f32 = length(in.world_position - ro);
 
   // March that ray
-  let t_out: f32 = raymarch(t, ro, rd, rdx, rdy);
+  let r_out: RaymarchOut = raymarch(t, ro, rd, rdx, rdy);
+  let t_out: f32 = r_out.t;
+  // if (!r_out.success) {
+  //   discard;
+  // }
 
   // Final position of the ray
   let pos: vec3<f32> = ro + rd*t_out;
@@ -657,8 +708,13 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
   // } else {
   //   out.color = vec4<f32>(rd2, 1.);
   // }
-  out.color = vec4<f32>(total_radiance, 1.);
+  if (r_out.success)  {
+    out.color = vec4<f32>(total_radiance, 1.);
+  } else {
+    out.color = vec4<f32>(0.5,0.1,0.1,1.0);
+  }
   // let pos_clip: vec4<f32> = u_camera.proj_view * vec4<f32>(pos, 1.);
+  // out.color = vec4<f32>(t_out/10.);
   let pos_clip: vec4<f32> = u_camera.proj_view * vec4<f32>(in.world_position, 1.);
   out.depth = pos_clip.z / pos_clip.w;
   return out;

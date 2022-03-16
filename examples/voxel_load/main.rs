@@ -15,24 +15,59 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>) {
     camera.distance = 30.0;
     camera.tilt = 0.0;
 
-    // let values: Vec<u8> = vec![0u8; 16 * 16 * 16]
-    //     .iter()
-    //     .map(|&v| {
-    //         let chance: u8 = rand::thread_rng().gen();
-    //         if chance > 100 {
-    //             rand::thread_rng().gen()
-    //         } else {
-    //             v
-    //         }
-    //     })
-    //     .collect();
+    let mut grid = Grid::default();
 
-    let mut values: Vec<u8> = vec![0u8; 16 * 16 * 16];
-    values[16 * 16 * 16 / 2] = 1;
-    values[16 * 16 * 16 / 2 + 1] = 1;
-    values[16 * 16 * 16 / 2 + 2] = 1;
+    let dims = grid.dimensions;
+    let total_size: usize = dims.iter().fold(1usize, |acc, &item| acc * (item as usize));
+    let values: Vec<u8> = vec![0u8; total_size]
+        .iter()
+        .map(|_v| {
+            let chance: u8 = rand::thread_rng().gen();
+            if chance > 128 {
+                1
+            } else {
+                0
+            }
+        })
+        .collect();
+    //
+    // let mut values: Vec<u8> = vec![0u8; 3 * 3 * 3];
+    // values[13] = 3;
+    // values[1] = 1;
+    // values[2] = 1;
+    // values[16 * 16 * 16 / 2] = 1;
+    // values[16 * 16 * 16 / 2 + 1] = 1;
+    // values[16 * 16 * 16 / 2 + 2] = 1;
+    //
+    // let values: Vec<u8> = vec![1u8; 16 * 16 * 16];
 
-    let grid = Grid::default().with_values(values);
+    // let values: Vec<u8> = vec![
+    //     0, 0, 0, //
+    //     0, 0, 0, //
+    //     0, 0, 0, //
+    //     //
+    //     0, 0, 0, //
+    //     0, 1, 0, //
+    //     0, 0, 0, //
+    //     //
+    //     0, 0, 0, //
+    //     0, 0, 0, //
+    //     0, 0, 0, //
+    // ];
+
+    let formatted_values: Vec<Vec<Vec<u8>>> = values
+        .chunks((dims[0] * dims[1]) as usize)
+        .map(|img| {
+            let rows: Vec<Vec<u8>> = img
+                .chunks(dims[0] as usize)
+                .map(|rows| rows.to_vec())
+                .collect();
+            rows
+        })
+        .collect();
+    println!("Voxels: {:?}", formatted_values);
+
+    grid = grid.with_values(values);
     world.spawn(vec![(grid, VoxelJumpFlood::default(), TexSdf::default())]);
 
     world.spawn(Some((Light::Ambient {

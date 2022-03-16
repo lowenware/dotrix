@@ -31,8 +31,10 @@ struct SdfBufferData {
     // Inverse of world_transform
     pub inv_world_transform: [[f32; 4]; 4],
     // Dimensions of the voxel
-    pub grid_dimensions: [f32; 3],
-    pub padding: [f32; 1],
+    pub voxel_dimensions: [f32; 4],
+    // Dimensions of the voxel grid
+    pub grid_dimensions: [f32; 4],
+    // pub padding: [f32; 2],
 }
 
 unsafe impl bytemuck::Zeroable for SdfBufferData {}
@@ -79,15 +81,20 @@ pub fn render(
             .unwrap();
 
         let grid_size = grid.total_size();
+        let voxel_size = grid.voxel_dimensions;
         let scale = Mat4::from_nonuniform_scale(grid_size[0], grid_size[1], grid_size[2]);
         let uniform = SdfBufferData {
             cube_transform: scale.into(),
             inv_cube_transform: scale.invert().unwrap().into(),
             world_transform: Mat4::identity().into(),
             inv_world_transform: Mat4::identity().into(),
-            grid_dimensions: grid_size,
-            padding: Default::default(),
+            voxel_dimensions: [voxel_size[0], voxel_size[1], voxel_size[2], 1.],
+            grid_dimensions: [grid_size[0], grid_size[1], grid_size[2], 1.],
+            // padding: Default::default(),
         };
+        // println!("grid_dimensions: {:?}", uniform.grid_dimensions);
+        // println!("cube_transform: {:?}", uniform.cube_transform);
+        // println!("inv_cube_transform: {:?}", uniform.inv_cube_transform);
         renderer.load_buffer(&mut sdf.data, bytemuck::cast_slice(&[uniform]));
 
         if !sdf.pipeline.ready(&renderer) {
