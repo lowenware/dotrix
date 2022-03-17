@@ -19,8 +19,8 @@ var jump_flood: texture_3d<f32>;
 var sdf: texture_storage_3d<rg32float,write>;
 
 
-// For a given jump_flood coord get its origin in local voxel space
-fn origin(coord: vec3<i32>) -> vec3<f32> {
+// For a given jump_flood coord get its coord in local voxel space
+fn seed_coord_to_voxel_pos(coord: vec3<i32>) -> vec3<f32> {
   let seed_dim: vec3<i32> = textureDimensions(jump_flood) - vec3<i32>(1);
   let voxel_dim: vec3<i32> = textureDimensions(voxels) - vec3<i32>(1);
   let seed_dim_f32: vec3<f32> = vec3<f32>(f32(seed_dim.x), f32(seed_dim.y), f32(seed_dim.z));
@@ -38,6 +38,7 @@ fn seed_position(coord: vec3<i32>) -> vec3<f32> {
 }
 
 // Get density from voxel using voxel coord
+// - Used to work out if a point is inside or not
 fn voxel_value(coord: vec3<f32>) -> f32 {
   let voxel_dim: vec3<i32> = textureDimensions(voxels) - vec3<i32>(1);
   let i: i32 = clamp(i32(coord.x), 0, voxel_dim.x);
@@ -118,48 +119,36 @@ fn voxel_value(coord: vec3<f32>) -> f32 {
 }
 
 // Get the material from the voxel
-fn material(coord: vec3<i32>) -> u32 {
-  return textureLoad(voxels, coord, 0).g;
+// using nearest neighbour
+fn material(coord: vec3<f32>) -> u32 {
+  let nearest_pos: vec3<f32> = round(coord);
+  let nearest_coord: vec3<i32> = vec3<i32>(i32(nearest_pos.x), i32(nearest_pos.y), i32(nearest_pos.z));
+  return textureLoad(voxels, nearest_coord, 0).g;
 }
 
-// Get the seed position from the jump flood
+// Save the distance field value into the SDF texture
 fn save_sdf(coord: vec3<i32>, dist: f32, material_id: f32) {
   textureStore(sdf, coord, vec4<f32>(dist, material_id, 0., 0.));
 }
 
+// Check if a position in inside or outside the surface
 fn is_outside(pos_voxel: vec3<f32>) -> bool {
-  return voxel_value(pos_voxel) >= 0.;
+  // return true;
+  return voxel_value(pos_voxel) > 1e-4;
 }
 
 [[stage(compute), workgroup_size(8,8,4)]]
 fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
-  let debug: bool = false;
-  let origin_coord_seed: vec3<i32> = vec3<i32>(
+  let coord_seed: vec3<i32> = vec3<i32>(
     i32(global_invocation_id[0]),
     i32(global_invocation_id[1]),
     i32(global_invocation_id[2]),
   );
 
-  if (debug) {
-    let voxel_dim: vec3<i32> = textureDimensions(voxels) - vec3<i32>(1);
-    let voxel_dim_f32: vec3<f32> = vec3<f32>(f32(voxel_dim.x), f32(voxel_dim.y), f32(voxel_dim.z));
-    let origin_pos_seed: vec3<f32> = origin(origin_coord_seed);
-    let radius: f32 = 0.5;
-    let offset: vec3<f32> = vec3<f32>(0.);
+  let pos_voxel: vec3<f32> = seed_coord_to_voxel_pos(coord_seed);
+  let seed_pos_voxel: vec3<f32> = seed_position(coord_seed);
+  let dist: f32 = select(1.,-1., is_outside(pos_voxel)) * distance(pos_voxel, seed_pos_voxel);
+  let material_id: f32 = f32(material(pos_voxel));
 
-    var dist: f32 = distance(origin_pos_seed, offset) - radius;
-    dist = min(dist,
-      distance(origin_pos_seed, voxel_dim_f32 - offset) - radius
-    );
-    let material_id: f32 = 0.;
-    save_sdf(origin_coord_seed, dist, material_id);
-  } else {
-
-    let origin_pos_voxel: vec3<f32> = origin(origin_coord_seed);
-    let seed_pos_voxel: vec3<f32> = seed_position(origin_coord_seed);
-    let dist: f32 = select(1.,-1., is_outside(origin_pos_voxel)) * distance(origin_pos_voxel, seed_pos_voxel);
-    let material_id: f32 = f32(material(origin_coord_seed));
-
-    save_sdf(origin_coord_seed, dist, material_id);
-  }
+  save_sdf(coord_seed, dist, material_id);
 }

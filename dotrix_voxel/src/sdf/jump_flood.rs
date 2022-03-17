@@ -14,7 +14,7 @@ const VOXEL_TO_JUMP_FLOOD_PIPELINE: &str = "dotrix_voxel::sdf::jump_flood_voxel_
 const JUMP_FLOOD_PIPELINE: &str = "dotrix_voxel::sdf::jump_flood";
 const JUMP_FLOOD_TO_DF_PIPELINE: &str = "dotrix_voxel::sdf::jump_flood_sdf";
 const VOXELS_PER_WORKGROUP: [usize; 3] = [8, 8, 4];
-const SCALE_FACTOR: u32 = 2;
+const SCALE_FACTOR: u32 = 4;
 
 /// Component for generating a SDF
 /// which tells the renderer how far
@@ -137,7 +137,8 @@ async fn print_debug_buffer(buffer: Buffer, dimensions: [u32; 3], channels: u32)
     if let Ok(()) = buffer_future.await {
         // Gets contents of buffer
         let data = buffer_slice.get_mapped_range();
-        // Since contents are got in bytes, this converts these bytes back to f32
+        // Since contents are in bytes, this converts these bytes back to f32
+        // strips the padding and puts it into 3d format
         let result: Vec<Vec<Vec<Vec<f32>>>> = data
             .chunks_exact((padded_bytes_per_row * dimensions[1]) as usize)
             .map(|img| {
@@ -185,9 +186,18 @@ enum DebugThing {
     Sdf,
 }
 
+#[allow(dead_code)]
+enum JumpFlood {
+    Jfa,       // Standard (fastest, most errors)
+    Jfa1,      // 1 Additional round
+    Jfa2,      // 2 Additional rounds
+    JfaSquare, // log2(n) additional rounds (slowest, least errors)
+}
+
 // Compute the SDF from the grid
 pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: Mut<Renderer>) {
     let debug_thing: DebugThing = DebugThing::None;
+    let jump_flood_varient: JumpFlood = JumpFlood::JfaSquare;
     for (grid, jump_flood, sdf) in world.query::<(&mut Grid, &mut VoxelJumpFlood, &mut TexSdf)>() {
         let dimensions: [u32; 3] = [
             grid.dimensions[0] * SCALE_FACTOR,
@@ -293,8 +303,22 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
             let mut ping_buffer = &jump_flood.ping_buffer;
             let mut pong_buffer = &jump_flood.pong_buffer;
 
-            for i in 0..((n as f32).log2().ceil() as usize) {
-                let k = n / 2u32.pow(i as u32 + 1);
+            let n_log2 = (n as f32).log2().ceil() as u32;
+            let n_ceil = 2u32.pow(n_log2);
+
+            let limit = match jump_flood_varient {
+                JumpFlood::Jfa => n_log2 as usize,
+                JumpFlood::Jfa1 => n_log2 as usize + 1,
+                JumpFlood::Jfa2 => n_log2 as usize + 2,
+                JumpFlood::JfaSquare => n_log2 as usize * 2,
+            };
+
+            for i in 0..limit {
+                let k = if i < n_log2 as usize {
+                    n_ceil / 2u32.pow(i as u32 + 1)
+                } else {
+                    2u32.pow((i as u32) - n_log2)
+                };
 
                 let mut buffer = Buffer::uniform("Jump Flood Params");
                 let data = Data {
@@ -338,7 +362,7 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                         },
                     );
 
-                    println!("Compute JumpFlood:{}", k);
+                    println!("Compute JumpFlood: n={}, k={}", n, k);
                     renderer.compute(
                         &mut jump_flood_compute.pipeline,
                         &ComputeArgs {

@@ -138,6 +138,21 @@ fn approximate_root(seed_pixel_a: vec3<i32>, delta: vec3<i32>, current_best: ptr
 
 [[stage(compute), workgroup_size(8,8,4)]]
 fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
+    // Seeding the jump flood
+    // x---x---x
+    // | \ | / |
+    // x---o---x
+    // | / | \ |
+    // x---x---x
+    //
+    // - From o travel to x in all directions
+    // - If travelling from o-x crosses the ISO_SURFACE
+    //   then use linear interpolation to find the
+    //   ISO_SURFACE point
+    // - Calculate the distance o to the ISO_SURFACE
+    // - If distance is better then current_best distance
+    //   set the seed as ISO_SURFACE and update current_best
+    //   distance
     let seed_pixel: vec3<i32> = vec3<i32>(
       i32(global_invocation_id[0]),
       i32(global_invocation_id[1]),
@@ -175,4 +190,5 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
     approximate_root(seed_pixel, vec3<i32>(-1, 1, 1), &best_value);
     approximate_root(seed_pixel, vec3<i32>( 0, 1, 1), &best_value);
     approximate_root(seed_pixel, vec3<i32>( 1, 1, 1), &best_value);
+
 }

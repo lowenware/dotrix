@@ -64,21 +64,19 @@ fn origin(coord: vec3<i32>) -> vec3<f32> {
 // For a given pixel tries to read the seed value,
 // then compares to a reference seed distance
 // and identifies if it is a better seed distance
-fn is_seed_better(coord: vec3<i32>, origin_coord: vec3<i32>) -> bool {
+fn is_seed_better(origin_coord: vec3<i32>, delta: vec3<i32>, best_seed: ptr<function, vec3<f32>>) {
+  let coord: vec3<i32> = origin_coord + delta;
   if (is_out_of_bounds(coord)) {
-    return false;
+    return;
   }
   if (is_invalid_at(coord)) {
-    return false;
+    return;
   }
-  if (is_invalid_at(origin_coord)) {
-    return true;
-  }
-
   let new_seed: vec3<f32> = value_at(coord);
-  let reference_seed: vec3<f32> = value_at(origin_coord);
-  let origin_coord: vec3<f32> = origin(origin_coord);
-  return distance(new_seed, origin_coord) < distance(reference_seed, origin_coord);
+  let origin_pos: vec3<f32> = origin(origin_coord);
+  if (is_invalid_at(origin_coord) || distance(new_seed, origin_pos) < distance(*best_seed, origin_pos)) {
+    *best_seed = new_seed;
+  }
 }
 
 
@@ -94,10 +92,12 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
     //  k = n/(2^(i))
     //
     //  Look in all seeds at location of origin±k
-    //  If seed found in neighbouring cell is better than current use that one
+    //  If seed found in neighbouring cell is better than current
+    //  then use that one
     //
     //  This compute does only a single value of k
     //  it must be enqueued multiple times to complete the jump flood
+    //  with a ping pong style buffer
     //
     var k: i32 = data.k;
     if (k<1) {
@@ -112,23 +112,34 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
 
     var best_seed: vec3<f32> = value_at(origin_coord);
 
-    for (var dx: i32 = -1; dx<=1; dx = dx + 1) {
-      for (var dy: i32 = -1; dy<=1; dy = dy + 1) {
-        for (var dz: i32 = -1; dz<=1; dz = dz + 1) {
-          if (dx == 0 && dy == 0 && dz == 0) {
-            continue;
-          }
-          let check_coord: vec3<i32> = vec3<i32>(
-            origin_coord[0] - dx*k,
-            origin_coord[1] - dy*k,
-            origin_coord[2] - dz*k,
-          );
-          if (is_seed_better(check_coord, origin_coord)) {
-            best_seed = value_at(check_coord);
-          }
-        }
-      }
-    }
+    is_seed_better(origin_coord, vec3<i32>( 0,-k,-k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( k,-k,-k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>(-k, 0,-k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( 0, 0,-k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( k, 0,-k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>(-k, k,-k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( 0, k,-k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( k, k,-k), &best_seed);
+
+    is_seed_better(origin_coord, vec3<i32>(-k,-k, 0), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( 0,-k, 0), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( k,-k, 0), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>(-k, 0, 0), &best_seed);
+    // is_seed_better(origin_coord, vec3<i32>( 0, 0, 0), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( k, 0, 0), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>(-k, k, 0), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( 0, k, 0), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( k, k, 0), &best_seed);
+
+    is_seed_better(origin_coord, vec3<i32>(-k,-k, k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( 0,-k, k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( k,-k, k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>(-k, 0, k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( 0, 0, k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( k, 0, k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>(-k, k, k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( 0, k, k), &best_seed);
+    is_seed_better(origin_coord, vec3<i32>( k, k, k), &best_seed);
 
     set_value_at(origin_coord, best_seed);
 }
