@@ -65,6 +65,8 @@ pub enum RunLevel {
     Load,
     /// Execution on every frame to submit compute passes
     Compute,
+    /// Execution on every frame to pre-render to textures
+    PreRender,
     /// Execution on every frame to submit rendering passes
     Render,
     /// Execution everytime after a frame was rendered
@@ -83,6 +85,8 @@ impl From<&str> for RunLevel {
             RunLevel::Load
         } else if name.ends_with("::compute") {
             RunLevel::Compute
+        } else if name.ends_with("::prerender") {
+            RunLevel::PreRender
         } else if name.ends_with("::render") {
             RunLevel::Render
         } else if name.ends_with("::release") {
