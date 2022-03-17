@@ -143,12 +143,12 @@ impl Buffer {
     /// Create buffer of size without data
     ///
     /// Typically used for staging buffers
-    pub fn create(&mut self, ctx: &Context, size: u32) {
+    pub fn create(&mut self, ctx: &Context, size: u32, mapped: bool) {
         self.wgpu_buffer = Some(ctx.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some(self.label.as_str()),
             size: size as wgpu::BufferAddress,
             usage: self.usage,
-            mapped_at_creation: false,
+            mapped_at_creation: mapped,
         }));
     }
 

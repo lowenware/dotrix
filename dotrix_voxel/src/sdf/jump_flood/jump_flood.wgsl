@@ -3,7 +3,7 @@
 // The algorithm is a fast (approximate) method
 // for voronoi diagrams and distance transforms
 //
-// It is O(log(n))
+// It is O(log2(n))
 //
 // This algorihm should be called as a ping pong buffer
 // Each call should decrease k until k==1
@@ -112,6 +112,7 @@ fn main([[builtin(global_invocation_id)]] global_invocation_id: vec3<u32>) {
 
     var best_seed: vec3<f32> = value_at(origin_coord);
 
+    is_seed_better(origin_coord, vec3<i32>(-k,-k,-k), &best_seed);
     is_seed_better(origin_coord, vec3<i32>( 0,-k,-k), &best_seed);
     is_seed_better(origin_coord, vec3<i32>( k,-k,-k), &best_seed);
     is_seed_better(origin_coord, vec3<i32>(-k, 0,-k), &best_seed);

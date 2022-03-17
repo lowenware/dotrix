@@ -182,7 +182,7 @@ fn map(p: vec3<f32>) -> f32
             +f110*x     *y     *(1.-z)
             +f111*x     *y     *z
           );
-      let enclosing_box: f32 = sdBox(local_p.xyz, u_sdf.grid_dimensions.xyz/vec3<f32>(2.));
+      let enclosing_box: f32 = sdBox(local_p.xyz, (u_sdf.grid_dimensions.xyz * 1.001)/vec3<f32>(2.));
       return max(enclosing_box, internal_dist);
       // return internal_dist;
 }
@@ -207,7 +207,7 @@ fn map_material(p: vec3<f32>) -> u32
 // Surface gradient (is the normal)
 fn map_normal (p: vec3<f32>) -> vec3<f32>
 {
-	let eps: vec3<f32> = u_sdf.voxel_dimensions.xyz * 0.4;
+	let eps: vec3<f32> = u_sdf.voxel_dimensions.xyz * 0.05;
 
 	return normalize
 	(	vec3<f32>
@@ -409,11 +409,11 @@ fn softshadow (input: SoftShadowInput) -> SoftShadowResult
       di = rc;
       rn = map(o + (t + di)*d);
     }
-    if(rn < 0.001) {
-      var out: SoftShadowResult;
-      out.radiance = 0.;
-      return out;
-    }
+    // if(rn < 0.001) {
+    //   var out: SoftShadowResult;
+    //   out.radiance = 0.;
+    //   return out;
+    // }
     t = t + di;
 
     rp = rc;
@@ -646,7 +646,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // If perpendicular don't bother (numerically unstable)
     if (abs(intensity) > 0.1  ) {
       var ray_in: SoftShadowInput;
-      ray_in.origin = ro;
+      ray_in.origin = pos;
       ray_in.direction = light_out.light_direction;
       ray_in.max_iterations = 128u;
       ray_in.min_distance = 0.01;

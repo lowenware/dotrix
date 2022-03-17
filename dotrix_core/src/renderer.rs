@@ -101,8 +101,8 @@ impl Renderer {
     }
 
     /// Create a buffer on GPU without data
-    pub fn create_buffer(&self, buffer: &mut Buffer, size: u32) {
-        buffer.create(self.context(), size);
+    pub fn create_buffer(&self, buffer: &mut Buffer, size: u32, mapped: bool) {
+        buffer.create(self.context(), size, mapped);
     }
 
     /// Loads the sampler to GPU
@@ -179,6 +179,15 @@ impl Renderer {
     ) {
         self.context_mut()
             .run_copy_texture_to_buffer(texture, buffer, extent, bytes_per_pixel);
+    }
+
+    /// Fetch texture from GPU
+    pub fn fetch_texture(
+        &mut self,
+        texture: &Texture,
+        dimensions: [u32; 3],
+    ) -> impl std::future::Future<Output = Result<Vec<u8>, wgpu::BufferAsyncError>> {
+        texture.fetch_from_gpu(dimensions, self.context_mut())
     }
 }
 
