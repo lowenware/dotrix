@@ -3,7 +3,7 @@ use dotrix_voxel::{Grid, Light, TexSdf, VoxelJumpFlood};
 use rand::Rng;
 
 fn main() {
-    Dotrix::application("Dotrix: Voxel Load")
+    Dotrix::application("Dotrix: Voxel SDF")
         .with(System::from(startup))
         .with(System::from(camera::control))
         .with(dotrix_voxel::extension)
@@ -30,42 +30,6 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>) {
             }
         })
         .collect();
-    //
-    // let mut values: Vec<u8> = vec![0u8; 3 * 3 * 3];
-    // values[13] = 3;
-    // values[1] = 1;
-    // values[2] = 1;
-    // values[16 * 16 * 16 / 2] = 1;
-    // values[16 * 16 * 16 / 2 + 1] = 1;
-    // values[16 * 16 * 16 / 2 + 2] = 1;
-    //
-    // let values: Vec<u8> = vec![1u8; 16 * 16 * 16];
-
-    // let values: Vec<u8> = vec![
-    //     0, 0, 0, //
-    //     0, 0, 0, //
-    //     0, 0, 0, //
-    //     //
-    //     0, 0, 0, //
-    //     0, 1, 0, //
-    //     0, 0, 0, //
-    //     //
-    //     0, 0, 0, //
-    //     0, 0, 0, //
-    //     0, 0, 0, //
-    // ];
-
-    let formatted_values: Vec<Vec<Vec<u8>>> = values
-        .chunks((dims[0] * dims[1]) as usize)
-        .map(|img| {
-            let rows: Vec<Vec<u8>> = img
-                .chunks(dims[0] as usize)
-                .map(|rows| rows.to_vec())
-                .collect();
-            rows
-        })
-        .collect();
-    println!("Voxels: {:?}", formatted_values);
 
     grid = grid.with_values(values);
     world.spawn(vec![(grid, VoxelJumpFlood::default(), TexSdf::default())]);

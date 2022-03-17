@@ -134,6 +134,6 @@ name = "normal_map"
 path = "examples/normal_map/main.rs"
 
 [[example]]
-name = "voxel_load"
-path = "examples/voxel_load/main.rs"
+name = "voxel_sdf"
+path = "examples/voxel_sdf/main.rs"
 required-features = ["voxel"]

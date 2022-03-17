@@ -1,5 +1,9 @@
 // Takes a jump flood result and computes the SDF
 //
+// Jump flood has seeds in jump flood space
+// SDF should have distance in voxel space
+// Conversion is done where appropiate
+//
 
 let ISO_SURFACE: f32 = 0.5;
 

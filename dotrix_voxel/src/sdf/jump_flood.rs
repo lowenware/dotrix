@@ -1,3 +1,14 @@
+/// Use the jump flood algorithm to convert
+/// a voxel into a distance field
+///
+/// Paper:
+/// Jump Flooding in GPU with Applications to Voronoi Diagram and Distance Transform
+/// Guodong Rong et al.
+///
+/// In 2006 ACM Symposium on Interactive 3D
+/// Graphics and Games, 14-17 March, Redwood City,
+/// CA, USA, pp. 109-116, pp. 228.
+///
 use crate::{Grid, TexSdf};
 use dotrix_core::{
     assets::Shader,
@@ -8,7 +19,6 @@ use dotrix_core::{
     },
     Assets, Renderer, World,
 };
-use std::convert::TryInto;
 
 const VOXEL_TO_JUMP_FLOOD_PIPELINE: &str = "dotrix_voxel::sdf::jump_flood_voxel_seed";
 const JUMP_FLOOD_PIPELINE: &str = "dotrix_voxel::sdf::jump_flood";
@@ -16,13 +26,28 @@ const JUMP_FLOOD_TO_DF_PIPELINE: &str = "dotrix_voxel::sdf::jump_flood_sdf";
 const VOXELS_PER_WORKGROUP: [usize; 3] = [8, 8, 4];
 const SCALE_FACTOR: u32 = 4;
 
+/// Jump flood varients
+/// detailed in section 3.3.1 of the original paper
+pub enum JumpFlood {
+    /// Standard (fastest, most errors)
+    Jfa,
+    /// 1 Additional round
+    Jfa1,
+    /// 2 Additional rounds
+    Jfa2,
+    /// log2(n) additional rounds (slowest, least errors)
+    JfaSquare,
+}
+
 /// Component for generating a SDF
 /// which tells the renderer how far
 /// a point is from the surface.
 /// Computed with the jump flooding
 /// algorithm, which is an approximate
-/// algorithm with O(log2(n)) complexity
+/// algorithm with O
+/// (log2(n)) complexity
 pub struct VoxelJumpFlood {
+    pub jump_flood_varient: JumpFlood,
     pub ping_buffer: TextureBuffer,
     pub pong_buffer: TextureBuffer,
     pub init_pipeline: Option<Compute>,
@@ -34,6 +59,7 @@ pub struct VoxelJumpFlood {
 impl Default for VoxelJumpFlood {
     fn default() -> Self {
         Self {
+            jump_flood_varient: JumpFlood::JfaSquare,
             ping_buffer: {
                 let mut buffer = TextureBuffer::new_3d("PingBuffer")
                     .use_as_storage()
@@ -117,68 +143,8 @@ pub(super) fn startup(renderer: Const<Renderer>, mut assets: Mut<Assets>) {
     assets.store_as(shader, JUMP_FLOOD_TO_DF_PIPELINE);
 }
 
-fn print_texture(texture: &TextureBuffer, dimensions: [u32; 3], renderer: &mut Renderer) {
-    let future = renderer.fetch_texture(texture, dimensions);
-    let channels = texture.num_channels() as u32;
-    let bytes_per_pixel = texture.pixel_bytes() as u32;
-    std::thread::spawn(move || {
-        futures::executor::block_on(async {
-            if let Ok(data) = future.await {
-                // Since contents are in bytes, this converts these bytes back to f32
-                // strips the padding and puts it into 3d format
-                let bytes_per_row = dimensions[0] * bytes_per_pixel;
-                let result: Vec<Vec<Vec<Vec<f32>>>> = data
-                    .chunks_exact((bytes_per_row * dimensions[1]) as usize)
-                    .map(|img| {
-                        let rows: Vec<Vec<Vec<f32>>> = img
-                            .chunks_exact(bytes_per_row as usize)
-                            .map(|row| {
-                                let row_f32: Vec<f32> = row
-                                    .chunks_exact(4)
-                                    .map(|b| f32::from_ne_bytes(b.try_into().unwrap()))
-                                    .collect();
-                                let pixels: Vec<Vec<f32>> = row_f32
-                                    .chunks(channels as usize)
-                                    .map(|pixels| pixels.to_vec())
-                                    .collect();
-                                pixels[0..(dimensions[0] as usize)].to_vec()
-                            })
-                            .collect();
-                        rows
-                    })
-                    .collect();
-
-                for (idx, img) in result.iter().enumerate() {
-                    println!("Z={}", idx);
-                    for row in img.iter() {
-                        println!("{:.2?}", row);
-                    }
-                }
-            }
-        })
-    });
-}
-
-#[allow(dead_code)]
-enum DebugThing {
-    None,
-    Init,
-    Jfa,
-    Sdf,
-}
-
-#[allow(dead_code)]
-enum JumpFlood {
-    Jfa,       // Standard (fastest, most errors)
-    Jfa1,      // 1 Additional round
-    Jfa2,      // 2 Additional rounds
-    JfaSquare, // log2(n) additional rounds (slowest, least errors)
-}
-
 // Compute the SDF from the grid
 pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: Mut<Renderer>) {
-    let debug_thing: DebugThing = DebugThing::Init;
-    let jump_flood_varient: JumpFlood = JumpFlood::JfaSquare;
     for (grid, jump_flood, sdf) in world.query::<(&mut Grid, &mut VoxelJumpFlood, &mut TexSdf)>() {
         let dimensions: [u32; 3] = [
             grid.dimensions[0] * SCALE_FACTOR,
@@ -230,7 +196,6 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                     },
                 );
 
-                println!("Compute Seed");
                 renderer.compute(
                     &mut voxel_to_jump_flood.pipeline,
                     &ComputeArgs {
@@ -243,10 +208,6 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                 );
 
                 jump_flood.init_pipeline = Some(voxel_to_jump_flood);
-
-                if let DebugThing::Init = debug_thing {
-                    print_texture(&jump_flood.ping_buffer, dimensions, &mut renderer);
-                }
             }
         }
 
@@ -259,7 +220,7 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
             let n_log2 = (n as f32).log2().ceil() as u32;
             let n_ceil = 2u32.pow(n_log2);
 
-            let limit = match jump_flood_varient {
+            let limit = match jump_flood.jump_flood_varient {
                 JumpFlood::Jfa => n_log2 as usize,
                 JumpFlood::Jfa1 => n_log2 as usize + 1,
                 JumpFlood::Jfa2 => n_log2 as usize + 2,
@@ -315,7 +276,6 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                         },
                     );
 
-                    println!("Compute JumpFlood: n={}, k={}", n, k);
                     renderer.compute(
                         &mut jump_flood_compute.pipeline,
                         &ComputeArgs {
@@ -372,7 +332,6 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                         },
                     );
 
-                    println!("Compute SDF");
                     renderer.compute(
                         &mut jump_flood_sdf.pipeline,
                         &ComputeArgs {
@@ -385,12 +344,6 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                     );
 
                     jump_flood.sdf_pipeline = Some(jump_flood_sdf);
-
-                    if let DebugThing::Jfa = debug_thing {
-                        print_texture(pong_buffer, dimensions, &mut renderer);
-                    } else if let DebugThing::Sdf = debug_thing {
-                        print_texture(&sdf.buffer, dimensions, &mut renderer);
-                    }
                 }
             }
         }

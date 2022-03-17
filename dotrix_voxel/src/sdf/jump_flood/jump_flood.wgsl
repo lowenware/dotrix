@@ -12,6 +12,14 @@
 // Texture buffers are of kind:
 // r,g,b,a where r,g,b are the xyz values of the nearest seed
 // and a is used as a flag for invalid seed when a<0
+//
+// Paper:
+// Jump Flooding in GPU with Applications to Voronoi Diagram and Distance Transform
+// Guodong Rong et al.
+//
+// In 2006 ACM Symposium on Interactive 3D
+// Graphics and Games, 14-17 March, Redwood City,
+// CA, USA, pp. 109-116, pp. 228.
 
 struct Data {
   // The current iterations step size must be >=1
