@@ -333,7 +333,14 @@ fn ambient_occlusion(input: AoInput) -> AoResult
     } else {
       let c: f32 = dot(a, b);
       let sx: mat3x3<f32> = mat3x3<f32>(vec3<f32>(0.,v.z,-v.y), vec3<f32>(-v.z,0.,v.x), vec3<f32>(v.y,-v.x,0.));
-      R = I + sx + sx * sx * (1./(1. + c));
+
+      // R = I + sx + sx * sx * (1./(1. + c)); mat + mat addition is broken upstream https://github.com/gfx-rs/naga/issues/1527
+      // Workaround start
+      let ISx: mat3x3<f32> = mat3x3<f32>(I.x + sx.x, I.y + sx.y, I.z + sx.z);
+      let sxsx: mat3x3<f32> = sx * sx * (1./(1. + c));
+
+      R =  mat3x3<f32>(ISx.x + sxsx.x, ISx.y + sxsx.y, ISx.z + sxsx.z);
+      // Workaround end
     }
 
 
