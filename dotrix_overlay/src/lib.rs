@@ -85,10 +85,16 @@ impl Overlay {
 
 pub trait Ui: Any + Send + Sync {
     /// Feeds the [`Ui`] with inputs
-    fn bind(&mut self, assets: &mut Assets, input: &mut Input, window: &Window);
+    fn bind(
+        &mut self,
+        assets: &mut Assets,
+        input: &mut Input,
+        renderer: &Renderer,
+        window: &Window,
+    );
 
     /// Returns tessellated widgets for current frame
-    fn tessellate(&mut self, window: &Window) -> &mut [(Widget, Pipeline)];
+    fn tessellate(&mut self) -> &mut [(Widget, Pipeline)];
 }
 
 impl dyn Ui {
@@ -139,10 +145,11 @@ pub fn bind(
     mut overlay: Mut<Overlay>,
     mut assets: Mut<Assets>,
     mut input: Mut<Input>,
+    renderer: Const<Renderer>,
     window: Const<Window>,
 ) {
     for provider in overlay.providers() {
-        provider.bind(&mut assets, &mut input, &window);
+        provider.bind(&mut assets, &mut input, &renderer, &window);
     }
 }
 
@@ -158,21 +165,18 @@ pub fn render(
         .take()
         .unwrap_or_else(|| Buffer::uniform("Overlay Buffer"));
 
-    let window_size = window.inner_size();
+    let surface_size = renderer.surface_size();
     let scale_factor = window.scale_factor();
 
     renderer.load_buffer(
         &mut overlay_uniform,
         bytemuck::cast_slice(&[Uniform {
-            window_size: [
-                window_size.x as f32 / scale_factor,
-                window_size.y as f32 / scale_factor,
-            ],
+            window_size: [surface_size.x / scale_factor, surface_size.y / scale_factor],
         }]),
     );
 
     for provider in overlay.providers() {
-        for (widget, pipeline) in provider.tessellate(&window) {
+        for (widget, pipeline) in provider.tessellate() {
             if pipeline.shader.is_null() {
                 pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
             }

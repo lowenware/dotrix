@@ -17,5 +17,9 @@ path = "../dotrix_core"
 version = "0.1"
 path = "../dotrix_overlay"
 
+[dependencies.dotrix_math]
+version = "0.4"
+path = "../dotrix_math"
+
 [dependencies.egui]
 version = "0.16.1"
