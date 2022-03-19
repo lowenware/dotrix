@@ -62,6 +62,7 @@ impl Pipeline {
 }
 
 /// Scissors Rectangle
+#[derive(Debug, Clone, Copy)]
 pub struct ScissorsRect {
     /// Minimal clip size by X axis
     pub clip_min_x: u32,
@@ -74,6 +75,7 @@ pub struct ScissorsRect {
 }
 
 /// Draw call arguments
+#[derive(Debug, Clone, Copy)]
 pub struct DrawArgs {
     /// Scissors Rectangle
     pub scissors_rect: Option<ScissorsRect>,
