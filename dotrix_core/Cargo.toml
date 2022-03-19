@@ -55,7 +55,7 @@ features = ["trace"]
 version = "0.1.0"
 
 [dependencies.winit]
-version = "0.26.0"
+version = "0.26.1"
 features = ["serde"]
 
 # Optional dependencies
