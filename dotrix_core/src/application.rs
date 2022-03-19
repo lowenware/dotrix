@@ -15,7 +15,7 @@ use crate::{Assets, Id, Input, State, Window};
 
 /// Application data to maintain the process
 ///
-/// Do not construct it manually, use [`crate::Dotrix`] instead
+/// Do not construct it manually, use Dotrix instead
 pub struct Application {
     name: &'static str,
     scheduler: Scheduler,
@@ -74,8 +74,6 @@ impl<T: IntoService> Service<T> {
 }
 
 /// Service abstraction
-///
-/// More info about [`crate::services`]
 pub trait IntoService: Sized + Send + Sync + 'static {
     /// Constructs wrapped service
     fn service(self) -> Service<Self> {
@@ -128,6 +126,15 @@ fn run(
 
         if let Some(assets) = services.get_mut::<Assets>() {
             assets.fetch();
+        }
+
+        let resize_requested = services
+            .get_mut::<Window>()
+            .map(|window| window.resize())
+            .unwrap_or(false);
+
+        if resize_requested {
+            scheduler.run_resize(&mut services, current_state_ptr);
         }
 
         match event {
