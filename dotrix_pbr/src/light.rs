@@ -1,11 +1,20 @@
 //! Various implementations of light sources
 use dotrix_core::ecs::{Const, Mut};
-use dotrix_core::renderer::Buffer;
+use dotrix_core::renderer::{Buffer, Pipeline, Texture};
 use dotrix_core::{Camera, Color, Globals, Renderer, World};
 
-use dotrix_math::Vec3;
+use dotrix_math::{Deg, EuclideanSpace, Mat4, PerspectiveFov, Point3, Vec3};
 
 const MAX_LIGHTS: usize = 10;
+
+#[rustfmt::skip]
+#[allow(unused)]
+pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
+    1.0, 0.0, 0.0, 0.0,
+    0.0, 1.0, 0.0, 0.0,
+    0.0, 0.0, 0.5, 0.0,
+    0.0, 0.0, 0.5, 1.0,
+);
 
 /// Light component of different types and settings
 pub enum Light {
@@ -123,6 +132,9 @@ impl Light {
 /// Lights global uniform controller
 pub struct Lights {
     pub uniform: Buffer,
+
+    pub proj_view: Buffer,
+    pub shadows: Option<Texture>,
 }
 
 impl Lights {
@@ -142,14 +154,32 @@ impl Lights {
 
         source.replace("{{ include(light) }}", &light_code)
     }
+
+    /// Enable shadows
+    pub fn enable_shadows(&mut self) {
+        self.shadows = Some(Texture::new_array("shadows").use_as_attachment());
+    }
+
+    /// Disable shadows
+    pub fn disable_shadows(&mut self) {
+        self.shadows = None;
+    }
 }
 
 impl Default for Lights {
     fn default() -> Self {
         Self {
             uniform: Buffer::uniform("Lights Buffer"),
+            proj_view: Buffer::uniform("ProjView Buffer"),
+            shadows: None,
         }
     }
+}
+
+/// Shadow Component
+#[derive(Debug, Default)]
+pub struct Shadow {
+    pub pipeline: Pipeline,
 }
 
 /// Lights startup system
@@ -171,16 +201,28 @@ pub fn load(
             ..Default::default()
         };
 
+        let mut i = 0;
         for (light,) in world.query::<(&Light,)>() {
-            uniform.store(light);
+            uniform.store(light, i);
+            i += 1;
         }
+
         renderer.load_buffer(&mut lights.uniform, bytemuck::cast_slice(&[uniform]));
+
+        if let Some(shadows) = lights.shadows.as_mut() {
+            let lights_count =
+                uniform.count[0] + uniform.count[1] + uniform.count[2] + uniform.count[3];
+            let shadow_size = 512;
+            if shadows.count_layers() != lights_count {
+                renderer.init_texture(shadows, shadow_size, shadow_size, Some(lights_count));
+            }
+        }
     }
 }
 
 /// Uniform structure for lights representation in shader
 #[repr(C)]
-#[derive(Default, Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug)]
 struct Uniform {
     /// Camera position
     camera_position: [f32; 4],
@@ -196,6 +238,23 @@ struct Uniform {
     simple: [SimpleLight; MAX_LIGHTS],
     /// Spot lights
     spot: [SpotLight; MAX_LIGHTS],
+    /// ProjView matrix from source of light position
+    proj_views: [[[f32; 4]; 4]; 4 * MAX_LIGHTS],
+}
+
+impl Default for Uniform {
+    fn default() -> Self {
+        Self {
+            camera_position: [0.0; 4],
+            ambient: [0.0; 4],
+            count: [0; 4],
+            directional: [DirectionalLight::default(); MAX_LIGHTS],
+            point: [PointLight::default(); MAX_LIGHTS],
+            simple: [SimpleLight::default(); MAX_LIGHTS],
+            spot: [SpotLight::default(); MAX_LIGHTS],
+            proj_views: [[[0.0; 4]; 4]; 4 * MAX_LIGHTS],
+        }
+    }
 }
 
 unsafe impl bytemuck::Zeroable for Uniform {}
@@ -203,7 +262,7 @@ unsafe impl bytemuck::Pod for Uniform {}
 
 impl Uniform {
     /// Stores data from Light component into the uniform structure
-    pub fn store(&mut self, light: &Light) {
+    pub fn store(&mut self, light: &Light, index: usize) {
         match light {
             Light::Ambient { color, intensity } => self.ambient = (*color * (*intensity)).into(),
             Light::Directional {
@@ -220,6 +279,8 @@ impl Uniform {
                     };
                     self.count[0] = i as u32 + 1;
                 }
+                let pos = -100.0 * direction; // TODO: rework
+                self.proj_views[index] = Self::get_mx(&pos);
             }
             Light::Point {
                 color,
@@ -242,6 +303,7 @@ impl Uniform {
                     };
                     self.count[1] = i as u32 + 1;
                 }
+                self.proj_views[index] = Self::get_mx(position);
             }
             Light::Simple {
                 color,
@@ -257,6 +319,7 @@ impl Uniform {
                     };
                     self.count[2] = i as u32 + 1;
                 }
+                self.proj_views[index] = Self::get_mx(position);
             }
             Light::Spot {
                 color,
@@ -279,8 +342,28 @@ impl Uniform {
                     };
                     self.count[3] = i as u32 + 1;
                 }
+                self.proj_views[index] = Self::get_mx(position);
             }
         };
+    }
+
+    fn get_mx(position: &Vec3) -> [[f32; 4]; 4] {
+        let fov = 60.0; // NOTE: should be light specific
+        let depth = 1.0..100.0;
+
+        let mx_view = Mat4::look_at_rh(
+            Point3::new(position.x, position.y, position.z),
+            Point3::origin(),
+            Vec3::unit_z(),
+        );
+        let projection = PerspectiveFov {
+            fovy: Deg(fov).into(),
+            aspect: 1.0,
+            near: depth.start,
+            far: depth.end,
+        };
+        let mx_correction = OPENGL_TO_WGPU_MATRIX;
+        (mx_correction * Mat4::from(projection.to_perspective()) * mx_view).into()
     }
 }
 
