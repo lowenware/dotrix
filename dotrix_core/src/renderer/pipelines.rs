@@ -3,7 +3,7 @@ use crate::assets::{Mesh, Shader};
 use crate::Id;
 
 /// Pipeline context
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Pipeline {
     /// [`Id`] of the shader
     pub shader: Id<Shader>,

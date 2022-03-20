@@ -2,13 +2,14 @@ use dotrix_core::assets::{Mesh, Shader, Texture};
 use dotrix_core::camera::ProjView;
 use dotrix_core::ecs::{Const, Mut, Priority, System};
 use dotrix_core::renderer::{
-    BindGroup, Binding, DrawArgs, Pipeline, PipelineLayout, Render, RenderOptions, Sampler, Stage,
+    Attachment, BindGroup, Binding, DrawArgs, Pipeline, PipelineLayout, Render, RenderOptions,
+    Sampler, Stage,
 };
 use dotrix_core::{Application, Assets, Color, Globals, Id, Renderer, Transform, World};
 
 use dotrix_math::{Quat, Rad, Rotation3, Vec3};
 
-use crate::{add_pbr_to_shader, Lights, Material, Model};
+use crate::{add_pbr_to_shader, Lights, Material, Model, Shadow};
 
 pub const PIPELINE_LABEL: &str = "pbr::solid";
 
@@ -97,9 +98,90 @@ impl Default for Entity {
     }
 }
 
-pub fn render(
-    mut renderer: Mut<Renderer>,
+/* NOTE: This code does not cover skeletal models.
+ *
+ * */
+pub fn pre_render(
     mut assets: Mut<Assets>,
+    mut renderer: Mut<Renderer>,
+    globals: Const<Globals>,
+    world: Const<World>,
+) {
+    if let Some(lights) = globals.get::<Lights>() {
+        if let Some(shadows) = lights.shadows.as_ref() {
+            let lights_count = shadows.count_layers();
+            for i in 0..lights_count {
+                renderer.clear(None, Some(Attachment::TextureLayer(shadows, i)));
+                let query = world.query::<(&mut Model, &mut Transform, &mut Shadow)>();
+                for (model, transform, shadow) in query {
+                    if shadow.pipeline.shader.is_null() {
+                        shadow.pipeline.shader =
+                            assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+                    }
+                    if !model.load(&renderer, &mut assets) {
+                        continue;
+                    }
+                    model.transform(&renderer, transform);
+                    let mesh = assets.get(model.mesh).unwrap();
+                    if !shadow.pipeline.ready(&renderer) {
+                        if let Some(shader) = assets.get(shadow.pipeline.shader) {
+                            if !shader.loaded() {
+                                continue;
+                            }
+                            let proj_view = globals
+                                .get::<ProjView>()
+                                .expect("ProjView buffer must be loaded");
+                            renderer.bind(
+                                &mut shadow.pipeline,
+                                PipelineLayout::Render {
+                                    label: String::from(PIPELINE_LABEL),
+                                    mesh,
+                                    shader,
+                                    bindings: &[
+                                        BindGroup::new(
+                                            "Globals",
+                                            vec![Binding::Uniform(
+                                                "ProjView",
+                                                Stage::Vertex,
+                                                &proj_view.uniform,
+                                            )],
+                                        ),
+                                        BindGroup::new(
+                                            "Locals",
+                                            vec![Binding::Uniform(
+                                                "Transform",
+                                                Stage::Vertex,
+                                                &model.transform,
+                                            )],
+                                        ),
+                                    ],
+                                    options: RenderOptions {
+                                        vs_main: "vs_bake",
+                                        fs_main: None,
+                                        ..Default::default()
+                                    },
+                                },
+                            );
+                        }
+                    }
+                    renderer.draw(
+                        &mut shadow.pipeline,
+                        mesh,
+                        &DrawArgs {
+                            render_target: None,
+                            depth_buffer: Attachment::TextureLayer(shadows, i),
+                            ..Default::default()
+                        },
+                    );
+                }
+            }
+        }
+    }
+}
+
+pub fn render(
+    mut assets: Mut<Assets>,
+    mut renderer: Mut<Renderer>,
     globals: Const<Globals>,
     world: Const<World>,
 ) {

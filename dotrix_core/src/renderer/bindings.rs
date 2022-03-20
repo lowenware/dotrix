@@ -200,7 +200,7 @@ impl<'a> BindGroup<'a> {
 }
 
 /// Pipeline Bindings
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Bindings {
     /// List of `wgpu::BindGroup`
     pub wgpu_bind_groups: Vec<wgpu::BindGroup>,

@@ -13,7 +13,7 @@ pub mod solid;
 /// Skeletal models rendering
 pub mod skeletal;
 
-pub use light::{Light, Lights};
+pub use light::{Light, Lights, Shadow};
 pub use material::Material;
 pub use model::Model;
 
