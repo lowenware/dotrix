@@ -264,6 +264,33 @@ impl PipelineLayout<'_> {
             attributes: vertex_attributes.as_slice(),
         }];
 
+        let color_target_states = [wgpu::ColorTargetState {
+            format: ctx.sur_desc.format,
+            blend: match depth_buffer_mode {
+                DepthBufferMode::ReadOnly => None,
+                DepthBufferMode::ReadWrite => Some(wgpu::BlendState::ALPHA_BLENDING),
+                DepthBufferMode::Disabled => Some(wgpu::BlendState {
+                    color: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::One,
+                        dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                    alpha: wgpu::BlendComponent {
+                        src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
+                        dst_factor: wgpu::BlendFactor::One,
+                        operation: wgpu::BlendOperation::Add,
+                    },
+                }),
+            },
+            write_mask: wgpu::ColorWrites::ALL,
+        }];
+
+        let fragment = options.fs_main.map(|fs_main| wgpu::FragmentState {
+            module: wgpu_shader_module,
+            entry_point: fs_main,
+            targets: &color_target_states,
+        });
+
         // create the pipeline
         let wgpu_pipeline = ctx
             .device
@@ -275,30 +302,7 @@ impl PipelineLayout<'_> {
                     entry_point: options.vs_main,
                     buffers: &vertex_buffers,
                 },
-                fragment: Some(wgpu::FragmentState {
-                    module: wgpu_shader_module,
-                    entry_point: options.fs_main,
-                    targets: &[wgpu::ColorTargetState {
-                        format: ctx.sur_desc.format,
-                        blend: match depth_buffer_mode {
-                            DepthBufferMode::ReadOnly => None,
-                            DepthBufferMode::ReadWrite => Some(wgpu::BlendState::ALPHA_BLENDING),
-                            DepthBufferMode::Disabled => Some(wgpu::BlendState {
-                                color: wgpu::BlendComponent {
-                                    src_factor: wgpu::BlendFactor::One,
-                                    dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                                    operation: wgpu::BlendOperation::Add,
-                                },
-                                alpha: wgpu::BlendComponent {
-                                    src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
-                                    dst_factor: wgpu::BlendFactor::One,
-                                    operation: wgpu::BlendOperation::Add,
-                                },
-                            }),
-                        },
-                        write_mask: wgpu::ColorWrites::ALL,
-                    }],
-                }),
+                fragment,
                 primitive: wgpu::PrimitiveState {
                     front_face: wgpu::FrontFace::Ccw,
                     cull_mode: if !options.disable_cull_mode {
@@ -388,7 +392,7 @@ pub struct RenderOptions<'a> {
     /// Vertex Shader Entry Point
     pub vs_main: &'a str,
     /// Fragment Shader Entry Point
-    pub fs_main: &'a str,
+    pub fs_main: Option<&'a str>,
 }
 
 impl Default for RenderOptions<'_> {
@@ -397,7 +401,7 @@ impl Default for RenderOptions<'_> {
             depth_buffer_mode: DepthBufferMode::ReadWrite,
             disable_cull_mode: false,
             vs_main: "vs_main",
-            fs_main: "fs_main",
+            fs_main: Some("fs_main"),
         }
     }
 }
