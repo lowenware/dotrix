@@ -62,8 +62,6 @@ pub fn startup(renderer: Const<Renderer>, mut assets: Mut<Assets>) {
         ])
         .unwrap();
 
-    println!("{:?}", templates);
-
     let mut context = Context::new();
     // Could select different algorithms here
     let raytrace_algo = templates.render("accelerated_raytrace", &context).unwrap();
