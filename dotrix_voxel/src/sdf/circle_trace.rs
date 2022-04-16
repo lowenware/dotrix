@@ -8,6 +8,7 @@ use dotrix_core::{
 };
 use dotrix_math::*;
 use dotrix_primitives::Cube;
+use tera::{Context, Tera};
 
 mod camera;
 mod lights;
@@ -41,9 +42,47 @@ unsafe impl bytemuck::Zeroable for SdfBufferData {}
 unsafe impl bytemuck::Pod for SdfBufferData {}
 
 pub fn startup(renderer: Const<Renderer>, mut assets: Mut<Assets>) {
+    let mut templates = Tera::default();
+    templates
+        .add_raw_templates(vec![
+            ("render", include_str!("./circle_trace/render.wgsl")),
+            (
+                "accelerated_raytrace",
+                include_str!("./circle_trace/accelerated_raytrace.inc.wgsl"),
+            ),
+            (
+                "hemisphere_ambient_occulsion",
+                include_str!("./circle_trace/hemisphere_ambient_occulsion.inc.wgsl"),
+            ),
+            ("lighting", include_str!("./circle_trace/lighting.inc.wgsl")),
+            (
+                "soft_shadows_closet_approach",
+                include_str!("./circle_trace/soft_shadows_closet_approach.inc.wgsl"),
+            ),
+        ])
+        .unwrap();
+
+    println!("{:?}", templates);
+
+    let mut context = Context::new();
+    // Could select different algorithms here
+    let raytrace_algo = templates.render("accelerated_raytrace", &context).unwrap();
+    let ao_algo = templates
+        .render("hemisphere_ambient_occulsion", &context)
+        .unwrap();
+    let shadow_algo = templates
+        .render("soft_shadows_closet_approach", &context)
+        .unwrap();
+    let lighting_algo = templates.render("lighting", &context).unwrap();
+
+    context.insert("RAYTRACE_ALGO", &raytrace_algo);
+    context.insert("AO_ALGO", &ao_algo);
+    context.insert("SHADOWS_ALGO", &shadow_algo);
+    context.insert("LIGHTING_ALGO", &lighting_algo);
+
     let mut shader = Shader {
         name: String::from(PIPELINE_LABEL),
-        code: String::from(include_str!("./circle_trace/render.wgsl")),
+        code: templates.render("render", &context).unwrap(),
         ..Default::default()
     };
     shader.load(&renderer);

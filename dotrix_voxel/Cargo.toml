@@ -14,7 +14,6 @@ dotrix_math = { version = "0.4", path = "../dotrix_math" }
 dotrix_pbr = { version = "0.2", path = "../dotrix_pbr" }
 dotrix_primitives = { version = "0.1", path = "../dotrix_primitives" }
 rayon = "1.5"
-tera = "1.15.0"
 
 [dependencies.num]
 version = "^0.3"
@@ -35,3 +34,6 @@ features = ["derive"]
 version = "0.3"
 default-features = false
 features = ["std", "executor"]
+
+[dependencies.tera]
+version = "1.15.0"
