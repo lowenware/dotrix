@@ -18,8 +18,11 @@ pub struct Grid {
     pub voxels: Vec<Voxel>,
     /// 3D Texture buffer
     pub buffer: TextureBuffer,
-    /// Tracks if changed since last load
-    pub changed: bool,
+    /// Tracks if changed by incremented a revision number on each change
+    pub revision: u32,
+    /// Revision number of last load
+    /// Setting this to `None` will force it to reload
+    pub last_update: Option<u32>,
 }
 
 impl Default for Grid {
@@ -34,7 +37,8 @@ impl Default for Grid {
                 buffer.format = wgpu::TextureFormat::Rg8Uint;
                 buffer
             },
-            changed: false,
+            revision: 0,
+            last_update: None,
         }
     }
 }
@@ -64,6 +68,10 @@ impl Grid {
     }
     #[must_use]
     pub fn with_values<T: AsRef<[u8]>>(mut self, values: T) -> Self {
+        self.set_values(values);
+        self
+    }
+    pub fn set_values<T: AsRef<[u8]>>(&mut self, values: T) {
         let input: &[u8] = values.as_ref();
         let count: usize = (self.dimensions[0] * self.dimensions[1] * self.dimensions[2]) as usize;
 
@@ -75,7 +83,7 @@ impl Grid {
             .iter_mut()
             .enumerate()
             .for_each(|(i, v)| (v).value = input[i]);
-        Self::flag_changed(self)
+        self.set_changed();
     }
     #[must_use]
     pub fn with_materials<T: AsRef<[u8]>>(mut self, values: T) -> Self {
@@ -95,8 +103,11 @@ impl Grid {
 
     #[must_use]
     pub fn flag_changed(mut self) -> Self {
-        self.changed = true;
+        self.set_changed();
         self
+    }
+    pub fn set_changed(&mut self) {
+        self.revision += 1;
     }
 
     /// Get's the total size of the voxels in all dimensions
@@ -109,8 +120,10 @@ impl Grid {
     }
 
     pub fn load(&mut self, renderer: &Renderer, _assets: &Assets) {
-        if !self.changed && self.buffer.loaded() {
-            return;
+        if let Some(last_update) = self.last_update {
+            if last_update == self.revision && self.buffer.loaded() {
+                return;
+            }
         }
 
         let data: Vec<Vec<u8>> = self
@@ -133,7 +146,7 @@ impl Grid {
             slices.as_slice(),
         );
 
-        self.changed = false;
+        self.last_update = Some(self.revision);
     }
 
     /// Unloads the [`Grid`] data from the GPU

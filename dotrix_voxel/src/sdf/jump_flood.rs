@@ -44,8 +44,7 @@ pub enum JumpFlood {
 /// a point is from the surface.
 /// Computed with the jump flooding
 /// algorithm, which is an approximate
-/// algorithm with O
-/// (log2(n)) complexity
+/// algorithm with O(log2(n)) complexity
 pub struct VoxelJumpFlood {
     pub jump_flood_varient: JumpFlood,
     pub ping_buffer: TextureBuffer,
@@ -54,6 +53,7 @@ pub struct VoxelJumpFlood {
     pub jumpflood_pipelines: Vec<Compute>,
     pub jumpflood_data: Vec<Buffer>,
     pub sdf_pipeline: Option<Compute>,
+    pub last_revision: Option<u32>,
 }
 
 impl Default for VoxelJumpFlood {
@@ -78,11 +78,22 @@ impl Default for VoxelJumpFlood {
             jumpflood_pipelines: vec![],
             jumpflood_data: vec![],
             sdf_pipeline: None,
+            last_revision: None,
         }
     }
 }
 
 impl VoxelJumpFlood {
+    /// Reset the algorithm for recomputation
+    pub fn reset(&mut self) {
+        self.init_pipeline = None;
+        self.jumpflood_pipelines = vec![];
+        self.jumpflood_data = vec![];
+        self.sdf_pipeline = None;
+        self.last_revision = None;
+    }
+
+    /// Load the voxel data for computation
     pub fn load(&mut self, renderer: &Renderer, grid: &Grid) {
         let pixel_size = 4 * 4;
         let dim: [u32; 3] = [
@@ -157,6 +168,12 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
             (dimensions[1] as f32 / VOXELS_PER_WORKGROUP[1] as f32).ceil() as u32;
         let workgroup_size_z =
             (dimensions[2] as f32 / VOXELS_PER_WORKGROUP[2] as f32).ceil() as u32;
+
+        if jump_flood.last_revision.is_none() || jump_flood.last_revision.unwrap() != grid.revision
+        {
+            jump_flood.reset();
+            jump_flood.last_revision = Some(grid.revision);
+        }
 
         if jump_flood.init_pipeline.is_none() {
             grid.load(&renderer, &assets);
@@ -344,6 +361,7 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                     );
 
                     jump_flood.sdf_pipeline = Some(jump_flood_sdf);
+                    sdf.pipeline.bindings.unload();
                 }
             }
         }

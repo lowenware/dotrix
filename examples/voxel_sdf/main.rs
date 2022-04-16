@@ -1,4 +1,10 @@
-use dotrix::{camera, ecs::Mut, Camera, Dotrix, System, World};
+use dotrix::egui::{Egui, TopBottomPanel};
+use dotrix::overlay::Overlay;
+use dotrix::{
+    camera,
+    ecs::{Const, Mut},
+    egui, overlay, Camera, Dotrix, System, World,
+};
 use dotrix_voxel::{Grid, Light, TexSdf, VoxelJumpFlood};
 use rand::Rng;
 
@@ -6,6 +12,9 @@ fn main() {
     Dotrix::application("Dotrix: Voxel SDF")
         .with(System::from(startup))
         .with(System::from(camera::control))
+        .with(System::from(self::ui))
+        .with(overlay::extension)
+        .with(egui::extension)
         .with(dotrix_voxel::extension)
         .run();
 }
@@ -44,4 +53,32 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>) {
         intensity: 1.,
         enabled: true,
     },)));
+}
+
+pub fn ui(overlay: Mut<Overlay>, world: Const<World>) {
+    let egui = overlay
+        .get::<Egui>()
+        .expect("Renderer does not contain an Overlay instance");
+    TopBottomPanel::bottom("my_panel").show(&egui.ctx, |ui| {
+        if ui.button("Randomize").clicked() {
+            for (grid,) in world.query::<(&mut Grid,)>() {
+                let dims = grid.dimensions;
+                let total_size: usize =
+                    dims.iter().fold(1usize, |acc, &item| acc * (item as usize));
+                let values: Vec<u8> = vec![0u8; total_size]
+                    .iter()
+                    .map(|_v| {
+                        let chance: u8 = rand::thread_rng().gen();
+                        if chance > 128 {
+                            1
+                        } else {
+                            0
+                        }
+                    })
+                    .collect();
+                grid.set_values(values);
+                println!("Clicked");
+            }
+        }
+    });
 }
