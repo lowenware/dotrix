@@ -15,7 +15,7 @@ use crate::{Assets, Id, Input, State, Window};
 
 /// Application data to maintain the process
 ///
-/// Do not construct it manually, use [`crate::Dotrix`] instead
+/// Do not construct it manually, use Dotrix instead
 pub struct Application {
     name: &'static str,
     scheduler: Scheduler,
@@ -74,8 +74,6 @@ impl<T: IntoService> Service<T> {
 }
 
 /// Service abstraction
-///
-/// More info about [`crate::services`]
 pub trait IntoService: Sized + Send + Sync + 'static {
     /// Constructs wrapped service
     fn service(self) -> Service<Self> {
@@ -130,6 +128,15 @@ fn run(
             assets.fetch();
         }
 
+        let resize_requested = services
+            .get_mut::<Window>()
+            .map(|window| window.resize())
+            .unwrap_or(false);
+
+        if resize_requested {
+            scheduler.run_resize(&mut services, current_state_ptr);
+        }
+
         match event {
             Event::MainEventsCleared => {
                 if last_update_inst.elapsed() > Duration::from_millis(5) {
@@ -161,6 +168,7 @@ fn run(
                 scheduler.run_update(&mut services, current_state_ptr);
                 scheduler.run_load(&mut services, current_state_ptr);
                 scheduler.run_compute(&mut services, current_state_ptr);
+                scheduler.run_pre_render(&mut services, current_state_ptr);
                 scheduler.run_render(&mut services, current_state_ptr);
                 scheduler.run_release(&mut services, current_state_ptr);
             }
@@ -205,6 +213,7 @@ struct Scheduler {
     update: Vec<Box<dyn Systemized>>,
     load: Vec<Box<dyn Systemized>>,
     compute: Vec<Box<dyn Systemized>>,
+    pre_render: Vec<Box<dyn Systemized>>,
     render: Vec<Box<dyn Systemized>>,
     release: Vec<Box<dyn Systemized>>,
     resize: Vec<Box<dyn Systemized>>,
@@ -218,6 +227,7 @@ impl Scheduler {
             update: Vec::new(),
             load: Vec::new(),
             compute: Vec::new(),
+            pre_render: Vec::new(),
             render: Vec::new(),
             release: Vec::new(),
             resize: Vec::new(),
@@ -233,6 +243,7 @@ impl Scheduler {
             RunLevel::Update => &mut self.update,
             RunLevel::Load => &mut self.load,
             RunLevel::Compute => &mut self.compute,
+            RunLevel::PreRender => &mut self.pre_render,
             RunLevel::Render => &mut self.render,
             RunLevel::Release => &mut self.release,
             RunLevel::Resize => &mut self.resize,
@@ -271,6 +282,10 @@ impl Scheduler {
 
     pub fn run_compute(&mut self, services: &mut Services, state_ptr: *const Id<State>) {
         Self::run(&mut self.compute, services, state_ptr);
+    }
+
+    pub fn run_pre_render(&mut self, services: &mut Services, state_ptr: *const Id<State>) {
+        Self::run(&mut self.pre_render, services, state_ptr);
     }
 
     pub fn run_render(&mut self, services: &mut Services, state_ptr: *const Id<State>) {

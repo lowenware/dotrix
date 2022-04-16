@@ -35,7 +35,7 @@ impl World {
 
     /// Spawn single or multiple entities in the world
     ///
-    /// Entity appears only when you spawn it in the [`World`] as a tuple of [`crate::components`].
+    /// Entity appears only when you spawn it in the [`World`] as a tuple of components.
     ///
     /// ```no_run
     /// use dotrix_core::{

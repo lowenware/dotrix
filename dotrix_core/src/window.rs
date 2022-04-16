@@ -74,6 +74,7 @@ pub struct Window {
     title: String,
     /// winit window instance
     window: Option<winit::window::Window>,
+    resize_request: Option<Vec2u>,
 }
 
 impl Default for Window {
@@ -90,6 +91,7 @@ impl Default for Window {
             monitors: Vec::with_capacity(2),
             title: String::from("Dotrix"),
             window: None,
+            resize_request: None,
         }
     }
 }
@@ -408,14 +410,23 @@ impl Window {
         }
     }
 
-    /// Modifies the inner size of the window.
+    /// Requests the window to change its inner size
     ///
+    /// The change takes an effect only for the next rendering frame
     /// See `inner_size` for more information about the values. This automatically
     /// un-maximizes the window if it's maximized.
-    pub fn set_inner_size(&self, size: Vec2u) {
-        let width = clamp_min(size.x, self.min_inner_size.x);
-        let height = clamp_min(size.y, self.min_inner_size.y);
-        self.get().set_inner_size(PhysicalSize::new(width, height));
+    pub fn set_inner_size(&mut self, size: Vec2u) {
+        self.resize_request = Some(size);
+    }
+
+    pub(crate) fn resize(&mut self) -> bool {
+        if let Some(size) = self.resize_request.take() {
+            let width = clamp_min(size.x, self.min_inner_size.x);
+            let height = clamp_min(size.y, self.min_inner_size.y);
+            self.get().set_inner_size(PhysicalSize::new(width, height));
+            return true;
+        }
+        false
     }
 
     /// Sets the window to maximized or back.

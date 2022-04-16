@@ -1,4 +1,5 @@
-//! Assets identifiers
+//! Identifiers module provides `Id` for assets and other engine-related entities
+
 use std::{
     any::TypeId,
     fmt::Debug,
@@ -9,7 +10,9 @@ use std::{
 /// Enumeration of types of actual Id value
 #[derive(Debug, Hash, Copy, Clone, Eq, PartialEq)]
 pub enum ValueOf {
+    /// Based on TypeId
     TypeId(TypeId),
+    /// Based on u64 number
     Number(u64),
 }
 
@@ -33,6 +36,38 @@ impl<T> Id<T> {
     pub fn is_null(&self) -> bool {
         self.id == ValueOf::Number(0)
     }
+
+    /// Returns u64 value if it can be unwrapped
+    pub fn as_u64(&self) -> Option<u64> {
+        match self.id {
+            ValueOf::Number(number) => Some(number),
+            _ => None,
+        }
+    }
+
+    /// Returns TypeId value if it can be unwrapped
+    pub fn as_type_id(&self) -> Option<TypeId> {
+        match self.id {
+            ValueOf::TypeId(type_id) => Some(type_id),
+            _ => None,
+        }
+    }
+
+    /// Returns u64 value if it can be unwrapped, panics if it can't
+    pub fn unwrap_u64(&self) -> u64 {
+        match self.id {
+            ValueOf::Number(number) => number,
+            _ => panic!("Id can not be unwrapped as u64"),
+        }
+    }
+
+    /// Returns TypeId value if it can be unwrapped, panics if it can't
+    pub fn unwrap_type_id(&self) -> TypeId {
+        match self.id {
+            ValueOf::TypeId(type_id) => type_id,
+            _ => panic!("Id can not be unwrapped as TypeId"),
+        }
+    }
 }
 
 impl<T> From<TypeId> for Id<T> {
@@ -55,6 +90,9 @@ impl<T> From<u64> for Id<T> {
 
 /// Abstraction for type-based IP getters
 pub trait OfType {
+    /// Returns ID based on type of T
+    ///
+    /// see implementation for `Id<State>` for details
     fn of<T: std::any::Any>() -> Self;
 }
 

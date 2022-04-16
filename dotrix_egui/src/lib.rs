@@ -15,7 +15,7 @@ pub mod extras;
 use dotrix_core::assets::{Mesh, Texture};
 use dotrix_core::ecs::{Mut, System};
 use dotrix_core::input::{Button, Event as InputEvent, KeyCode, Modifiers};
-use dotrix_core::renderer::{DrawArgs, Pipeline, ScissorsRect};
+use dotrix_core::renderer::{DrawArgs, Pipeline, Renderer, ScissorsRect};
 use dotrix_core::{Application, Assets, Id, Input, Window};
 
 use dotrix_overlay::{Overlay, Ui, Widget};
@@ -36,6 +36,8 @@ pub struct Egui {
     texture_version: Option<u64>,
     mouse_used_outside: bool,
     prev_mouse_used: [bool; 3],
+    surface_size: dotrix_math::Vec2,
+    surface_scale_factor: f32,
 }
 
 impl Default for Egui {
@@ -48,6 +50,8 @@ impl Default for Egui {
             texture_version: None,
             mouse_used_outside: false,
             prev_mouse_used: [false; 3],
+            surface_size: dotrix_math::Vec2::new(0.0, 0.0),
+            surface_scale_factor: 0.0,
         }
     }
 }
@@ -65,11 +69,20 @@ impl Egui {
 }
 
 impl Ui for Egui {
-    fn bind(&mut self, assets: &mut Assets, input: &mut Input, window: &Window) {
+    fn bind(
+        &mut self,
+        assets: &mut Assets,
+        input: &mut Input,
+        renderer: &Renderer,
+        window: &Window,
+    ) {
         let scale_factor = self.scale_factor * window.scale_factor();
-        let surface_size = window.inner_size();
-        let surface_width = surface_size.x as f32;
-        let surface_height = surface_size.y as f32;
+
+        self.surface_scale_factor = scale_factor;
+        self.surface_size = renderer.surface_size();
+
+        let surface_width = self.surface_size.x;
+        let surface_height = self.surface_size.y;
 
         let mut events = input
             .events
@@ -235,11 +248,10 @@ impl Ui for Egui {
         self.texture_version = Some(font_image.version);
     }
 
-    fn tessellate(&mut self, window: &Window) -> &mut [(Widget, Pipeline)] {
-        let scale_factor = self.scale_factor * window.scale_factor();
-        let surface_size = window.inner_size();
-        let surface_width = surface_size.x as f32;
-        let surface_height = surface_size.y as f32;
+    fn tessellate(&mut self) -> &mut [(Widget, Pipeline)] {
+        let scale_factor = self.surface_scale_factor;
+        let surface_width = self.surface_size.x;
+        let surface_height = self.surface_size.y;
 
         let (_output, paint_commands) = self.ctx.end_frame();
         let paint_jobs = self.ctx.tessellate(paint_commands);

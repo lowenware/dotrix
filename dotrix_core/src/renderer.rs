@@ -9,7 +9,7 @@ mod sampler;
 mod shader;
 mod texture;
 
-use dotrix_math::Mat4;
+use dotrix_math::{Mat4, Vec2};
 
 use crate::assets::{Mesh, Shader};
 use crate::ecs::{Const, Mut};
@@ -189,6 +189,11 @@ impl Renderer {
     ) -> impl std::future::Future<Output = Result<Vec<u8>, wgpu::BufferAsyncError>> {
         texture.fetch_from_gpu(dimensions, self.context_mut())
     }
+    /// Returns surface size
+    pub fn surface_size(&self) -> Vec2 {
+        let ctx = self.context();
+        Vec2::new(ctx.sur_desc.width as f32, ctx.sur_desc.height as f32)
+    }
 }
 
 /// Antialiasing modes enumeration
@@ -254,6 +259,7 @@ pub fn startup(mut renderer: Mut<Renderer>, mut globals: Mut<Globals>, window: M
 pub fn bind(mut renderer: Mut<Renderer>, mut assets: Mut<Assets>) {
     let clear_color = renderer.clear_color;
     let sample_count = renderer.antialiasing.sample_count();
+
     // NOTE: other option here is to check sample_count != context.sample_count
     let reload_request = renderer
         .context_mut()
