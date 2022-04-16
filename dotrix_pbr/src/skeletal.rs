@@ -8,7 +8,7 @@ use dotrix_core::{Application, Assets, Color, Globals, Id, Pose, Renderer, Trans
 
 use dotrix_math::{Quat, Rad, Rotation3, Vec3};
 
-use crate::{Lights, Material, Model};
+use crate::{add_pbr_to_shader, Lights, Material, Model};
 
 pub const PIPELINE_LABEL: &str = "pbr::skeletal";
 
@@ -223,7 +223,7 @@ pub fn startup(mut assets: Mut<Assets>) {
     assets.store_as(
         Shader {
             name: String::from(PIPELINE_LABEL),
-            code: Lights::add_to_shader(shader, 0, 2),
+            code: add_pbr_to_shader(shader, 0, 2),
             ..Default::default()
         },
         PIPELINE_LABEL,
