@@ -26,3 +26,11 @@ pub fn extension(app: &mut Application) {
     solid::extension(app);
     skeletal::extension(app);
 }
+
+pub fn add_pbr_to_shader(source: &str, bind_group: usize, binding: usize) -> String {
+    let pbr_code = include_str!("shaders/pbr.inc.wgsl");
+
+    let pbr_lighted_code = Lights::add_to_shader(pbr_code, bind_group, binding);
+
+    source.replace("{{ include(light) }}", &pbr_lighted_code)
+}
