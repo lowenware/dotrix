@@ -30,10 +30,12 @@ pub enum Binding<'a> {
     Uniform(&'a str, Stage, &'a Buffer),
     /// Texture binding
     Texture(&'a str, Stage, &'a Texture),
-    /// 3D Texture binding
-    Texture3D(&'a str, Stage, &'a Texture),
+    /// Cube Texture binding
+    TextureCube(&'a str, Stage, &'a Texture),
     /// Storage texture binding
     StorageTexture(&'a str, Stage, &'a Texture, Access),
+    /// Storage texture cube binding
+    StorageTextureCube(&'a str, Stage, &'a Texture, Access),
     /// Texture sampler binding
     Sampler(&'a str, Stage, &'a Sampler),
     /// Storage binding
@@ -81,7 +83,7 @@ impl<'a> BindGroup<'a> {
                     },
                     count: None,
                 },
-                Binding::Texture3D(_, stage, texture) => wgpu::BindGroupLayoutEntry {
+                Binding::TextureCube(_, stage, texture) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
                     visibility: stage.into(),
                     ty: wgpu::BindingType::Texture {
@@ -101,6 +103,18 @@ impl<'a> BindGroup<'a> {
                     },
                     count: None,
                 },
+                Binding::StorageTextureCube(_, stage, texture, access) => {
+                    wgpu::BindGroupLayoutEntry {
+                        binding: index as u32,
+                        visibility: stage.into(),
+                        ty: wgpu::BindingType::StorageTexture {
+                            access: access.into(),
+                            format: texture.format,
+                            view_dimension: wgpu::TextureViewDimension::Cube,
+                        },
+                        count: None,
+                    }
+                }
                 Binding::Sampler(_, stage, _) => wgpu::BindGroupLayoutEntry {
                     binding: index as u32,
                     visibility: stage.into(),
@@ -165,8 +179,9 @@ impl Bindings {
                                     uniform.get().as_entire_binding()
                                 }
                                 Binding::Texture(_, _, texture)
-                                | Binding::Texture3D(_, _, texture)
-                                | Binding::StorageTexture(_, _, texture, _) => {
+                                | Binding::TextureCube(_, _, texture)
+                                | Binding::StorageTexture(_, _, texture, _)
+                                | Binding::StorageTextureCube(_, _, texture, _) => {
                                     wgpu::BindingResource::TextureView(texture.get())
                                 }
                                 Binding::Sampler(_, _, sampler) => {
