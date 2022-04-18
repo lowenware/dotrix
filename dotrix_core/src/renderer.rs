@@ -100,6 +100,11 @@ impl Renderer {
         buffer.load(self.context(), data);
     }
 
+    /// Create a buffer on GPU without data
+    pub fn create_buffer(&self, buffer: &mut Buffer, size: u32, mapped: bool) {
+        buffer.create(self.context(), size, mapped);
+    }
+
     /// Loads the sampler to GPU
     pub fn load_sampler(&self, sampler: &mut Sampler) {
         sampler.load(self.context());
@@ -108,6 +113,27 @@ impl Renderer {
     /// Loads the sahder module to GPU
     pub fn load_shader(&self, shader_module: &mut ShaderModule, code: &str) {
         shader_module.load(self.context(), code);
+    }
+
+    /// Copy a texture to a buffer
+    pub fn copy_texture_to_buffer(
+        &mut self,
+        texture: &Texture,
+        buffer: &Buffer,
+        extent: [u32; 3],
+        bytes_per_pixel: u32,
+    ) {
+        self.context_mut()
+            .run_copy_texture_to_buffer(texture, buffer, extent, bytes_per_pixel);
+    }
+
+    /// Fetch texture from GPU
+    pub fn fetch_texture(
+        &mut self,
+        texture: &Texture,
+        dimensions: [u32; 3],
+    ) -> impl std::future::Future<Output = Result<Vec<u8>, wgpu::BufferAsyncError>> {
+        texture.fetch_from_gpu(dimensions, self.context_mut())
     }
 
     /// Forces engine to reload shaders
@@ -262,6 +288,10 @@ pub fn release(mut renderer: Mut<Renderer>) {
     renderer.cycle += 1;
     if renderer.cycle == 0 {
         renderer.cycle = 1;
+    }
+    // Check for resource cleanups and mapping callbacks
+    if let Some(context) = renderer.context.as_ref() {
+        context.device.poll(wgpu::Maintain::Poll);
     }
 }
 

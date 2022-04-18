@@ -1,4 +1,4 @@
-use super::Context;
+use super::{Buffer, Context};
 use wgpu;
 
 /// GPU Texture Implementation
@@ -7,6 +7,8 @@ pub struct Texture {
     pub label: String,
     /// WGPU Texture view
     pub wgpu_texture_view: Option<wgpu::TextureView>,
+    /// WGPU Texture
+    pub wgpu_texture: Option<wgpu::Texture>,
     /// Texture usage
     pub usage: wgpu::TextureUsages,
     /// Texture format
@@ -18,6 +20,7 @@ impl Default for Texture {
         Self {
             label: String::from("Noname Texture"),
             wgpu_texture_view: None,
+            wgpu_texture: None,
             usage: wgpu::TextureUsages::empty(),
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
         }
@@ -160,6 +163,8 @@ impl Texture {
                 layer_size,
             );
         }
+
+        self.wgpu_texture = Some(texture);
     }
 
     /// Checks if texture is loaded
@@ -182,5 +187,91 @@ impl Texture {
     /// Check if the texture format is filterable
     pub fn is_filterable(&self) -> bool {
         self.format.describe().guaranteed_format_features.filterable
+    }
+
+    /// Get the texture bytes per pixels
+    pub fn pixel_bytes(&self) -> u8 {
+        self.format.describe().block_size
+    }
+
+    /// Get the number of channels
+    pub fn num_channels(&self) -> u8 {
+        self.format.describe().components
+    }
+
+    /// Get the texture sample type (float/uint etc)
+    pub fn sample_type(&self) -> wgpu::TextureSampleType {
+        self.format.describe().sample_type
+    }
+
+    /// Fetch data from the gpu
+    ///
+    /// This is useful textures that are altered on the gpu
+    ///
+    /// This operation is slow and should mostly be
+    /// used for debugging
+    pub fn fetch_from_gpu(
+        &self,
+        dimensions: [u32; 3],
+        ctx: &mut Context,
+    ) -> impl std::future::Future<Output = Result<Vec<u8>, wgpu::BufferAsyncError>> {
+        let bytes_per_pixel: u32 = self.pixel_bytes() as u32;
+        let mut staging_buffer = Buffer::map_read("Texture Fetch Staging buffer");
+        let unpadded_bytes_per_row: u32 =
+            std::num::NonZeroU32::new(bytes_per_pixel as u32 * dimensions[0])
+                .unwrap()
+                .into();
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as u32;
+        let padded_bytes_per_row_padding = (align - unpadded_bytes_per_row % align) % align;
+        let padded_bytes_per_row = unpadded_bytes_per_row + padded_bytes_per_row_padding;
+
+        staging_buffer.create(
+            ctx,
+            padded_bytes_per_row * dimensions[0] * dimensions[1],
+            false,
+        );
+        ctx.run_copy_texture_to_buffer(self, &staging_buffer, dimensions, bytes_per_pixel);
+
+        async move {
+            // TODO: Urgently work out a better way to await the next frame.
+            std::thread::sleep(std::time::Duration::from_secs(1));
+
+            let wgpu_buffer = staging_buffer.wgpu_buffer.expect("Buffer must be loaded");
+            let buffer_slice = wgpu_buffer.slice(..);
+            // Gets the future representing when `staging_buffer` can be read from
+            let buffer_future = buffer_slice.map_async(wgpu::MapMode::Read);
+
+            match buffer_future.await {
+                Ok(()) => {
+                    // Gets contents of buffer
+                    let data = buffer_slice.get_mapped_range();
+                    // This strips the padding on each row
+                    let result: Vec<u8> = data
+                        .chunks_exact((padded_bytes_per_row * dimensions[1]) as usize)
+                        .flat_map(|img| {
+                            let rows: Vec<Vec<u8>> = img
+                                .chunks_exact(padded_bytes_per_row as usize)
+                                .map(|row| row[0..(unpadded_bytes_per_row as usize)].to_vec())
+                                .collect();
+                            rows
+                        })
+                        .flatten()
+                        .collect();
+
+                    // With the current interface, we have to make sure all mapped views are
+                    // dropped before we unmap the buffer.
+                    drop(data);
+                    wgpu_buffer.unmap(); // Unmaps buffer from memory
+                                         // If you are familiar with C++ these 2 lines can be thought of similarly to:
+                                         //   delete myPointer;
+                                         //   myPointer = NULL;
+                                         // It effectively frees the memory
+                                         //
+                    Ok(result)
+                }
+
+                Err(e) => Err(e),
+            }
+        }
     }
 }
