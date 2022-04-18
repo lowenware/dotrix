@@ -16,6 +16,7 @@ impl Shader {
     /// Loads the shader to GPU
     pub fn load(&mut self, renderer: &Renderer) {
         if !self.module.loaded() {
+            self.module.label = self.name.clone();
             renderer.load_shader(&mut self.module, &self.code);
         }
     }
