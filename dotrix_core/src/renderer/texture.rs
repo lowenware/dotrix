@@ -4,6 +4,7 @@ use wgpu;
 pub enum TextureKind {
     D2,
     Cube,
+    D2Array,
     D3,
 }
 
@@ -52,6 +53,16 @@ impl Texture {
             label: String::from(label),
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             kind: TextureKind::Cube,
+            ..Default::default()
+        }
+    }
+
+    /// Constructs a 2D Array GPU Texture
+    pub fn new_array(label: &str) -> Self {
+        Self {
+            label: String::from(label),
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            kind: TextureKind::D2Array,
             ..Default::default()
         }
     }
@@ -141,6 +152,7 @@ impl Texture {
                 assert!(layers.len() == 6);
                 wgpu::TextureViewDimension::Cube
             }
+            TextureKind::D2Array => wgpu::TextureViewDimension::D2Array,
             TextureKind::D3 => wgpu::TextureViewDimension::D3,
         };
 
@@ -161,6 +173,7 @@ impl Texture {
         let tex_dimension: wgpu::TextureDimension = match self.kind {
             TextureKind::D2 => wgpu::TextureDimension::D2,
             TextureKind::Cube => wgpu::TextureDimension::D2,
+            TextureKind::D2Array => wgpu::TextureDimension::D2,
             TextureKind::D3 => wgpu::TextureDimension::D3,
         };
 
