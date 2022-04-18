@@ -184,10 +184,7 @@ fn compute(
                                 Binding::Storage("Particles", Stage::Compute, &spawner.particles),
                             ],
                         )],
-                        options: ComputeOptions {
-                            cs_main: "main",
-                            ..Default::default()
-                        },
+                        options: ComputeOptions { cs_main: "main" },
                     },
                 );
             }

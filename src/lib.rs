@@ -128,6 +128,7 @@ impl Dotrix {
         }
     }
 
+    #[must_use]
     /// Adds system, service or extension to the application
     pub fn with<T>(mut self, engine_unit: T) -> Self
     where
@@ -137,14 +138,15 @@ impl Dotrix {
         self
     }
 
+    #[must_use]
     /// Adds a system to the application
     pub fn with_system(mut self, system: System) -> Self {
         self.app.as_mut().unwrap().add_system(system);
         self
     }
 
+    #[must_use]
     /// Adds a service to the application
-
     pub fn with_service<T: IntoService>(mut self, service: T) -> Self {
         self.app.as_mut().unwrap().add_service(service);
         self
