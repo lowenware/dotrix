@@ -145,6 +145,12 @@ impl Texture {
     }
 
     /// Loads data into the texture buffer
+    ///
+    /// This will recreate the texture backend on the gpu. Which means it must be rebound
+    /// in the pipelines for changes to take effect.
+    ///
+    /// If you want to update the values without recreating and therefore rebinding the texture
+    /// see `[update]`
     pub(crate) fn load<'a>(&mut self, ctx: &Context, width: u32, height: u32, layers: &[&'a [u8]]) {
         let dimension = match self.kind {
             TextureKind::D2 => wgpu::TextureViewDimension::D2,
@@ -164,10 +170,7 @@ impl Texture {
             height,
             depth_or_array_layers,
         };
-        let layer_size = wgpu::Extent3d {
-            depth_or_array_layers: 1,
-            ..size
-        };
+
         let max_mips = 1;
 
         let tex_dimension: wgpu::TextureDimension = match self.kind {
@@ -194,30 +197,78 @@ impl Texture {
             ..wgpu::TextureViewDescriptor::default()
         }));
 
-        for (i, data) in layers.iter().enumerate() {
-            let bytes_per_row = std::num::NonZeroU32::new(data.len() as u32 / height).unwrap();
-            ctx.queue.write_texture(
-                wgpu::ImageCopyTexture {
-                    texture: &texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d {
-                        x: 0,
-                        y: 0,
-                        z: i as u32,
-                    },
-                    aspect: wgpu::TextureAspect::All,
-                },
-                data,
-                wgpu::ImageDataLayout {
-                    offset: 0,
-                    bytes_per_row: Some(bytes_per_row),
-                    rows_per_image: Some(std::num::NonZeroU32::new(height).unwrap()),
-                },
-                layer_size,
-            );
-        }
-
         self.wgpu_texture = Some(texture);
+
+        self.update(ctx, width, height, layers)
+    }
+
+    /// This will write to a texture but not create it
+    /// This can be used to update a texture's value with out recreating and therefore without the
+    /// need to rebind it
+    /// however if the size of the texture is changed it will behave oddly or even panic
+    ///
+    /// This is a no op if the texture has not been loaded
+    pub(crate) fn update<'a>(
+        &mut self,
+        ctx: &Context,
+        width: u32,
+        height: u32,
+        layers: &[&'a [u8]],
+    ) {
+        if let Some(texture) = self.wgpu_texture.as_ref() {
+            let depth_or_array_layers = layers.len() as u32;
+            let size = wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers,
+            };
+            let layer_size = wgpu::Extent3d {
+                depth_or_array_layers: 1,
+                ..size
+            };
+
+            for (i, data) in layers.iter().enumerate() {
+                let bytes_per_row = std::num::NonZeroU32::new(data.len() as u32 / height).unwrap();
+                ctx.queue.write_texture(
+                    wgpu::ImageCopyTexture {
+                        texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d {
+                            x: 0,
+                            y: 0,
+                            z: i as u32,
+                        },
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    data,
+                    wgpu::ImageDataLayout {
+                        offset: 0,
+                        bytes_per_row: Some(bytes_per_row),
+                        rows_per_image: Some(std::num::NonZeroU32::new(height).unwrap()),
+                    },
+                    layer_size,
+                );
+            }
+        }
+    }
+
+    /// This method will update a gpu texture if it exists with new data or
+    /// load a new texture onto the gpu if it does not.
+    ///
+    /// The same cavets of [`update`] apply in that care must be taken to not
+    /// change the size of the texture between [`load`] and [`update`]
+    pub(crate) fn update_or_load<'a>(
+        &mut self,
+        ctx: &Context,
+        width: u32,
+        height: u32,
+        layers: &[&'a [u8]],
+    ) {
+        if self.wgpu_texture.is_none() {
+            self.load(ctx, width, height, layers);
+        } else {
+            self.update(ctx, width, height, layers);
+        }
     }
 
     /// Checks if texture is loaded
