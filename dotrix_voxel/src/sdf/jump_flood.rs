@@ -46,14 +46,14 @@ pub enum JumpFlood {
 /// algorithm, which is an approximate
 /// algorithm with O(log2(n)) complexity
 pub struct VoxelJumpFlood {
-    pub jump_flood_varient: JumpFlood,
-    pub ping_buffer: TextureBuffer,
-    pub pong_buffer: TextureBuffer,
-    pub init_pipeline: Option<Compute>,
-    pub jumpflood_pipelines: Vec<Compute>,
-    pub jumpflood_data: Vec<Buffer>,
-    pub sdf_pipeline: Option<Compute>,
-    pub last_revision: Option<u32>,
+    jump_flood_varient: JumpFlood,
+    ping_buffer: TextureBuffer,
+    pong_buffer: TextureBuffer,
+    init_pipeline: Option<Compute>,
+    jumpflood_pipelines: Vec<Compute>,
+    jumpflood_data: Vec<Buffer>,
+    sdf_pipeline: Option<Compute>,
+    last_revision: Option<u32>,
 }
 
 impl Default for VoxelJumpFlood {
@@ -96,10 +96,11 @@ impl VoxelJumpFlood {
     /// Load the voxel data for computation
     pub fn load(&mut self, renderer: &Renderer, grid: &Grid) {
         let pixel_size = 4 * 4;
+        let dimensions = grid.get_dimensions();
         let dim: [u32; 3] = [
-            grid.dimensions[0] * SCALE_FACTOR,
-            grid.dimensions[1] * SCALE_FACTOR,
-            grid.dimensions[2] * SCALE_FACTOR,
+            dimensions[0] * SCALE_FACTOR,
+            dimensions[1] * SCALE_FACTOR,
+            dimensions[2] * SCALE_FACTOR,
         ];
         let data: Vec<Vec<u8>> =
             vec![0u8; pixel_size * dim[0] as usize * dim[1] as usize * dim[2] as usize]
@@ -109,9 +110,9 @@ impl VoxelJumpFlood {
 
         let slices: Vec<&[u8]> = data.iter().map(|chunk| chunk.as_slice()).collect();
 
-        renderer.load_texture(&mut self.ping_buffer, dim[0], dim[1], slices.as_slice());
+        renderer.update_or_load_texture(&mut self.ping_buffer, dim[0], dim[1], slices.as_slice());
 
-        renderer.load_texture(&mut self.pong_buffer, dim[0], dim[1], slices.as_slice());
+        renderer.update_or_load_texture(&mut self.pong_buffer, dim[0], dim[1], slices.as_slice());
     }
 }
 
@@ -157,10 +158,11 @@ pub(super) fn startup(renderer: Const<Renderer>, mut assets: Mut<Assets>) {
 // Compute the SDF from the grid
 pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: Mut<Renderer>) {
     for (grid, jump_flood, sdf) in world.query::<(&mut Grid, &mut VoxelJumpFlood, &mut TexSdf)>() {
+        let grid_dim = grid.get_dimensions();
         let dimensions: [u32; 3] = [
-            grid.dimensions[0] * SCALE_FACTOR,
-            grid.dimensions[1] * SCALE_FACTOR,
-            grid.dimensions[2] * SCALE_FACTOR,
+            grid_dim[0] * SCALE_FACTOR,
+            grid_dim[1] * SCALE_FACTOR,
+            grid_dim[2] * SCALE_FACTOR,
         ];
         let workgroup_size_x =
             (dimensions[0] as f32 / VOXELS_PER_WORKGROUP[0] as f32).ceil() as u32;
@@ -169,12 +171,7 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
         let workgroup_size_z =
             (dimensions[2] as f32 / VOXELS_PER_WORKGROUP[2] as f32).ceil() as u32;
 
-        if jump_flood.last_revision.is_none() || jump_flood.last_revision.unwrap() != grid.revision
-        {
-            jump_flood.reset();
-            jump_flood.last_revision = Some(grid.revision);
-        }
-
+        // Set up pipelines once
         if jump_flood.init_pipeline.is_none() {
             grid.load(&renderer, &assets);
             jump_flood.load(&renderer, grid);
@@ -200,7 +197,11 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                         bindings: &[BindGroup::new(
                             "Globals",
                             vec![
-                                Binding::Texture3D("VoxelTexture", Stage::Compute, &grid.buffer),
+                                Binding::Texture3D(
+                                    "VoxelTexture",
+                                    Stage::Compute,
+                                    grid.get_buffer(),
+                                ),
                                 Binding::StorageTexture3D(
                                     "InitSeeds",
                                     Stage::Compute,
@@ -210,17 +211,6 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                             ],
                         )],
                         options: ComputeOptions { cs_main: "main" },
-                    },
-                );
-
-                renderer.compute(
-                    &mut voxel_to_jump_flood.pipeline,
-                    &ComputeArgs {
-                        work_groups: WorkGroups {
-                            x: workgroup_size_x,
-                            y: workgroup_size_y,
-                            z: workgroup_size_z,
-                        },
                     },
                 );
 
@@ -293,17 +283,6 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                         },
                     );
 
-                    renderer.compute(
-                        &mut jump_flood_compute.pipeline,
-                        &ComputeArgs {
-                            work_groups: WorkGroups {
-                                x: workgroup_size_x,
-                                y: workgroup_size_y,
-                                z: workgroup_size_z,
-                            },
-                        },
-                    );
-
                     jump_flood.jumpflood_pipelines.push(jump_flood_compute);
                     jump_flood.jumpflood_data.push(buffer);
                     (ping_buffer, pong_buffer) = (pong_buffer, ping_buffer);
@@ -335,7 +314,7 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                             bindings: &[BindGroup::new(
                                 "Globals",
                                 vec![
-                                    Binding::Texture3D("Voxel", Stage::Compute, &grid.buffer),
+                                    Binding::Texture3D("Voxel", Stage::Compute, grid.get_buffer()),
                                     Binding::Texture3D("JumpFlood", Stage::Compute, pong_buffer),
                                     Binding::StorageTexture3D(
                                         "SDF",
@@ -349,8 +328,37 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                         },
                     );
 
+                    jump_flood.sdf_pipeline = Some(jump_flood_sdf);
+                }
+            }
+        }
+
+        // Call compute when ever the grid changes
+        if jump_flood.last_revision.is_none()
+            || jump_flood.last_revision.unwrap() != grid.get_revision()
+        {
+            grid.load(&renderer, &assets);
+            jump_flood.load(&renderer, grid);
+            if let (Some(voxel_to_jump_flood), Some(jump_flood_sdf)) = (
+                jump_flood.init_pipeline.as_mut(),
+                jump_flood.sdf_pipeline.as_mut(),
+            ) {
+                jump_flood.last_revision = Some(grid.get_revision());
+
+                renderer.compute(
+                    &mut voxel_to_jump_flood.pipeline,
+                    &ComputeArgs {
+                        work_groups: WorkGroups {
+                            x: workgroup_size_x,
+                            y: workgroup_size_y,
+                            z: workgroup_size_z,
+                        },
+                    },
+                );
+
+                for jump_flood_compute in jump_flood.jumpflood_pipelines.iter_mut() {
                     renderer.compute(
-                        &mut jump_flood_sdf.pipeline,
+                        &mut jump_flood_compute.pipeline,
                         &ComputeArgs {
                             work_groups: WorkGroups {
                                 x: workgroup_size_x,
@@ -359,10 +367,18 @@ pub(super) fn compute(world: Const<World>, assets: Const<Assets>, mut renderer: 
                             },
                         },
                     );
-
-                    jump_flood.sdf_pipeline = Some(jump_flood_sdf);
-                    sdf.pipeline.bindings.unload();
                 }
+
+                renderer.compute(
+                    &mut jump_flood_sdf.pipeline,
+                    &ComputeArgs {
+                        work_groups: WorkGroups {
+                            x: workgroup_size_x,
+                            y: workgroup_size_y,
+                            z: workgroup_size_z,
+                        },
+                    },
+                );
             }
         }
     }

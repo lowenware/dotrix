@@ -9,20 +9,25 @@ const DEFAULT_DIM: usize = 3;
 /// A grid of voxels
 pub struct Grid {
     /// The number of voxels per dimension
-    pub dimensions: [u32; 3],
+    /// This is not public to restric resizing
+    /// which needs a full recreate and rebind
+    /// of all of it's 3d textures if changed
+    /// Instead it can only be resized with
+    /// `[with_dimensions]` which takes self
+    dimensions: [u32; 3],
     /// The physical size of a single voxel
-    pub voxel_dimensions: [f32; 3],
+    voxel_dimensions: [f32; 3],
     /// The position of the grid center
-    pub position: [f32; 3],
+    position: [f32; 3],
     /// The voxels
-    pub voxels: Vec<Voxel>,
+    voxels: Vec<Voxel>,
     /// 3D Texture buffer
-    pub buffer: TextureBuffer,
+    buffer: TextureBuffer,
     /// Tracks if changed by incremented a revision number on each change
-    pub revision: u32,
+    revision: u32,
     /// Revision number of last load
     /// Setting this to `None` will force it to reload
-    pub last_update: Option<u32>,
+    last_update: Option<u32>,
 }
 
 impl Default for Grid {
@@ -44,33 +49,56 @@ impl Default for Grid {
 }
 
 impl Grid {
+    /// Start building a grid
     pub fn build() -> Self {
         Default::default()
     }
     #[must_use]
+    /// Build the grid with new dimensions, default values will fill the new voxels
     pub fn with_dimensions<T: Into<[u32; 3]>>(mut self, dimensions: T) -> Self {
         let dimensions: [u32; 3] = dimensions.into();
         self.dimensions = dimensions;
         let count: usize = (dimensions[0] * dimensions[1] * dimensions[2]) as usize;
         // Resize number of voxels to match
         self.voxels.resize(count, Default::default());
+        // Must recreate the binding texture
+        // Shader must rebind to see the update
+        self.buffer = {
+            let mut buffer = TextureBuffer::new_3d("VoxelGrid");
+            buffer.format = wgpu::TextureFormat::Rg8Uint;
+            buffer
+        };
         Self::flag_changed(self)
     }
     #[must_use]
+    /// Build the grid with these dimensions for the individual voxels
     pub fn with_voxel_dimensions<T: Into<[f32; 3]>>(mut self, voxel_dimensions: T) -> Self {
+        self.set_voxel_dimensions(voxel_dimensions);
+        self
+    }
+    /// Set the dimensions of the individual voxels
+    pub fn set_voxel_dimensions<T: Into<[f32; 3]>>(&mut self, voxel_dimensions: T) {
         self.voxel_dimensions = voxel_dimensions.into();
-        Self::flag_changed(self)
+        self.set_changed()
     }
     #[must_use]
+    /// Build the grid with this position
     pub fn with_position<T: Into<[f32; 3]>>(mut self, position: T) -> Self {
+        self.set_position(position);
+        self
+    }
+    /// Set the position of the grid
+    pub fn set_position<T: Into<[f32; 3]>>(&mut self, position: T) {
         self.position = position.into();
-        Self::flag_changed(self)
+        self.set_changed();
     }
     #[must_use]
+    /// Build the grid with these values for the voxel
     pub fn with_values<T: AsRef<[u8]>>(mut self, values: T) -> Self {
         self.set_values(values);
         self
     }
+    /// Set the values of the voxel, Extra values are ignored
     pub fn set_values<T: AsRef<[u8]>>(&mut self, values: T) {
         let input: &[u8] = values.as_ref();
         let count: usize = (self.dimensions[0] * self.dimensions[1] * self.dimensions[2]) as usize;
@@ -86,7 +114,13 @@ impl Grid {
         self.set_changed();
     }
     #[must_use]
+    /// Build the grid with these material values
     pub fn with_materials<T: AsRef<[u8]>>(mut self, values: T) -> Self {
+        self.set_materials(values);
+        self
+    }
+    /// Set the material values
+    pub fn set_materials<T: AsRef<[u8]>>(&mut self, values: T) {
         let input: &[u8] = values.as_ref();
         let count: usize = (self.dimensions[0] * self.dimensions[1] * self.dimensions[2]) as usize;
 
@@ -98,16 +132,40 @@ impl Grid {
             .iter_mut()
             .enumerate()
             .for_each(|(i, v)| (v).material = input[i]);
-        Self::flag_changed(self)
+        self.set_changed();
     }
 
     #[must_use]
+    /// Build the grid with it flagged as changed
     pub fn flag_changed(mut self) -> Self {
         self.set_changed();
         self
     }
+    /// Set the grid as changed
     pub fn set_changed(&mut self) {
         self.revision += 1;
+    }
+
+    /// Get the current revision
+    /// This is incremented on each change of the grid
+    /// that requires a reload
+    pub fn get_revision(&self) -> u32 {
+        self.revision
+    }
+
+    /// The 3DTexture buffer, must first be loaded with [`load`]
+    pub fn get_buffer(&self) -> &TextureBuffer {
+        &self.buffer
+    }
+
+    /// The number of voxels in each dimension
+    pub fn get_dimensions(&self) -> &[u32; 3] {
+        &self.dimensions
+    }
+
+    /// The size of an individual voxel
+    pub fn get_voxel_dimensions(&self) -> &[f32; 3] {
+        &self.voxel_dimensions
     }
 
     /// Get's the total size of the voxels in all dimensions
@@ -119,6 +177,7 @@ impl Grid {
         ]
     }
 
+    /// Load the grid into a 3DTexture
     pub fn load(&mut self, renderer: &Renderer, _assets: &Assets) {
         if let Some(last_update) = self.last_update {
             if last_update == self.revision && self.buffer.loaded() {
@@ -139,7 +198,7 @@ impl Grid {
 
         let slices: Vec<&[u8]> = data.iter().map(|chunk| chunk.as_slice()).collect();
 
-        renderer.load_texture(
+        renderer.update_or_load_texture(
             &mut self.buffer,
             self.dimensions[0],
             self.dimensions[1],

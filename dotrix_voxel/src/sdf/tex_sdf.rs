@@ -43,7 +43,7 @@ impl TexSdf {
 
         let slices: Vec<&[u8]> = data.iter().map(|chunk| chunk.as_slice()).collect();
 
-        renderer.load_texture(
+        renderer.update_or_load_texture(
             &mut self.buffer,
             dimensions[0],
             dimensions[1],

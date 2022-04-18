@@ -26,7 +26,7 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>) {
 
     let mut grid = Grid::default();
 
-    let dims = grid.dimensions;
+    let dims = grid.get_dimensions();
     let total_size: usize = dims.iter().fold(1usize, |acc, &item| acc * (item as usize));
     let values: Vec<u8> = vec![0u8; total_size]
         .iter()
@@ -62,7 +62,7 @@ pub fn ui(overlay: Mut<Overlay>, world: Const<World>) {
     TopBottomPanel::bottom("my_panel").show(&egui.ctx, |ui| {
         if ui.button("Randomize").clicked() {
             for (grid,) in world.query::<(&mut Grid,)>() {
-                let dims = grid.dimensions;
+                let dims = grid.get_dimensions();
                 let total_size: usize =
                     dims.iter().fold(1usize, |acc, &item| acc * (item as usize));
                 let values: Vec<u8> = vec![0u8; total_size]
@@ -77,7 +77,6 @@ pub fn ui(overlay: Mut<Overlay>, world: Const<World>) {
                     })
                     .collect();
                 grid.set_values(values);
-                println!("Clicked");
             }
         }
     });

@@ -84,7 +84,7 @@ impl Renderer {
         buffer.load(self.context(), attributes, indices, count as u32);
     }*/
 
-    /// Loads the texture buffer to GPU
+    /// Loads the texture buffer to GPU, this will recreate the texture and will need to be rebound
     pub fn load_texture<'a>(
         &self,
         texture: &mut Texture,
@@ -93,6 +93,32 @@ impl Renderer {
         layers: &'a [&'a [u8]],
     ) {
         texture.load(self.context(), width, height, layers);
+    }
+
+    /// Load data from cpu to a texture buffer on GPU
+    /// This will fail if texture has not been loaded with `load_texture`
+    /// possible unexpected results occur if the dimensions differs from it dimensions at load time
+    pub fn update_texture<'a>(
+        &self,
+        texture: &mut Texture,
+        width: u32,
+        height: u32,
+        layers: &'a [&'a [u8]],
+    ) {
+        texture.update(self.context(), width, height, layers);
+    }
+
+    /// This will `[update_texture]` if texture has been loaded or `[load_texture]` if not
+    /// the same cavets of `[update_texture]` apply in that care must be taken not to change
+    /// the dimensions between `load` and `update`
+    pub fn update_or_load_texture<'a>(
+        &self,
+        texture: &mut Texture,
+        width: u32,
+        height: u32,
+        layers: &'a [&'a [u8]],
+    ) {
+        texture.update_or_load(self.context(), width, height, layers);
     }
 
     /// Loads the buffer to GPU

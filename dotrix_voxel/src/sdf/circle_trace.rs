@@ -118,7 +118,7 @@ pub fn render(
             .unwrap();
 
         let grid_size = grid.total_size();
-        let voxel_size = grid.voxel_dimensions;
+        let voxel_size = grid.get_voxel_dimensions();
         let scale = Mat4::from_nonuniform_scale(grid_size[0], grid_size[1], grid_size[2]);
         let uniform = SdfBufferData {
             cube_transform: scale.into(),
