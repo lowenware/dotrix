@@ -604,7 +604,7 @@ mod tests {
         let world = spawn();
         let entity = Entity::from(0);
         let query = world.get::<(&Armor, &Health)>(entity);
-        assert_eq!(query.is_some(), true);
+        assert!(query.is_some());
         if let Some((&armor, &health)) = query {
             assert_eq!(armor, Armor(100));
             assert_eq!(health, Health(100));
@@ -630,8 +630,8 @@ mod tests {
 
         assert_eq!(spawned.len(), 3);
 
-        for i in 0..3 {
-            assert_eq!(spawned[i], Entity::from(i as u64 + 1));
+        for (i, ent) in spawned.iter().enumerate() {
+            assert_eq!(ent, &Entity::from(i as u64 + 1));
         }
     }
 }

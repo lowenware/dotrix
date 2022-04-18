@@ -354,7 +354,7 @@ mod tests {
             [-width, width, width],
         ];
 
-        width = width / 2.0;
+        width /= 2.0;
 
         let verticies_test_original_2: Vec<[f32; 3]> = vec![
             [-width, -width, -width],
@@ -367,7 +367,7 @@ mod tests {
             [-width, width, width],
         ];
 
-        width = width / 2.0;
+        width /= 2.0;
 
         let verticies_test_original_3: Vec<[u32; 3]> = vec![
             [-width as u32, -width as u32, -width as u32],
