@@ -4,6 +4,7 @@ use wgpu;
 pub enum TextureKind {
     D2,
     Cube,
+    D3,
 }
 
 /// GPU Texture Implementation
@@ -51,6 +52,16 @@ impl Texture {
             label: String::from(label),
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             kind: TextureKind::Cube,
+            ..Default::default()
+        }
+    }
+
+    /// Constructs a 3D GPU Texture
+    pub fn new_3d(label: &str) -> Self {
+        Self {
+            label: String::from(label),
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            kind: TextureKind::D3,
             ..Default::default()
         }
     }
@@ -130,6 +141,7 @@ impl Texture {
                 assert!(layers.len() == 6);
                 wgpu::TextureViewDimension::Cube
             }
+            TextureKind::D3 => wgpu::TextureViewDimension::D3,
         };
 
         let format = self.format;
@@ -149,6 +161,7 @@ impl Texture {
         let tex_dimension: wgpu::TextureDimension = match self.kind {
             TextureKind::D2 => wgpu::TextureDimension::D2,
             TextureKind::Cube => wgpu::TextureDimension::D2,
+            TextureKind::D3 => wgpu::TextureDimension::D3,
         };
 
         let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
