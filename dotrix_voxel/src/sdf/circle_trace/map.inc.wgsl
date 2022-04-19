@@ -109,18 +109,19 @@ fn map(p: vec3<f32>) -> f32
 
     let internal_dist = tri_linear_interpolation(cube_p);
 
+    // Enclosing box used for clipping
+    let enclosing_box: f32 = sdBox(local_p.xyz, (u_sdf.grid_dimensions.xyz * 1.00)/vec3<f32>(2.));
+
+    //
     // Distance are built on the assumption that voxel size is one
     // we must correct that
     // If scale is non_uniform we can only provide a bound on the distance
-    //
     let scale: vec3<f32> = u_sdf.world_scale.xyz;
     let min_scale: f32 = min(abs(scale.x), min(abs(scale.y), abs(scale.z)));
-    let dist = internal_dist * min_scale;
-    // Enclosing box used for clipping
-    let enclosing_box: f32 = sdBox(local_p.xyz, (u_sdf.grid_dimensions.xyz * 1.00)/vec3<f32>(2.)) * min_scale;
-
+    
     // Return intersection of voxel sdf and enclosing (clipping) box
-    return max(enclosing_box, dist);
+    let dist = max(internal_dist, dist) * min_scale;
+    return dist;
 }
 // Get the material id at a point
 //
