@@ -17,8 +17,6 @@ pub struct Grid {
     dimensions: [u32; 3],
     /// The physical size of a single voxel
     voxel_dimensions: [f32; 3],
-    /// The position of the grid center
-    position: [f32; 3],
     /// The voxels
     voxels: Vec<Voxel>,
     /// 3D Texture buffer
@@ -35,7 +33,6 @@ impl Default for Grid {
         Grid {
             dimensions: [DEFAULT_DIM as u32, DEFAULT_DIM as u32, DEFAULT_DIM as u32],
             voxel_dimensions: [1.0, 1.0, 1.0],
-            position: [0., 0., 0.],
             voxels: vec![Default::default(); DEFAULT_DIM * DEFAULT_DIM * DEFAULT_DIM],
             buffer: {
                 let mut buffer = TextureBuffer::new_3d("VoxelGrid");
@@ -80,17 +77,6 @@ impl Grid {
     pub fn set_voxel_dimensions<T: Into<[f32; 3]>>(&mut self, voxel_dimensions: T) {
         self.voxel_dimensions = voxel_dimensions.into();
         self.set_changed()
-    }
-    #[must_use]
-    /// Build the grid with this position
-    pub fn with_position<T: Into<[f32; 3]>>(mut self, position: T) -> Self {
-        self.set_position(position);
-        self
-    }
-    /// Set the position of the grid
-    pub fn set_position<T: Into<[f32; 3]>>(&mut self, position: T) {
-        self.position = position.into();
-        self.set_changed();
     }
     #[must_use]
     /// Build the grid with these values for the voxel

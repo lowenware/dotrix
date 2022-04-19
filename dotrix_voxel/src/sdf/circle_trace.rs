@@ -4,7 +4,7 @@ use dotrix_core::{
     assets::{Mesh, Shader},
     ecs::{Const, Mut, System},
     renderer::{BindGroup, Binding, PipelineLayout, RenderOptions, Sampler, Stage},
-    Application, Assets, Globals, Renderer, World,
+    Application, Assets, Globals, Renderer, Transform, World,
 };
 use dotrix_math::*;
 use dotrix_primitives::Cube;
@@ -102,7 +102,7 @@ pub fn render(
         .get::<CameraBuffer>()
         .expect("ProjView buffer must be loaded");
 
-    for (grid, sdf) in world.query::<(&Grid, &mut TexSdf)>() {
+    for (grid, sdf, world_transform) in world.query::<(&Grid, &mut TexSdf, &Transform)>() {
         if sdf.pipeline.shader.is_null() {
             sdf.pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
         }
@@ -120,11 +120,12 @@ pub fn render(
         let grid_size = grid.total_size();
         let voxel_size = grid.get_voxel_dimensions();
         let scale = Mat4::from_nonuniform_scale(grid_size[0], grid_size[1], grid_size[2]);
+        let world_transform_mat4: Mat4 = world_transform.matrix();
         let uniform = SdfBufferData {
             cube_transform: scale.into(),
             inv_cube_transform: scale.invert().unwrap().into(),
-            world_transform: Mat4::identity().into(),
-            inv_world_transform: Mat4::identity().into(),
+            world_transform: world_transform_mat4.into(),
+            inv_world_transform: world_transform_mat4.invert().unwrap().into(),
             voxel_dimensions: [voxel_size[0], voxel_size[1], voxel_size[2], 1.],
             grid_dimensions: [grid_size[0], grid_size[1], grid_size[2], 1.],
             // padding: Default::default(),

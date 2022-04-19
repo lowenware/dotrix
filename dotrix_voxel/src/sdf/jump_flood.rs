@@ -58,6 +58,13 @@ pub struct VoxelJumpFlood {
 
 impl Default for VoxelJumpFlood {
     fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl VoxelJumpFlood {
+    /// Use default parameters for a new jump flood
+    pub fn new() -> Self {
         Self {
             jump_flood_varient: JumpFlood::JfaSquare,
             ping_buffer: {
@@ -81,16 +88,35 @@ impl Default for VoxelJumpFlood {
             last_revision: None,
         }
     }
-}
 
-impl VoxelJumpFlood {
-    /// Reset the algorithm for recomputation
+    #[must_use]
+    pub fn with_algorithm(mut self, jfa: JumpFlood) -> Self {
+        self.jump_flood_varient = jfa;
+        self
+    }
+
+    /// Reset the algorithm for recomputation, call this is the size of the grid has changed
+    /// This does not need to be called if only the values of the grid have changes
     pub fn reset(&mut self) {
         self.init_pipeline = None;
         self.jumpflood_pipelines = vec![];
         self.jumpflood_data = vec![];
         self.sdf_pipeline = None;
         self.last_revision = None;
+        self.ping_buffer = {
+            let mut buffer = TextureBuffer::new_3d("PingBuffer")
+                .use_as_storage()
+                .allow_write();
+            buffer.format = wgpu::TextureFormat::Rgba32Float;
+            buffer
+        };
+        self.pong_buffer = {
+            let mut buffer = TextureBuffer::new_3d("PongBuffer")
+                .use_as_storage()
+                .allow_write();
+            buffer.format = wgpu::TextureFormat::Rgba32Float;
+            buffer
+        };
     }
 
     /// Load the voxel data for computation
