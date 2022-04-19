@@ -1,4 +1,4 @@
-use dotrix::egui::{Egui, TopBottomPanel};
+use dotrix::egui::{DragValue, Egui, TopBottomPanel};
 use dotrix::overlay::Overlay;
 use dotrix::{
     camera,
@@ -54,10 +54,25 @@ pub fn ui(overlay: Mut<Overlay>, world: Const<World>) {
         .get::<Egui>()
         .expect("Renderer does not contain an Overlay instance");
     TopBottomPanel::bottom("my_panel").show(&egui.ctx, |ui| {
-        if ui.button("Randomize").clicked() {
-            for (grid,) in world.query::<(&mut Grid,)>() {
+        for (grid, transform) in world.query::<(&mut Grid, &mut Transform)>() {
+            if ui.button("Randomize").clicked() {
                 randomize_grid(grid);
             }
+            ui.add(
+                DragValue::new(&mut transform.scale[0])
+                    .speed(0.1)
+                    .prefix("X:"),
+            );
+            ui.add(
+                DragValue::new(&mut transform.scale[1])
+                    .speed(0.1)
+                    .prefix("Y:"),
+            );
+            ui.add(
+                DragValue::new(&mut transform.scale[2])
+                    .speed(0.1)
+                    .prefix("Z:"),
+            );
         }
     });
 }
