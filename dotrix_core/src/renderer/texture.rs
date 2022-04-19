@@ -278,6 +278,7 @@ impl Texture {
 
     /// Release all resources used by the texture
     pub fn unload(&mut self) {
+        self.wgpu_texture.take();
         self.wgpu_texture_view.take();
     }
 
