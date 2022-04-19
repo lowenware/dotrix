@@ -224,13 +224,13 @@ fn pixel_radius(t: f32, direction: vec3<f32>, direction_x: vec3<f32>, direction_
   return length(vec2<f32>(dx, dy)) * 0.1;
 }
 
-{{ RAYTRACE_ALGO }}
+{% include "circle_trace/accelerated_raytrace.inc.wgsl" %}
 
-{{ AO_ALGO }}
+{% include "circle_trace/hemisphere_ambient_occulsion.inc.wgsl" %}
 
-{{ SHADOWS_ALGO }}
+{% include "circle_trace/soft_shadows_closet_approach.inc.wgsl" %}
 
-{{ LIGHTING_ALGO }}
+{% include "circle_trace/lighting.inc.wgsl" %}
 
 
 struct FragmentOutput {
