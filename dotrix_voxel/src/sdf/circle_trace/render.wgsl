@@ -25,6 +25,8 @@ struct SdfData {
   voxel_dimensions: vec4<f32>;
   // Dimensions of the voxel
   grid_dimensions: vec4<f32>;
+  // Scale in world space
+  world_scale: vec4<f32>;
 };
 [[group(1), binding(0)]]
 var<uniform> u_sdf: SdfData;
@@ -66,163 +68,14 @@ fn get_ray_direction(pixel: vec2<u32>, resolution: vec2<f32>) -> vec3<f32> {
   return normalize(world_coordinate.xyz);
 }
 
-// SDF for a box, b is half box size
-fn sdBox(p: vec3<f32>,b: vec3<f32>) -> f32
-{
-  let q: vec3<f32> = abs(p) - b;
-  return length(max(q,vec3<f32>(0.0))) + min(max(q.x,max(q.y,q.z)),0.0);
-}
-
-// Get distance to surface from a point
-fn map(p: vec3<f32>) -> f32
-{
-    let local_p: vec4<f32> = (u_sdf.inv_world_transform * vec4<f32>(p, 1.));
-    let cube_p: vec4<f32> = (u_sdf.inv_cube_transform * local_p);
-
-    let seed_dim: vec3<i32> = textureDimensions(sdf_texture) - vec3<i32>(1);
-    let seed_dim_f32: vec3<f32> = vec3<f32>(f32(seed_dim.x), f32(seed_dim.y), f32(seed_dim.z));
-    let pixel_coords: vec3<f32> = ((cube_p.xyz + vec3<f32>(0.5)) /2.) * seed_dim_f32 * 2.;
-
-    var i: i32 = i32(pixel_coords.x);
-    var j: i32 = i32(pixel_coords.y);
-    var k: i32 = i32(pixel_coords.z);
-
-
-    i = clamp(i, 0, seed_dim.x);
-    j = clamp(j, 0, seed_dim.y);
-    k = clamp(k, 0, seed_dim.z);
-    let x: f32 = clamp(pixel_coords.x - f32(i), 0., 1.);
-    let y: f32 = clamp(pixel_coords.y - f32(j), 0., 1.);
-    let z: f32 = clamp(pixel_coords.z - f32(k), 0., 1.);
-
-    let f000: f32 = textureLoad(sdf_texture,
-      vec3<i32>(
-          i,
-          j,
-          k,
-      )
-    ,0).r;
-    let f001: f32 = textureLoad(sdf_texture,
-      vec3<i32>(
-          i,
-          j,
-          k + 1,
-      )
-    ,0).r;
-    let f010: f32 = textureLoad(sdf_texture,
-      vec3<i32>(
-          i,
-          j + 1,
-          k,
-      )
-    ,0).r;
-    let f011: f32 = textureLoad(sdf_texture,
-      vec3<i32>(
-          i,
-          j + 1,
-          k + 1,
-      )
-    ,0).r;
-    let f100: f32 = textureLoad(sdf_texture,
-      vec3<i32>(
-          i + 1,
-          j,
-          k,
-      )
-    ,0).r;
-    let f101: f32 = textureLoad(sdf_texture,
-      vec3<i32>(
-          i + 1,
-          j,
-          k + 1,
-      )
-    ,0).r;
-    let f110: f32 = textureLoad(sdf_texture,
-      vec3<i32>(
-          i + 1,
-          j + 1,
-          k,
-      )
-    ,0).r;
-    let f111: f32 = textureLoad(sdf_texture,
-      vec3<i32>(
-          i + 1,
-          j + 1,
-          k + 1,
-      )
-    ,0).r;
-
-    // Distance are built on the assumption that voxel size is one
-    // we must correct that
-    // If scale is non_uniform we can only provide a bound on the distance
-    //
-    // We attempt to extract the scale from the transform matrix
-    // This extraction only works if
-    // - Matrix is orthonormal
-    // - Matrix is constructed as Scale*Rotate*Translate
-    // - Matrix is column vectors
-    // - Scale is all positive
-    //   - Cannot do negative scale without more information
-    //   - In this case it would be best to just apply it
-    //     from uniform data
-    let scale: vec3<f32> = vec3<f32>(
-      length(u_sdf.world_transform.x.xyz),
-      length(u_sdf.world_transform.y.xyz),
-      length(u_sdf.world_transform.z.xyz),
-    );
-    let min_scale: f32 = min(scale.x, min(scale.y, scale.z));
-    let internal_dist: f32 = min_scale *
-          (
-             f000*(1.-x)*(1.-y)*(1.-z)
-            +f001*(1.-x)*(1.-y)*z
-            +f010*(1.-x)*y     *(1.-z)
-            +f011*(1.-x)*y     *z
-            +f100*x     *(1.-y)*(1.-z)
-            +f101*x     *(1.-y)*z
-            +f110*x     *y     *(1.-z)
-            +f111*x     *y     *z
-          );
-      let enclosing_box: f32 = sdBox(local_p.xyz, (u_sdf.grid_dimensions.xyz * 1.001)/vec3<f32>(2.));
-      return max(enclosing_box, internal_dist);
-}
-// Get the material id at a point
-//
-// Using nearest neighbour
-fn map_material(p: vec3<f32>) -> u32
-{
-  let local_p: vec4<f32> = (u_sdf.inv_world_transform * vec4<f32>(p, 1.));
-  let cube_p: vec4<f32> = (u_sdf.inv_cube_transform * local_p);
-
-  let seed_dim: vec3<i32> = textureDimensions(sdf_texture) - vec3<i32>(1);
-  let seed_dim_f32: vec3<f32> = vec3<f32>(f32(seed_dim.x), f32(seed_dim.y), f32(seed_dim.z));
-  let pixel_coords: vec3<f32> = ((cube_p.xyz + vec3<f32>(0.5)) /2.) * seed_dim_f32 * 2.;
-
-  let nearest_pos: vec3<f32> = round(pixel_coords);
-  let nearest_coord: vec3<i32> = vec3<i32>(i32(nearest_pos.x), i32(nearest_pos.y), i32(nearest_pos.z));
-
-  return u32(textureLoad(sdf_texture, nearest_coord, 0).g);
-}
-
-// Surface gradient (is the normal)
-fn map_normal (p: vec3<f32>) -> vec3<f32>
-{
-	let eps: vec3<f32> = u_sdf.voxel_dimensions.xyz * 0.05;
-
-	return normalize
-	(	vec3<f32>
-		(	map(p + vec3<f32>(eps.x, 0., 0.)	) - map(p - vec3<f32>(eps.x, 0., 0.)),
-			map(p + vec3<f32>(0., eps.y, 0.)	) - map(p - vec3<f32>(0., eps.y, 0.)),
-			map(p + vec3<f32>(0., 0., eps.z)	) - map(p - vec3<f32>(0., 0., eps.z))
-		)
-	);
-}
-
 // Use pixel based cones to get the size of the pizel
 fn pixel_radius(t: f32, direction: vec3<f32>, direction_x: vec3<f32>, direction_y: vec3<f32>) -> f32 {
   let dx: f32 = length(t*(direction_x-direction));
   let dy: f32 = length(t*(direction_y-direction));
   return length(vec2<f32>(dx, dy)) * 0.1;
 }
+
+{% include "circle_trace/map.inc.wgsl" %}
 
 {% include "circle_trace/accelerated_raytrace.inc.wgsl" %}
 

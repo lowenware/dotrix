@@ -35,7 +35,8 @@ struct SdfBufferData {
     pub voxel_dimensions: [f32; 4],
     // Dimensions of the voxel grid
     pub grid_dimensions: [f32; 4],
-    // pub padding: [f32; 2],
+    // World space scale
+    pub world_scale: [f32; 4],
 }
 
 unsafe impl bytemuck::Zeroable for SdfBufferData {}
@@ -48,6 +49,10 @@ pub fn startup(renderer: Const<Renderer>, mut assets: Mut<Assets>) {
             (
                 "circle_trace/render.wgsl",
                 include_str!("./circle_trace/render.wgsl"),
+            ),
+            (
+                "circle_trace/map.inc.wgsl",
+                include_str!("./circle_trace/map.inc.wgsl"),
             ),
             (
                 "circle_trace/accelerated_raytrace.inc.wgsl",
@@ -114,6 +119,7 @@ pub fn render(
         let voxel_size = grid.get_voxel_dimensions();
         let scale = Mat4::from_nonuniform_scale(grid_size[0], grid_size[1], grid_size[2]);
         let world_transform_mat4: Mat4 = world_transform.matrix();
+        let world_scale: [f32; 3] = world_transform.scale.into();
         let uniform = SdfBufferData {
             cube_transform: scale.into(),
             inv_cube_transform: scale.invert().unwrap().into(),
@@ -121,7 +127,7 @@ pub fn render(
             inv_world_transform: world_transform_mat4.invert().unwrap().into(),
             voxel_dimensions: [voxel_size[0], voxel_size[1], voxel_size[2], 1.],
             grid_dimensions: [grid_size[0], grid_size[1], grid_size[2], 1.],
-            // padding: Default::default(),
+            world_scale: [world_scale[0], world_scale[1], world_scale[2], 1.],
         };
         // println!("grid_dimensions: {:?}", uniform.grid_dimensions);
         // println!("cube_transform: {:?}", uniform.cube_transform);
