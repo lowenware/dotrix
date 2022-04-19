@@ -66,13 +66,6 @@ fn get_ray_direction(pixel: vec2<u32>, resolution: vec2<f32>) -> vec3<f32> {
   return normalize(world_coordinate.xyz);
 }
 
-// Use pixel based cones to get the size of the pizel
-fn pixel_radius(t: f32, direction: vec3<f32>, direction_x: vec3<f32>, direction_y: vec3<f32>) -> f32 {
-  let dx: f32 = length(t*(direction_x-direction));
-  let dy: f32 = length(t*(direction_y-direction));
-  return length(vec2<f32>(dx, dy)) * 0.1;
-}
-
 {% include "circle_trace/map.inc.wgsl" %}
 
 {% include "circle_trace/accelerated_raytrace.inc.wgsl" %}

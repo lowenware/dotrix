@@ -21,6 +21,13 @@ struct RaymarchOut {
   success: bool;
 };
 
+// Use pixel based cones to get the size of the pizel
+fn pixel_radius(t: f32, direction: vec3<f32>, direction_x: vec3<f32>, direction_y: vec3<f32>) -> f32 {
+  let dx: f32 = length(t*(direction_x-direction));
+  let dy: f32 = length(t*(direction_y-direction));
+  return length(vec2<f32>(dx, dy)) * 0.1; // 10% of pixel size is the cut-off
+}
+
 fn raymarch(t_in: f32, ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f32>) -> RaymarchOut {
   let o: vec3<f32> = ro;
   let d: vec3<f32> = rd;
