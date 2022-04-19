@@ -22,8 +22,6 @@ struct SdfData {
   // Inverse World transform of the voxel grid
   inv_world_transform: mat4x4<f32>;
   // Dimensions of the voxel
-  voxel_dimensions: vec4<f32>;
-  // Dimensions of the voxel
   grid_dimensions: vec4<f32>;
   // Scale in world space
   world_scale: vec4<f32>;

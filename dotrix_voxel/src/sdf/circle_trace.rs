@@ -31,8 +31,6 @@ struct SdfBufferData {
     pub world_transform: [[f32; 4]; 4],
     // Inverse of world_transform
     pub inv_world_transform: [[f32; 4]; 4],
-    // Dimensions of the voxel
-    pub voxel_dimensions: [f32; 4],
     // Dimensions of the voxel grid
     pub grid_dimensions: [f32; 4],
     // World space scale
@@ -115,8 +113,7 @@ pub fn render(
             )
             .unwrap();
 
-        let grid_size = grid.total_size();
-        let voxel_size = grid.get_voxel_dimensions();
+        let grid_size = grid.get_size();
         let scale = Mat4::from_nonuniform_scale(grid_size[0], grid_size[1], grid_size[2]);
         let world_transform_mat4: Mat4 = world_transform.matrix();
         let world_scale: [f32; 3] = world_transform.scale.into();
@@ -125,7 +122,6 @@ pub fn render(
             inv_cube_transform: scale.invert().unwrap().into(),
             world_transform: world_transform_mat4.into(),
             inv_world_transform: world_transform_mat4.invert().unwrap().into(),
-            voxel_dimensions: [voxel_size[0], voxel_size[1], voxel_size[2], 1.],
             grid_dimensions: [grid_size[0], grid_size[1], grid_size[2], 1.],
             world_scale: [world_scale[0], world_scale[1], world_scale[2], 1.],
         };

@@ -15,8 +15,6 @@ pub struct Grid {
     /// Instead it can only be resized with
     /// `[with_dimensions]` which takes self
     dimensions: [u32; 3],
-    /// The physical size of a single voxel
-    voxel_dimensions: [f32; 3],
     /// The voxels
     voxels: Vec<Voxel>,
     /// 3D Texture buffer
@@ -32,7 +30,6 @@ impl Default for Grid {
     fn default() -> Self {
         Grid {
             dimensions: [DEFAULT_DIM as u32, DEFAULT_DIM as u32, DEFAULT_DIM as u32],
-            voxel_dimensions: [1.0, 1.0, 1.0],
             voxels: vec![Default::default(); DEFAULT_DIM * DEFAULT_DIM * DEFAULT_DIM],
             buffer: {
                 let mut buffer = TextureBuffer::new_3d("VoxelGrid");
@@ -66,17 +63,6 @@ impl Grid {
             buffer
         };
         Self::flag_changed(self)
-    }
-    #[must_use]
-    /// Build the grid with these dimensions for the individual voxels
-    pub fn with_voxel_dimensions<T: Into<[f32; 3]>>(mut self, voxel_dimensions: T) -> Self {
-        self.set_voxel_dimensions(voxel_dimensions);
-        self
-    }
-    /// Set the dimensions of the individual voxels
-    pub fn set_voxel_dimensions<T: Into<[f32; 3]>>(&mut self, voxel_dimensions: T) {
-        self.voxel_dimensions = voxel_dimensions.into();
-        self.set_changed()
     }
     #[must_use]
     /// Build the grid with these values for the voxel
@@ -149,17 +135,12 @@ impl Grid {
         &self.dimensions
     }
 
-    /// The size of an individual voxel
-    pub fn get_voxel_dimensions(&self) -> &[f32; 3] {
-        &self.voxel_dimensions
-    }
-
-    /// Get's the total size of the voxels in all dimensions
-    pub fn total_size(&self) -> [f32; 3] {
+    /// Same as `[get_dimensions]` but as f32 (convenince method)
+    pub fn get_size(&self) -> [f32; 3] {
         [
-            self.voxel_dimensions[0] * self.dimensions[0] as f32,
-            self.voxel_dimensions[1] * self.dimensions[1] as f32,
-            self.voxel_dimensions[2] * self.dimensions[2] as f32,
+            self.dimensions[0] as f32,
+            self.dimensions[1] as f32,
+            self.dimensions[2] as f32,
         ]
     }
 

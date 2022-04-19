@@ -28,7 +28,7 @@ fn raymarch(t_in: f32, ro: vec3<f32>, rd: vec3<f32>, rdx: vec3<f32>, rdy: vec3<f
   let dy: vec3<f32> = rdy;
 
   let STEP_SIZE_REDUCTION: f32 = 0.95;
-  let MAX_DISTANCE: f32 = t_in + length(u_sdf.grid_dimensions.xyz);
+  let MAX_DISTANCE: f32 = t_in + length(u_sdf.grid_dimensions.xyz * abs(u_sdf.world_scale.xyz));
   let MAX_ITERATIONS: u32 = 128u;
 
   var t: f32 = t_in;

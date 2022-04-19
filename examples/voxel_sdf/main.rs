@@ -25,15 +25,15 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>) {
     camera.tilt = 0.0;
 
     let mut grid = Grid::default();
-
     randomize_grid(&mut grid);
+
     world.spawn(vec![(
         grid,
         VoxelJumpFlood::default(),
         TexSdf::default(),
         Transform::builder()
-            .with_translate([2., 2., 2.].into())
-            .with_scale([2., 2., 2.].into())
+            // .with_translate([2.,2.,2.].into())
+            .with_scale([1., 3., 1.].into())
             .build(),
     )]);
 

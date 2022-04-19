@@ -115,12 +115,12 @@ fn map(p: vec3<f32>) -> f32
     //
     let scale: vec3<f32> = u_sdf.world_scale.xyz;
     let min_scale: f32 = min(abs(scale.x), min(abs(scale.y), abs(scale.z)));
-
+    let dist = internal_dist * min_scale;
     // Enclosing box used for clipping
     let enclosing_box: f32 = sdBox(local_p.xyz, (u_sdf.grid_dimensions.xyz * 1.001)/vec3<f32>(2.));
 
     // Return intersection of voxel sdf and enclosing (clipping) box
-    return max(enclosing_box, internal_dist);
+    return max(enclosing_box, dist);
 }
 // Get the material id at a point
 //
@@ -143,7 +143,7 @@ fn map_material(p: vec3<f32>) -> u32
 // Surface gradient (is the normal)
 fn map_normal (p: vec3<f32>) -> vec3<f32>
 {
-	let eps: vec3<f32> = u_sdf.voxel_dimensions.xyz * 0.05;
+	let eps: vec3<f32> = abs(u_sdf.world_scale.xyz) * 0.05;
 
 	return normalize
 	(	vec3<f32>
