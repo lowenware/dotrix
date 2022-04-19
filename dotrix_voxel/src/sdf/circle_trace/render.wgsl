@@ -84,7 +84,7 @@ struct FragmentOutput {
 
 [[stage(fragment)]]
 fn fs_main(in: VertexOutput) -> FragmentOutput {
-  let debug: bool = true;
+  let debug: bool = false;
   let resolution: vec2<f32> = u_camera.screen_resolution.xy;
   let pixel_coords: vec2<u32> = vec2<u32>(u32(in.position.x), u32(resolution.y - in.position.y));
 

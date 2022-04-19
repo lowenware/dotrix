@@ -12,16 +12,16 @@
 // Which attempts to overstep on the ray in order to reduce the number of steps marched
 // on the ray
 //
-// The function `pixel_radius` is used for an early exit, given the directions and
-// the distance traveled it computes the approixmate size of a pixel on screen
-// If the distance to the surface is less then the returned pixel size then we
-// Stop marching
 struct RaymarchOut {
   t: f32;
   success: bool;
 };
 
 // Use pixel based cones to get the size of the pizel
+// This is used for an early exit, given the directions and
+// the distance traveled it computes the approixmate size of a pixel on screen
+// If the distance to the surface is less then the returned pixel size then we
+// Stop marching
 fn pixel_radius(t: f32, direction: vec3<f32>, direction_x: vec3<f32>, direction_y: vec3<f32>) -> f32 {
   let dx: f32 = length(t*(direction_x-direction));
   let dy: f32 = length(t*(direction_y-direction));
