@@ -119,9 +119,12 @@ pub fn render(
         let world_scale: [f32; 3] = world_transform.scale.into();
         let uniform = SdfBufferData {
             cube_transform: scale.into(),
-            inv_cube_transform: scale.invert().unwrap().into(),
+            inv_cube_transform: scale.invert().unwrap_or_else(Mat4::identity).into(),
             world_transform: world_transform_mat4.into(),
-            inv_world_transform: world_transform_mat4.invert().unwrap().into(),
+            inv_world_transform: world_transform_mat4
+                .invert()
+                .unwrap_or_else(Mat4::identity)
+                .into(),
             grid_dimensions: [grid_size[0], grid_size[1], grid_size[2], 1.],
             world_scale: [world_scale[0], world_scale[1], world_scale[2], 1.],
         };
