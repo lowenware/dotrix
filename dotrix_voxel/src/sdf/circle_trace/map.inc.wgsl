@@ -117,7 +117,7 @@ fn map(p: vec3<f32>) -> f32
     let min_scale: f32 = min(abs(scale.x), min(abs(scale.y), abs(scale.z)));
     let dist = internal_dist * min_scale;
     // Enclosing box used for clipping
-    let enclosing_box: f32 = sdBox(local_p.xyz, (u_sdf.grid_dimensions.xyz * 1.001)/vec3<f32>(2.));
+    let enclosing_box: f32 = sdBox(local_p.xyz, (u_sdf.grid_dimensions.xyz * 1.00)/vec3<f32>(2.)) * min_scale;
 
     // Return intersection of voxel sdf and enclosing (clipping) box
     return max(enclosing_box, dist);
