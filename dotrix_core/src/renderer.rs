@@ -84,7 +84,7 @@ impl Renderer {
         buffer.load(self.context(), attributes, indices, count as u32);
     }*/
 
-    /// Loads the texture buffer to GPU
+    /// Loads the texture buffer to GPU, this will recreate the texture and will need to be rebound
     pub fn load_texture<'a>(
         &self,
         texture: &mut Texture,
@@ -95,9 +95,40 @@ impl Renderer {
         texture.load(self.context(), width, height, layers);
     }
 
+    /// Load data from cpu to a texture buffer on GPU
+    /// This will fail if texture has not been loaded with `load_texture`
+    /// possible unexpected results occur if the dimensions differs from it dimensions at load time
+    pub fn update_texture<'a>(
+        &self,
+        texture: &mut Texture,
+        width: u32,
+        height: u32,
+        layers: &'a [&'a [u8]],
+    ) {
+        texture.update(self.context(), width, height, layers);
+    }
+
+    /// This will `[update_texture]` if texture has been loaded or `[load_texture]` if not
+    /// the same cavets of `[update_texture]` apply in that care must be taken not to change
+    /// the dimensions between `load` and `update`
+    pub fn update_or_load_texture<'a>(
+        &self,
+        texture: &mut Texture,
+        width: u32,
+        height: u32,
+        layers: &'a [&'a [u8]],
+    ) {
+        texture.update_or_load(self.context(), width, height, layers);
+    }
+
     /// Loads the buffer to GPU
     pub fn load_buffer<'a>(&self, buffer: &mut Buffer, data: &'a [u8]) {
         buffer.load(self.context(), data);
+    }
+
+    /// Create a buffer on GPU without data
+    pub fn create_buffer(&self, buffer: &mut Buffer, size: u32, mapped: bool) {
+        buffer.create(self.context(), size, mapped);
     }
 
     /// Loads the sampler to GPU
@@ -164,6 +195,26 @@ impl Renderer {
             .run_compute_pipeline(pipeline.shader, &pipeline.bindings, args);
     }
 
+    /// Copy a texture to a buffer
+    pub fn copy_texture_to_buffer(
+        &mut self,
+        texture: &Texture,
+        buffer: &Buffer,
+        extent: [u32; 3],
+        bytes_per_pixel: u32,
+    ) {
+        self.context_mut()
+            .run_copy_texture_to_buffer(texture, buffer, extent, bytes_per_pixel);
+    }
+
+    /// Fetch texture from GPU
+    pub fn fetch_texture(
+        &mut self,
+        texture: &Texture,
+        dimensions: [u32; 3],
+    ) -> impl std::future::Future<Output = Result<Vec<u8>, wgpu::BufferAsyncError>> {
+        texture.fetch_from_gpu(dimensions, self.context_mut())
+    }
     /// Returns surface size
     pub fn surface_size(&self) -> Vec2 {
         let ctx = self.context();
@@ -262,6 +313,10 @@ pub fn release(mut renderer: Mut<Renderer>) {
     renderer.cycle += 1;
     if renderer.cycle == 0 {
         renderer.cycle = 1;
+    }
+    // Check for resource cleanups and mapping callbacks
+    if let Some(context) = renderer.context.as_ref() {
+        context.device.poll(wgpu::Maintain::Poll);
     }
 }
 

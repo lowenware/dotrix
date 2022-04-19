@@ -45,4 +45,17 @@ impl Texture {
     pub fn unload(&mut self) {
         self.buffer.unload();
     }
+
+    /// Fetch data from the gpu
+    ///
+    /// This is useful textures that are altered on the gpu
+    ///
+    /// This operation is slow and should mostly be
+    /// used for debugging
+    pub fn fetch_from_gpu(
+        &mut self,
+        renderer: &mut Renderer,
+    ) -> impl std::future::Future<Output = Result<Vec<u8>, wgpu::BufferAsyncError>> {
+        renderer.fetch_texture(&self.buffer, [self.width, self.height, self.depth])
+    }
 }

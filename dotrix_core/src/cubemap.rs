@@ -32,7 +32,7 @@ impl Default for CubeMap {
             bottom: Id::default(),
             back: Id::default(),
             front: Id::default(),
-            buffer: TextureBuffer::new("CubeMap Texture Buffer"),
+            buffer: TextureBuffer::new_cube("CubeMap Texture Buffer"),
         }
     }
 }

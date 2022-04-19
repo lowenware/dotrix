@@ -160,7 +160,7 @@ pub fn render(
                             ),
                             BindGroup::new(
                                 "Locals",
-                                vec![Binding::Texture3D(
+                                vec![Binding::TextureCube(
                                     "CubeMap",
                                     Stage::Fragment,
                                     &cubemap.buffer,
