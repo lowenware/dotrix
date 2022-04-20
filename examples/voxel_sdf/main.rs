@@ -1,11 +1,13 @@
 use dotrix::egui::{DragValue, Egui, TopBottomPanel};
 use dotrix::overlay::Overlay;
 use dotrix::{
+    assets::Texture,
     camera,
     ecs::{Const, Mut},
-    egui, overlay, Camera, Dotrix, System, Transform, World,
+    egui, overlay, Assets, Camera, Dotrix, System, Transform, World,
 };
-use dotrix_voxel::{Grid, Light, TexSdf, VoxelJumpFlood};
+use dotrix_pbr::Material;
+use dotrix_voxel::{Grid, Light, MaterialSet, TexSdf, VoxelJumpFlood};
 use rand::Rng;
 
 fn main() {
@@ -19,7 +21,7 @@ fn main() {
         .run();
 }
 
-fn startup(mut camera: Mut<Camera>, mut world: Mut<World>) {
+fn startup(mut camera: Mut<Camera>, mut world: Mut<World>, mut assets: Mut<Assets>) {
     camera.target = [0., 0., 0.].into();
     camera.distance = 30.0;
     camera.tilt = 0.0;
@@ -27,10 +29,35 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>) {
     let mut grid = Grid::default();
     randomize_grid(&mut grid);
 
+    assets.import("assets/textures/mossy_bricks/Bricks076C_1K_AmbientOcclusion.jpg");
+    assets.import("assets/textures/mossy_bricks/Bricks076C_1K_Color.jpg");
+    assets.import("assets/textures/mossy_bricks/Bricks076C_1K_NormalDX.jpg");
+    assets.import("assets/textures/mossy_bricks/Bricks076C_1K_Roughness.jpg");
+
+    let ao = assets.register::<Texture>("Bricks076C_1K_AmbientOcclusion");
+    let albedo = assets.register::<Texture>("Bricks076C_1K_Color");
+    let normal = assets.register::<Texture>("Bricks076C_1K_NormalDX");
+    let roughness = assets.register::<Texture>("Bricks076C_1K_Roughness");
+    let mut material_set = MaterialSet::default();
+    material_set.set_material(
+        0,
+        Material {
+            texture: albedo,
+            roughness_texture: roughness,
+            ao_texture: ao,
+            normal_texture: normal,
+            ..Default::default()
+        },
+    );
+
     world.spawn(vec![(
         grid,
+        material_set,
+        // Instruct it to use the JumpFlood algorithm to convert the Voxel to an SDF
         VoxelJumpFlood::default(),
+        // Render as a 3D texture based SDF
         TexSdf::default(),
+        // Transform the voxel where you like
         Transform::builder()
             // .with_translate([2.,2.,2.].into())
             .with_scale([1., 3., 1.].into())

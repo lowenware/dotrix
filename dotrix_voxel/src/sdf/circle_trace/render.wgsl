@@ -32,6 +32,26 @@ var<uniform> u_sdf: SdfData;
 [[group(1), binding(1)]]
 var sdf_texture: texture_3d<f32>;
 
+struct Material {
+  albedo_id: i32;
+  roughness_id: i32;
+  metallic_id: i32;
+  ao_id: i32;
+  bump_id: i32;
+  albedo: vec4<f32>;
+  roughness: f32;
+  metallic: f32;
+  ao: f32;
+};
+struct Materials {
+  material: array<Material, 256>;
+};
+[[group(1), binding(2)]]
+var<uniform> u_materials: Materials;
+
+[[group(1), binding(3)]]
+var material_texture: texture_2d_array<f32>;
+
 
 struct VertexOutput {
   [[builtin(position)]] position: vec4<f32>;
@@ -75,6 +95,8 @@ fn get_ray_direction(pixel: vec2<u32>, resolution: vec2<f32>) -> vec3<f32> {
 {% include "circle_trace/soft_shadows_closet_approach.inc.wgsl" %}
 
 {% include "circle_trace/lighting.inc.wgsl" %}
+
+{% include "circle_trace/trilinear_surface.inc.wgsl" %}
 
 
 struct FragmentOutput {
@@ -154,11 +176,11 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
   // // Ray differntials
   // let dp_dxy: DpDxy = calcDpDxy( ro, rd, rdx, rdy, t, nor );
   //
-  // // Material ID
-  // let material_id: i32 = i32(map_material(pos));
+  // Material ID
+  let material_id: u32 = u32(map_material(pos));
   //
   // // Surface material
-  // let sur: Material = get_material(pos, nor, dp_dxy.dposdx, dp_dxy.dposdy, material_id);
+  let sur: Surface = get_surface(pos, nor, material_id);
   //
   // // Lighting and PBR
   // let shaded: vec4<f32> = calculate_lighting(
