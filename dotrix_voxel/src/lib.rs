@@ -7,10 +7,12 @@
 use dotrix_core::Application;
 
 mod grid;
+mod material_set;
 mod sdf;
 mod voxel;
 
 pub use grid::Grid;
+pub use material_set::*;
 pub use sdf::*;
 pub use voxel::Voxel;
 
