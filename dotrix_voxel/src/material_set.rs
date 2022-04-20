@@ -19,8 +19,41 @@ pub struct MaterialSet {
     materials: HashMap<u8, Material>,
     last_num_textures: u32,
     texture_buffer: TextureBuffer,
-    indicies_buffer: Buffer,
+    material_buffer: Buffer,
 }
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct MaterialData {
+    // Ids of texture in texture array -1 means not precent
+    albedo_id: i32,
+    roughness_id: i32,
+    metallic_id: i32,
+    ao_id: i32,
+    bump_id: i32,
+    // These are uses if the texture IDs above are -1
+    albedo: [f32; 4],
+    roughness: f32,
+    metallic: f32,
+    ao: f32,
+}
+impl Default for MaterialData {
+    fn default() -> Self {
+        Self {
+            albedo_id: -1,
+            roughness_id: -1,
+            metallic_id: -1,
+            ao_id: -1,
+            bump_id: -1,
+            albedo: [1., 1., 1., 1.], // White
+            roughness: 0.,
+            metallic: 0.,
+            ao: 0.,
+        }
+    }
+}
+unsafe impl bytemuck::Zeroable for MaterialData {}
+unsafe impl bytemuck::Pod for MaterialData {}
 
 impl Default for MaterialSet {
     fn default() -> Self {
@@ -31,14 +64,20 @@ impl Default for MaterialSet {
             texture_buffer: TextureBuffer::new_array("MaterialSet")
                 .use_as_texture()
                 .rgba_u8norm_srgb(),
-            indicies_buffer: Buffer::uniform("MaterialSetIndicies"),
+            material_buffer: Buffer::uniform("MaterialSetIndicies"),
         }
     }
 }
 
 impl MaterialSet {
+    /// Set the material for a material ID
     pub fn set_material(&mut self, material_id: u8, material: Material) {
         self.materials.insert(material_id, material);
+    }
+
+    /// Clear the material for a material ID
+    pub fn clear_material(&mut self, material_id: u8) {
+        self.materials.remove(&material_id);
     }
 
     /// Returns true if a full rebind is required
@@ -76,8 +115,8 @@ impl MaterialSet {
 
         let number_of_materials = 256;
         let number_of_textures_per_material = 5;
-        let number_of_indicies = number_of_materials * number_of_textures_per_material;
-        let mut indecies: Vec<i32> = vec![-1; number_of_indicies];
+        let max_number_of_texture = number_of_materials * number_of_textures_per_material;
+        let mut material_data: Vec<MaterialData> = vec![Default::default(); max_number_of_texture];
 
         self.last_num_textures = num_texs;
         if num_texs == 0 {
@@ -94,6 +133,7 @@ impl MaterialSet {
             let mut texture_id_idx_map: HashMap<Id<Texture>, i32> = Default::default();
             for (&material_id, material) in self.materials.iter() {
                 let i = (material_id as usize) * number_of_textures_per_material;
+                let mut tex_ids = vec![-1; number_of_textures_per_material];
                 for (j, tex_id) in [
                     material.texture,
                     material.roughness_texture,
@@ -125,9 +165,18 @@ impl MaterialSet {
                             textures.push(data.clone());
                             idx as i32
                         });
-                        indecies[i + j] = *tex_idx;
+                        tex_ids[j] = *tex_idx;
                     }
                 }
+                material_data[i].albedo_id = tex_ids[0];
+                material_data[i].roughness_id = tex_ids[1];
+                material_data[i].metallic_id = tex_ids[2];
+                material_data[i].ao_id = tex_ids[3];
+                material_data[i].bump_id = tex_ids[4];
+                material_data[i].albedo = material.albedo.into();
+                material_data[i].roughness = material.roughness;
+                material_data[i].metallic = material.metallic;
+                material_data[i].ao = material.ao;
             }
 
             if let Some(texture_data_size) = texture_data_size {
@@ -145,8 +194,8 @@ impl MaterialSet {
         }
 
         renderer.load_buffer(
-            &mut self.indicies_buffer,
-            bytemuck::cast_slice(indecies.as_slice()),
+            &mut self.material_buffer,
+            bytemuck::cast_slice(material_data.as_slice()),
         );
 
         result
