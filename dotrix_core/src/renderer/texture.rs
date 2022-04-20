@@ -1,13 +1,6 @@
 use super::{Buffer, Context};
 use wgpu;
 
-pub enum TextureKind {
-    D2,
-    Cube,
-    D2Array,
-    D3,
-}
-
 /// GPU Texture Implementation
 pub struct Texture {
     /// Texture label
@@ -19,7 +12,7 @@ pub struct Texture {
     /// Texture usage
     pub usage: wgpu::TextureUsages,
     /// Texture kind
-    pub kind: TextureKind,
+    pub kind: wgpu::TextureViewDimension,
     /// Texture format
     pub format: wgpu::TextureFormat,
 }
@@ -32,7 +25,7 @@ impl Default for Texture {
             wgpu_texture: None,
             usage: wgpu::TextureUsages::empty(),
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            kind: TextureKind::D2,
+            kind: wgpu::TextureViewDimension::D2,
         }
     }
 }
@@ -52,7 +45,7 @@ impl Texture {
         Self {
             label: String::from(label),
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            kind: TextureKind::Cube,
+            kind: wgpu::TextureViewDimension::Cube,
             ..Default::default()
         }
     }
@@ -62,7 +55,7 @@ impl Texture {
         Self {
             label: String::from(label),
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            kind: TextureKind::D2Array,
+            kind: wgpu::TextureViewDimension::D2Array,
             ..Default::default()
         }
     }
@@ -72,7 +65,7 @@ impl Texture {
         Self {
             label: String::from(label),
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            kind: TextureKind::D3,
+            kind: wgpu::TextureViewDimension::D3,
             ..Default::default()
         }
     }
@@ -152,14 +145,9 @@ impl Texture {
     /// If you want to update the values without recreating and therefore rebinding the texture
     /// see `[update]`
     pub(crate) fn load<'a>(&mut self, ctx: &Context, width: u32, height: u32, layers: &[&'a [u8]]) {
-        let dimension = match self.kind {
-            TextureKind::D2 => wgpu::TextureViewDimension::D2,
-            TextureKind::Cube => {
-                assert!(layers.len() == 6);
-                wgpu::TextureViewDimension::Cube
-            }
-            TextureKind::D2Array => wgpu::TextureViewDimension::D2Array,
-            TextureKind::D3 => wgpu::TextureViewDimension::D3,
+        let dimension = self.kind;
+        if let wgpu::TextureViewDimension::Cube = dimension {
+            assert_eq!(layers.len(), 6);
         };
 
         let format = self.format;
@@ -174,10 +162,11 @@ impl Texture {
         let max_mips = 1;
 
         let tex_dimension: wgpu::TextureDimension = match self.kind {
-            TextureKind::D2 => wgpu::TextureDimension::D2,
-            TextureKind::Cube => wgpu::TextureDimension::D2,
-            TextureKind::D2Array => wgpu::TextureDimension::D2,
-            TextureKind::D3 => wgpu::TextureDimension::D3,
+            wgpu::TextureViewDimension::D2 => wgpu::TextureDimension::D2,
+            wgpu::TextureViewDimension::Cube => wgpu::TextureDimension::D2,
+            wgpu::TextureViewDimension::D2Array => wgpu::TextureDimension::D2,
+            wgpu::TextureViewDimension::D3 => wgpu::TextureDimension::D3,
+            _ => unimplemented!(),
         };
 
         let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
