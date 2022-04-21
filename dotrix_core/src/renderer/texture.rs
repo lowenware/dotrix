@@ -1,4 +1,5 @@
 use super::{Buffer, Context};
+use std::num::NonZeroU32;
 use wgpu;
 
 /// GPU Texture Implementation
@@ -15,6 +16,8 @@ pub struct Texture {
     pub kind: wgpu::TextureViewDimension,
     /// Texture format
     pub format: wgpu::TextureFormat,
+    /// Texture layers views
+    pub layers: Option<Vec<wgpu::TextureView>>,
 }
 
 impl Default for Texture {
@@ -26,6 +29,7 @@ impl Default for Texture {
             usage: wgpu::TextureUsages::empty(),
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
             kind: wgpu::TextureViewDimension::D2,
+            layers: None,
         }
     }
 }
@@ -137,22 +141,12 @@ impl Texture {
         self
     }
 
-    /// Loads data into the texture buffer
-    ///
-    /// This will recreate the texture backend on the gpu. Which means it must be rebound
-    /// in the pipelines for changes to take effect.
-    ///
-    /// If you want to update the values without recreating and therefore rebinding the texture
-    /// see `[update]`
-    pub(crate) fn load<'a>(&mut self, ctx: &Context, width: u32, height: u32, layers: &[&'a [u8]]) {
+    /// Init texture buffer and views
+    pub fn init(&mut self, ctx: &Context, width: u32, height: u32, layers_count: Option<u32>) {
         let dimension = self.kind;
-        if let wgpu::TextureViewDimension::Cube = dimension {
-            assert_eq!(layers.len(), 6);
-        };
-
         let format = self.format;
         let usage = self.usage;
-        let depth_or_array_layers = layers.len() as u32;
+        let depth_or_array_layers = layers_count.unwrap_or(1);
         let size = wgpu::Extent3d {
             width,
             height,
@@ -180,14 +174,46 @@ impl Texture {
         });
 
         self.wgpu_texture_view = Some(texture.create_view(&wgpu::TextureViewDescriptor {
-            label: None,
+            label: Some(&self.label),
             format: Some(format),
             dimension: Some(dimension),
             ..wgpu::TextureViewDescriptor::default()
         }));
 
-        self.wgpu_texture = Some(texture);
+        self.layers = layers_count.map(|c| {
+            assert_eq!(self.kind, wgpu::TextureViewDimension::D2Array);
+            (0..c)
+                .map(|i| {
+                    let label = format!("{}:{}", &self.label, i);
+                    texture.create_view(&wgpu::TextureViewDescriptor {
+                        label: Some(&label),
+                        format: None,
+                        dimension: Some(wgpu::TextureViewDimension::D2),
+                        aspect: wgpu::TextureAspect::All,
+                        base_mip_level: 0,
+                        mip_level_count: None,
+                        base_array_layer: i as u32,
+                        array_layer_count: NonZeroU32::new(1),
+                    })
+                })
+                .collect::<Vec<_>>()
+        });
 
+        self.wgpu_texture = Some(texture);
+    }
+
+    /// Loads data into the texture buffer
+    ///
+    /// This will recreate the texture backend on the gpu. Which means it must be rebound
+    /// in the pipelines for changes to take effect.
+    ///
+    /// If you want to update the values without recreating and therefore rebinding the texture
+    /// see `[update]`
+    pub(crate) fn load<'a>(&mut self, ctx: &Context, width: u32, height: u32, layers: &[&'a [u8]]) {
+        if let wgpu::TextureViewDimension::Cube = self.kind {
+            assert_eq!(layers.len(), 6);
+        };
+        self.init(ctx, width, height, None);
         self.update(ctx, width, height, layers)
     }
 
@@ -269,6 +295,17 @@ impl Texture {
     pub fn unload(&mut self) {
         self.wgpu_texture.take();
         self.wgpu_texture_view.take();
+    }
+
+    /// Get unwrapped terxture layer
+    pub fn layer(&self, layer: usize) -> &wgpu::TextureView {
+        let layers = self.layers.as_ref().expect("Layers was not initiated");
+
+        if layer >= layers.len() {
+            panic!("Layer index {} is out of range 0..{}", layer, layers.len());
+        }
+
+        &layers[layer]
     }
 
     /// Get unwrapped reference to WGPU Texture View
