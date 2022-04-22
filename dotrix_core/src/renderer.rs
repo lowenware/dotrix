@@ -21,8 +21,8 @@ pub use buffer::Buffer;
 pub use context::Context;
 pub use mesh::AttributeFormat;
 pub use pipelines::{
-    Compute, ComputeArgs, ComputeOptions, DepthBufferMode, DrawArgs, Pipeline, PipelineInstance,
-    PipelineLayout, Render, RenderOptions, ScissorsRect, WorkGroups,
+    Attachment, Compute, ComputeArgs, ComputeOptions, DepthBufferMode, DrawArgs, Pipeline,
+    PipelineInstance, PipelineLayout, Render, RenderOptions, ScissorsRect, WorkGroups,
 };
 pub use sampler::Sampler;
 pub use shader::ShaderModule;
@@ -72,17 +72,16 @@ impl Renderer {
         self.cycle
     }
 
-    /// Laods the vertex buffer to GPU
-    /*
-    pub fn load_mesh<'a>(
+    /// Initialise empty texture buffer
+    pub fn init_texture<'a>(
         &self,
-        buffer: &mut VertexBuffer,
-        attributes: &'a [u8],
-        indices: Option<&'a [u8]>,
-        count: usize,
+        texture: &mut Texture,
+        width: u32,
+        height: u32,
+        layers_count: Option<u32>,
     ) {
-        buffer.load(self.context(), attributes, indices, count as u32);
-    }*/
+        texture.init(self.context(), width, height, layers_count);
+    }
 
     /// Loads the texture buffer to GPU.
     /// This will recreate the texture, as a result it must be rebound on any pipelines for changes
@@ -216,6 +215,13 @@ impl Renderer {
     pub fn compute(&mut self, pipeline: &mut Pipeline, args: &ComputeArgs) {
         self.context_mut()
             .run_compute_pipeline(pipeline.shader, &pipeline.bindings, args);
+    }
+
+    /// Clears attachments
+    pub fn clear(&mut self, surface: Option<Attachment>, depth_buffer: Option<Attachment>) {
+        let clear_color = self.clear_color;
+        self.context_mut()
+            .clear(&clear_color, surface, depth_buffer);
     }
 
     /// Returns surface size

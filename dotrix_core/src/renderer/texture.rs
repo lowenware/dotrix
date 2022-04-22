@@ -3,6 +3,7 @@ use std::num::NonZeroU32;
 use wgpu;
 
 /// GPU Texture Implementation
+#[derive(Debug)]
 pub struct Texture {
     /// Texture label
     pub label: String,
@@ -146,7 +147,10 @@ impl Texture {
         let dimension = self.kind;
         let format = self.format;
         let usage = self.usage;
-        let depth_or_array_layers = layers_count.unwrap_or(1);
+        let depth_or_array_layers = layers_count.unwrap_or_else(|| match self.kind {
+            wgpu::TextureViewDimension::Cube => 6,
+            _ => 1,
+        });
         let size = wgpu::Extent3d {
             width,
             height,
@@ -298,14 +302,22 @@ impl Texture {
     }
 
     /// Get unwrapped terxture layer
-    pub fn layer(&self, layer: usize) -> &wgpu::TextureView {
+    pub fn layer(&self, layer: u32) -> &wgpu::TextureView {
         let layers = self.layers.as_ref().expect("Layers was not initiated");
 
-        if layer >= layers.len() {
+        if layer as usize >= layers.len() {
             panic!("Layer index {} is out of range 0..{}", layer, layers.len());
         }
 
-        &layers[layer]
+        &layers[layer as usize]
+    }
+
+    /// Get number of layers views
+    pub fn count_layers(&self) -> u32 {
+        self.layers
+            .as_ref()
+            .map(|layers| layers.len() as u32)
+            .unwrap_or(0)
     }
 
     /// Get unwrapped reference to WGPU Texture View

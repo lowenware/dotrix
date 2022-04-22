@@ -1,4 +1,4 @@
-use super::{BindGroup, Bindings, Context, Renderer};
+use super::{BindGroup, Bindings, Context, Renderer, Texture};
 use crate::assets::{Mesh, Shader};
 use crate::Id;
 
@@ -74,23 +74,40 @@ pub struct ScissorsRect {
     pub height: u32,
 }
 
+/// Attachment enumeration
+#[derive(Debug)]
+pub enum Attachment<'a> {
+    /// Render to frame or default depth buffer
+    Standard,
+    /// Render to the Texture
+    Texture(&'a Texture),
+    /// Render to Texture layer defined by its index
+    TextureLayer(&'a Texture, u32),
+}
+
 /// Draw call arguments
-#[derive(Debug, Clone, Copy)]
-pub struct DrawArgs {
+#[derive(Debug)]
+pub struct DrawArgs<'a> {
     /// Scissors Rectangle
     pub scissors_rect: Option<ScissorsRect>,
     /// Indexed draw start
     pub start_index: u32,
     /// Indexed draw end
     pub end_index: u32,
+    /// Render Target
+    pub render_target: Option<Attachment<'a>>,
+    /// Depth Buffer Target
+    pub depth_buffer: Attachment<'a>,
 }
 
-impl Default for DrawArgs {
+impl<'a> Default for DrawArgs<'a> {
     fn default() -> Self {
         Self {
             scissors_rect: None,
             start_index: 0,
             end_index: 1,
+            render_target: Some(Attachment::Standard),
+            depth_buffer: Attachment::Standard,
         }
     }
 }
@@ -389,6 +406,8 @@ pub struct RenderOptions<'a> {
     pub depth_buffer_mode: DepthBufferMode,
     /// Disable cull mode
     pub disable_cull_mode: bool,
+    /// Disable color attachment
+    pub disable_color_attachment: bool,
     /// Vertex Shader Entry Point
     pub vs_main: &'a str,
     /// Fragment Shader Entry Point
@@ -400,6 +419,7 @@ impl Default for RenderOptions<'_> {
         Self {
             depth_buffer_mode: DepthBufferMode::ReadWrite,
             disable_cull_mode: false,
+            disable_color_attachment: false,
             vs_main: "vs_main",
             fs_main: Some("fs_main"),
         }
