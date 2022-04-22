@@ -8,8 +8,8 @@ use std::{
 use dotrix_core::assets::Shader;
 use dotrix_core::ecs::{Const, Mut, Priority, System};
 use dotrix_core::renderer::{
-    BindGroup, Binding, Buffer, DepthBufferMode, Pipeline, PipelineLayout, RenderOptions, Sampler,
-    Stage,
+    BindGroup, Binding, Buffer, DepthBufferMode, DrawArgs, Pipeline, PipelineLayout, RenderOptions,
+    Sampler, Stage,
 };
 use dotrix_core::{Application, Assets, Globals, Input, Renderer, Window};
 
@@ -238,7 +238,11 @@ pub fn render(
                     );
                 }
             }
-            renderer.draw(pipeline, &widget.mesh, &widget.draw_args);
+            let draw_args = DrawArgs {
+                scissors_rect: widget.scissors_rect,
+                ..Default::default()
+            };
+            renderer.draw(pipeline, &widget.mesh, &draw_args);
         }
     }
 

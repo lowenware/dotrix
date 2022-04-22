@@ -15,7 +15,7 @@ pub mod extras;
 use dotrix_core::assets::{Mesh, Texture};
 use dotrix_core::ecs::{Mut, System};
 use dotrix_core::input::{Button, Event as InputEvent, KeyCode, Modifiers};
-use dotrix_core::renderer::{DrawArgs, Pipeline, Renderer, ScissorsRect};
+use dotrix_core::renderer::{Pipeline, Renderer, ScissorsRect};
 use dotrix_core::{Application, Assets, Id, Input, Window};
 
 use dotrix_overlay::{Overlay, Ui, Widget};
@@ -319,15 +319,12 @@ impl Ui for Egui {
                     Widget {
                         mesh,
                         texture,
-                        draw_args: DrawArgs {
-                            scissors_rect: Some(ScissorsRect {
-                                clip_min_x,
-                                clip_min_y,
-                                width,
-                                height,
-                            }),
-                            ..Default::default()
-                        },
+                        scissors_rect: Some(ScissorsRect {
+                            clip_min_x,
+                            clip_min_y,
+                            width,
+                            height,
+                        }),
                     },
                     Pipeline::default(),
                 )

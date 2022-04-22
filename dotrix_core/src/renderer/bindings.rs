@@ -244,9 +244,7 @@ impl Bindings {
                                     wgpu::BindingResource::TextureView(texture.get())
                                 }
                                 Binding::TextureLayer(_, _, texture, layer) => {
-                                    wgpu::BindingResource::TextureView(
-                                        texture.layer(*layer as usize),
-                                    )
+                                    wgpu::BindingResource::TextureView(texture.layer(*layer))
                                 }
                                 Binding::Sampler(_, _, sampler) => {
                                     wgpu::BindingResource::Sampler(sampler.get())

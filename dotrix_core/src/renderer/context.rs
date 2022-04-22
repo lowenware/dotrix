@@ -6,7 +6,7 @@ use winit;
 use crate::assets::{Mesh, Shader};
 use crate::{Color, Id};
 
-use super::{Bindings, ComputeArgs, DepthBufferMode, DrawArgs, PipelineInstance};
+use super::{Attachment, Bindings, ComputeArgs, DepthBufferMode, DrawArgs, PipelineInstance};
 
 /// Renderer Context
 pub struct Context {
@@ -150,6 +150,65 @@ impl Context {
         self.pipelines.get(&shader)
     }
 
+    pub(crate) fn clear(
+        &mut self,
+        clear_color: &Color,
+        color_attachment: Option<Attachment>,
+        depth_buffer: Option<Attachment>,
+    ) {
+        let encoder = self.encoder.as_mut().expect("Encoder must be set");
+
+        let clear_color = wgpu::Color {
+            r: clear_color.r as f64,
+            g: clear_color.g as f64,
+            b: clear_color.b as f64,
+            a: clear_color.a as f64,
+        };
+
+        let rpass_color_attachment = color_attachment
+            .as_ref()
+            .map(|color_attachment| {
+                let view = match color_attachment {
+                    Attachment::Texture(texture) => texture.get(),
+                    Attachment::TextureLayer(texture, index) => texture.layer(*index),
+                    _ => panic!("Attachment {:?} can not be cleared", color_attachment),
+                };
+
+                wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(clear_color),
+                        store: true,
+                    },
+                }
+            })
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        let depth_stencil_attachment = depth_buffer.as_ref().map(|depth_buffer| {
+            let view = match depth_buffer {
+                Attachment::Texture(texture) => texture.get(),
+                Attachment::TextureLayer(texture, index) => texture.layer(*index),
+                _ => panic!("Attachment {:?} can not be cleared", color_attachment),
+            };
+            wgpu::RenderPassDepthStencilAttachment {
+                view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
+                }),
+                stencil_ops: None,
+            }
+        });
+
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: rpass_color_attachment.as_slice(),
+            depth_stencil_attachment,
+        });
+    }
+
     pub(crate) fn run_render_pipeline(
         &mut self,
         shader: Id<Shader>,
@@ -165,72 +224,96 @@ impl Context {
             let view = frame
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
-            let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
-            let rpass_color_attachment = if self.sample_count == 1 {
-                wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: true,
-                    },
-                }
-            } else {
-                wgpu::RenderPassColorAttachment {
-                    view: &self.multisampled_framebuffer,
-                    resolve_target: Some(&view),
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: true,
-                    },
-                }
-            };
 
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[rpass_color_attachment],
-                depth_stencil_attachment: if depth_buffer_mode != DepthBufferMode::Disabled {
-                    Some(wgpu::RenderPassDepthStencilAttachment {
-                        view: &self.depth_buffer,
-                        depth_ops: Some(wgpu::Operations {
-                            load: wgpu::LoadOp::Load,
-                            store: true,
-                        }),
-                        stencil_ops: None,
-                    })
+            let mut encoder = self.encoder.take().expect("WGPU encoder must be set");
+
+            let rpass_color_attachment = args
+                .render_target
+                .as_ref()
+                .map(|render_target| {
+                    let color_attachment = match render_target {
+                        Attachment::Standard => &view,
+                        Attachment::Texture(texture) => texture.get(),
+                        Attachment::TextureLayer(texture, layer) => texture.layer(*layer),
+                    };
+
+                    if self.sample_count == 1 {
+                        wgpu::RenderPassColorAttachment {
+                            view: color_attachment,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Load,
+                                store: true,
+                            },
+                        }
+                    } else {
+                        wgpu::RenderPassColorAttachment {
+                            view: &self.multisampled_framebuffer,
+                            resolve_target: Some(color_attachment),
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Load,
+                                store: true,
+                            },
+                        }
+                    }
+                })
+                .into_iter()
+                .collect::<Vec<_>>();
+
+            {
+                let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: None,
+                    color_attachments: rpass_color_attachment.as_slice(),
+                    depth_stencil_attachment: if depth_buffer_mode != DepthBufferMode::Disabled {
+                        let depth_buffer = match args.depth_buffer {
+                            Attachment::Standard => &self.depth_buffer,
+                            Attachment::Texture(texture) => texture.get(),
+                            Attachment::TextureLayer(texture, layer) => texture.layer(layer),
+                        };
+
+                        Some(wgpu::RenderPassDepthStencilAttachment {
+                            view: depth_buffer,
+                            depth_ops: Some(wgpu::Operations {
+                                load: wgpu::LoadOp::Load,
+                                store: true,
+                            }),
+                            stencil_ops: None,
+                        })
+                    } else {
+                        None
+                    },
+                });
+
+                rpass.push_debug_group("Prepare to run pipeline");
+                rpass.set_pipeline(&render_pipeline.wgpu_pipeline);
+
+                if let Some(scissors_rect) = args.scissors_rect.as_ref() {
+                    rpass.set_scissor_rect(
+                        scissors_rect.clip_min_x,
+                        scissors_rect.clip_min_y,
+                        scissors_rect.width,
+                        scissors_rect.height,
+                    );
+                }
+
+                for (index, wgpu_bind_group) in bindings.wgpu_bind_groups.iter().enumerate() {
+                    rpass.set_bind_group(index as u32, wgpu_bind_group, &[]);
+                }
+                rpass.set_vertex_buffer(0, mesh.vertex_buffer.get().slice(..));
+                rpass.pop_debug_group();
+
+                let count = mesh.count_vertices();
+
+                if let Some(index_buffer) = mesh.index_buffer.as_ref() {
+                    rpass.insert_debug_marker("Draw indexed");
+                    rpass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                    rpass.draw_indexed(0..count, 0, args.start_index..args.end_index);
                 } else {
-                    None
-                },
-            });
-
-            rpass.push_debug_group("Prepare to run pipeline");
-            rpass.set_pipeline(&render_pipeline.wgpu_pipeline);
-
-            if let Some(scissors_rect) = args.scissors_rect.as_ref() {
-                rpass.set_scissor_rect(
-                    scissors_rect.clip_min_x,
-                    scissors_rect.clip_min_y,
-                    scissors_rect.width,
-                    scissors_rect.height,
-                );
+                    rpass.insert_debug_marker("Draw");
+                    rpass.draw(0..count, args.start_index..args.end_index);
+                }
             }
-
-            for (index, wgpu_bind_group) in bindings.wgpu_bind_groups.iter().enumerate() {
-                rpass.set_bind_group(index as u32, wgpu_bind_group, &[]);
-            }
-            rpass.set_vertex_buffer(0, mesh.vertex_buffer.get().slice(..));
-            rpass.pop_debug_group();
-
-            let count = mesh.count_vertices();
-
-            if let Some(index_buffer) = mesh.index_buffer.as_ref() {
-                rpass.insert_debug_marker("Draw indexed");
-                rpass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                rpass.draw_indexed(0..count, 0, args.start_index..args.end_index);
-            } else {
-                rpass.insert_debug_marker("Draw");
-                rpass.draw(0..count, args.start_index..args.end_index);
-            }
+            self.encoder = Some(encoder);
         }
     }
 
