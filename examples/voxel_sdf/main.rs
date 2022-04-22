@@ -43,9 +43,11 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>, mut assets: Mut<Asset
         0,
         Material {
             texture: albedo,
+            albedo: [0.5, 0.5, 0.5].into(),
             roughness_texture: roughness,
             ao_texture: ao,
             normal_texture: normal,
+            metallic: 0.0,
             ..Default::default()
         },
     );

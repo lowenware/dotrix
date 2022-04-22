@@ -1,4 +1,5 @@
 use crate::Grid;
+use crate::MaterialSet;
 use crate::TexSdf;
 use dotrix_core::{
     assets::{Mesh, Shader},
@@ -31,6 +32,10 @@ struct SdfBufferData {
     pub world_transform: [[f32; 4]; 4],
     // Inverse of world_transform
     pub inv_world_transform: [[f32; 4]; 4],
+    // Converts normals from object space to world space
+    pub normal_transform: [[f32; 4]; 4],
+    // Converts normals from world space to object space
+    pub inv_normal_transform: [[f32; 4]; 4],
     // Dimensions of the voxel grid
     pub grid_dimensions: [f32; 4],
     // World space scale
@@ -65,8 +70,16 @@ pub fn startup(renderer: Const<Renderer>, mut assets: Mut<Assets>) {
                 include_str!("./circle_trace/lighting.inc.wgsl"),
             ),
             (
+                "circle_trace/pbr.inc.wgsl",
+                include_str!("./circle_trace/pbr.inc.wgsl"),
+            ),
+            (
                 "circle_trace/soft_shadows_closet_approach.inc.wgsl",
                 include_str!("./circle_trace/soft_shadows_closet_approach.inc.wgsl"),
+            ),
+            (
+                "circle_trace/triplanar_surface.inc.wgsl",
+                include_str!("./circle_trace/triplanar_surface.inc.wgsl"),
             ),
         ])
         .unwrap();
@@ -98,7 +111,9 @@ pub fn render(
         .get::<CameraBuffer>()
         .expect("ProjView buffer must be loaded");
 
-    for (grid, sdf, world_transform) in world.query::<(&Grid, &mut TexSdf, &Transform)>() {
+    for (grid, sdf, world_transform, material_set) in
+        world.query::<(&Grid, &mut TexSdf, &Transform, &mut MaterialSet)>()
+    {
         if sdf.pipeline.shader.is_null() {
             sdf.pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
         }
@@ -116,6 +131,19 @@ pub fn render(
         let grid_size = grid.get_size();
         let scale = Mat4::from_nonuniform_scale(grid_size[0], grid_size[1], grid_size[2]);
         let world_transform_mat4: Mat4 = world_transform.matrix();
+        let mut world_transform_tl: Mat4 = world_transform_mat4;
+        world_transform_tl.x[3] = 0.;
+        world_transform_tl.y[3] = 0.;
+        world_transform_tl.z[3] = 0.;
+        world_transform_tl.w[0] = 0.;
+        world_transform_tl.w[1] = 0.;
+        world_transform_tl.w[2] = 0.;
+        world_transform_tl.w[3] = 1.;
+        let normal_transform: Mat4 = world_transform_tl
+            .invert()
+            .unwrap_or_else(Mat4::identity)
+            .transpose();
+        let inv_normal_transform: Mat4 = world_transform_tl.transpose();
         let world_scale: [f32; 3] = world_transform.scale.into();
         let uniform = SdfBufferData {
             cube_transform: scale.into(),
@@ -125,6 +153,8 @@ pub fn render(
                 .invert()
                 .unwrap_or_else(Mat4::identity)
                 .into(),
+            normal_transform: normal_transform.into(),
+            inv_normal_transform: inv_normal_transform.into(),
             grid_dimensions: [grid_size[0], grid_size[1], grid_size[2], 1.],
             world_scale: [world_scale[0], world_scale[1], world_scale[2], 1.],
         };
@@ -132,6 +162,12 @@ pub fn render(
         // println!("cube_transform: {:?}", uniform.cube_transform);
         // println!("inv_cube_transform: {:?}", uniform.inv_cube_transform);
         renderer.load_buffer(&mut sdf.data, bytemuck::cast_slice(&[uniform]));
+
+        let reload_required = material_set.load(&renderer, &assets);
+
+        if reload_required {
+            sdf.pipeline.bindings.unload();
+        }
 
         if !sdf.pipeline.ready(&renderer) {
             let lights_buffer = globals
@@ -165,6 +201,16 @@ pub fn render(
                                 vec![
                                     Binding::Uniform("Data", Stage::All, &sdf.data),
                                     Binding::Texture3D("Sdf", Stage::All, &sdf.buffer),
+                                    Binding::Uniform(
+                                        "Materials",
+                                        Stage::All,
+                                        material_set.get_material_buffer(),
+                                    ),
+                                    Binding::TextureArray(
+                                        "MaterialTexture",
+                                        Stage::All,
+                                        material_set.get_texture_buffer(),
+                                    ),
                                 ],
                             ),
                         ],

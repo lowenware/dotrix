@@ -21,6 +21,10 @@ struct SdfData {
   world_transform: mat4x4<f32>;
   // Inverse World transform of the voxel grid
   inv_world_transform: mat4x4<f32>;
+  // Matrix to convert objectspace normal to world space
+  normal_transform: mat4x4<f32>;
+  // Matrix to convert world space normal to object space
+  inv_normal_transform: mat4x4<f32>;
   // Dimensions of the voxel
   grid_dimensions: vec4<f32>;
   // Scale in world space
@@ -37,20 +41,20 @@ struct Material {
   roughness_id: i32;
   metallic_id: i32;
   ao_id: i32;
-  bump_id: i32;
+  normal_id: i32;
   albedo: vec4<f32>;
   roughness: f32;
   metallic: f32;
   ao: f32;
 };
 struct Materials {
-  material: array<Material, 256>;
+  materials: [[stride(64)]] array<Material, 256>;
 };
 [[group(1), binding(2)]]
 var<uniform> u_materials: Materials;
 
 [[group(1), binding(3)]]
-var material_texture: texture_2d_array<f32>;
+var material_textures: texture_2d_array<f32>;
 
 
 struct VertexOutput {
@@ -96,7 +100,9 @@ fn get_ray_direction(pixel: vec2<u32>, resolution: vec2<f32>) -> vec3<f32> {
 
 {% include "circle_trace/lighting.inc.wgsl" %}
 
-{% include "circle_trace/trilinear_surface.inc.wgsl" %}
+{% include "circle_trace/pbr.inc.wgsl" %}
+
+{% include "circle_trace/triplanar_surface.inc.wgsl" %}
 
 
 struct FragmentOutput {
@@ -178,23 +184,37 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
   //
   // Material ID
   let material_id: u32 = u32(map_material(pos));
+  var material_data: Material = u_materials.materials[material_id];
   //
+
+  // Partial derivates
+  let dpdx = t_out*(rdx*dot(rd,nor)/dot(rdx,nor) - rd);
+  let dpdy = t_out*(rdy*dot(rd,nor)/dot(rdy,nor) - rd);
   // // Surface material
-  let sur: Surface = get_surface(pos, nor, material_id);
+  let sur: Surface = get_surface(pos, nor, material_id, dpdx, dpdy);
   //
   // // Lighting and PBR
-  // let shaded: vec4<f32> = calculate_lighting(
-  //     pos,
-  //     sur.normal,
-  //     sur.albedo.rgb,
-  //     sur.roughness,
-  //     sur.metallic,
-  //     sur.ao,
-  // );
+  let shaded: vec4<f32> = calculate_lighting(
+      pos,
+      sur.normal,
+      sur.albedo.rgb,
+      sur.roughness,
+      sur.metallic,
+      sur.ao,
+  );
 
   var out: FragmentOutput;
   if (r_out.success)  {
-    out.color = vec4<f32>(total_radiance, 1.);
+    out.color = vec4<f32>(total_radiance, 1.) * shaded;
+    // out.color = vec4<f32>(total_radiance, 1.) * vec4<f32>(sur.albedo, 1. );
+    // out.color = vec4<f32>(total_radiance, 1.) * vec4<f32>(vec3<f32>(sur.roughness), 1. );
+    // out.color = vec4<f32>(total_radiance, 1.) * vec4<f32>(vec3<f32>(sur.metallic), 1. );
+    // out.color = vec4<f32>(total_radiance, 1.) * vec4<f32>(vec3<f32>(sur.ao), 1. );
+    // out.color = vec4<f32>(sur.albedo, 1. );
+    // out.color = vec4<f32>(vec3<f32>(sur.metallic), 1. );
+    // out.color = material_data.albedo;
+    // out.color = vec4<f32>(vec3<f32>(material_data.metallic), 1.);
+    // out.color = shaded;
   } else {
     out.color = vec4<f32>(0.5,0.1,0.1,1.0);
   }

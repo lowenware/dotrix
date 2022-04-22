@@ -11,6 +11,7 @@ pub use cgmath::num_traits::clamp_min;
 pub use cgmath::perspective;
 pub use cgmath::Deg;
 pub use cgmath::InnerSpace;
+pub use cgmath::Matrix;
 pub use cgmath::MetricSpace;
 pub use cgmath::Rad;
 pub use cgmath::Rotation3;
