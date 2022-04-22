@@ -52,6 +52,72 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>, mut assets: Mut<Asset
         },
     );
 
+    assets.import("assets/textures/PaintedPlaster010/PaintedPlaster010_1K_AmbientOcclusion.png");
+    assets.import("assets/textures/PaintedPlaster010/PaintedPlaster010_1K_Color.png");
+    assets.import("assets/textures/PaintedPlaster010/PaintedPlaster010_1K_NormalDX.png");
+    assets.import("assets/textures/PaintedPlaster010/PaintedPlaster010_1K_Roughness.png");
+
+    let ao = assets.register::<Texture>("PaintedPlaster010_1K_AmbientOcclusion");
+    let albedo = assets.register::<Texture>("PaintedPlaster010_1K_Color");
+    let normal = assets.register::<Texture>("PaintedPlaster010_1K_NormalDX");
+    let roughness = assets.register::<Texture>("PaintedPlaster010_1K_Roughness");
+    material_set.set_material(
+        1,
+        Material {
+            texture: albedo,
+            albedo: [0.5, 0.5, 0.5].into(),
+            roughness_texture: roughness,
+            ao_texture: ao,
+            normal_texture: normal,
+            metallic: 0.0,
+            ..Default::default()
+        },
+    );
+
+    assets.import("assets/textures/Bricks075B/Bricks075B_1K_AmbientOcclusion.jpg");
+    assets.import("assets/textures/Bricks075B/Bricks075B_1K_Color.jpg");
+    assets.import("assets/textures/Bricks075B/Bricks075B_1K_NormalDX.jpg");
+    assets.import("assets/textures/Bricks075B/Bricks075B_1K_Roughness.jpg");
+
+    let ao = assets.register::<Texture>("Bricks075B_1K_AmbientOcclusion");
+    let albedo = assets.register::<Texture>("Bricks075B_1K_Color");
+    let normal = assets.register::<Texture>("Bricks075B_1K_NormalDX");
+    let roughness = assets.register::<Texture>("Bricks075B_1K_Roughness");
+    material_set.set_material(
+        2,
+        Material {
+            texture: albedo,
+            albedo: [0.5, 0.5, 0.5].into(),
+            roughness_texture: roughness,
+            ao_texture: ao,
+            normal_texture: normal,
+            metallic: 0.0,
+            ..Default::default()
+        },
+    );
+
+    assets.import("assets/textures/PavingStones113/PavingStones113_1K_AmbientOcclusion.jpg");
+    assets.import("assets/textures/PavingStones113/PavingStones113_1K_Color.jpg");
+    assets.import("assets/textures/PavingStones113/PavingStones113_1K_NormalDX.jpg");
+    assets.import("assets/textures/PavingStones113/PavingStones113_1K_Roughness.jpg");
+
+    let ao = assets.register::<Texture>("PavingStones113_1K_AmbientOcclusion");
+    let albedo = assets.register::<Texture>("PavingStones113_1K_Color");
+    let normal = assets.register::<Texture>("PavingStones113_1K_NormalDX");
+    let roughness = assets.register::<Texture>("PavingStones113_1K_Roughness");
+    material_set.set_material(
+        3,
+        Material {
+            texture: albedo,
+            albedo: [0.5, 0.5, 0.5].into(),
+            roughness_texture: roughness,
+            ao_texture: ao,
+            normal_texture: normal,
+            metallic: 0.0,
+            ..Default::default()
+        },
+    );
+
     world.spawn(vec![(
         grid,
         material_set,
@@ -122,4 +188,21 @@ fn randomize_grid(grid: &mut Grid) {
         .collect();
 
     grid.set_values(values);
+
+    let material_values: Vec<u8> = vec![0u8; total_size]
+        .iter()
+        .map(|_v| {
+            let chance: u8 = rand::thread_rng().gen();
+            if chance > 192 {
+                3
+            } else if chance > 128 {
+                2
+            } else if chance > 64 {
+                1
+            } else {
+                0
+            }
+        })
+        .collect();
+    grid.set_materials(material_values);
 }

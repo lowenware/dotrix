@@ -24,7 +24,7 @@ fn average(input: vec4<f32>) -> f32 {
 // This is the final materials values at a point
 fn get_surface(world_pos: vec3<f32>, world_normal: vec3<f32>, material_id: u32, ddx: vec3<f32>, ddy: vec3<f32>) -> Surface {
   // Convert normal to local space
-  let local_normal: vec3<f32> = (u_sdf.inv_normal_transform * vec4<f32>(world_normal, 0.)).xyz;
+  let local_normal: vec3<f32> = normalize((u_sdf.inv_normal_transform * vec4<f32>(world_normal, 0.)).xyz);
   // Convert position to local space without scale
   // This is so that materials don't stretch over the voxel and a large voxel will have
   // more repeating material
@@ -168,9 +168,10 @@ fn get_surface(world_pos: vec3<f32>, world_normal: vec3<f32>, material_id: u32, 
 
   // Swizzel into one normal
   let new_local_normal = normal_right.zyx * b.x + normal_top.xzy * b.y + normal_front.xyz * b.z;
+  // let new_local_normal = normal_right.xyz * b.x + normal_top.xyz * b.y + normal_front.xyz * b.z;
 
   // Convert back to world space
-  out.normal = (u_sdf.normal_transform * vec4<f32>(new_local_normal, 0.)).xyz;
+  out.normal = normalize((u_sdf.normal_transform * vec4<f32>(new_local_normal, 0.)).xyz);
 
   return out;
 }

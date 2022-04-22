@@ -212,6 +212,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     // out.color = vec4<f32>(total_radiance, 1.) * vec4<f32>(vec3<f32>(sur.ao), 1. );
     // out.color = vec4<f32>(sur.albedo, 1. );
     // out.color = vec4<f32>(vec3<f32>(sur.metallic), 1. );
+    // out.color = vec4<f32>(abs(sur.normal), 1.);
     // out.color = material_data.albedo;
     // out.color = vec4<f32>(vec3<f32>(material_data.metallic), 1.);
     // out.color = shaded;
