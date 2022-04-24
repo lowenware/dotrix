@@ -106,7 +106,7 @@ impl Camera {
         let camera_right = direction.cross(Vec3::unit_y());
         let camera_up = roll * camera_right.cross(direction);
 
-        Mat4::look_at(
+        Mat4::look_at_rh(
             Point3::new(position.x, position.y, position.z),
             Point3::new(target.x, target.y, target.z),
             camera_up,
