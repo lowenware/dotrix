@@ -17,6 +17,7 @@ pub use skin::Skin;
 pub use texture::*;
 
 use std::{
+    any::{Any, TypeId},
     collections::{hash_map, HashMap, HashSet},
     sync::{mpsc, Arc, Mutex},
     vec::Vec,
@@ -25,6 +26,24 @@ use std::{
 use crate::{ecs::Mut, id::Id, Renderer};
 
 const THREADS_COUNT: usize = 4;
+
+trait AssetSet: Any {
+    fn as_any_ref(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+impl<T: Asset> AssetSet for HashMap<Id<T>, T> {
+    fn as_any_ref(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+/// Any struct can be an asset
+pub trait Asset: Any + Send + Sync + 'static {}
+impl<T: Send + Sync + 'static> Asset for T {}
 
 /// Assets management service
 ///
@@ -39,12 +58,7 @@ const THREADS_COUNT: usize = 4;
 /// method.
 pub struct Assets {
     registry: HashMap<String, u64>,
-    resources: HashMap<Id<Resource>, Resource>,
-    animations: HashMap<Id<Animation>, Animation>,
-    textures: HashMap<Id<Texture>, Texture>,
-    meshes: HashMap<Id<Mesh>, Mesh>,
-    shaders: HashMap<Id<Shader>, Shader>,
-    skins: HashMap<Id<Skin>, Skin>,
+    assets: HashMap<TypeId, Box<dyn AssetSet>>,
     loaders: Vec<Loader>,
     sender: mpsc::Sender<Request>,
     receiver: mpsc::Receiver<Response>,
@@ -76,12 +90,7 @@ impl Assets {
 
         Self {
             registry: HashMap::new(),
-            resources: HashMap::new(),
-            animations: HashMap::new(),
-            textures: HashMap::new(),
-            meshes: HashMap::new(),
-            shaders: HashMap::new(),
-            skins: HashMap::new(),
+            assets: HashMap::new(),
             loaders,
             sender,
             receiver,
@@ -147,7 +156,7 @@ impl Assets {
     ///     assets.import("/path/to/my_texture.png");
     /// }
     /// ```
-    pub fn register<T>(&mut self, name: &str) -> Id<T>
+    pub fn register<T: Asset>(&mut self, name: &str) -> Id<T>
     where
         Self: AssetMapGetter<T>,
     {
@@ -156,7 +165,7 @@ impl Assets {
     }
 
     /// Stores an asset under user defined name and returns [`Id`] of it
-    pub fn store_as<T>(&mut self, asset: T, name: &str) -> Id<T>
+    pub fn store_as<T: Asset>(&mut self, asset: T, name: &str) -> Id<T>
     where
         Self: AssetMapGetter<T>,
     {
@@ -166,7 +175,7 @@ impl Assets {
     }
 
     /// Stores an asset and returns [`Id`] of it
-    pub fn store<T>(&mut self, asset: T) -> Id<T>
+    pub fn store<T: Asset>(&mut self, asset: T) -> Id<T>
     where
         Self: AssetMapGetter<T>,
     {
@@ -176,7 +185,7 @@ impl Assets {
     }
 
     /// Searches for an asset by the name and return [`Id`] of it if the asset exists
-    pub fn find<T>(&self, name: &str) -> Option<Id<T>>
+    pub fn find<T: Asset>(&self, name: &str) -> Option<Id<T>>
     where
         Self: AssetMapGetter<T>,
     {
@@ -184,15 +193,15 @@ impl Assets {
     }
 
     /// Searches an asset by its [`Id`] and returns it by a reference if the asset exists
-    pub fn get<T>(&self, handle: Id<T>) -> Option<&T>
+    pub fn get<T: Asset>(&self, handle: Id<T>) -> Option<&T>
     where
         Self: AssetMapGetter<T>,
     {
-        self.map().get(&handle)
+        self.map()?.get(&handle)
     }
 
     /// Searches an asset by its [`Id`] and returns it by a mutual reference if the asset exists
-    pub fn get_mut<T>(&mut self, handle: Id<T>) -> Option<&mut T>
+    pub fn get_mut<T: Asset>(&mut self, handle: Id<T>) -> Option<&mut T>
     where
         Self: AssetMapGetter<T>,
     {
@@ -200,7 +209,7 @@ impl Assets {
     }
 
     /// Removes an asset from the Service and returns it if the asset exists
-    pub fn remove<T>(&mut self, handle: Id<T>) -> Option<T>
+    pub fn remove<T: Asset>(&mut self, handle: Id<T>) -> Option<T>
     where
         Self: AssetMapGetter<T>,
     {
@@ -209,15 +218,17 @@ impl Assets {
     }
 
     /// Returns iterator over assets by its type
-    pub fn iter<T>(&mut self) -> hash_map::Iter<'_, Id<T>, T>
+    ///
+    /// Must be mutable as it will create the hashmap if it does not exist
+    pub fn iter<T: Asset>(&mut self) -> hash_map::Iter<'_, Id<T>, T>
     where
         Self: AssetMapGetter<T>,
     {
-        self.map().iter()
+        self.map_mut().iter()
     }
 
     /// Returns mutable iterator over assets by its type
-    pub fn iter_mut<T>(&mut self) -> hash_map::IterMut<'_, Id<T>, T>
+    pub fn iter_mut<T: Asset>(&mut self) -> hash_map::IterMut<'_, Id<T>, T>
     where
         Self: AssetMapGetter<T>,
     {
@@ -277,7 +288,7 @@ pub fn release(mut assets: Mut<Assets>, mut renderer: Mut<Renderer>) {
 
     // Any shader that has its shader module dropped/uninitalised should have it's
     // pipeline dropped from the renderer
-    for (id, shader) in &assets.shaders {
+    for (id, shader) in assets.iter::<Shader>() {
         if !shader.loaded() {
             renderer.drop_pipeline(*id);
         }
@@ -287,7 +298,10 @@ pub fn release(mut assets: Mut<Assets>, mut renderer: Mut<Renderer>) {
 /// Asset map getting trait
 pub trait AssetMapGetter<T> {
     /// Returns HashMap reference for selected asset type
-    fn map(&self) -> &HashMap<Id<T>, T>;
+    ///
+    /// Returns an option as the map may not have been made yet
+    /// and we don't have the mutable access required to make it
+    fn map(&self) -> Option<&HashMap<Id<T>, T>>;
     /// Returns mutable HashMap reference for selected asset type
     fn map_mut(&mut self) -> &mut HashMap<Id<T>, T>;
 
@@ -303,70 +317,24 @@ pub trait AssetMapGetter<T> {
     }
 }
 
-impl AssetMapGetter<Animation> for Assets {
-    fn map(&self) -> &HashMap<Id<Animation>, Animation> {
-        &self.animations
+impl<T: Asset> AssetMapGetter<T> for Assets {
+    fn map(&self) -> Option<&HashMap<Id<T>, T>> {
+        self.assets
+            .get(&TypeId::of::<T>())?
+            .as_any_ref()
+            .downcast_ref::<HashMap<Id<T>, T>>()
     }
 
-    fn map_mut(&mut self) -> &mut HashMap<Id<Animation>, Animation> {
-        &mut self.animations
-    }
-}
-
-impl AssetMapGetter<Texture> for Assets {
-    fn map(&self) -> &HashMap<Id<Texture>, Texture> {
-        &self.textures
-    }
-
-    fn map_mut(&mut self) -> &mut HashMap<Id<Texture>, Texture> {
-        &mut self.textures
-    }
-}
-
-impl AssetMapGetter<Mesh> for Assets {
-    fn map(&self) -> &HashMap<Id<Mesh>, Mesh> {
-        &self.meshes
-    }
-
-    fn map_mut(&mut self) -> &mut HashMap<Id<Mesh>, Mesh> {
-        &mut self.meshes
-    }
-}
-
-impl AssetMapGetter<Skin> for Assets {
-    fn map(&self) -> &HashMap<Id<Skin>, Skin> {
-        &self.skins
-    }
-
-    fn map_mut(&mut self) -> &mut HashMap<Id<Skin>, Skin> {
-        &mut self.skins
-    }
-}
-
-impl AssetMapGetter<Resource> for Assets {
-    fn map(&self) -> &HashMap<Id<Resource>, Resource> {
-        &self.resources
-    }
-
-    fn map_mut(&mut self) -> &mut HashMap<Id<Resource>, Resource> {
-        &mut self.resources
-    }
-}
-
-impl AssetMapGetter<Shader> for Assets {
-    fn map(&self) -> &HashMap<Id<Shader>, Shader> {
-        &self.shaders
-    }
-
-    fn map_mut(&mut self) -> &mut HashMap<Id<Shader>, Shader> {
-        &mut self.shaders
-    }
-
-    fn map_removed(&self) -> Option<&HashSet<Id<Shader>>> {
-        Some(&self.removed_shaders)
-    }
-    fn map_removed_mut(&mut self) -> Option<&mut HashSet<Id<Shader>>> {
-        Some(&mut self.removed_shaders)
+    fn map_mut(&mut self) -> &mut HashMap<Id<T>, T> {
+        self.assets
+            .entry(TypeId::of::<T>())
+            .or_insert_with(|| {
+                let empty: HashMap<Id<T>, T> = Default::default();
+                Box::new(empty)
+            })
+            .as_any_mut()
+            .downcast_mut::<HashMap<Id<T>, T>>()
+            .unwrap()
     }
 }
 
