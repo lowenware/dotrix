@@ -18,7 +18,7 @@ pub use texture::*;
 
 use std::{
     any::{Any, TypeId},
-    collections::{hash_map, HashMap, HashSet},
+    collections::{hash_map, hash_set, HashMap, HashSet},
     sync::{mpsc, Arc, Mutex},
     vec::Vec,
 };
@@ -33,6 +33,15 @@ trait AssetSet: Any {
 }
 
 impl<T: Asset> AssetSet for HashMap<Id<T>, T> {
+    fn as_any_ref(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+impl<T: Asset> AssetSet for HashSet<Id<T>> {
     fn as_any_ref(&self) -> &dyn Any {
         self
     }
@@ -63,7 +72,7 @@ pub struct Assets {
     sender: mpsc::Sender<Request>,
     receiver: mpsc::Receiver<Response>,
     id_generator: u64,
-    removed_shaders: HashSet<Id<Shader>>,
+    removed_assets: HashMap<TypeId, Box<dyn AssetSet>>,
     hot_reload: bool,
     root: std::path::PathBuf,
 }
@@ -95,7 +104,7 @@ impl Assets {
             sender,
             receiver,
             id_generator: 1,
-            removed_shaders: HashSet::new(),
+            removed_assets: HashMap::new(),
             hot_reload: true,
             root,
         }
@@ -213,7 +222,7 @@ impl Assets {
     where
         Self: AssetMapGetter<T>,
     {
-        self.map_removed_mut().map(|l| l.insert(handle));
+        self.map_removed_mut().insert(handle);
         self.map_mut().remove(&handle)
     }
 
@@ -233,6 +242,30 @@ impl Assets {
         Self: AssetMapGetter<T>,
     {
         self.map_mut().iter_mut()
+    }
+
+    /// Returns an iter to the removed asset list
+    pub fn iter_removed<T: Asset>(&mut self) -> hash_set::Iter<'_, Id<T>>
+    where
+        Self: AssetMapGetter<T>,
+    {
+        self.map_removed_mut().iter()
+    }
+
+    /// Returns the removed asset list
+    pub fn get_removed_ref<T: Asset>(&mut self) -> Option<&HashSet<Id<T>>>
+    where
+        Self: AssetMapGetter<T>,
+    {
+        self.map_removed()
+    }
+
+    /// Returns the mutable removed asset list
+    pub fn get_removed_mut<T: Asset>(&mut self) -> &mut HashSet<Id<T>>
+    where
+        Self: AssetMapGetter<T>,
+    {
+        self.map_removed_mut()
     }
 
     fn next_id(&mut self) -> u64 {
@@ -279,12 +312,18 @@ pub fn release(mut assets: Mut<Assets>, mut renderer: Mut<Renderer>) {
     }
     // Shaders that no longer exist need to be removed from the renderer
     // by dropping their pipeline
-    for removed_shader in &assets.removed_shaders {
-        if assets.get::<Shader>(*removed_shader).is_none() {
-            renderer.drop_pipeline(*removed_shader);
+    for removed_shader in assets
+        .iter_removed::<Shader>()
+        .copied()
+        .collect::<Vec<Id<Shader>>>()
+    {
+        if assets.get::<Shader>(removed_shader).is_none() {
+            renderer.drop_pipeline(removed_shader);
         }
     }
-    assets.removed_shaders.clear();
+    // assets.get_removed_mut::<Shader>().clear();
+    // TODO: Find a better way to cleanup deleted assets
+    assets.removed_assets.clear();
 
     // Any shader that has its shader module dropped/uninitalised should have it's
     // pipeline dropped from the renderer
@@ -307,14 +346,10 @@ pub trait AssetMapGetter<T> {
 
     /// Returns HashSet reference for selected asset type that have been removed
     /// since last clean up
-    fn map_removed(&self) -> Option<&HashSet<Id<T>>> {
-        None
-    }
+    fn map_removed(&self) -> Option<&HashSet<Id<T>>>;
     /// Returns mutable HashSet reference for selected asset type that have been removed
     /// since last clean up
-    fn map_removed_mut(&mut self) -> Option<&mut HashSet<Id<T>>> {
-        None
-    }
+    fn map_removed_mut(&mut self) -> &mut HashSet<Id<T>>;
 }
 
 impl<T: Asset> AssetMapGetter<T> for Assets {
@@ -334,6 +369,23 @@ impl<T: Asset> AssetMapGetter<T> for Assets {
             })
             .as_any_mut()
             .downcast_mut::<HashMap<Id<T>, T>>()
+            .unwrap()
+    }
+    fn map_removed(&self) -> Option<&HashSet<Id<T>>> {
+        self.removed_assets
+            .get(&TypeId::of::<T>())?
+            .as_any_ref()
+            .downcast_ref::<HashSet<Id<T>>>()
+    }
+    fn map_removed_mut(&mut self) -> &mut HashSet<Id<T>> {
+        self.removed_assets
+            .entry(TypeId::of::<T>())
+            .or_insert_with(|| {
+                let empty: HashSet<Id<T>> = Default::default();
+                Box::new(empty)
+            })
+            .as_any_mut()
+            .downcast_mut::<HashSet<Id<T>>>()
             .unwrap()
     }
 }
