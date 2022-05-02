@@ -58,7 +58,3 @@ version = "0.1.0"
 version = "0.26.1"
 features = ["serde"]
 
-# Optional dependencies
-[dependencies.shaderc]
-version = "0.7"
-optional = true
