@@ -1,12 +1,11 @@
 /// WGPU backend wrapper module
-use std::collections::HashMap;
 use wgpu;
 use winit;
 
-use crate::assets::{Mesh, Shader};
-use crate::{Color, Id};
+use crate::assets::Mesh;
+use crate::Color;
 
-use super::{Bindings, ComputeArgs, DepthBufferMode, DrawArgs, PipelineInstance};
+use super::{ComputeArgs, DepthBufferMode, DrawArgs, Pipeline};
 
 /// Renderer Context
 pub struct Context {
@@ -28,8 +27,6 @@ pub struct Context {
     pub frame: Option<wgpu::SurfaceTexture>,
     /// WGPU command encoder
     pub encoder: Option<wgpu::CommandEncoder>,
-    /// List of Pipeline Instances
-    pub pipelines: HashMap<Id<Shader>, PipelineInstance>,
     /// Sample count for MSAA
     pub sample_count: u32,
 }
@@ -51,7 +48,7 @@ impl Context {
             self.multisampled_framebuffer =
                 create_multisampled_framebuffer(&self.device, &self.sur_desc, sample_count);
             self.depth_buffer = create_depth_buffer(&self.device, &self.sur_desc, sample_count);
-            self.drop_all_pipelines();
+            // TODO: Flag all pipielines as needing reload
             self.sample_count = sample_count;
             reload_request = true;
         }
@@ -130,129 +127,98 @@ impl Context {
         }
     }
 
-    pub(crate) fn drop_pipeline(&mut self, shader: Id<Shader>) {
-        self.pipelines.remove(&shader);
-    }
-
-    pub(crate) fn drop_all_pipelines(&mut self) {
-        self.pipelines.clear();
-    }
-
-    pub(crate) fn add_pipeline(&mut self, shader: Id<Shader>, pipeline_instance: PipelineInstance) {
-        self.pipelines.insert(shader, pipeline_instance);
-    }
-
-    pub(crate) fn has_pipeline(&self, shader: Id<Shader>) -> bool {
-        self.pipelines.contains_key(&shader)
-    }
-
-    pub(crate) fn pipeline(&self, shader: Id<Shader>) -> Option<&PipelineInstance> {
-        self.pipelines.get(&shader)
-    }
-
     pub(crate) fn run_render_pipeline(
         &mut self,
-        shader: Id<Shader>,
+        pipeline: &Pipeline,
         mesh: &Mesh,
-        bindings: &Bindings,
         args: &DrawArgs,
     ) {
-        if let Some(pipeline_instance) = self.pipelines.get(&shader) {
-            let render_pipeline = pipeline_instance.render();
-            let depth_buffer_mode = render_pipeline.depth_buffer_mode;
+        let render_pipeline = pipeline.instance.as_ref().unwrap().render();
+        let depth_buffer_mode = render_pipeline.depth_buffer_mode;
 
-            let frame = self.frame.as_ref().expect("WGPU frame must be set");
-            let view = frame
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
-            let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
-            let rpass_color_attachment = if self.sample_count == 1 {
-                wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: true,
-                    },
-                }
-            } else {
-                wgpu::RenderPassColorAttachment {
-                    view: &self.multisampled_framebuffer,
-                    resolve_target: Some(&view),
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: true,
-                    },
-                }
-            };
-
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[rpass_color_attachment],
-                depth_stencil_attachment: if depth_buffer_mode != DepthBufferMode::Disabled {
-                    Some(wgpu::RenderPassDepthStencilAttachment {
-                        view: &self.depth_buffer,
-                        depth_ops: Some(wgpu::Operations {
-                            load: wgpu::LoadOp::Load,
-                            store: true,
-                        }),
-                        stencil_ops: None,
-                    })
-                } else {
-                    None
+        let frame = self.frame.as_ref().expect("WGPU frame must be set");
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
+        let rpass_color_attachment = if self.sample_count == 1 {
+            wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: true,
                 },
-            });
-
-            rpass.push_debug_group("Prepare to run pipeline");
-            rpass.set_pipeline(&render_pipeline.wgpu_pipeline);
-
-            if let Some(scissors_rect) = args.scissors_rect.as_ref() {
-                rpass.set_scissor_rect(
-                    scissors_rect.clip_min_x,
-                    scissors_rect.clip_min_y,
-                    scissors_rect.width,
-                    scissors_rect.height,
-                );
             }
-
-            for (index, wgpu_bind_group) in bindings.wgpu_bind_groups.iter().enumerate() {
-                rpass.set_bind_group(index as u32, wgpu_bind_group, &[]);
+        } else {
+            wgpu::RenderPassColorAttachment {
+                view: &self.multisampled_framebuffer,
+                resolve_target: Some(&view),
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: true,
+                },
             }
-            rpass.set_vertex_buffer(0, mesh.vertex_buffer.get().slice(..));
-            rpass.pop_debug_group();
+        };
 
-            let count = mesh.count_vertices();
-
-            if let Some(index_buffer) = mesh.index_buffer.as_ref() {
-                rpass.insert_debug_marker("Draw indexed");
-                rpass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                rpass.draw_indexed(0..count, 0, args.start_index..args.end_index);
+        let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[rpass_color_attachment],
+            depth_stencil_attachment: if depth_buffer_mode != DepthBufferMode::Disabled {
+                Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_buffer,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                })
             } else {
-                rpass.insert_debug_marker("Draw");
-                rpass.draw(0..count, args.start_index..args.end_index);
-            }
+                None
+            },
+        });
+
+        rpass.push_debug_group("Prepare to run pipeline");
+        rpass.set_pipeline(&render_pipeline.wgpu_pipeline);
+
+        if let Some(scissors_rect) = args.scissors_rect.as_ref() {
+            rpass.set_scissor_rect(
+                scissors_rect.clip_min_x,
+                scissors_rect.clip_min_y,
+                scissors_rect.width,
+                scissors_rect.height,
+            );
+        }
+
+        for (index, wgpu_bind_group) in pipeline.bindings.wgpu_bind_groups.iter().enumerate() {
+            rpass.set_bind_group(index as u32, wgpu_bind_group, &[]);
+        }
+        rpass.set_vertex_buffer(0, mesh.vertex_buffer.get().slice(..));
+        rpass.pop_debug_group();
+
+        let count = mesh.count_vertices();
+
+        if let Some(index_buffer) = mesh.index_buffer.as_ref() {
+            rpass.insert_debug_marker("Draw indexed");
+            rpass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            rpass.draw_indexed(0..count, 0, args.start_index..args.end_index);
+        } else {
+            rpass.insert_debug_marker("Draw");
+            rpass.draw(0..count, args.start_index..args.end_index);
         }
     }
 
-    pub(crate) fn run_compute_pipeline(
-        &mut self,
-        shader: Id<Shader>,
-        bindings: &Bindings,
-        args: &ComputeArgs,
-    ) {
-        if let Some(pipeline_instance) = self.pipelines.get(&shader) {
-            let compute_pipeline = pipeline_instance.compute();
-            let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
+    pub(crate) fn run_compute_pipeline(&mut self, pipeline: &Pipeline, args: &ComputeArgs) {
+        let compute_pipeline = pipeline.instance.as_ref().unwrap().compute();
+        let encoder = self.encoder.as_mut().expect("WGPU encoder must be set");
 
-            // compute pass
-            let mut cpass =
-                encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
-            cpass.set_pipeline(&compute_pipeline.wgpu_pipeline);
-            for (index, wgpu_bind_group) in bindings.wgpu_bind_groups.iter().enumerate() {
-                cpass.set_bind_group(index as u32, wgpu_bind_group, &[]);
-            }
-            cpass.dispatch(args.work_groups.x, args.work_groups.y, args.work_groups.z);
+        // compute pass
+        let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor { label: None });
+        cpass.set_pipeline(&compute_pipeline.wgpu_pipeline);
+        for (index, wgpu_bind_group) in pipeline.bindings.wgpu_bind_groups.iter().enumerate() {
+            cpass.set_bind_group(index as u32, wgpu_bind_group, &[]);
         }
+        cpass.dispatch(args.work_groups.x, args.work_groups.y, args.work_groups.z);
     }
 
     pub(crate) fn run_copy_texture_to_buffer(
@@ -349,7 +315,6 @@ pub(crate) async fn init(window: &winit::window::Window, sample_count: u32) -> C
         frame: None,
         encoder: None,
         multisampled_framebuffer,
-        pipelines: std::collections::HashMap::new(),
         sample_count,
     }
 }

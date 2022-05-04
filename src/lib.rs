@@ -115,9 +115,6 @@ impl Dotrix {
         // Reset input events
         app.add_system(System::from(input::release));
 
-        // Reload and clean up assets
-        app.add_system(System::from(assets::release));
-
         Self { app: Some(app) }
     }
 

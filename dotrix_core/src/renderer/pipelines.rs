@@ -1,12 +1,13 @@
 use super::{BindGroup, Bindings, Context, Renderer};
 use crate::assets::{Mesh, Shader};
-use crate::Id;
+
+use std::time::Instant;
 
 /// Pipeline context
 #[derive(Default)]
 pub struct Pipeline {
-    /// [`Id`] of the shader
-    pub shader: Id<Shader>,
+    /// Gpu instance of the pipeline
+    pub instance: Option<PipelineInstance>,
     /// Pipeline bindings
     pub bindings: Bindings,
     /// renderer's cycle
@@ -31,33 +32,39 @@ pub struct Compute {
 
 impl Pipeline {
     /// Constructs new instance of `Compute` pipeline component with defined Shader
-    pub fn compute(shader: Id<Shader>) -> Compute {
+    pub fn compute() -> Compute {
         Compute {
-            pipeline: Pipeline {
-                shader,
-                ..Default::default()
-            },
+            pipeline: Pipeline::default(),
         }
     }
 
     /// Constructs new instance of `Render` pipeline component with defined Shader
-    pub fn render(shader: Id<Shader>) -> Render {
+    pub fn render() -> Render {
         Render {
-            pipeline: Pipeline {
-                shader,
-                ..Default::default()
-            },
+            pipeline: Pipeline::default(),
         }
     }
 
     /// Checks if rendering cycle should be performed
     pub fn cycle(&self, renderer: &Renderer) -> bool {
-        !self.disabled && self.cycle != renderer.cycle() && !self.shader.is_null()
+        !self.disabled && self.cycle != renderer.cycle() && self.instance.is_some()
     }
 
     /// Returns true if Pipeline is ready to run
     pub fn ready(&self, renderer: &Renderer) -> bool {
-        renderer.has_pipeline(self.shader) && self.bindings.loaded()
+        self.reload_required(renderer) && self.bindings.loaded()
+    }
+
+    /// Check if the instance is valid and if a reload has been requested gloabally by
+    /// the renderer
+    pub fn reload_required(&self, renderer: &Renderer) -> bool {
+        match self.instance {
+            Some(PipelineInstance::Compute(ComputePipeline { last_reload, .. }))
+            | Some(PipelineInstance::Render(RenderPipeline { last_reload, .. })) => {
+                last_reload < renderer.dirty
+            }
+            _ => false,
+        }
     }
 }
 
@@ -130,6 +137,8 @@ pub struct RenderPipeline {
     pub depth_buffer_mode: DepthBufferMode,
     /// WGPU bind group layout
     pub wgpu_bind_groups_layout: Vec<wgpu::BindGroupLayout>,
+    /// Last time that a reload was done with this pipieline instance
+    pub last_reload: Instant,
 }
 
 /// Compute pipeline backend
@@ -138,6 +147,8 @@ pub struct ComputePipeline {
     pub wgpu_pipeline: wgpu::ComputePipeline,
     /// WGPU bind group layout
     pub wgpu_bind_groups_layout: Vec<wgpu::BindGroupLayout>,
+    /// Last time that a reload was done with this pipieline instance
+    pub last_reload: Instant,
 }
 
 /// Pipeline Instance
@@ -334,6 +345,7 @@ impl PipelineLayout<'_> {
             wgpu_bind_groups_layout,
             wgpu_pipeline,
             depth_buffer_mode,
+            last_reload: Instant::now(),
         })
     }
 
@@ -375,6 +387,7 @@ impl PipelineLayout<'_> {
         PipelineInstance::Compute(ComputePipeline {
             wgpu_pipeline,
             wgpu_bind_groups_layout,
+            last_reload: Instant::now(),
         })
     }
 }

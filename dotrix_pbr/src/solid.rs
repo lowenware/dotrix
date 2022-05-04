@@ -67,7 +67,7 @@ impl Entity {
                 rotate: self.rotate,
                 scale: self.scale,
             },
-            Pipeline::render(self.shader),
+            Pipeline::render(),
         )
     }
 
@@ -105,10 +105,6 @@ pub fn render(
 ) {
     let query = world.query::<(&mut Model, &mut Material, &mut Transform, &mut Render)>();
     for (model, material, transform, render) in query {
-        if render.pipeline.shader.is_null() {
-            render.pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
-        }
-
         // check if model is disabled or already rendered
         if !render.pipeline.cycle(&renderer) {
             continue;
@@ -127,7 +123,8 @@ pub fn render(
         let mesh = assets.get(model.mesh).unwrap();
 
         if !render.pipeline.ready(&renderer) {
-            if let Some(shader) = assets.get(render.pipeline.shader) {
+            let shader_id = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+            if let Some(shader) = assets.get(shader_id) {
                 if !shader.loaded() {
                     continue;
                 }

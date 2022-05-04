@@ -103,11 +103,6 @@ pub fn render(
             .get::<ProjView>()
             .expect("ProjView buffer must be loaded");
 
-        // Set the shader on the pipeline
-        if render.pipeline.shader.is_null() {
-            render.pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
-        }
-
         // check if model is disabled or already rendered
         if !render.pipeline.cycle(&renderer) {
             continue;
@@ -117,7 +112,8 @@ pub fn render(
 
         // Bind the uniforms to the shader
         if !render.pipeline.ready(&renderer) {
-            if let Some(shader) = assets.get(render.pipeline.shader) {
+            let shader_id = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+            if let Some(shader) = assets.get(shader_id) {
                 if !shader.loaded() {
                     continue;
                 }

@@ -232,10 +232,6 @@ pub fn render(
     let query = world.query::<(&mut Tile, &mut Material, &mut Pipeline)>();
 
     for (tile, material, pipeline) in query {
-        if pipeline.shader.is_null() {
-            pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
-        }
-
         // check if model is disabled or already rendered
         if !pipeline.cycle(&renderer) {
             continue;
@@ -255,7 +251,8 @@ pub fn render(
         let mesh = assets.get(tile.mesh).unwrap();
 
         if !pipeline.ready(&renderer) {
-            if let Some(shader) = assets.get(pipeline.shader) {
+            let shader_id = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+            if let Some(shader) = assets.get(shader_id) {
                 if !shader.loaded() {
                     continue;
                 }
