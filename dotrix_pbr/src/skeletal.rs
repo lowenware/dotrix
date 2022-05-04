@@ -215,16 +215,14 @@ pub fn render(
     }
 }
 
-pub fn startup(mut assets: Mut<Assets>) {
-    let shader = include_str!("shaders/skeletal.wgsl");
-    assets.store_as(
-        Shader {
-            name: String::from(PIPELINE_LABEL),
-            code: add_pbr_to_shader(shader, 0, 2),
-            ..Default::default()
-        },
-        PIPELINE_LABEL,
-    );
+pub fn startup(mut assets: Mut<Assets>, renderer: Const<Renderer>) {
+    let mut shader = Shader {
+        name: String::from(PIPELINE_LABEL),
+        code: add_pbr_to_shader(include_str!("shaders/skeletal.wgsl"), 0, 2),
+        ..Default::default()
+    };
+    shader.load(&renderer);
+    assets.store_as(shader, PIPELINE_LABEL);
 }
 
 pub fn extension(app: &mut Application) {

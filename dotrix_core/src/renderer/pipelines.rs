@@ -47,12 +47,12 @@ impl Pipeline {
 
     /// Checks if rendering cycle should be performed
     pub fn cycle(&self, renderer: &Renderer) -> bool {
-        !self.disabled && self.cycle != renderer.cycle() && self.instance.is_some()
+        !self.disabled && self.cycle != renderer.cycle()
     }
 
     /// Returns true if Pipeline is ready to run
     pub fn ready(&self, renderer: &Renderer) -> bool {
-        self.reload_required(renderer) && self.bindings.loaded()
+        !self.reload_required(renderer) && self.bindings.loaded()
     }
 
     /// Check if the instance is valid and if a reload has been requested gloabally by
@@ -63,7 +63,7 @@ impl Pipeline {
             | Some(PipelineInstance::Render(RenderPipeline { last_reload, .. })) => {
                 last_reload < renderer.dirty
             }
-            _ => false,
+            _ => true,
         }
     }
 }
