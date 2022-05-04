@@ -13,7 +13,8 @@ use dotrix_math::{Mat4, Vec2};
 
 use crate::assets::{Mesh, Shader};
 use crate::ecs::{Const, Mut};
-use crate::{Assets, Color, Globals, Id, Window};
+use crate::{Assets, Color, Globals, Window};
+use std::time::Instant;
 
 pub use access::Access;
 pub use bindings::{BindGroup, Binding, Bindings, Stage};
@@ -21,8 +22,9 @@ pub use buffer::Buffer;
 pub use context::Context;
 pub use mesh::AttributeFormat;
 pub use pipelines::{
-    Compute, ComputeArgs, ComputeOptions, DepthBufferMode, DrawArgs, Pipeline, PipelineInstance,
-    PipelineLayout, Render, RenderOptions, ScissorsRect, WorkGroups,
+    Compute, ComputeArgs, ComputeOptions, ComputePipeline, DepthBufferMode, DrawArgs, Pipeline,
+    PipelineInstance, PipelineLayout, Render, RenderOptions, RenderPipeline, ScissorsRect,
+    WorkGroups,
 };
 pub use sampler::Sampler;
 pub use shader::ShaderModule;
@@ -49,8 +51,11 @@ pub struct Renderer {
     pub antialiasing: Antialiasing,
     /// Low-level rendering context
     pub context: Option<Context>,
-    /// When dirty, renderer will try to load missing pipelines on frame binding
-    pub dirty: bool,
+    /// When time when last reload occured.
+    /// Used to track if a pipeline instance should reload
+    pub last_reload: Instant,
+    /// Time at which it was last flagged as dirty
+    pub dirty: Instant,
 }
 
 impl Renderer {
@@ -166,37 +171,18 @@ impl Renderer {
 
     /// Forces engine to reload shaders
     pub fn reload(&mut self) {
-        self.dirty = true;
-        self.drop_all_pipelines();
-    }
-
-    /// Drop the context pipeline for a shader
-    ///
-    /// This should be called when a shader is removed.
-    pub fn drop_pipeline(&mut self, shader: Id<Shader>) {
-        self.dirty = true;
-        self.context_mut().drop_pipeline(shader);
-    }
-
-    /// Returns true if renderer has pipeline for the sahder
-    pub fn has_pipeline(&self, shader: Id<Shader>) -> bool {
-        self.context().has_pipeline(shader)
-    }
-
-    /// Drop all loaded context pipelines for all shader
-    pub fn drop_all_pipelines(&mut self) {
-        self.dirty = true;
-        self.context_mut().drop_all_pipelines();
+        self.dirty = Instant::now();
     }
 
     /// Binds uniforms and other data to the pipeline
     pub fn bind(&mut self, pipeline: &mut Pipeline, layout: PipelineLayout) {
-        if !self.context().has_pipeline(pipeline.shader) {
+        // Reload if pipeline is none or if the last reload is before the last dirty flag
+        if pipeline.reload_required(self) {
             let instance = layout.instance(self.context());
-            self.context_mut().add_pipeline(pipeline.shader, instance);
+            pipeline.instance = Some(instance);
         }
 
-        let instance = self.context().pipeline(pipeline.shader).unwrap();
+        let instance = pipeline.instance.as_ref().unwrap();
         let mut bindings = Bindings::default();
         let bindings_layout = match layout {
             PipelineLayout::Render { bindings, .. } => bindings,
@@ -208,14 +194,12 @@ impl Renderer {
 
     /// Runs the render pipeline for a mesh
     pub fn draw(&mut self, pipeline: &mut Pipeline, mesh: &Mesh, args: &DrawArgs) {
-        self.context_mut()
-            .run_render_pipeline(pipeline.shader, mesh, &pipeline.bindings, args);
+        self.context_mut().run_render_pipeline(pipeline, mesh, args);
     }
 
     /// Runs the compute pipeline
     pub fn compute(&mut self, pipeline: &mut Pipeline, args: &ComputeArgs) {
-        self.context_mut()
-            .run_compute_pipeline(pipeline.shader, &pipeline.bindings, args);
+        self.context_mut().run_compute_pipeline(pipeline, args);
     }
 
     /// Returns surface size
@@ -257,7 +241,8 @@ impl Default for Renderer {
             clear_color: Color::from([0.1, 0.2, 0.3, 1.0]),
             cycle: 1,
             context: None,
-            dirty: true,
+            dirty: Instant::now(),
+            last_reload: Instant::now(),
             antialiasing: Antialiasing::Enabled,
         }
     }
@@ -294,7 +279,7 @@ pub fn bind(mut renderer: Mut<Renderer>, mut assets: Mut<Assets>) {
         .context_mut()
         .bind_frame(&clear_color, sample_count);
 
-    if !renderer.dirty && !reload_request {
+    if renderer.dirty < renderer.last_reload && !reload_request {
         return;
     }
 
@@ -307,7 +292,9 @@ pub fn bind(mut renderer: Mut<Renderer>, mut assets: Mut<Assets>) {
         }
     }
 
-    renderer.dirty = !loaded;
+    if loaded {
+        renderer.last_reload = Instant::now();
+    }
 }
 
 /// Frame release system

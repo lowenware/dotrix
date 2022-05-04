@@ -177,10 +177,6 @@ pub fn render(
 
     for provider in overlay.providers() {
         for (widget, pipeline) in provider.tessellate() {
-            if pipeline.shader.is_null() {
-                pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
-            }
-
             // check if model is disabled or already rendered
             if !pipeline.cycle(&renderer) {
                 continue;
@@ -195,7 +191,8 @@ pub fn render(
             }
 
             if !pipeline.ready(&renderer) {
-                if let Some(shader) = assets.get(pipeline.shader) {
+                let shader_id = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+                if let Some(shader) = assets.get(shader_id) {
                     let sampler = globals
                         .get::<Sampler>()
                         .expect("Sampler buffer must be loaded");

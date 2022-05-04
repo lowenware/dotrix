@@ -154,10 +154,6 @@ fn compute(
     mut renderer: Mut<Renderer>,
 ) {
     for (spawner, compute) in world.query::<(&mut ParticlesSpawner, &mut Compute)>() {
-        // Set the shader on the pipeline
-        if compute.pipeline.shader.is_null() {
-            compute.pipeline.shader = assets.find::<Shader>(COMPUTE_PIPELINE).unwrap_or_default();
-        }
         // update time delta
         let params = Params {
             simulation_time: frame.time().as_secs_f32(),
@@ -167,7 +163,8 @@ fn compute(
 
         // Bind the uniforms to the shader
         if !compute.pipeline.ready(&renderer) {
-            if let Some(shader) = assets.get(compute.pipeline.shader) {
+            let shader_id = assets.find::<Shader>(COMPUTE_PIPELINE).unwrap_or_default();
+            if let Some(shader) = assets.get(shader_id) {
                 if !shader.loaded() {
                     continue;
                 }
@@ -212,17 +209,13 @@ fn render(
     mut renderer: Mut<Renderer>,
 ) {
     for (spawner, render) in world.query::<(&mut ParticlesSpawner, &mut Render)>() {
-        // Set the shader on the pipeline
-        if render.pipeline.shader.is_null() {
-            render.pipeline.shader = assets.find::<Shader>(RENDER_PIPELINE).unwrap_or_default();
-        }
-
         let mesh = assets
             .get(assets.find(PARTICLE_MESH).expect("Mesh must be loaded"))
             .unwrap();
 
         if !render.pipeline.ready(&renderer) {
-            if let Some(shader) = assets.get(render.pipeline.shader) {
+            let shader_id = assets.find::<Shader>(RENDER_PIPELINE).unwrap_or_default();
+            if let Some(shader) = assets.get(shader_id) {
                 if !shader.loaded() {
                     continue;
                 }

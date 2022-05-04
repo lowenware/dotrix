@@ -67,7 +67,7 @@ impl Entity {
                 rotate: self.rotate,
                 scale: self.scale,
             },
-            Pipeline::render(self.shader),
+            Pipeline::render(),
         )
     }
 
@@ -105,10 +105,6 @@ pub fn render(
 ) {
     let query = world.query::<(&mut Model, &mut Material, &mut Transform, &mut Render)>();
     for (model, material, transform, render) in query {
-        if render.pipeline.shader.is_null() {
-            render.pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
-        }
-
         // check if model is disabled or already rendered
         if !render.pipeline.cycle(&renderer) {
             continue;
@@ -127,7 +123,8 @@ pub fn render(
         let mesh = assets.get(model.mesh).unwrap();
 
         if !render.pipeline.ready(&renderer) {
-            if let Some(shader) = assets.get(render.pipeline.shader) {
+            let shader_id = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+            if let Some(shader) = assets.get(shader_id) {
                 if !shader.loaded() {
                     continue;
                 }
@@ -150,6 +147,7 @@ pub fn render(
                     .get::<Lights>()
                     .expect("Lights buffer must be loaded");
 
+                println!("BIND");
                 renderer.bind(
                     &mut render.pipeline,
                     PipelineLayout::Render {
@@ -204,21 +202,19 @@ pub fn render(
             }
         }
 
+        println!("DRAW");
         renderer.draw(&mut render.pipeline, mesh, &DrawArgs::default());
     }
 }
 
-pub fn startup(mut assets: Mut<Assets>) {
-    let shader = include_str!("shaders/solid.wgsl");
-
-    assets.store_as(
-        Shader {
-            name: String::from(PIPELINE_LABEL),
-            code: add_pbr_to_shader(shader, 0, 2),
-            ..Default::default()
-        },
-        PIPELINE_LABEL,
-    );
+pub fn startup(mut assets: Mut<Assets>, renderer: Const<Renderer>) {
+    let mut shader = Shader {
+        name: String::from(PIPELINE_LABEL),
+        code: add_pbr_to_shader(include_str!("shaders/solid.wgsl"), 0, 2),
+        ..Default::default()
+    };
+    shader.load(&renderer);
+    assets.store_as(shader, PIPELINE_LABEL);
 }
 
 pub fn extension(app: &mut Application) {

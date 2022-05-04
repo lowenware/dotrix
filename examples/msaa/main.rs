@@ -64,7 +64,7 @@ fn startup(mut camera: Mut<Camera>, mut world: Mut<World>, mut assets: Mut<Asset
             ..Default::default()
         },
         Transform::default(),
-        Pipeline::render(Id::default()),
+        Pipeline::render(),
     )]);
 
     // Spawn lights
