@@ -1,5 +1,6 @@
 //! Assets and management service
 pub mod animation;
+pub mod buffer;
 mod load_gltf;
 pub mod loader;
 pub mod mesh;
@@ -9,6 +10,7 @@ pub mod skin;
 pub mod texture;
 
 pub use animation::Animation;
+pub use buffer::*;
 pub use loader::*;
 pub use mesh::*;
 pub use resource::*;
