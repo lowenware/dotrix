@@ -163,10 +163,19 @@ impl Buffer {
         self.data_len = 0;
         self.buffer.unload();
     }
+
+    /// Check if underlying buffer is loaded
+    pub fn loaded(&self) -> bool {
+        self.buffer.loaded()
+    }
 }
 
 impl BufferProvider for Buffer {
     fn get_buffer(&self) -> &GpuBuffer {
         &self.buffer
+    }
+
+    fn get_buffer_mut(&mut self) -> &mut GpuBuffer {
+        &mut self.buffer
     }
 }

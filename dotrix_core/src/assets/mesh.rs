@@ -1,8 +1,14 @@
 //! Mesh Asset
-use crate::renderer::{AttributeFormat, Buffer, Renderer};
+use crate::{
+    reloadable::*,
+    renderer::Buffer,
+    renderer::{AttributeFormat, Renderer},
+    MeshProvider,
+};
 use bytemuck::{Pod, Zeroable};
 use dotrix_math::{InnerSpace, Vec2, Vec3, VectorSpace};
 use std::marker::PhantomData;
+use std::time::Instant;
 
 /// Asset with 3D model data
 pub struct Mesh {
@@ -19,7 +25,9 @@ pub struct Mesh {
     /// index buffer
     pub index_buffer: Buffer,
     /// Flag to react on the mesh changes
-    pub changed: bool,
+    pub reload_state: ReloadState,
+    /// Last instant in which the buffer data was updated
+    pub last_load_at: Instant,
 }
 
 impl Default for Mesh {
@@ -31,8 +39,19 @@ impl Default for Mesh {
             indices: None,
             vertex_buffer: Buffer::vertex("Mesh Vertices"),
             index_buffer: Buffer::index("Mesh Indices"),
-            changed: false,
+            reload_state: Default::default(),
+            last_load_at: Instant::now(),
         }
+    }
+}
+
+impl Reloadable for Mesh {
+    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
+        &mut self.reload_state
+    }
+
+    fn get_reload_state(&self) -> &ReloadState {
+        &self.reload_state
     }
 }
 
@@ -97,7 +116,10 @@ impl Mesh {
 
     /// Load the [`Mesh`] buffer
     pub fn load(&mut self, renderer: &Renderer) {
-        if !self.changed && self.vertex_buffer.loaded() {
+        if matches!(self.changes_since(self.last_load_at), ReloadKind::NoChange)
+            && self.vertex_buffer.loaded()
+            && (self.indices.is_none() || self.index_buffer.loaded())
+        {
             return;
         }
 
@@ -109,7 +131,7 @@ impl Mesh {
             renderer.load_buffer(&mut self.index_buffer, indices.as_slice());
         }
 
-        self.changed = false;
+        self.last_load_at = Instant::now();
     }
 
     /// Get vertices count
@@ -332,6 +354,44 @@ where
         self.iter
             .next()
             .map(|v| bytemuck::cast_slice::<u8, T>(&v[self.offset..self.size])[0])
+    }
+}
+
+impl MeshProvider for Mesh {
+    /// Get the underlying vertex buffer
+    fn get_vertex(&self) -> &Buffer {
+        &self.vertex_buffer
+    }
+    /// Get the underlying optional index buffer
+    fn get_indicies(&self) -> Option<&Buffer> {
+        if self.indices.is_some() {
+            Some(&self.index_buffer)
+        } else {
+            None
+        }
+    }
+
+    /// Get the underlying vertex buffer mutable
+    fn get_vertex_mut(&mut self) -> &mut Buffer {
+        &mut self.vertex_buffer
+    }
+    /// Get the underlying optional index buffer mutable
+    fn get_indicies_mut(&mut self) -> Option<&mut Buffer> {
+        if self.indices.is_some() {
+            Some(&mut self.index_buffer)
+        } else {
+            None
+        }
+    }
+
+    /// Get the number of verticies
+    fn get_vertex_count(&self) -> u32 {
+        self.count_vertices()
+    }
+
+    /// Get the layout of a vertex
+    fn get_vertex_buffer_layout(&self) -> &[AttributeFormat] {
+        self.vertex_buffer_layout()
     }
 }
 
