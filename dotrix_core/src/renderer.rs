@@ -11,8 +11,10 @@ mod texture;
 
 use dotrix_math::{Mat4, Vec2};
 
-use crate::assets::{Mesh, Shader};
+use crate::assets::{Asset, Shader};
 use crate::ecs::{Const, Mut};
+use crate::providers::{BufferProvider, MeshProvider, TextureProvider};
+use crate::reloadable::Reloadable;
 use crate::{Assets, Color, Globals, Window};
 use std::time::Instant;
 
@@ -40,6 +42,18 @@ pub const OPENGL_TO_WGPU_MATRIX: Mat4 = Mat4::new(
 
 const RENDERER_STARTUP: &str =
     "Please, use `renderer::startup` as a first system on the `startup` run level";
+
+/// Collection of traits that a gpu buffer needs
+pub trait GpuBuffer: Reloadable + BufferProvider + Asset {}
+impl<T: Reloadable + BufferProvider + Asset> GpuBuffer for T {}
+
+/// Collection of traits that a gpu texture needs
+pub trait GpuTexture: Reloadable + TextureProvider + Asset {}
+impl<T: Reloadable + TextureProvider + Asset> GpuTexture for T {}
+
+/// Collection of traits that a gpu mesh needs
+pub trait GpuMesh: Reloadable + MeshProvider + Asset {}
+impl<T: Reloadable + MeshProvider + Asset> GpuMesh for T {}
 
 /// Service providing an interface to `WGPU` and `WINIT`
 pub struct Renderer {
@@ -175,7 +189,17 @@ impl Renderer {
     }
 
     /// Binds uniforms and other data to the pipeline
-    pub fn bind(&mut self, pipeline: &mut Pipeline, layout: PipelineLayout) {
+    pub fn bind<'a, Mesh, Buffer: GpuBuffer, Texture: GpuTexture>(
+        &mut self,
+        pipeline: &mut Pipeline,
+        layout: PipelineLayout<'a, Mesh, Buffer, Texture>,
+    ) where
+        Mesh: GpuMesh,
+        &'a Mesh: GpuMesh,
+    {
+        if !pipeline.bind_required(&layout) {
+            return;
+        }
         // Reload if pipeline is none or if the last reload is before the last dirty flag
         if pipeline.reload_required(self) {
             let instance = layout.instance(self.context());
@@ -190,10 +214,11 @@ impl Renderer {
         };
         bindings.load(self.context(), instance, bindings_layout);
         pipeline.bindings = bindings;
+        pipeline.last_bound_at = Instant::now();
     }
 
     /// Runs the render pipeline for a mesh
-    pub fn draw(&mut self, pipeline: &mut Pipeline, mesh: &Mesh, args: &DrawArgs) {
+    pub fn draw<Mesh: GpuMesh>(&mut self, pipeline: &mut Pipeline, mesh: &Mesh, args: &DrawArgs) {
         self.context_mut().run_render_pipeline(pipeline, mesh, args);
     }
 

@@ -2,10 +2,9 @@
 use wgpu;
 use winit;
 
-use crate::assets::Mesh;
 use crate::Color;
 
-use super::{ComputeArgs, DepthBufferMode, DrawArgs, Pipeline};
+use super::{ComputeArgs, DepthBufferMode, DrawArgs, GpuMesh, Pipeline};
 
 /// Renderer Context
 pub struct Context {
@@ -127,7 +126,7 @@ impl Context {
         }
     }
 
-    pub(crate) fn run_render_pipeline(
+    pub(crate) fn run_render_pipeline<Mesh: GpuMesh>(
         &mut self,
         pipeline: &Pipeline,
         mesh: &Mesh,
@@ -193,14 +192,14 @@ impl Context {
         for (index, wgpu_bind_group) in pipeline.bindings.wgpu_bind_groups.iter().enumerate() {
             rpass.set_bind_group(index as u32, wgpu_bind_group, &[]);
         }
-        rpass.set_vertex_buffer(0, mesh.vertex_buffer.get().slice(..));
+        rpass.set_vertex_buffer(0, mesh.get_vertex().get().slice(..));
         rpass.pop_debug_group();
 
-        let count = mesh.count_vertices();
+        let count = mesh.get_vertex_count();
 
-        if let Some(index_buffer) = mesh.index_buffer.as_ref() {
+        if let Some(index_buffer) = mesh.get_indicies() {
             rpass.insert_debug_marker("Draw indexed");
-            rpass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            rpass.set_index_buffer(index_buffer.get().slice(..), wgpu::IndexFormat::Uint32);
             rpass.draw_indexed(0..count, 0, args.start_index..args.end_index);
         } else {
             rpass.insert_debug_marker("Draw");
