@@ -1,4 +1,4 @@
-use super::{BindGroup, Binding, Bindings, Context, GpuBuffer, GpuMesh, GpuTexture, Renderer};
+use super::{BindGroup, Binding, Bindings, Context, GpuMesh, Renderer};
 use crate::{assets::Shader, reloadable::ReloadKind};
 
 use std::time::Instant;
@@ -83,14 +83,9 @@ impl Pipeline {
     /// Check if a bind is required based on the last time the bindings were
     /// changed and the last time this pipeline was loaded
     // TODO: Include shader in this check
-    pub fn bind_required<'a, Mesh, Buffer, Texture>(
-        &self,
-        layout: &PipelineLayout<'a, Mesh, Buffer, Texture>,
-    ) -> bool
+    pub fn bind_required<'a, Mesh>(&self, layout: &PipelineLayout<'a, Mesh>) -> bool
     where
         Mesh: GpuMesh,
-        Buffer: GpuBuffer,
-        Texture: GpuTexture,
     {
         if self.instance.is_none() {
             true
@@ -243,11 +238,9 @@ impl PipelineInstance {
 }
 
 /// Pipeline layout
-pub enum PipelineLayout<'a, Mesh, Buffer, Texture>
+pub enum PipelineLayout<'a, Mesh>
 where
     Mesh: GpuMesh,
-    Buffer: GpuBuffer,
-    Texture: GpuTexture,
 {
     /// Rendering Pipeline Layout
     Render {
@@ -258,7 +251,7 @@ where
         /// Shader module
         shader: &'a Shader,
         /// Pipeline bindings
-        bindings: &'a [BindGroup<'a, Buffer, Texture>],
+        bindings: &'a [BindGroup<'a>],
         /// Pipeline options
         options: RenderOptions<'a>,
     },
@@ -269,16 +262,14 @@ where
         /// Shader module
         shader: &'a Shader,
         /// Pipeline bindings
-        bindings: &'a [BindGroup<'a, Buffer, Texture>],
+        bindings: &'a [BindGroup<'a>],
         /// Pipeline options
         options: ComputeOptions<'a>,
     },
 }
 
-impl<'a, Mesh, Buffer, Texture> PipelineLayout<'a, Mesh, Buffer, Texture>
+impl<'a, Mesh> PipelineLayout<'a, Mesh>
 where
-    Buffer: GpuBuffer,
-    Texture: GpuTexture,
     Mesh: GpuMesh,
     &'static Mesh: GpuMesh,
 {
@@ -297,7 +288,7 @@ where
                 shader,
                 bindings,
                 options,
-            } => PipelineLayout::<'a, crate::assets::Mesh, Buffer, Texture>::compute(
+            } => PipelineLayout::<'a, crate::assets::Mesh>::compute(
                 ctx, label, shader, bindings, options,
             ),
         }
@@ -309,7 +300,7 @@ where
         label: &str,
         mesh: &'a Mesh,
         shader: &Shader,
-        bindings: &[BindGroup<'a, Buffer, Texture>],
+        bindings: &[BindGroup<'a>],
         options: &RenderOptions,
     ) -> PipelineInstance {
         let wgpu_shader_module = shader.module.get();
@@ -433,7 +424,7 @@ where
         ctx: &Context,
         label: &str,
         shader: &Shader,
-        bindings: &[BindGroup<'a, Buffer, Texture>],
+        bindings: &[BindGroup<'a>],
         options: &ComputeOptions,
     ) -> PipelineInstance {
         let wgpu_shader_module = shader.module.get();

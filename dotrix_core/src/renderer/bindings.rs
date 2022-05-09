@@ -25,54 +25,133 @@ impl From<&Stage> for wgpu::ShaderStages {
 }
 
 /// Binding types (Label, Stage, Buffer)
-pub enum Binding<'a, Buffer, Texture>
-where
-    Buffer: GpuBuffer,
-    Texture: GpuTexture,
-{
+pub enum Binding<'a> {
     /// Uniform binding
-    Uniform(&'a str, Stage, &'a Buffer),
+    Uniform(&'a str, Stage, Box<&'a dyn GpuBuffer>),
     /// Texture binding
-    Texture(&'a str, Stage, &'a Texture),
+    Texture(&'a str, Stage, Box<&'a dyn GpuTexture>),
     /// Cube Texture binding
-    TextureCube(&'a str, Stage, &'a Texture),
+    TextureCube(&'a str, Stage, Box<&'a dyn GpuTexture>),
     /// 2D Texture Array binding
-    TextureArray(&'a str, Stage, &'a Texture),
+    TextureArray(&'a str, Stage, Box<&'a dyn GpuTexture>),
     /// 3D Texture binding
-    Texture3D(&'a str, Stage, &'a Texture),
+    Texture3D(&'a str, Stage, Box<&'a dyn GpuTexture>),
     /// Storage texture binding
-    StorageTexture(&'a str, Stage, &'a Texture, Access),
+    StorageTexture(&'a str, Stage, Box<&'a dyn GpuTexture>, Access),
     /// Storage texture cube binding
-    StorageTextureCube(&'a str, Stage, &'a Texture, Access),
+    StorageTextureCube(&'a str, Stage, Box<&'a dyn GpuTexture>, Access),
     /// Storage 2D texture array binding
-    StorageTextureArray(&'a str, Stage, &'a Texture, Access),
+    StorageTextureArray(&'a str, Stage, Box<&'a dyn GpuTexture>, Access),
     /// Storage texture binding 3D
-    StorageTexture3D(&'a str, Stage, &'a Texture, Access),
+    StorageTexture3D(&'a str, Stage, Box<&'a dyn GpuTexture>, Access),
     /// Texture sampler binding
     Sampler(&'a str, Stage, &'a Sampler),
     /// Storage binding
-    Storage(&'a str, Stage, &'a Buffer),
+    Storage(&'a str, Stage, Box<&'a dyn GpuBuffer>),
+}
+
+impl<'a> Binding<'a> {
+    /// Uniform binding
+    pub fn uniform<Buffer: GpuBuffer>(
+        label: &'a str,
+        stage: Stage,
+        asset: &'a Buffer,
+    ) -> Binding<'a> {
+        Self::Uniform(label, stage, Box::new(asset))
+    }
+    /// Texture binding
+    pub fn texture<Texture: GpuTexture>(
+        label: &'a str,
+        stage: Stage,
+        asset: &'a Texture,
+    ) -> Binding<'a> {
+        Self::Texture(label, stage, Box::new(asset))
+    }
+    /// Cube Texture binding
+    pub fn texture_cube<Texture: GpuTexture>(
+        label: &'a str,
+        stage: Stage,
+        asset: &'a Texture,
+    ) -> Binding<'a> {
+        Self::TextureCube(label, stage, Box::new(asset))
+    }
+    /// 2D Texture Array binding
+    pub fn texture_array<Texture: GpuTexture>(
+        label: &'a str,
+        stage: Stage,
+        asset: &'a Texture,
+    ) -> Binding<'a> {
+        Self::TextureArray(label, stage, Box::new(asset))
+    }
+    /// 3D Texture binding
+    pub fn texture_3d<Texture: GpuTexture>(
+        label: &'a str,
+        stage: Stage,
+        asset: &'a Texture,
+    ) -> Binding<'a> {
+        Self::Texture3D(label, stage, Box::new(asset))
+    }
+    /// Storage texture binding
+    pub fn storage_texture<Texture: GpuTexture>(
+        label: &'a str,
+        stage: Stage,
+        asset: &'a Texture,
+        access: Access,
+    ) -> Binding<'a> {
+        Self::StorageTexture(label, stage, Box::new(asset), access)
+    }
+    /// Storage texture cube binding
+    pub fn storage_texture_cube<Texture: GpuTexture>(
+        label: &'a str,
+        stage: Stage,
+        asset: &'a Texture,
+        access: Access,
+    ) -> Binding<'a> {
+        Self::StorageTextureCube(label, stage, Box::new(asset), access)
+    }
+    /// Storage 2D texture array binding
+    pub fn storage_texture_array<Texture: GpuTexture>(
+        label: &'a str,
+        stage: Stage,
+        asset: &'a Texture,
+        access: Access,
+    ) -> Binding<'a> {
+        Self::StorageTextureArray(label, stage, Box::new(asset), access)
+    }
+    /// Storage texture binding 3D
+    pub fn storage_texture_3d<Texture: GpuTexture>(
+        label: &'a str,
+        stage: Stage,
+        asset: &'a Texture,
+        access: Access,
+    ) -> Binding<'a> {
+        Self::StorageTexture3D(label, stage, Box::new(asset), access)
+    }
+    /// Texture sampler binding
+    pub fn sampler(label: &'a str, stage: Stage, asset: &'a Sampler) -> Binding<'a> {
+        Self::Sampler(label, stage, asset)
+    }
+    /// Storage binding
+    pub fn storage<Buffer: GpuBuffer>(
+        label: &'a str,
+        stage: Stage,
+        asset: &'a Buffer,
+    ) -> Binding<'a> {
+        Self::Storage(label, stage, Box::new(asset))
+    }
 }
 
 /// Bind Group holding bindings
-pub struct BindGroup<'a, Buffer, Texture>
-where
-    Buffer: GpuBuffer,
-    Texture: GpuTexture,
-{
+pub struct BindGroup<'a> {
     /// Text label of the Bind group
     pub label: &'a str,
     /// List of bindings
-    pub bindings: Vec<Binding<'a, Buffer, Texture>>,
+    pub bindings: Vec<Binding<'a>>,
 }
 
-impl<'a, Buffer, Texture> BindGroup<'a, Buffer, Texture>
-where
-    Buffer: GpuBuffer,
-    Texture: GpuTexture,
-{
+impl<'a> BindGroup<'a> {
     /// Constructs new Bind Group
-    pub fn new(label: &'a str, bindings: Vec<Binding<'a, Buffer, Texture>>) -> Self {
+    pub fn new(label: &'a str, bindings: Vec<Binding<'a>>) -> Self {
         Self { label, bindings }
     }
 
@@ -216,15 +295,12 @@ pub struct Bindings {
 }
 
 impl Bindings {
-    pub(crate) fn load<'a, Buffer, Texture>(
+    pub(crate) fn load<'a>(
         &mut self,
         ctx: &Context,
         pipeline_instance: &PipelineInstance,
-        bind_groups: &[BindGroup<'a, Buffer, Texture>],
-    ) where
-        Buffer: GpuBuffer,
-        Texture: GpuTexture,
-    {
+        bind_groups: &[BindGroup<'a>],
+    ) {
         let wgpu_bind_groups_layout = match pipeline_instance {
             PipelineInstance::Render(render) => &render.wgpu_bind_groups_layout,
             PipelineInstance::Compute(compute) => &compute.wgpu_bind_groups_layout,

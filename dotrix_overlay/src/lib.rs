@@ -212,13 +212,13 @@ pub fn render(
                         bindings: &[
                             BindGroup::new(
                                 "Globals",
-                                vec![Binding::Uniform("Overlay", Stage::Vertex, overlay_uniform)],
+                                vec![Binding::uniform("Overlay", Stage::Vertex, overlay_uniform)],
                             ),
                             BindGroup::new(
                                 "Locals",
                                 vec![
-                                    Binding::Texture("Texture", Stage::Fragment, texture),
-                                    Binding::Sampler("Sampler", Stage::Fragment, sampler),
+                                    Binding::texture("Texture", Stage::Fragment, texture),
+                                    Binding::sampler("Sampler", Stage::Fragment, sampler),
                                 ],
                             ),
                         ],
