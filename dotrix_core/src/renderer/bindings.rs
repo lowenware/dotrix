@@ -25,7 +25,11 @@ impl From<&Stage> for wgpu::ShaderStages {
 }
 
 /// Binding types (Label, Stage, Buffer)
-pub enum Binding<'a, Buffer: GpuBuffer, Texture: GpuTexture> {
+pub enum Binding<'a, Buffer, Texture>
+where
+    Buffer: GpuBuffer,
+    Texture: GpuTexture,
+{
     /// Uniform binding
     Uniform(&'a str, Stage, &'a Buffer),
     /// Texture binding
@@ -51,14 +55,22 @@ pub enum Binding<'a, Buffer: GpuBuffer, Texture: GpuTexture> {
 }
 
 /// Bind Group holding bindings
-pub struct BindGroup<'a, Buffer: GpuBuffer, Texture: GpuTexture> {
+pub struct BindGroup<'a, Buffer, Texture>
+where
+    Buffer: GpuBuffer,
+    Texture: GpuTexture,
+{
     /// Text label of the Bind group
     pub label: &'a str,
     /// List of bindings
     pub bindings: Vec<Binding<'a, Buffer, Texture>>,
 }
 
-impl<'a, Buffer: GpuBuffer, Texture: GpuTexture> BindGroup<'a, Buffer, Texture> {
+impl<'a, Buffer, Texture> BindGroup<'a, Buffer, Texture>
+where
+    Buffer: GpuBuffer,
+    Texture: GpuTexture,
+{
     /// Constructs new Bind Group
     pub fn new(label: &'a str, bindings: Vec<Binding<'a, Buffer, Texture>>) -> Self {
         Self { label, bindings }
@@ -204,12 +216,15 @@ pub struct Bindings {
 }
 
 impl Bindings {
-    pub(crate) fn load<Buffer: GpuBuffer, Texture: GpuTexture>(
+    pub(crate) fn load<'a, Buffer, Texture>(
         &mut self,
         ctx: &Context,
         pipeline_instance: &PipelineInstance,
-        bind_groups: &[BindGroup<Buffer, Texture>],
-    ) {
+        bind_groups: &[BindGroup<'a, Buffer, Texture>],
+    ) where
+        Buffer: GpuBuffer,
+        Texture: GpuTexture,
+    {
         let wgpu_bind_groups_layout = match pipeline_instance {
             PipelineInstance::Render(render) => &render.wgpu_bind_groups_layout,
             PipelineInstance::Compute(compute) => &compute.wgpu_bind_groups_layout,

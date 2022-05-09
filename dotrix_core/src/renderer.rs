@@ -189,13 +189,15 @@ impl Renderer {
     }
 
     /// Binds uniforms and other data to the pipeline
-    pub fn bind<'a, Mesh, Buffer: GpuBuffer, Texture: GpuTexture>(
+    pub fn bind<'a, Mesh, Buffer, Texture>(
         &mut self,
         pipeline: &mut Pipeline,
         layout: PipelineLayout<'a, Mesh, Buffer, Texture>,
     ) where
+        Buffer: GpuBuffer,
+        Texture: GpuTexture,
         Mesh: GpuMesh,
-        &'a Mesh: GpuMesh,
+        &'static Mesh: GpuMesh,
     {
         if !pipeline.bind_required(&layout) {
             return;

@@ -17,16 +17,6 @@ pub struct Buffer {
     pub reload_state: ReloadState,
 }
 
-impl Reloadable for Buffer {
-    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
-        &mut self.reload_state
-    }
-
-    fn get_reload_state(&self) -> &ReloadState {
-        &self.reload_state
-    }
-}
-
 impl Default for Buffer {
     fn default() -> Self {
         Self::new("Buffer")
@@ -170,12 +160,44 @@ impl Buffer {
     }
 }
 
+impl Reloadable for Buffer {
+    fn get_reload_state(&self) -> &ReloadState {
+        &self.reload_state
+    }
+}
+
+impl ReloadableMut for Buffer {
+    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
+        &mut self.reload_state
+    }
+}
+
+impl Reloadable for &mut Buffer {
+    fn get_reload_state(&self) -> &ReloadState {
+        &self.reload_state
+    }
+}
+
+impl ReloadableMut for &mut Buffer {
+    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
+        &mut self.reload_state
+    }
+}
+
+impl Reloadable for &Buffer {
+    fn get_reload_state(&self) -> &ReloadState {
+        &self.reload_state
+    }
+}
+
 impl BufferProvider for Buffer {
     fn get_buffer(&self) -> &GpuBuffer {
         &self.buffer
     }
+}
 
-    fn get_buffer_mut(&mut self) -> &mut GpuBuffer {
-        &mut self.buffer
+impl BufferProvider for &Buffer {
+    fn get_buffer(&self) -> &GpuBuffer {
+        &self.buffer
     }
 }

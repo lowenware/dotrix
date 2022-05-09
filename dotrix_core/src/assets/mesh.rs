@@ -45,16 +45,6 @@ impl Default for Mesh {
     }
 }
 
-impl Reloadable for Mesh {
-    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
-        &mut self.reload_state
-    }
-
-    fn get_reload_state(&self) -> &ReloadState {
-        &self.reload_state
-    }
-}
-
 impl Mesh {
     /// Adds Vertex Attributes to the mesh
     pub fn with_vertices<T>(&mut self, data: &[T])
@@ -357,6 +347,36 @@ where
     }
 }
 
+impl Reloadable for Mesh {
+    fn get_reload_state(&self) -> &ReloadState {
+        &self.reload_state
+    }
+}
+
+impl ReloadableMut for Mesh {
+    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
+        &mut self.reload_state
+    }
+}
+
+impl Reloadable for &mut Mesh {
+    fn get_reload_state(&self) -> &ReloadState {
+        &self.reload_state
+    }
+}
+
+impl ReloadableMut for &mut Mesh {
+    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
+        &mut self.reload_state
+    }
+}
+
+impl Reloadable for &Mesh {
+    fn get_reload_state(&self) -> &ReloadState {
+        &self.reload_state
+    }
+}
+
 impl MeshProvider for Mesh {
     /// Get the underlying vertex buffer
     fn get_vertex(&self) -> &Buffer {
@@ -371,14 +391,26 @@ impl MeshProvider for Mesh {
         }
     }
 
-    /// Get the underlying vertex buffer mutable
-    fn get_vertex_mut(&mut self) -> &mut Buffer {
-        &mut self.vertex_buffer
+    /// Get the number of verticies
+    fn get_vertex_count(&self) -> u32 {
+        self.count_vertices()
     }
-    /// Get the underlying optional index buffer mutable
-    fn get_indicies_mut(&mut self) -> Option<&mut Buffer> {
+
+    /// Get the layout of a vertex
+    fn get_vertex_buffer_layout(&self) -> &[AttributeFormat] {
+        self.vertex_buffer_layout()
+    }
+}
+
+impl MeshProvider for &Mesh {
+    /// Get the underlying vertex buffer
+    fn get_vertex(&self) -> &Buffer {
+        &self.vertex_buffer
+    }
+    /// Get the underlying optional index buffer
+    fn get_indicies(&self) -> Option<&Buffer> {
         if self.indices.is_some() {
-            Some(&mut self.index_buffer)
+            Some(&self.index_buffer)
         } else {
             None
         }

@@ -29,10 +29,30 @@ pub struct Texture {
 }
 
 impl Reloadable for Texture {
+    fn get_reload_state(&self) -> &ReloadState {
+        &self.reload_state
+    }
+}
+
+impl ReloadableMut for Texture {
     fn get_reload_state_mut(&mut self) -> &mut ReloadState {
         &mut self.reload_state
     }
+}
 
+impl Reloadable for &mut Texture {
+    fn get_reload_state(&self) -> &ReloadState {
+        &self.reload_state
+    }
+}
+
+impl ReloadableMut for &mut Texture {
+    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
+        &mut self.reload_state
+    }
+}
+
+impl Reloadable for &Texture {
     fn get_reload_state(&self) -> &ReloadState {
         &self.reload_state
     }
@@ -42,9 +62,11 @@ impl TextureProvider for Texture {
     fn get_texture(&self) -> &TextureBuffer {
         &self.texture
     }
+}
 
-    fn get_texture_mut(&mut self) -> &mut TextureBuffer {
-        &mut self.texture
+impl TextureProvider for &Texture {
+    fn get_texture(&self) -> &TextureBuffer {
+        &self.texture
     }
 }
 

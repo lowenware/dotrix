@@ -43,17 +43,33 @@ impl Default for ReloadState {
 /// Describes an object that has gpu represntable data
 /// that may update and needs periodic (re-)loading
 ///
-/// A  loading function should call `[flag_updated]` and `[flag_reload]`
-/// depending on if an update occured or if a reload is required
+/// A function that needs to for check changes since an Instance
+/// should call [`changed_since`]
 pub trait Reloadable {
-    /// Get a mutable ref to the `[ReloadState]` that holds relevent reload
-    /// data
-    fn get_reload_state_mut(&mut self) -> &mut ReloadState;
-
     /// Get a ref to the `[ReloadState]` that holds relevent reload
     /// data
     fn get_reload_state(&self) -> &ReloadState;
 
+    /// Get the kind of changes that has occured since a certain cycle
+    fn changes_since(&self, since_then: Instant) -> ReloadKind {
+        let reload_state = self.get_reload_state();
+
+        if reload_state.last_reload_at >= since_then {
+            ReloadKind::Reload
+        } else if reload_state.last_update_at >= since_then {
+            ReloadKind::Update
+        } else {
+            ReloadKind::NoChange
+        }
+    }
+}
+
+/// Describes an object that has gpu represntable data
+/// that may update and needs periodic (re-)loading
+///
+/// A loading function should call `[flag_updated]` and `[flag_reload]`
+/// depending on if an update occured or if a reload is required
+pub trait ReloadableMut: Reloadable {
     /// Flag as having data updated but that no rebinding is required
     /// as happening this frame
     ///
@@ -68,16 +84,7 @@ pub trait Reloadable {
         self.get_reload_state_mut().last_reload_at = Instant::now();
     }
 
-    /// Get the kind of changes that has occured since a certain cycle
-    fn changes_since(&self, since_then: Instant) -> ReloadKind {
-        let reload_state = self.get_reload_state();
-
-        if reload_state.last_reload_at >= since_then {
-            ReloadKind::Reload
-        } else if reload_state.last_update_at >= since_then {
-            ReloadKind::Update
-        } else {
-            ReloadKind::NoChange
-        }
-    }
+    /// Get a mutable ref to the `[ReloadState]` that holds relevent reload
+    /// data
+    fn get_reload_state_mut(&mut self) -> &mut ReloadState;
 }
