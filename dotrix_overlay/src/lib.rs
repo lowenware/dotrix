@@ -5,12 +5,12 @@ use std::{
     collections::HashMap,
 };
 
-use dotrix_core::assets::Shader;
+use dotrix_core::assets::{Buffer, Shader};
 use dotrix_core::ecs::{Const, Mut, Priority, System};
 use dotrix_core::renderer::{
-    BindGroup, Binding, Buffer, DepthBufferMode, Pipeline, PipelineLayout, RenderOptions, Sampler,
-    Stage,
+    BindGroup, Binding, DepthBufferMode, Pipeline, PipelineLayout, RenderOptions, Sampler, Stage,
 };
+use dotrix_core::Id;
 use dotrix_core::{Application, Assets, Globals, Input, Renderer, Window};
 
 const PIPELINE_LABEL: &str = "dotrix::overlay";
@@ -21,7 +21,7 @@ pub use widget::Widget;
 #[derive(Default)]
 pub struct Overlay {
     providers: HashMap<TypeId, Box<dyn Ui>>,
-    uniform: Option<Buffer>,
+    uniform: Id<Buffer>,
 }
 
 unsafe impl Sync for Overlay {}
@@ -160,20 +160,24 @@ pub fn render(
     globals: Const<Globals>,
     window: Const<Window>,
 ) {
-    let mut overlay_uniform = overlay
-        .uniform
-        .take()
-        .unwrap_or_else(|| Buffer::uniform("Overlay Buffer"));
+    if overlay.uniform.is_null() {
+        overlay.uniform = assets.store(Buffer::uniform("Overlay Buffer"));
+    }
+    {
+        let overlay_uniform = assets.get_mut(overlay.uniform).unwrap();
 
-    let surface_size = renderer.surface_size();
-    let scale_factor = window.scale_factor();
+        let surface_size = renderer.surface_size();
+        let scale_factor = window.scale_factor();
 
-    renderer.load_buffer(
-        &mut overlay_uniform,
-        bytemuck::cast_slice(&[Uniform {
-            window_size: [surface_size.x / scale_factor, surface_size.y / scale_factor],
-        }]),
-    );
+        overlay_uniform.load(
+            &renderer,
+            bytemuck::cast_slice(&[Uniform {
+                window_size: [surface_size.x / scale_factor, surface_size.y / scale_factor],
+            }]),
+        );
+    }
+
+    let overlay_id: Id<Buffer> = overlay.uniform;
 
     for provider in overlay.providers() {
         for (widget, pipeline) in provider.tessellate() {
@@ -189,57 +193,46 @@ pub fn render(
             } else {
                 continue;
             }
+            let overlay_uniform = assets.get(overlay_id).unwrap();
 
-            if !pipeline.ready(&renderer) {
-                let shader_id = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
-                if let Some(shader) = assets.get(shader_id) {
-                    let sampler = globals
-                        .get::<Sampler>()
-                        .expect("Sampler buffer must be loaded");
+            let shader_id = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+            if let Some(shader) = assets.get(shader_id) {
+                let sampler = globals
+                    .get::<Sampler>()
+                    .expect("Sampler buffer must be loaded");
 
-                    let texture = assets.get(widget.texture).expect("Texture must be loaded");
+                let texture = assets.get(widget.texture).expect("Texture must be loaded");
 
-                    renderer.bind(
-                        pipeline,
-                        PipelineLayout::Render {
-                            label: String::from(PIPELINE_LABEL),
-                            mesh: &widget.mesh,
-                            shader,
-                            bindings: &[
-                                BindGroup::new(
-                                    "Globals",
-                                    vec![Binding::Uniform(
-                                        "Overlay",
-                                        Stage::Vertex,
-                                        &overlay_uniform,
-                                    )],
-                                ),
-                                BindGroup::new(
-                                    "Locals",
-                                    vec![
-                                        Binding::Texture(
-                                            "Texture",
-                                            Stage::Fragment,
-                                            &texture.buffer,
-                                        ),
-                                        Binding::Sampler("Sampler", Stage::Fragment, sampler),
-                                    ],
-                                ),
-                            ],
-                            options: RenderOptions {
-                                depth_buffer_mode: DepthBufferMode::Disabled,
-                                disable_cull_mode: true,
-                                ..Default::default()
-                            },
+                renderer.bind(
+                    pipeline,
+                    PipelineLayout::Render {
+                        label: String::from(PIPELINE_LABEL),
+                        mesh: &widget.mesh,
+                        shader,
+                        bindings: &[
+                            BindGroup::new(
+                                "Globals",
+                                vec![Binding::Uniform("Overlay", Stage::Vertex, overlay_uniform)],
+                            ),
+                            BindGroup::new(
+                                "Locals",
+                                vec![
+                                    Binding::Texture("Texture", Stage::Fragment, texture),
+                                    Binding::Sampler("Sampler", Stage::Fragment, sampler),
+                                ],
+                            ),
+                        ],
+                        options: RenderOptions {
+                            depth_buffer_mode: DepthBufferMode::Disabled,
+                            disable_cull_mode: true,
+                            ..Default::default()
                         },
-                    );
-                }
+                    },
+                );
             }
             renderer.draw(pipeline, &widget.mesh, &widget.draw_args);
         }
     }
-
-    overlay.uniform = Some(overlay_uniform);
 }
 
 #[repr(C)]

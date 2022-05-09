@@ -239,7 +239,6 @@ impl Ui for Egui {
                     height: font_image.height as u32,
                     data: from_egui_font_image(&font_image),
                     depth: 1,
-                    changed: true,
                     ..Default::default()
                 },
                 TEXTURE_NAME,
