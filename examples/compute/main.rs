@@ -1,7 +1,7 @@
 use rand::distributions::{Distribution, Uniform};
 use rand::SeedableRng;
 
-use dotrix::assets::Shader;
+use dotrix::assets::{Buffer, Shader};
 use dotrix::camera;
 use dotrix::camera::ProjView;
 use dotrix::egui::{self, Egui};
@@ -9,8 +9,8 @@ use dotrix::overlay::{self, Overlay};
 use dotrix::prelude::*;
 use dotrix::primitives::Cube;
 use dotrix::renderer::{
-    BindGroup, Binding, Buffer, Compute, ComputeArgs, ComputeOptions, DrawArgs, PipelineLayout,
-    Render, RenderOptions, Stage, WorkGroups,
+    BindGroup, Binding, Compute, ComputeArgs, ComputeOptions, DrawArgs, PipelineLayout, Render,
+    RenderOptions, Stage, WorkGroups,
 };
 use dotrix::{Assets, Camera, Color, Frame, Globals, Renderer, World};
 
@@ -119,10 +119,9 @@ fn startup(
         particle.life_time = 1.5 + unif.sample(&mut rng); // life time
     }
 
-    renderer.load_buffer(
-        &mut spawner.particles,
-        bytemuck::cast_slice(particles.as_slice()),
-    );
+    spawner
+        .particles
+        .load(&renderer, bytemuck::cast_slice(particles.as_slice()));
 
     world.spawn(Some((spawner, Compute::default(), Render::default())));
 
@@ -159,32 +158,32 @@ fn compute(
             simulation_time: frame.time().as_secs_f32(),
             ..Default::default()
         };
-        renderer.load_buffer(&mut spawner.params, bytemuck::cast_slice(&[params]));
+        spawner
+            .params
+            .load(&renderer, bytemuck::cast_slice(&[params]));
 
         // Bind the uniforms to the shader
-        if !compute.pipeline.ready(&renderer) {
-            let shader_id = assets.find::<Shader>(COMPUTE_PIPELINE).unwrap_or_default();
-            if let Some(shader) = assets.get(shader_id) {
-                if !shader.loaded() {
-                    continue;
-                }
-
-                renderer.bind(
-                    &mut compute.pipeline,
-                    PipelineLayout::Compute {
-                        label: "Compute Particles".into(),
-                        shader,
-                        bindings: &[BindGroup::new(
-                            "Globals",
-                            vec![
-                                Binding::Uniform("Params", Stage::Compute, &spawner.params),
-                                Binding::Storage("Particles", Stage::Compute, &spawner.particles),
-                            ],
-                        )],
-                        options: ComputeOptions { cs_main: "main" },
-                    },
-                );
+        let shader_id = assets.find::<Shader>(COMPUTE_PIPELINE).unwrap_or_default();
+        if let Some(shader) = assets.get(shader_id) {
+            if !shader.loaded() {
+                continue;
             }
+
+            renderer.bind(
+                &mut compute.pipeline,
+                PipelineLayout::Compute {
+                    label: "Compute Particles".into(),
+                    shader,
+                    bindings: &[BindGroup::new(
+                        "Globals",
+                        vec![
+                            Binding::uniform("Params", Stage::Compute, &spawner.params),
+                            Binding::storage("Particles", Stage::Compute, &spawner.particles),
+                        ],
+                    )],
+                    options: ComputeOptions { cs_main: "main" },
+                },
+            );
         }
 
         // Run the pipeline
@@ -234,8 +233,8 @@ fn render(
                         bindings: &[BindGroup::new(
                             "Globals",
                             vec![
-                                Binding::Uniform("ProjView", Stage::Vertex, &proj_view.uniform),
-                                Binding::Storage("Particles", Stage::Vertex, &spawner.particles),
+                                Binding::uniform("ProjView", Stage::Vertex, proj_view),
+                                Binding::storage("Particles", Stage::Vertex, &spawner.particles),
                             ],
                         )],
                         options: RenderOptions::default(),
