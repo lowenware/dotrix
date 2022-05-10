@@ -1,11 +1,15 @@
 use dotrix_core::assets::Texture;
 use dotrix_core::ecs::Mut;
+use dotrix_core::reloadable::*;
 use dotrix_core::renderer::Buffer;
 use dotrix_core::{Assets, Color, Id, Renderer};
+use dotrix_derive::*;
 
 const DUMMY_TEXTURE: &str = "dotrix::dummy_texture";
 
 /// Material component
+#[derive(Reloadable, BufferProvider)]
+#[buffer_provider(field = "uniform")]
 pub struct Material {
     /// Id of a texture asset
     pub texture: Id<Texture>,
@@ -27,6 +31,8 @@ pub struct Material {
     pub normal_texture: Id<Texture>,
     /// Pipeline buffer
     pub uniform: Buffer,
+    /// THe reload state
+    pub reload_state: ReloadState,
 }
 
 impl Default for Material {
@@ -42,6 +48,7 @@ impl Default for Material {
             ao_texture: Id::default(),
             normal_texture: Id::default(),
             uniform: Buffer::uniform("Material Buffer"),
+            reload_state: Default::default(),
         }
     }
 }
@@ -120,6 +127,7 @@ impl Material {
         };
 
         renderer.load_buffer(&mut self.uniform, bytemuck::cast_slice(&[uniform]));
+        self.flag_update();
         true
     }
 }

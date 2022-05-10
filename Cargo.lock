@@ -658,6 +658,7 @@ version = "0.5.0"
 dependencies = [
  "bytemuck",
  "dotrix_core",
+ "dotrix_derive",
  "dotrix_math",
  "dotrix_pbr",
  "noise",

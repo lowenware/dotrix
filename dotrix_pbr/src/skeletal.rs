@@ -165,30 +165,30 @@ pub fn render(
                         BindGroup::new(
                             "Globals",
                             vec![
-                                Binding::Uniform("ProjView", Stage::Vertex, proj_view),
-                                Binding::Sampler("Sampler", Stage::Fragment, sampler),
-                                Binding::Uniform("Lights", Stage::Fragment, lights),
+                                Binding::uniform("ProjView", Stage::Vertex, proj_view),
+                                Binding::sampler("Sampler", Stage::Fragment, sampler),
+                                Binding::uniform("Lights", Stage::Fragment, lights),
                             ],
                         ),
                         BindGroup::new(
                             "Locals",
                             vec![
-                                Binding::Uniform("Transform", Stage::Vertex, model),
-                                Binding::Uniform("Material", Stage::Fragment, material),
-                                Binding::Texture("Texture", Stage::Fragment, texture),
-                                Binding::Texture(
+                                Binding::uniform("Transform", Stage::Vertex, model),
+                                Binding::uniform("Material", Stage::Fragment, material),
+                                Binding::texture("Texture", Stage::Fragment, texture),
+                                Binding::texture(
                                     "RoughnessTexture",
                                     Stage::Fragment,
                                     roughness_texture,
                                 ),
-                                Binding::Texture(
+                                Binding::texture(
                                     "MetallicTexture",
                                     Stage::Fragment,
                                     metallic_texture,
                                 ),
-                                Binding::Texture("AoTexture", Stage::Fragment, ao_texture),
-                                Binding::Texture("NormalTexture", Stage::Fragment, normal_texture),
-                                Binding::Uniform("Joints", Stage::Vertex, pose),
+                                Binding::texture("AoTexture", Stage::Fragment, ao_texture),
+                                Binding::texture("NormalTexture", Stage::Fragment, normal_texture),
+                                Binding::uniform("Joints", Stage::Vertex, pose),
                             ],
                         ),
                     ],
