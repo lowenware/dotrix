@@ -1,10 +1,10 @@
 //! Component and buffers
 
-use dotrix_core::assets::{Mesh, Shader};
+use dotrix_core::assets::{Buffer, Mesh, Shader};
 use dotrix_core::ecs::{Const, Mut, System};
 use dotrix_core::renderer::{
-    BindGroup, Binding, Buffer, DepthBufferMode, DrawArgs, PipelineLayout, Render, RenderOptions,
-    Sampler, Stage,
+    BindGroup, Binding, DepthBufferMode, DrawArgs, PipelineLayout, Render, RenderOptions, Sampler,
+    Stage,
 };
 use dotrix_core::{Application, Assets, Camera, CubeMap, Globals, Renderer, World};
 
@@ -120,7 +120,9 @@ pub fn render(
             continue;
         }
 
-        renderer.load_buffer(&mut skybox.uniform, bytemuck::cast_slice(&[uniform]));
+        skybox
+            .uniform
+            .load(&renderer, bytemuck::cast_slice(&[uniform]));
 
         if !cubemap.load(&renderer, &mut assets) {
             continue;
@@ -151,17 +153,13 @@ pub fn render(
                             BindGroup::new(
                                 "Globals",
                                 vec![
-                                    Binding::Uniform("SkyBox", Stage::Vertex, &skybox.uniform),
-                                    Binding::Sampler("Sampler", Stage::Fragment, sampler),
+                                    Binding::uniform("SkyBox", Stage::Vertex, &skybox.uniform),
+                                    Binding::sampler("Sampler", Stage::Fragment, sampler),
                                 ],
                             ),
                             BindGroup::new(
                                 "Locals",
-                                vec![Binding::TextureCube(
-                                    "CubeMap",
-                                    Stage::Fragment,
-                                    &cubemap.buffer,
-                                )],
+                                vec![Binding::texture_cube("CubeMap", Stage::Fragment, cubemap)],
                             ),
                         ],
                         options: RenderOptions {
