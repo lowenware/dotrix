@@ -250,59 +250,57 @@ pub fn render(
 
         let mesh = assets.get(tile.mesh).unwrap();
 
-        if !pipeline.ready(&renderer) {
-            let shader_id = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
-            if let Some(shader) = assets.get(shader_id) {
-                if !shader.loaded() {
-                    continue;
-                }
-
-                let texture = assets.get(material.texture).unwrap();
-
-                let proj_view = globals
-                    .get::<ProjView>()
-                    .expect("ProjView buffer must be loaded");
-
-                let sampler = globals
-                    .get::<Sampler>()
-                    .expect("ProjView buffer must be loaded");
-
-                let lights = globals
-                    .get::<Lights>()
-                    .expect("Lights buffer must be loaded");
-
-                let layers = globals
-                    .get::<Layers>()
-                    .expect("Terrain layers must be loaded");
-
-                renderer.bind(
-                    pipeline,
-                    PipelineLayout::Render {
-                        label: String::from(PIPELINE_LABEL),
-                        mesh,
-                        shader,
-                        bindings: &[
-                            BindGroup::new(
-                                "Globals",
-                                vec![
-                                    Binding::Uniform("ProjView", Stage::Vertex, &proj_view.uniform),
-                                    Binding::Sampler("Sampler", Stage::Fragment, sampler),
-                                    Binding::Uniform("Lights", Stage::Fragment, &lights.uniform),
-                                    Binding::Uniform("Layers", Stage::Fragment, &layers.uniform),
-                                ],
-                            ),
-                            BindGroup::new(
-                                "Locals",
-                                vec![
-                                    Binding::Uniform("Material", Stage::Vertex, &material.uniform),
-                                    Binding::Texture("Texture", Stage::Fragment, &texture.buffer),
-                                ],
-                            ),
-                        ],
-                        options: RenderOptions::default(),
-                    },
-                );
+        let shader_id = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+        if let Some(shader) = assets.get(shader_id) {
+            if !shader.loaded() {
+                continue;
             }
+
+            let texture = assets.get(material.texture).unwrap();
+
+            let proj_view = globals
+                .get::<ProjView>()
+                .expect("ProjView buffer must be loaded");
+
+            let sampler = globals
+                .get::<Sampler>()
+                .expect("ProjView buffer must be loaded");
+
+            let lights = globals
+                .get::<Lights>()
+                .expect("Lights buffer must be loaded");
+
+            let layers = globals
+                .get::<Layers>()
+                .expect("Terrain layers must be loaded");
+
+            renderer.bind(
+                pipeline,
+                PipelineLayout::Render {
+                    label: String::from(PIPELINE_LABEL),
+                    mesh,
+                    shader,
+                    bindings: &[
+                        BindGroup::new(
+                            "Globals",
+                            vec![
+                                Binding::uniform("ProjView", Stage::Vertex, proj_view),
+                                Binding::sampler("Sampler", Stage::Fragment, sampler),
+                                Binding::uniform("Lights", Stage::Fragment, lights),
+                                Binding::uniform("Layers", Stage::Fragment, layers),
+                            ],
+                        ),
+                        BindGroup::new(
+                            "Locals",
+                            vec![
+                                Binding::uniform("Material", Stage::Vertex, material),
+                                Binding::texture("Texture", Stage::Fragment, texture),
+                            ],
+                        ),
+                    ],
+                    options: RenderOptions::default(),
+                },
+            );
         }
 
         renderer.draw(pipeline, mesh, &DrawArgs::default());
