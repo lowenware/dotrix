@@ -1,12 +1,13 @@
 //! Texture asset
 use crate::{
-    providers::TextureProvider,
     reloadable::*,
     renderer::{Renderer, Texture as TextureBuffer},
 };
+use dotrix_derive::*;
 use std::time::Instant;
 
 /// Texture asset
+#[derive(Reloadable, TextureProvider)]
 pub struct Texture {
     /// Texture width in pixels
     pub width: u32,
@@ -26,48 +27,6 @@ pub struct Texture {
     pub reload_state: ReloadState,
     /// Last instant in which the buffer data was updated
     pub last_load_at: Instant,
-}
-
-impl Reloadable for Texture {
-    fn get_reload_state(&self) -> &ReloadState {
-        &self.reload_state
-    }
-}
-
-impl ReloadableMut for Texture {
-    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
-        &mut self.reload_state
-    }
-}
-
-impl Reloadable for &mut Texture {
-    fn get_reload_state(&self) -> &ReloadState {
-        &self.reload_state
-    }
-}
-
-impl ReloadableMut for &mut Texture {
-    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
-        &mut self.reload_state
-    }
-}
-
-impl Reloadable for &Texture {
-    fn get_reload_state(&self) -> &ReloadState {
-        &self.reload_state
-    }
-}
-
-impl TextureProvider for Texture {
-    fn get_texture(&self) -> &TextureBuffer {
-        &self.texture
-    }
-}
-
-impl TextureProvider for &Texture {
-    fn get_texture(&self) -> &TextureBuffer {
-        &self.texture
-    }
 }
 
 impl Default for Texture {

@@ -2,12 +2,13 @@
 //!
 
 use crate::{
-    providers::BufferProvider,
     reloadable::*,
     renderer::{Buffer as GpuBuffer, Renderer},
 };
+use dotrix_derive::*;
 
 /// Buffer asset
+#[derive(Reloadable, BufferProvider)]
 pub struct Buffer {
     /// The length of the data that the buffer was created with
     pub data_len: usize,
@@ -157,47 +158,5 @@ impl Buffer {
     /// Check if underlying buffer is loaded
     pub fn loaded(&self) -> bool {
         self.buffer.loaded()
-    }
-}
-
-impl Reloadable for Buffer {
-    fn get_reload_state(&self) -> &ReloadState {
-        &self.reload_state
-    }
-}
-
-impl ReloadableMut for Buffer {
-    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
-        &mut self.reload_state
-    }
-}
-
-impl Reloadable for &mut Buffer {
-    fn get_reload_state(&self) -> &ReloadState {
-        &self.reload_state
-    }
-}
-
-impl ReloadableMut for &mut Buffer {
-    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
-        &mut self.reload_state
-    }
-}
-
-impl Reloadable for &Buffer {
-    fn get_reload_state(&self) -> &ReloadState {
-        &self.reload_state
-    }
-}
-
-impl BufferProvider for Buffer {
-    fn get_buffer(&self) -> &GpuBuffer {
-        &self.buffer
-    }
-}
-
-impl BufferProvider for &Buffer {
-    fn get_buffer(&self) -> &GpuBuffer {
-        &self.buffer
     }
 }

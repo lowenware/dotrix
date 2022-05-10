@@ -1,0 +1,22 @@
+[package]
+name = "dotrix_derive"
+version = "0.1.0"
+authors = [
+  "Elias Kartashov <elias@lowenware.com>",
+  "Štěpán Wünsch <sw@lowenware.com>",
+  "Nikita Zemtsov <z-nik@ya.ru>",
+  "Andrew King <sheepchaan@gmail.com>"
+]
+edition = "2018"
+description = "Dotrix Macro crate"
+license = "MIT"
+resolver = "2"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+darling = "0.14.1"
+proc-macro2 = "1.0.37"
+quote = "1.0.16"
+syn = "1.0.89"

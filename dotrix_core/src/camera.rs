@@ -1,10 +1,10 @@
 //! Dotrix camera implementation
 use crate::ecs::{Const, Mut};
-use crate::providers::BufferProvider;
 use crate::reloadable::*;
 use crate::renderer::Buffer;
 use crate::{Frame, Globals, Input, Renderer, Window};
 
+use dotrix_derive::*;
 use dotrix_math::{perspective, InnerSpace, Mat4, Point3, Quat, Rad, Rotation3, Vec3};
 use std::f32::consts::PI;
 
@@ -12,53 +12,13 @@ const ROTATE_SPEED: f32 = PI / 10.0;
 const ZOOM_SPEED: f32 = 10.0;
 
 /// Projection View matrix
-#[derive(Default)]
+#[derive(Default, Reloadable, BufferProvider)]
+#[buffer_provider(field = "uniform")]
 pub struct ProjView {
     /// Uniform Buffer of ProjView matrix
     pub uniform: Buffer,
     /// The reload state of the buffer
     pub reload_state: ReloadState,
-}
-
-impl BufferProvider for ProjView {
-    fn get_buffer(&self) -> &Buffer {
-        &self.uniform
-    }
-}
-impl BufferProvider for &ProjView {
-    fn get_buffer(&self) -> &Buffer {
-        &self.uniform
-    }
-}
-
-impl Reloadable for ProjView {
-    fn get_reload_state(&self) -> &ReloadState {
-        &self.reload_state
-    }
-}
-
-impl ReloadableMut for ProjView {
-    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
-        &mut self.reload_state
-    }
-}
-
-impl Reloadable for &mut ProjView {
-    fn get_reload_state(&self) -> &ReloadState {
-        &self.reload_state
-    }
-}
-
-impl ReloadableMut for &mut ProjView {
-    fn get_reload_state_mut(&mut self) -> &mut ReloadState {
-        &mut self.reload_state
-    }
-}
-
-impl Reloadable for &ProjView {
-    fn get_reload_state(&self) -> &ReloadState {
-        &self.reload_state
-    }
 }
 
 /// Camera management service

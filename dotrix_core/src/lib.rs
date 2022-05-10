@@ -2,6 +2,7 @@
 
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
 #![warn(missing_docs)]
+extern crate self as dotrix_core;
 
 mod application;
 mod color;

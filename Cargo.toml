@@ -44,6 +44,10 @@ path = "./dotrix_core"
 version = "0.4"
 path = "./dotrix_math"
 
+[dependencies.dotrix_derive]
+version = "0.1"
+path = "./dotrix_derive"
+
 # Optional dependencies
 
 [dependencies.dotrix_overlay]

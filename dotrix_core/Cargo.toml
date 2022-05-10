@@ -25,6 +25,10 @@ features = ["derive"]
 version = "0.4"
 path = "../dotrix_math"
 
+[dependencies.dotrix_derive]
+version = "0.1"
+path = "../dotrix_derive"
+
 [dependencies.futures]
 version = "0.3"
 default-features = false
@@ -57,4 +61,3 @@ version = "0.1.0"
 [dependencies.winit]
 version = "0.26.1"
 features = ["serde"]
-
