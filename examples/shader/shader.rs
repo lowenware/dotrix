@@ -1,8 +1,8 @@
-use dotrix::assets::{Mesh, Shader};
+use dotrix::assets::{Buffer, Mesh, Shader};
 use dotrix::camera::ProjView;
 use dotrix::ecs::{Const, Mut, System};
 use dotrix::renderer::{
-    BindGroup, Binding, Buffer, DrawArgs, PipelineLayout, Render, RenderOptions, Stage,
+    BindGroup, Binding, DrawArgs, PipelineLayout, Render, RenderOptions, Stage,
 };
 use dotrix::{Application, Assets, Globals, Id, Renderer, World};
 
@@ -87,10 +87,9 @@ pub fn render(
         // Update the uniform
         if let Some(uniform_buffer) = globals.get_mut::<GradientBuffer>() {
             let uniform: GradientUniform = gradient.into();
-            renderer.load_buffer(
-                &mut uniform_buffer.uniform,
-                bytemuck::cast_slice(&[uniform]),
-            );
+            uniform_buffer
+                .uniform
+                .load(&renderer, bytemuck::cast_slice(&[uniform]));
         }
 
         // Get the uniform for render
@@ -103,11 +102,6 @@ pub fn render(
             .get::<ProjView>()
             .expect("ProjView buffer must be loaded");
 
-        // Set the shader on the pipeline
-        if render.pipeline.shader.is_null() {
-            render.pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
-        }
-
         // check if model is disabled or already rendered
         if !render.pipeline.cycle(&renderer) {
             continue;
@@ -117,7 +111,8 @@ pub fn render(
 
         // Bind the uniforms to the shader
         if !render.pipeline.ready(&renderer) {
-            if let Some(shader) = assets.get(render.pipeline.shader) {
+            let shader_id = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+            if let Some(shader) = assets.get(shader_id) {
                 if !shader.loaded() {
                     continue;
                 }
@@ -131,8 +126,8 @@ pub fn render(
                         bindings: &[BindGroup::new(
                             "Globals",
                             vec![
-                                Binding::Uniform("ProjView", Stage::Vertex, &proj_view.uniform),
-                                Binding::Uniform(
+                                Binding::uniform("ProjView", Stage::Vertex, proj_view),
+                                Binding::uniform(
                                     "Gradient",
                                     Stage::Fragment,
                                     &gradient_buffer.uniform,

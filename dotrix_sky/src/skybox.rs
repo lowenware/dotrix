@@ -1,10 +1,10 @@
 //! Component and buffers
 
-use dotrix_core::assets::{Mesh, Shader};
+use dotrix_core::assets::{Buffer, Mesh, Shader};
 use dotrix_core::ecs::{Const, Mut, System};
 use dotrix_core::renderer::{
-    BindGroup, Binding, Buffer, DepthBufferMode, DrawArgs, PipelineLayout, Render, RenderOptions,
-    Sampler, Stage,
+    BindGroup, Binding, DepthBufferMode, DrawArgs, PipelineLayout, Render, RenderOptions, Sampler,
+    Stage,
 };
 use dotrix_core::{Application, Assets, Camera, CubeMap, Globals, Renderer, World};
 
@@ -115,16 +115,14 @@ pub fn render(
             scale: Mat4::from_scale(scale).into(),
         };
 
-        if render.pipeline.shader.is_null() {
-            render.pipeline.shader = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
-        }
-
         // check if model is disabled or already rendered
         if !render.pipeline.cycle(&renderer) {
             continue;
         }
 
-        renderer.load_buffer(&mut skybox.uniform, bytemuck::cast_slice(&[uniform]));
+        skybox
+            .uniform
+            .load(&renderer, bytemuck::cast_slice(&[uniform]));
 
         if !cubemap.load(&renderer, &mut assets) {
             continue;
@@ -139,7 +137,8 @@ pub fn render(
             .unwrap();
 
         if !render.pipeline.ready(&renderer) {
-            if let Some(shader) = assets.get(render.pipeline.shader) {
+            let shader_id = assets.find::<Shader>(PIPELINE_LABEL).unwrap_or_default();
+            if let Some(shader) = assets.get(shader_id) {
                 let sampler = globals
                     .get::<Sampler>()
                     .expect("Sampler buffer must be loaded");
@@ -154,17 +153,13 @@ pub fn render(
                             BindGroup::new(
                                 "Globals",
                                 vec![
-                                    Binding::Uniform("SkyBox", Stage::Vertex, &skybox.uniform),
-                                    Binding::Sampler("Sampler", Stage::Fragment, sampler),
+                                    Binding::uniform("SkyBox", Stage::Vertex, &skybox.uniform),
+                                    Binding::sampler("Sampler", Stage::Fragment, sampler),
                                 ],
                             ),
                             BindGroup::new(
                                 "Locals",
-                                vec![Binding::TextureCube(
-                                    "CubeMap",
-                                    Stage::Fragment,
-                                    &cubemap.buffer,
-                                )],
+                                vec![Binding::texture_cube("CubeMap", Stage::Fragment, cubemap)],
                             ),
                         ],
                         options: RenderOptions {

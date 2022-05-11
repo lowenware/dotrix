@@ -1,7 +1,9 @@
 //! Various implementations of light sources
 use dotrix_core::ecs::{Const, Mut};
+use dotrix_core::reloadable::*;
 use dotrix_core::renderer::Buffer;
 use dotrix_core::{Camera, Color, Globals, Renderer, World};
+use dotrix_derive::*;
 
 use dotrix_math::Vec3;
 
@@ -121,8 +123,11 @@ impl Light {
 }
 
 /// Lights global uniform controller
+#[derive(Reloadable, BufferProvider)]
+#[buffer_provider(field = "uniform")]
 pub struct Lights {
     pub uniform: Buffer,
+    pub reload_state: ReloadState,
 }
 
 impl Lights {
@@ -148,6 +153,7 @@ impl Default for Lights {
     fn default() -> Self {
         Self {
             uniform: Buffer::uniform("Lights Buffer"),
+            reload_state: Default::default(),
         }
     }
 }
@@ -175,6 +181,7 @@ pub fn load(
             uniform.store(light);
         }
         renderer.load_buffer(&mut lights.uniform, bytemuck::cast_slice(&[uniform]));
+        lights.flag_update();
     }
 }
 

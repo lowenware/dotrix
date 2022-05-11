@@ -1,18 +1,32 @@
-use super::{BindGroup, Bindings, Context, Renderer};
-use crate::assets::{Mesh, Shader};
-use crate::Id;
+use super::{BindGroup, Binding, Bindings, Context, GpuMesh, Renderer};
+use crate::{assets::Shader, reloadable::ReloadKind};
+
+use std::time::Instant;
 
 /// Pipeline context
-#[derive(Default)]
 pub struct Pipeline {
-    /// [`Id`] of the shader
-    pub shader: Id<Shader>,
+    /// Gpu instance of the pipeline
+    pub instance: Option<PipelineInstance>,
     /// Pipeline bindings
     pub bindings: Bindings,
     /// renderer's cycle
     pub cycle: usize,
     /// is disabled
     pub disabled: bool,
+    /// Last instant that the cycle was bound
+    pub last_bound_at: Instant,
+}
+
+impl Default for Pipeline {
+    fn default() -> Self {
+        Self {
+            instance: None,
+            bindings: Default::default(),
+            cycle: Default::default(),
+            disabled: Default::default(),
+            last_bound_at: Instant::now(),
+        }
+    }
 }
 
 /// Render component to control `RenderPipeline`
@@ -31,33 +45,87 @@ pub struct Compute {
 
 impl Pipeline {
     /// Constructs new instance of `Compute` pipeline component with defined Shader
-    pub fn compute(shader: Id<Shader>) -> Compute {
+    pub fn compute() -> Compute {
         Compute {
-            pipeline: Pipeline {
-                shader,
-                ..Default::default()
-            },
+            pipeline: Pipeline::default(),
         }
     }
 
     /// Constructs new instance of `Render` pipeline component with defined Shader
-    pub fn render(shader: Id<Shader>) -> Render {
+    pub fn render() -> Render {
         Render {
-            pipeline: Pipeline {
-                shader,
-                ..Default::default()
-            },
+            pipeline: Pipeline::default(),
         }
     }
 
     /// Checks if rendering cycle should be performed
     pub fn cycle(&self, renderer: &Renderer) -> bool {
-        !self.disabled && self.cycle != renderer.cycle() && !self.shader.is_null()
+        !self.disabled && self.cycle != renderer.cycle()
     }
 
     /// Returns true if Pipeline is ready to run
     pub fn ready(&self, renderer: &Renderer) -> bool {
-        renderer.has_pipeline(self.shader) && self.bindings.loaded()
+        !self.reload_required(renderer) && self.bindings.loaded()
+    }
+
+    /// Check if the instance is valid and if a reload has been requested gloabally by
+    /// the renderer
+    pub fn reload_required(&self, renderer: &Renderer) -> bool {
+        match self.instance {
+            Some(PipelineInstance::Compute(ComputePipeline { last_reload, .. }))
+            | Some(PipelineInstance::Render(RenderPipeline { last_reload, .. })) => {
+                last_reload < renderer.dirty
+            }
+            _ => true,
+        }
+    }
+
+    /// Check if a bind is required based on the last time the bindings were
+    /// changed and the last time this pipeline was loaded
+    // TODO: Include shader in this check
+    pub fn bind_required<'a, Mesh>(&self, layout: &PipelineLayout<'a, Mesh>) -> bool
+    where
+        Mesh: GpuMesh,
+    {
+        if self.instance.is_none() {
+            true
+        } else {
+            match layout {
+                PipelineLayout::Render { bindings, .. }
+                | PipelineLayout::Compute { bindings, .. } => {
+                    for bind_group in bindings.iter() {
+                        for bind in bind_group.bindings.iter() {
+                            let rebind = match bind {
+                                Binding::Uniform(_, _, asset) | Binding::Storage(_, _, asset) => {
+                                    matches!(
+                                        asset.changes_since(self.last_bound_at),
+                                        ReloadKind::Reload
+                                    )
+                                }
+                                Binding::Texture(_, _, asset)
+                                | Binding::TextureCube(_, _, asset)
+                                | Binding::TextureArray(_, _, asset)
+                                | Binding::Texture3D(_, _, asset)
+                                | Binding::StorageTexture(_, _, asset, _)
+                                | Binding::StorageTextureCube(_, _, asset, _)
+                                | Binding::StorageTextureArray(_, _, asset, _)
+                                | Binding::StorageTexture3D(_, _, asset, _) => {
+                                    matches!(
+                                        asset.changes_since(self.last_bound_at),
+                                        ReloadKind::Reload
+                                    )
+                                }
+                                Binding::Sampler(_, _, _) => false,
+                            };
+                            if rebind {
+                                return true;
+                            }
+                        }
+                    }
+                    false
+                }
+            }
+        }
     }
 }
 
@@ -130,6 +198,8 @@ pub struct RenderPipeline {
     pub depth_buffer_mode: DepthBufferMode,
     /// WGPU bind group layout
     pub wgpu_bind_groups_layout: Vec<wgpu::BindGroupLayout>,
+    /// Last time that a reload was done with this pipieline instance
+    pub last_reload: Instant,
 }
 
 /// Compute pipeline backend
@@ -138,6 +208,8 @@ pub struct ComputePipeline {
     pub wgpu_pipeline: wgpu::ComputePipeline,
     /// WGPU bind group layout
     pub wgpu_bind_groups_layout: Vec<wgpu::BindGroupLayout>,
+    /// Last time that a reload was done with this pipeline instance
+    pub last_reload: Instant,
 }
 
 /// Pipeline Instance
@@ -166,7 +238,10 @@ impl PipelineInstance {
 }
 
 /// Pipeline layout
-pub enum PipelineLayout<'a> {
+pub enum PipelineLayout<'a, Mesh>
+where
+    Mesh: GpuMesh,
+{
     /// Rendering Pipeline Layout
     Render {
         /// Name of the Pipeline
@@ -193,7 +268,11 @@ pub enum PipelineLayout<'a> {
     },
 }
 
-impl PipelineLayout<'_> {
+impl<'a, Mesh> PipelineLayout<'a, Mesh>
+where
+    Mesh: GpuMesh,
+    &'static Mesh: GpuMesh,
+{
     /// Constructs `PipelineInstance` from the layout
     pub fn instance(&self, ctx: &Context) -> PipelineInstance {
         match self {
@@ -209,7 +288,9 @@ impl PipelineLayout<'_> {
                 shader,
                 bindings,
                 options,
-            } => PipelineLayout::compute(ctx, label, shader, bindings, options),
+            } => PipelineLayout::<'a, crate::assets::Mesh>::compute(
+                ctx, label, shader, bindings, options,
+            ),
         }
     }
 
@@ -217,9 +298,9 @@ impl PipelineLayout<'_> {
     pub fn render(
         ctx: &Context,
         label: &str,
-        mesh: &Mesh,
+        mesh: &'a Mesh,
         shader: &Shader,
-        bindings: &[BindGroup],
+        bindings: &[BindGroup<'a>],
         options: &RenderOptions,
     ) -> PipelineInstance {
         let wgpu_shader_module = shader.module.get();
@@ -244,7 +325,7 @@ impl PipelineLayout<'_> {
         // prepare vertex buffers layout
         let mut vertex_array_stride = 0;
         let vertex_attributes = mesh
-            .vertex_buffer_layout()
+            .get_vertex_buffer_layout()
             .iter()
             .enumerate()
             .map(|(index, attr)| {
@@ -334,6 +415,7 @@ impl PipelineLayout<'_> {
             wgpu_bind_groups_layout,
             wgpu_pipeline,
             depth_buffer_mode,
+            last_reload: Instant::now(),
         })
     }
 
@@ -342,7 +424,7 @@ impl PipelineLayout<'_> {
         ctx: &Context,
         label: &str,
         shader: &Shader,
-        bindings: &[BindGroup],
+        bindings: &[BindGroup<'a>],
         options: &ComputeOptions,
     ) -> PipelineInstance {
         let wgpu_shader_module = shader.module.get();
@@ -375,6 +457,7 @@ impl PipelineLayout<'_> {
         PipelineInstance::Compute(ComputePipeline {
             wgpu_pipeline,
             wgpu_bind_groups_layout,
+            last_reload: Instant::now(),
         })
     }
 }

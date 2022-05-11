@@ -11,6 +11,7 @@ resolver = "2"
 [dependencies]
 dotrix_core = { version = "0.5", path = "../dotrix_core" }
 dotrix_math = { version = "0.4", path = "../dotrix_math" }
+dotrix_derive = { version = "0.1", path = "../dotrix_derive" }
 dotrix_pbr = { version = "0.2", path = "../dotrix_pbr" }
 rayon = "1.5"
 

@@ -4,12 +4,16 @@ use crate::{
         Assets,
     },
     id::Id,
+    reloadable::*,
     renderer::{Buffer, Renderer},
 };
 
+use dotrix_derive::*;
 use dotrix_math::{Mat4, SquareMatrix};
 
 /// Transformed [`Skin`] state
+#[derive(Reloadable, BufferProvider)]
+#[buffer_provider(field = "uniform")]
 pub struct Pose {
     /// Id of a Skin asset
     pub skin: Id<Skin>,
@@ -17,6 +21,8 @@ pub struct Pose {
     pub joints: Vec<JointTransform>,
     /// Joints transformations buffer
     pub uniform: Buffer,
+    /// The reload state
+    pub reload_state: ReloadState,
 }
 
 impl Pose {
@@ -28,6 +34,7 @@ impl Pose {
                 &mut self.uniform,
                 bytemuck::cast_slice(joints_matrices.as_slice()),
             );
+            self.flag_reload();
             return true;
         }
         false
@@ -63,6 +70,7 @@ impl From<Id<Skin>> for Pose {
             skin,
             joints: vec![JointTransform::default(); MAX_JOINTS], // 32 -> MAX_JOINTS
             uniform: Buffer::uniform("Pose Buffer"),
+            reload_state: Default::default(),
         }
     }
 }

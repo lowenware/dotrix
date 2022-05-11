@@ -1,5 +1,7 @@
+use dotrix_core::reloadable::*;
 use dotrix_core::renderer::Buffer;
 use dotrix_core::{Color, Renderer};
+use dotrix_derive::*;
 
 pub const MAX_LAYERS: usize = 16;
 
@@ -24,11 +26,15 @@ impl Default for Layer {
 }
 
 /// Terrain layers container
+#[derive(Reloadable, BufferProvider)]
+#[buffer_provider(field = "uniform")]
 pub struct Layers {
     /// List of terrain layers
     pub list: Vec<Layer>,
     /// Layers uniform buffer
     pub uniform: Buffer,
+    /// The reload state
+    pub reload_state: ReloadState,
 }
 
 impl Layers {
@@ -38,6 +44,7 @@ impl Layers {
             &mut self.uniform,
             bytemuck::cast_slice(&[Uniform::from(self.list.as_slice())]),
         );
+        self.flag_update();
     }
 }
 
@@ -46,6 +53,7 @@ impl Default for Layers {
         Self {
             list: vec![],
             uniform: Buffer::uniform("Terrain Layers Buffer"),
+            reload_state: Default::default(),
         }
     }
 }

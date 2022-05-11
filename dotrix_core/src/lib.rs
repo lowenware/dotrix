@@ -2,6 +2,7 @@
 
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
 #![warn(missing_docs)]
+extern crate self as dotrix_core;
 
 mod application;
 mod color;
@@ -18,7 +19,9 @@ pub mod ecs;
 pub mod frame;
 pub mod id;
 pub mod input;
+pub mod providers;
 pub mod ray;
+pub mod reloadable;
 pub mod renderer;
 pub mod transform;
 pub mod window;
@@ -35,7 +38,9 @@ pub use globals::Globals;
 pub use id::Id;
 pub use input::Input;
 pub use pose::Pose;
+pub use providers::{BufferProvider, MeshProvider, TextureProvider};
 pub use ray::Ray;
+pub use reloadable::{ReloadKind, ReloadState, Reloadable};
 pub use renderer::Renderer;
 pub use state::State;
 pub use transform::Transform;
