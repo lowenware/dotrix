@@ -146,7 +146,6 @@ pub fn render(
                 .get::<Lights>()
                 .expect("Lights buffer must be loaded");
 
-            println!("BIND");
             renderer.bind(
                 &mut render.pipeline,
                 PipelineLayout::Render {
@@ -188,7 +187,6 @@ pub fn render(
             );
         }
 
-        println!("DRAW");
         renderer.draw(&mut render.pipeline, mesh, &DrawArgs::default());
     }
 }
