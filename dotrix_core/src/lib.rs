@@ -24,7 +24,7 @@ pub mod transform;
 pub mod window;
 
 pub use animation::Animator;
-pub use application::{Application, IntoService, Service};
+pub use application::{Application, IntoService, Service, Parameters};
 pub use assets::Assets;
 pub use camera::Camera;
 pub use color::Color;

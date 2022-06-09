@@ -128,6 +128,12 @@ impl Dotrix {
         }
     }
 
+    /// Overrides default parameters
+    pub fn set_app_parameters(mut self, parameters: Parameters) -> Self {
+        self.app.as_mut().unwrap().parameters = parameters;
+        self
+    }
+
     #[must_use]
     /// Adds system, service or extension to the application
     pub fn with<T>(mut self, engine_unit: T) -> Self

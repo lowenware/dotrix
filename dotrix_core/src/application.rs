@@ -13,6 +13,19 @@ use winit::{
 use crate::ecs::{RunLevel, System, Systemized};
 use crate::{Assets, Id, Input, State, Window};
 
+/// Application parameters
+pub struct Parameters {
+    pub fps_limit: Option<f32>,
+}
+
+impl Default for Parameters {
+    fn default() -> Self {
+        Self {
+            fps_limit: None,
+        }
+    }
+}
+
 /// Application data to maintain the process
 ///
 /// Do not construct it manually, use Dotrix instead
@@ -20,15 +33,17 @@ pub struct Application {
     name: &'static str,
     scheduler: Scheduler,
     services: Services,
+    pub parameters: Parameters
 }
 
 impl Application {
-    /// Constructs new [`Application`] with defined name
+    /// Constructs new [`Application`] with defined name and parameters
     pub fn new(name: &'static str) -> Self {
         Self {
             name,
             scheduler: Scheduler::new(),
             services: Services::new(),
+            parameters: Parameters::default(),
         }
     }
 
@@ -90,6 +105,7 @@ fn run(
         name,
         mut scheduler,
         mut services,
+        parameters,
         ..
     }: Application,
 ) {
@@ -117,8 +133,16 @@ fn run(
 
     scheduler.run_startup(&mut services, current_state_ptr);
 
+    let min_frame_time_ns: u64;
+    if let Some(fps_lim) = parameters.fps_limit {
+        min_frame_time_ns = (1e9/fps_lim) as u64;
+    } else {
+        min_frame_time_ns = 1e7 as u64;
+    }
+    println!("{:?}", min_frame_time_ns);
+
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(10));
+        *control_flow = ControlFlow::WaitUntil(Instant::now() + Duration::from_nanos(min_frame_time_ns));
 
         if let Some(input) = services.get_mut::<Input>() {
             input.on_event(&event);

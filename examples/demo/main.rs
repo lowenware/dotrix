@@ -17,6 +17,12 @@ const TERRAIN_SIZE: usize = 128; // Number of sqaures per side
 
 fn main() {
     Dotrix::application("Dotrix: Demo Example")
+        .set_app_parameters(
+            dotrix::Parameters {
+                fps_limit: Some(30.0),
+                ..Default::default()
+            }
+        )
         .with(System::from(startup))
         .with(System::from(player_control))
         .with(System::from(camera::control))
