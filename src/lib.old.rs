@@ -27,11 +27,8 @@
 //! and systems has to be enabled.
 
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
-#![warn(missing_docs)]
+// #![warn(missing_docs)]
 
-pub use dotrix_os::*;
-
-/*
 pub use dotrix_core::*;
 pub use dotrix_math as math;
 
@@ -59,7 +56,6 @@ pub mod prelude {
     pub use dotrix_core::Service;
     pub use dotrix_core::{Color, Id};
 }
-*/
 
 /// Application Builder
 ///
@@ -70,46 +66,99 @@ pub mod prelude {
 /// [Dotrix Demo](https://github.com/lowenware/dotrix/blob/main/examples/demo/main.rs) example to
 /// learn more about the builder.
 pub struct Dotrix {
-    name: String,
+    app: Option<Application>,
 }
 
 impl Dotrix {
     /// Initiates building of an application with specified name
     pub fn application(name: &'static str) -> Self {
-        Self::bare(name)
+        let mut app = Application::new(name);
+        // Assets manager
+        app.add_service(Assets::default());
+        // Camera service
+        app.add_service(Camera::default());
+        // FPS and delta time counter
+        app.add_service(Frame::default());
+        // Input manager
+        app.add_service(Input::default());
+        // Global buffers
+        app.add_service(Globals::default());
+        // Render manager
+        app.add_service(Renderer::default());
+        // States stack
+        app.add_service(State::default());
+
+        // Window manager
+        app.add_service(Window::default());
+        // World manager
+        app.add_service(World::default());
+
+        // Renderer startup
+        app.add_system(System::from(renderer::startup));
+        app.add_system(System::from(camera::startup));
+
+        // Handle resize event
+        app.add_system(System::from(renderer::resize));
+        app.add_system(System::from(camera::resize));
+        // Bind to a new frame
+        app.add_system(System::from(renderer::bind));
+        // Recalculate FPS and delta time
+        app.add_system(System::from(frame::bind));
+        // load proj_view matrices
+        app.add_system(System::from(camera::load));
+
+        // Calculate skeletal animations
+        app.add_system(System::from(animation::skeletal));
+
+        // Finalize frame by Renderer
+        app.add_system(System::from(renderer::release));
+        // Reset input events
+        app.add_system(System::from(input::release));
+
+        // Reload and clean up assets
+        app.add_system(System::from(assets::release));
+
+        Self { app: Some(app) }
     }
 
     /// Initiates building of an application with specified name
     pub fn bare(name: &'static str) -> Self {
         Self {
-            name: String::from(name),
+            app: Some(Application::new(name)),
         }
     }
 
-    /*
     #[must_use]
-    /// Adds service to the application
-    pub fn with<T>(mut self, service: T) -> Self
+    /// Adds system, service or extension to the application
+    pub fn with<T>(mut self, engine_unit: T) -> Self
     where
-        T: Service,
+        Self: ExtendWith<T>,
     {
-        println!("Run Level is {}", service.run_level());
-        // if let Some(startup) = Service::get_startup::<T>() {
-        //    self.startup.push(startup);
-        //}
-        // if let Some(bind) = Service::get_bind::<T>() {
-        //    self.bind.push(startup);
-        //}
-        self.storage.insert(TypeId::of::<T>(), Box::new(service));
+        self.extend_with(engine_unit);
         self
     }
-    */
+
+    #[must_use]
+    /// Adds a system to the application
+    pub fn with_system(mut self, system: System) -> Self {
+        self.app.as_mut().unwrap().add_system(system);
+        self
+    }
+
+    #[must_use]
+    /// Adds a service to the application
+    pub fn with_service<T: IntoService>(mut self, service: T) -> Self {
+        self.app.as_mut().unwrap().add_service(service);
+        self
+    }
 
     /// Runs the application
-    pub fn run(self) {}
+    pub fn run(&mut self) {
+        let app = self.app.take().unwrap();
+        app.run();
+    }
 }
 
-/*
 /// Trait providing extendablity
 pub trait ExtendWith<T> {
     /// Extends self using the `extension` function
@@ -133,4 +182,3 @@ impl<T: FnOnce(&mut Application)> ExtendWith<T> for Dotrix {
         extension(self.app.as_mut().unwrap())
     }
 }
-*/

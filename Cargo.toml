@@ -1,82 +1,89 @@
 [package]
 name = "dotrix"
-version = "0.5.3"
+version = "0.6.0"
 authors = [
   "Elias Kartashov <elias@lowenware.com>",
   "Štěpán Wünsch <sw@lowenware.com>",
   "Nikita Zemtsov <z-nik@ya.ru>",
 ]
-edition = "2018"
-description = "3D Game Engine"
+edition = "2021"
+description = "3D Engine"
 license = "MIT"
-resolver = "2"
 
 [lib]
 name = "dotrix"
 path = "src/lib.rs"
 
-[features]
-default = [ "egui", "overlay", "pbr", "primitives", "sky", "terrain" ]
+[[bin]]
+name = "editor"
+path = "editor/main.rs"
 
-overlay = ["dotrix_overlay"]
-sky = ["dotrix_sky"]
-pbr = ["dotrix_pbr"]
-primitives = ["dotrix_primitives"]
-egui = ["dotrix_egui"]
-terrain = ["dotrix_terrain"]
+#[features]
+#default = [ "egui", "overlay", "pbr", "primitives", "sky", "terrain" ]
+
+#overlay = ["dotrix_overlay"]
+#sky = ["dotrix_sky"]
+#pbr = ["dotrix_pbr"]
+#primitives = ["dotrix_primitives"]
+#egui = ["dotrix_egui"]
+#terrain = ["dotrix_terrain"]
 
 [workspace]
 members = [
-  "dotrix_core",
-  "dotrix_egui",
-  "dotrix_overlay",
-  "dotrix_pbr",
-  "dotrix_primitives",
-  "dotrix_sky",
-  "dotrix_terrain",
+#  "dotrix_core",
+#  "dotrix_egui",
+#  "dotrix_overlay",
+#  "dotrix_pbr",
+#  "dotrix_primitives",
+  "dotrix_os",
+#  "dotrix_sky",
+#  "dotrix_terrain",
 ]
 
-[dependencies.dotrix_core]
-version = "0.5"
-path = "./dotrix_core"
+[dependencies]
+# dotrix_service = { path = "dotrix_service", version = "0.6.0" }
+dotrix_os = { path = "dotrix_os", version = "0.6.0" }
+#[dependencies.dotrix_core]
+#version = "0.5"
+#path = "./dotrix_core"
 
-[dependencies.dotrix_math]
-version = "0.4"
-path = "./dotrix_math"
+#[dependencies.dotrix_math]
+#version = "0.4"
+#path = "./dotrix_math"
 
 # Optional dependencies
 
-[dependencies.dotrix_overlay]
-version = "0.1"
-path = "./dotrix_overlay"
-optional = true
+#[dependencies.dotrix_overlay]
+#version = "0.1"
+#path = "./dotrix_overlay"
+#optional = true
 
-[dependencies.dotrix_egui]
-version = "0.5"
-path = "./dotrix_egui"
-optional = true
+#[dependencies.dotrix_egui]
+#version = "0.5"
+#path = "./dotrix_egui"
+#optional = true
 
-[dependencies.dotrix_pbr]
-version = "0.2"
-path = "./dotrix_pbr"
-optional = true
+#[dependencies.dotrix_pbr]
+#version = "0.2"
+#path = "./dotrix_pbr"
+#optional = true
 
-[dependencies.dotrix_primitives]
-version = "0.1"
-path = "./dotrix_primitives"
-optional = true
+#[dependencies.dotrix_primitives]
+#version = "0.1"
+#path = "./dotrix_primitives"
+#optional = true
 
-[dependencies.dotrix_sky]
-version = "0.1"
-path = "./dotrix_sky"
-optional = true
+#[dependencies.dotrix_sky]
+#version = "0.1"
+#path = "./dotrix_sky"
+#optional = true
 
-[dependencies.dotrix_terrain]
-version = "0.5"
-path = "./dotrix_terrain"
-optional = true
+#[dependencies.dotrix_terrain]
+#version = "0.5"
+#path = "./dotrix_terrain"
+#optional = true
 
-[dev-dependencies.rand]
+[dependencies.rand]
 version = "0.8"
 
 [dev-dependencies.noise]
