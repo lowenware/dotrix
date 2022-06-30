@@ -6,7 +6,7 @@ mod worker;
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::thread;
 
-pub use context::{All, Any, Ro, Rw};
+pub use context::{All, Any, Ro, Rw, State};
 pub use task::Task;
 
 /// Task Manager

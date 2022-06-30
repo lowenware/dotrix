@@ -122,12 +122,17 @@ pub fn spawn(
                             if type_id == TypeId::of::<Start>() {
                                 ctx.reset_data();
                                 ctx.provide(type_id, data);
+                                ctx.apply_states_changes();
                                 // clear queue
                                 queue.clear();
 
                                 // add tasks to queue for the new cycle
-                                for (tid, _slot) in pool.iter() {
-                                    queue.push(*tid);
+                                for (tid, slot) in pool.iter() {
+                                    if let Some(task) = slot.task.as_ref() {
+                                        if ctx.match_states(task.states()) {
+                                            queue.push(*tid);
+                                        }
+                                    }
                                 }
 
                                 if tasks_graph_changed {

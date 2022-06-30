@@ -5,13 +5,13 @@ use std::sync::{Arc, Mutex};
 pub type Id = u32;
 
 pub trait Task: 'static + Send + Sync + Sized {
-    type Context: context::TupleAccessor;
+    type Context: context::TupleSelector;
     type Provides: 'static + Send;
 
     fn run(&mut self, ctx: Self::Context) -> Self::Provides;
 
     fn boxify(mut self) -> Box<dyn Executable> {
-        use context::TupleAccessor;
+        use context::TupleSelector;
         let task_box: TaskBox<_> = TaskBox {
             id: 0,
             type_id: TypeId::of::<Self>(),
@@ -20,6 +20,7 @@ pub trait Task: 'static + Send + Sync + Sized {
             name: type_name::<Self>(),
             lock: <Self::Context>::lock(),
             dependencies: <Self::Context>::dependencies(),
+            states: <Self::Context>::states(),
             dependencies_state: None,
             run: move |context_manager, dependencies| {
                 let task_context = context_manager
@@ -48,6 +49,7 @@ where
     name: &'static str,
     lock: context::Lock,
     dependencies: context::Dependencies,
+    states: Vec<TypeId>,
     run: F,
     dependencies_state: Option<context::Dependencies>,
 }
@@ -80,6 +82,9 @@ pub trait Executable: Send + Sync {
 
     /// Get lock for context
     fn lock(&self) -> &context::Lock;
+
+    /// State dependencies
+    fn states(&self) -> &[TypeId];
 
     /// Task dependencies
     fn dependencies(&self) -> &context::Dependencies;
@@ -136,6 +141,10 @@ where
 
     fn lock(&self) -> &context::Lock {
         &self.lock
+    }
+
+    fn states(&self) -> &[TypeId] {
+        &self.states
     }
 
     fn dependencies(&self) -> &context::Dependencies {
