@@ -68,17 +68,37 @@ impl dotrix::Task for AssetLoader {
 struct AssetCollector;
 
 impl dotrix::Task for AssetCollector {
-    type Context = (dotrix::All<AssetData>, dotrix::Rw<Assets>);
+    type Context = (
+        dotrix::State<dotrix::Ro<()>>,
+        dotrix::All<AssetData>,
+        dotrix::Rw<Assets>,
+    );
     type Provides = ();
 
-    fn run(&mut self, (data, mut assets): Self::Context) -> Self::Provides {
-        println!("--> AssetCollector");
+    fn run(&mut self, (_state, data, mut assets): Self::Context) -> Self::Provides {
+        println!("--> AssetCollector (Any State)");
         let assets_number = data.count();
         for asset in data.iter() {
             println!("  - {}: {}", asset.index, asset.name);
             assets.list.push((asset.index, asset.name.clone()));
         }
         println!("--> collected {} assets", assets_number);
+    }
+}
+
+struct MyState {
+    num: u32,
+}
+
+struct StatedTask {}
+
+impl dotrix::Task for StatedTask {
+    type Context = (dotrix::State<dotrix::Ro<MyState>>,);
+    type Provides = ();
+
+    fn run(&mut self, (state,): Self::Context) -> Self::Provides {
+        println!("--> StatedTask (Must be called on MyState only)");
+        state.pop();
     }
 }
 
