@@ -17,11 +17,10 @@ pub fn spawn(
                 let mut message = rx.lock().unwrap().recv().unwrap();
                 match message {
                     scheduler::Message::Schedule(mut task) => {
-                        let (type_id, result) = task.run(&context_manager);
+                        let result = task.run(&context_manager);
                         let response = tx.lock().expect("Mutex to be locked");
-                        response.send(scheduler::Message::Schedule(task)).ok();
                         response
-                            .send(scheduler::Message::Provide(type_id, result))
+                            .send(scheduler::Message::Complete(task, result))
                             .ok();
                     }
                     scheduler::Message::Kill => break,

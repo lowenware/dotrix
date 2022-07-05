@@ -6,7 +6,9 @@ mod worker;
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::thread;
 
+// TODO: do not export Done
 pub use context::{All, Any, Ro, Rw, State};
+pub use scheduler::Done;
 pub use task::Task;
 
 /// Task Manager
@@ -85,13 +87,24 @@ impl TaskManager {
             .expect("Message to be sent to Scheduler");
     }
 
-    pub fn start(&self) {
+    pub fn run(&self) {
         self.lock_scheduler_tx()
             .send(scheduler::Message::Provide(
                 std::any::TypeId::of::<scheduler::Start>(),
                 Box::new(scheduler::Start::default()),
             ))
             .expect("Message to be sent to Scheduler");
+    }
+
+    pub fn wait(&self) {
+        loop {
+            let message = self.control_rx.recv().expect("Message to be received");
+            if let scheduler::Message::Provide(type_id, _) = message {
+                if type_id == std::any::TypeId::of::<scheduler::Done>() {
+                    return;
+                }
+            }
+        }
     }
 
     pub fn context(&self) -> Tasks {

@@ -228,11 +228,13 @@ impl Manager {
         T::fetch(self, dependencies)
     }
 
-    pub fn reset_data(&mut self) {
+    pub fn reset_data(&mut self, reset_providers: bool) {
         for entry in self.data.values_mut() {
             entry.instances.clear();
             entry.instances_count = 0;
-            entry.providers = 0;
+            if reset_providers {
+                entry.providers = 0;
+            }
         }
     }
 
@@ -315,7 +317,7 @@ impl Manager {
     }
 }
 
-pub enum StatesStackOperation {
+enum StatesStackOperation {
     Push(StateSlot),
     Pop,
     PopUntil(std::any::TypeId),
@@ -454,9 +456,26 @@ pub enum DependencyType {
     All(u32),
 }
 
+impl DependencyType {
+    pub fn reset(&mut self) {
+        match self {
+            DependencyType::Any(count) => *count = 0,
+            DependencyType::All(count) => *count = 0,
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Dependencies {
     data: HashMap<TypeId, DependencyType>,
+}
+
+impl Dependencies {
+    pub fn reset(&mut self) {
+        for entry in self.data.values_mut() {
+            entry.reset();
+        }
+    }
 }
 
 impl Clone for Dependencies {
@@ -806,8 +825,8 @@ where
         Some(std::any::TypeId::of::<T>())
     }
 }
-unsafe impl<T: Context> Send for State<Ro<T>> {}
-unsafe impl<T: Context> Sync for State<Ro<T>> {}
+//unsafe impl<T: Context> Send for State<Ro<T>> {}
+//unsafe impl<T: Context> Sync for State<Ro<T>> {}
 
 impl<T> Selector for State<Rw<T>>
 where
@@ -832,8 +851,8 @@ where
         Some(std::any::TypeId::of::<T>())
     }
 }
-unsafe impl<T: Context> Send for State<Rw<T>> {}
-unsafe impl<T: Context> Sync for State<Rw<T>> {}
+//unsafe impl<T: Context> Send for State<Rw<T>> {}
+//unsafe impl<T: Context> Sync for State<Rw<T>> {}
 
 impl<T> Deref for State<Ro<T>>
 where
