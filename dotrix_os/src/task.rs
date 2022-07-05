@@ -28,7 +28,7 @@ pub trait Task: 'static + Send + Sync + Sized {
                     .unwrap()
                     .fetch::<Self::Context>(dependencies);
                 let task_result = self.run(task_context);
-                (TypeId::of::<Self::Provides>(), Box::new(task_result))
+                Box::new(task_result)
             },
         };
         Box::new(task_box)
@@ -40,7 +40,7 @@ where
     F: FnMut(
         &Arc<Mutex<context::Manager>>,
         &context::Dependencies,
-    ) -> (TypeId, Box<dyn Any + 'static + Send>),
+    ) -> Box<dyn Any + 'static + Send>,
 {
     id: Id,
     type_id: TypeId,
@@ -60,7 +60,7 @@ pub trait Executable: Send + Sync {
     fn run(
         &mut self,
         context_manager: &Arc<Mutex<context::Manager>>,
-    ) -> (TypeId, Box<dyn Any + 'static + Send>);
+    ) -> Box<dyn Any + 'static + Send>;
 
     /// Get task name
     fn name(&self) -> &str;
@@ -94,6 +94,9 @@ pub trait Executable: Send + Sync {
 
     /// Returns true if dependencies state is set
     fn is_scheduled(&self) -> bool;
+
+    /// Reset dependencies
+    fn reset(&mut self);
 }
 
 impl<F> Executable for TaskBox<F>
@@ -101,14 +104,14 @@ where
     F: FnMut(
             &Arc<Mutex<context::Manager>>,
             &context::Dependencies,
-        ) -> (TypeId, Box<dyn Any + 'static + Send>)
+        ) -> Box<dyn Any + 'static + Send>
         + Send
         + Sync,
 {
     fn run(
         &mut self,
         context_manager: &Arc<Mutex<context::Manager>>,
-    ) -> (TypeId, Box<dyn Any + 'static + Send>) {
+    ) -> Box<dyn Any + 'static + Send> {
         let result = (self.run)(context_manager, &self.dependencies);
         let dependencies_state = self.dependencies_state.take().unwrap();
         self.dependencies = dependencies_state;
@@ -158,5 +161,9 @@ where
     /// Returns true if dependencies state is set
     fn is_scheduled(&self) -> bool {
         self.dependencies_state.is_some()
+    }
+
+    fn reset(&mut self) {
+        self.dependencies.reset();
     }
 }

@@ -73,7 +73,7 @@ impl dotrix::Task for AssetCollector {
         dotrix::All<AssetData>,
         dotrix::Rw<Assets>,
     );
-    type Provides = ();
+    type Provides = dotrix::Done;
 
     fn run(&mut self, (_state, data, mut assets): Self::Context) -> Self::Provides {
         println!("--> AssetCollector (Any State)");
@@ -83,6 +83,7 @@ impl dotrix::Task for AssetCollector {
             assets.list.push((asset.index, asset.name.clone()));
         }
         println!("--> collected {} assets", assets_number);
+        dotrix::Done::default()
     }
 }
 
@@ -127,9 +128,14 @@ fn main() {
     task_manager.add(AssetLoader {});
     task_manager.add(AssetCollector {});
 
-    println!("Starting scheduler...");
-    task_manager.start();
     loop {
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        println!("!!! Starting cycle------------------------------------------------------------");
+        let now = std::time::Instant::now();
+        task_manager.run();
+        task_manager.wait();
+        println!(
+            "!!! Executed in {}us",
+            (std::time::Instant::now() - now).as_micros()
+        );
     }
 }
