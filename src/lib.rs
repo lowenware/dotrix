@@ -29,7 +29,10 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
 #![warn(missing_docs)]
 
-pub use dotrix_os::*;
+use dotrix_os as os;
+use dotrix_window as window;
+
+pub use os::{Task, Tasks, Any, All, State, Ro, Rw};
 
 /*
 pub use dotrix_core::*;
@@ -61,76 +64,88 @@ pub mod prelude {
 }
 */
 
-/// Application Builder
-///
-/// This structure is supposed to be constructed only once and usually inside of a main
-/// function
-///
-/// You can also check full functional
-/// [Dotrix Demo](https://github.com/lowenware/dotrix/blob/main/examples/demo/main.rs) example to
-/// learn more about the builder.
-pub struct Dotrix {
-    name: String,
+pub struct Settings {
+    pub fps: u64,
+    pub workers_number: u32,
 }
 
-impl Dotrix {
-    /// Initiates building of an application with specified name
-    pub fn application(name: &'static str) -> Self {
-        Self::bare(name)
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            fps: 60,
+            workers_number: 8,
+        }
+    }
+}
+
+pub struct Application {
+    settings: Settings,
+    task_manager: os::TaskManager,
+}
+
+// TODO: cleanup
+struct DummyTask;
+impl os::Task for DummyTask {
+    type Context = ();
+    type Provides = os::Done;
+
+    fn run(&mut self, _ctx: Self::Context) -> Self::Provides {
+        os::Done {}
+    }
+}
+
+impl window::HasWindow for Application {
+    fn fps(&self) -> u64 {
+        self.settings.fps
     }
 
-    /// Initiates building of an application with specified name
-    pub fn bare(name: &'static str) -> Self {
+    fn init(&mut self, handle: window::Handle) {
+        let window = window::Window::new(handle);
+        self.task_manager.store(window);
+        // TODO: cleanup
+        self.task_manager.add(DummyTask {});
+        self.task_manager.run();
+    }
+
+    fn close_request(&self) -> bool {
+        false
+    }
+
+    fn on_input(&mut self /* input_event */) {
+
+    }
+
+    fn on_resize(&mut self, _width: u32, _height: u32) {
+
+    }
+
+    fn on_close(&mut self) {
+
+    }
+
+    fn on_draw(&mut self) {
+        self.task_manager.wait();
+        println!("Draw");
+        self.task_manager.run();
+    }
+}
+
+impl Application {
+    pub fn new(settings: Settings) -> Self {
+        let workers_number = settings.workers_number;
         Self {
-            name: String::from(name),
+            settings,
+            task_manager: os::TaskManager::new(workers_number),
         }
     }
 
-    /*
-    #[must_use]
-    /// Adds service to the application
-    pub fn with<T>(mut self, service: T) -> Self
-    where
-        T: Service,
-    {
-        println!("Run Level is {}", service.run_level());
-        // if let Some(startup) = Service::get_startup::<T>() {
-        //    self.startup.push(startup);
-        //}
-        // if let Some(bind) = Service::get_bind::<T>() {
-        //    self.bind.push(startup);
-        //}
-        self.storage.insert(TypeId::of::<T>(), Box::new(service));
-        self
-    }
-    */
+    pub fn run(self) {
+        use window::HasWindow;
 
-    /// Runs the application
-    pub fn run(self) {}
-}
-
-/*
-/// Trait providing extendablity
-pub trait ExtendWith<T> {
-    /// Extends self using the `extension` function
-    fn extend_with(&mut self, extension: T);
-}
-
-impl ExtendWith<System> for Dotrix {
-    fn extend_with(&mut self, extension: System) {
-        self.app.as_mut().unwrap().add_system(extension);
+        self.run_window();
     }
 }
 
-impl<T: IntoService> ExtendWith<Service<T>> for Dotrix {
-    fn extend_with(&mut self, extension: Service<T>) {
-        self.app.as_mut().unwrap().add_service(extension.node);
-    }
+pub fn application(settings: Settings) -> Application {
+    Application::new(settings)
 }
-
-impl<T: FnOnce(&mut Application)> ExtendWith<T> for Dotrix {
-    fn extend_with(&mut self, extension: T) {
-        extension(self.app.as_mut().unwrap())
-    }
-}
-*/
