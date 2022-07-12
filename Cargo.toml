@@ -36,6 +36,7 @@ members = [
 #  "dotrix_pbr",
 #  "dotrix_primitives",
   "dotrix_os",
+  "dotrix_window",
 #  "dotrix_sky",
 #  "dotrix_terrain",
 ]
@@ -43,6 +44,7 @@ members = [
 [dependencies]
 # dotrix_service = { path = "dotrix_service", version = "0.6.0" }
 dotrix_os = { path = "dotrix_os", version = "0.6.0" }
+dotrix_window = { path = "dotrix_window", version = "0.6.0" }
 #[dependencies.dotrix_core]
 #version = "0.5"
 #path = "./dotrix_core"
