@@ -15,8 +15,8 @@ name = "dotrix"
 path = "src/lib.rs"
 
 [[bin]]
-name = "editor"
-path = "editor/main.rs"
+name = "dotrix"
+path = "src/main.rs"
 
 #[features]
 #default = [ "egui", "overlay", "pbr", "primitives", "sky", "terrain" ]
@@ -30,21 +30,26 @@ path = "editor/main.rs"
 
 [workspace]
 members = [
-#  "dotrix_core",
+  "dotrix-assets",
+  "dotrix-core",
 #  "dotrix_egui",
 #  "dotrix_overlay",
 #  "dotrix_pbr",
 #  "dotrix_primitives",
-  "dotrix_os",
-  "dotrix_window",
+  "dotrix-gpu",
+  "dotrix-types",
+  "dotrix-window",
 #  "dotrix_sky",
 #  "dotrix_terrain",
 ]
 
 [dependencies]
 # dotrix_service = { path = "dotrix_service", version = "0.6.0" }
-dotrix_os = { path = "dotrix_os", version = "0.6.0" }
-dotrix_window = { path = "dotrix_window", version = "0.6.0" }
+dotrix_assets = { path = "dotrix-assets", version = "0.1.0" }
+dotrix_core = { path = "dotrix-core", version = "0.6.0" }
+dotrix_gpu = { path = "dotrix-gpu", version = "0.1.0" }
+dotrix_types = { path = "dotrix-types", version = "0.1.0" }
+dotrix_window = { path = "dotrix-window", version = "0.1.0" }
 #[dependencies.dotrix_core]
 #version = "0.5"
 #path = "./dotrix_core"
@@ -95,42 +100,42 @@ version = "0.7"
 version = "1.4"
 features = ["derive"]
 
-[[example]]
-name = "demo"
-path = "examples/demo/main.rs"
+#[[example]]
+#name = "demo"
+#path = "examples/demo/main.rs"
 
-[[example]]
-name = "animation"
-path = "examples/animation/main.rs"
+#[[example]]
+#name = "animation"
+#path = "examples/animation/main.rs"
 
-[[example]]
-name = "light"
-path = "examples/light/main.rs"
+#[[example]]
+#name = "light"
+#path = "examples/light/main.rs"
 
-[[example]]
-name = "states"
-path = "examples/states/main.rs"
+#[[example]]
+#name = "states"
+#path = "examples/states/main.rs"
 
-[[example]]
-name = "skybox"
-path = "examples/skybox/main.rs"
+#[[example]]
+#name = "skybox"
+#path = "examples/skybox/main.rs"
 
-[[example]]
-name = "window"
-path = "examples/window/main.rs"
+#[[example]]
+#name = "window"
+#path = "examples/window/main.rs"
 
-[[example]]
-name = "shader"
-path = "examples/shader/main.rs"
+#[[example]]
+#name = "shader"
+#path = "examples/shader/main.rs"
 
-[[example]]
-name = "pbr"
-path = "examples/pbr/main.rs"
+#[[example]]
+#name = "pbr"
+#path = "examples/pbr/main.rs"
 
-[[example]]
-name = "msaa"
-path = "examples/msaa/main.rs"
+#[[example]]
+#name = "msaa"
+#path = "examples/msaa/main.rs"
 
-[[example]]
-name = "normal_map"
-path = "examples/normal_map/main.rs"
+#[[example]]
+#name = "normal_map"
+#path = "examples/normal_map/main.rs"
