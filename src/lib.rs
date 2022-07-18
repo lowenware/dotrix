@@ -11,28 +11,15 @@
 //! [demo application](https://github.com/lowenware/dotrix/blob/main/examples/demo/demo.rs) for you
 //! to get started.
 //!
-//! If you prefer to work with the documentation, then the best place to start is where your
-//! game should start - the [`Dotrix`] application builder.
-//!
-//! ```no_run
-//! use dotrix::Dotrix;
-//!
-//! fn main() {
-//!     Dotrix::application("My Game")
-//!         .run();
-//! }
-//! ```
-//!
-//! It is also a tool to say the engine where should be rendered the output and what services
-//! and systems has to be enabled.
 
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
 #![warn(missing_docs)]
 
-use dotrix_os as os;
+use dotrix_gpu as gpu;
 use dotrix_window as window;
 
-pub use os::{Task, Tasks, Any, All, State, Ro, Rw};
+pub use dotrix_core::{All, Any, Manager, Mut, Ref, State, Task, Tasks};
+pub use dotrix_types::{Color, Id, IdMap, Transform};
 
 /*
 pub use dotrix_core::*;
@@ -80,12 +67,13 @@ impl Default for Settings {
 
 pub struct Application {
     settings: Settings,
-    task_manager: os::TaskManager,
+    task_manager: Manager,
 }
 
 // TODO: cleanup
+/*
 struct DummyTask;
-impl os::Task for DummyTask {
+impl Task for DummyTask {
     type Context = ();
     type Provides = os::Done;
 
@@ -93,6 +81,7 @@ impl os::Task for DummyTask {
         os::Done {}
     }
 }
+*/
 
 impl window::HasWindow for Application {
     fn fps(&self) -> u64 {
@@ -100,10 +89,13 @@ impl window::HasWindow for Application {
     }
 
     fn init(&mut self, handle: window::Handle) {
+        let renderer = gpu::Renderer::new(&handle, gpu::RendererOptions::default());
+        renderer.clear();
         let window = window::Window::new(handle);
         self.task_manager.store(window);
+        self.task_manager.store(renderer);
         // TODO: cleanup
-        self.task_manager.add(DummyTask {});
+        // self.task_manager.add(DummyTask {});
         self.task_manager.run();
     }
 
@@ -111,17 +103,11 @@ impl window::HasWindow for Application {
         false
     }
 
-    fn on_input(&mut self /* input_event */) {
+    fn on_input(&mut self /* input_event */) {}
 
-    }
+    fn on_resize(&mut self, _width: u32, _height: u32) {}
 
-    fn on_resize(&mut self, _width: u32, _height: u32) {
-
-    }
-
-    fn on_close(&mut self) {
-
-    }
+    fn on_close(&mut self) {}
 
     fn on_draw(&mut self) {
         self.task_manager.wait();
@@ -135,7 +121,7 @@ impl Application {
         let workers_number = settings.workers_number;
         Self {
             settings,
-            task_manager: os::TaskManager::new(workers_number),
+            task_manager: Manager::new(workers_number),
         }
     }
 
