@@ -3,9 +3,9 @@ mod loader;
 mod tasks;
 
 use dotrix_core as dotrix;
-use dotrix_types::{Id, IdMap};
+use dotrix_types::Id;
 
-pub use asset::{Asset, File, Info, Resource};
+pub use asset::{Asset, Bundle, File, Resource};
 pub use loader::{LoadError, Loader};
 pub use tasks::{LoadTask, StoreTask, Watchdog};
 
@@ -13,30 +13,18 @@ pub const ASSETS_NAMESPACE: u64 = dotrix::NAMESPACE | 0x0100;
 
 /// Assets management service
 pub struct Assets {
+    /// Assets root folder path
     root: std::path::PathBuf,
-    /// Id indexed assets map
-    map: IdMap<Box<dyn Asset>>,
-    /// Resources registry indexed by file path
-    registry: std::collections::HashMap<std::path::PathBuf, ResourceEntry>,
     /// Index of IDs assigned by asset name
-    index: std::collections::HashMap<String, uuid::Uuid>,
+    registry: std::collections::HashMap<String, uuid::Uuid>,
+    /// Id indexed assets map
+    map: std::collections::HashMap<uuid::Uuid, Box<dyn Asset>>,
+    /// Resources registry indexed by file path
+    resources: std::collections::HashMap<std::path::PathBuf, Resource>,
     /// Asset Loaders
     loaders: std::collections::HashMap<std::any::TypeId, Box<dyn Loader>>,
     /// Id counter
     last_id: u64,
-}
-
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
-enum ResourceState {
-    Idle,
-    Loaded,
-    Failed,
-}
-
-struct ResourceEntry {
-    last_modified: Option<std::time::Instant>,
-    version: u32,
-    state: ResourceState,
 }
 
 impl Assets {
@@ -50,9 +38,9 @@ impl Assets {
     pub fn new_with_root(root: std::path::PathBuf) -> Self {
         Self {
             root,
-            map: IdMap::new(),
             registry: std::collections::HashMap::new(),
-            index: std::collections::HashMap::new(),
+            map: std::collections::HashMap::new(),
+            resources: std::collections::HashMap::new(),
             loaders: std::collections::HashMap::new(),
             last_id: 0,
         }
@@ -60,18 +48,15 @@ impl Assets {
 
     /// Installs new asset loader
     pub fn install<T: Loader>(&mut self, loader: T) {
-        self.loaders.insert(std::any::TypeId::of::<T>(), Box::new(loader));
+        self.loaders
+            .insert(std::any::TypeId::of::<T>(), Box::new(loader));
     }
 
     /// Uninstalls asset loader
     pub fn uninstall<T: Loader>(&mut self) -> Option<T> {
         self.loaders
             .remove(&std::any::TypeId::of::<T>())
-            .map(|mut l| {
-                *(unsafe {
-                    Box::from_raw((Box::leak(l) as * mut dyn Loader) as *mut T)
-                })
-            })
+            .map(|l| *(unsafe { Box::from_raw((Box::leak(l) as *mut dyn Loader) as *mut T) }))
     }
 
     /// Returns assets root folder path
@@ -94,30 +79,67 @@ impl Assets {
     /// [`Resource`]
     pub fn import_from(&mut self, path: std::path::PathBuf) {
         /* let name = path
-            .file_stem()
-            .map(|n| n.to_str().unwrap())
-            .unwrap()
-            .to_string();*/
-        self.registry.insert(path, ResourceEntry {
-            last_modified: None,
-            version: 0,
-            state: ResourceState::Idle,
-        });
+        .file_stem()
+        .map(|n| n.to_str().unwrap())
+        .unwrap()
+        .to_string();*/
+        self.resources.insert(path.clone(), Resource::new(path));
     }
 
     /// Associates an asset name with [`Id`] and returns it
     pub fn register<T: Asset>(&mut self, name: &str) -> Id<T> {
-        use dotrix_types::id::NameSpace;
-
-        if let Some(uuid) = self.index.get(name) {
+        if let Some(uuid) = self.registry.get(name) {
             return Id::from(*uuid);
         }
 
         let id = T::id(self.next_id());
-        self.index.insert(name.to_string(), id.uuid());
+        self.registry.insert(name.to_string(), *id.uuid());
         id
     }
 
+    /// Stores an asset under user defined name and returns [`Id`] of it
+    pub fn store_as<T: Asset>(&mut self, asset: T, name: &str) -> Id<T> {
+        let id = self.register(name);
+        self.map.insert(*id.uuid(), Box::new(asset));
+        id
+    }
+
+    /// Stores an asset and returns [`Id`] of it
+    pub fn store<T: Asset>(&mut self, asset: T) -> Id<T> {
+        let id = T::id(self.next_id());
+        self.map.insert(*id.uuid(), Box::new(asset));
+        id
+    }
+
+    /// Searches for an asset by the name and return [`Id`] of it if the asset exists
+    pub fn find<T: Asset>(&self, name: &str) -> Option<Id<T>> {
+        self.registry.get(name).map(|uuid| Id::from(*uuid))
+    }
+
+    /// Searches an asset by its [`Id`] and returns it by a reference if the asset exists
+    pub fn get<T: Asset>(&self, id: Id<T>) -> Option<&T> {
+        self.map
+            .get(id.uuid())
+            .map(|a| a.downcast_ref::<T>())
+            .unwrap_or(None)
+    }
+
+    /// Searches an asset by its [`Id`] and returns it by a mutual reference if the asset exists
+    pub fn get_mut<T: Asset>(&mut self, id: Id<T>) -> Option<&mut T> {
+        self.map
+            .get_mut(id.uuid())
+            .map(|a| a.downcast_mut::<T>())
+            .unwrap_or(None)
+    }
+
+    /// Removes an asset from the Service and returns it if the asset exists
+    pub fn remove<T: Asset>(&mut self, id: Id<T>) -> Option<T> {
+        self.map
+            .remove(id.uuid())
+            .map(|a| *(unsafe { Box::from_raw((Box::leak(a) as *mut dyn Asset) as *mut T) }))
+    }
+
+    /// Increments last_id counter and returns new value
     fn next_id(&mut self) -> u64 {
         self.last_id += 1;
         self.last_id
