@@ -1,4 +1,3 @@
-use dotrix_core as dotrix;
 use dotrix_window as window;
 
 pub struct RendererOptions {
@@ -72,7 +71,7 @@ impl Renderer {
             .device
             .create_command_encoder(&command_encoder_descriptor);
         {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let _rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
