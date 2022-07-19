@@ -1,4 +1,4 @@
-use crate::{Assets, File, Info, Resource};
+use crate::{Assets, Bundle, File, Resource};
 use dotrix_core as dotrix;
 
 #[derive(Default)]
@@ -6,10 +6,10 @@ pub struct LoadTask {}
 
 impl dotrix::Task for LoadTask {
     type Context = (dotrix::Any<File>,);
-    type Provides = Resource;
+    type Provides = Bundle;
 
     fn run(&mut self, (file,): Self::Context) -> Self::Provides {
-        Resource {
+        Bundle {
             path: file.path.clone(),
             assets: Vec::new(),
             version: 0,
@@ -23,11 +23,10 @@ pub struct StoreTask {}
 
 impl dotrix::Task for StoreTask {
     type Context = (dotrix::Any<Resource>, dotrix::Mut<Assets>);
-    type Provides = Info;
+    type Provides = Resource;
 
     fn run(&mut self, (resource, assets): Self::Context) -> Self::Provides {
-
-        Info {
+        Resource {
             path: resource.path.clone(),
             last_modified: resource.last_modified,
             version: resource.version,
