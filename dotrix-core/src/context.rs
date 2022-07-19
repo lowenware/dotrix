@@ -29,55 +29,6 @@ impl Manager {
         }
     }
 
-    /*
-    fn root_state(&mut self) -> &mut Box<dyn states::Accessor> {
-        let root_state_id = self.root_state_id;
-        let root_state = self
-            .services
-            .get_mut(&root_state_id)
-            .expect("Refot state to be stored");
-
-        unsafe {
-            states::cast_from_any(root_state)
-        }
-    }
-
-    fn take_current_state(&mut self) -> Option<Box<dyn states::Accessor>> {
-        if let Some(current_state_id) = self.current_state_id.take() {
-            return self.services.remove(&current_state_id).map(
-                |s| {
-                    let raw = ;
-
-                    Box::from_raw( as *mut )
-                }
-            );
-        }
-        None
-    }
-    */
-
-    /*
-    pub fn apply_stack_changes(&mut self) {
-        let current_state_id = self.current_state_id.take();
-        let current_state = current_state_id
-            .as_ref()
-            .map(|id| self.services.remove(id));
-        if let Some(current_state) = states::apply_changes(
-            current_state,
-            self.state_changes.lock().expect("Mutex to be locked")
-        ) {
-            self.current_state_id = Some(current_state.id());
-
-        }
-        let Some(current_state) = current_state.as_ref().map(|s| s.id);
-        self.current_state_id = current_state_id;
-
-        if let Some(state_id) = current_state_id {
-            self.services.insert(state_id,
-        }
-    }
-    */
-
     fn get<T: Context + std::any::Any>(&self) -> Option<&T> {
         self.services
             .get(&TypeId::of::<T>())
@@ -175,7 +126,7 @@ impl Manager {
         // of each Any<T> dependency with at least one new provision
         let mut result = dependencies.clone();
         let mut has_any_condition = false;
-        let mut has_all_condition = false;
+        // let mut has_all_condition = false;
         let mut meet_any_condition = false;
         let mut task_was_executed = false;
         for (type_id, dependency) in dependencies.data.iter() {
@@ -195,7 +146,7 @@ impl Manager {
                         }
                     }
                     DependencyType::All(count) => {
-                        has_all_condition = true;
+                        // has_all_condition = true;
                         if skip_accessor_all {
                             return None;
                         }
@@ -310,9 +261,6 @@ impl Manager {
                     skip_accessor_all = false;
                 }
             }
-        }
-        for entry in self.data.values() {
-            // println!("  > {} has {} providers", entry.name, entry.providers);
         }
     }
 }
@@ -746,7 +694,6 @@ where
 #[derive(Debug)]
 pub struct All<T: Context> {
     list: *const Vec<Box<dyn std::any::Any + Send + 'static>>,
-    index: usize,
     _phantom: PhantomData<T>,
 }
 
@@ -792,7 +739,6 @@ where
     fn fetch(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
         manager.get_data::<T>().map(|d| All {
             list: &d.instances,
-            index: 0,
             _phantom: PhantomData,
         })
     }
@@ -808,7 +754,7 @@ where
 {
     type DataSlot = T;
 
-    fn fetch(manager: &Manager, dependencies: &Dependencies) -> Option<Self> {
+    fn fetch(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
         manager.state::<T>().map(|data_ref| State {
             selector: Ref {
                 data: data_ref as *const T,
@@ -834,7 +780,7 @@ where
 {
     type DataSlot = T;
 
-    fn fetch(manager: &Manager, dependencies: &Dependencies) -> Option<Self> {
+    fn fetch(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
         manager.state::<T>().map(|data_ref| State {
             selector: Mut {
                 data: (data_ref as *const T) as *mut T,

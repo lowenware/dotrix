@@ -14,7 +14,7 @@ pub fn spawn(
         .spawn(move || {
             println!("{} spawned...", name);
             loop {
-                let mut message = rx.lock().unwrap().recv().unwrap();
+                let message = rx.lock().unwrap().recv().unwrap();
                 match message {
                     scheduler::Message::Schedule(mut task) => {
                         let result = task.run(&context_manager);

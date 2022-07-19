@@ -41,17 +41,6 @@ pub struct TaskSlot {
     pub executions_count: u64,
 }
 
-struct Dependency {
-    /// Dependency data
-    data: Option<Box<dyn Any>>,
-    /// Number of dependency providers
-    providers_count: u32,
-    /// How many times it was provided
-    count: u32,
-    /// Notification
-    notify: bool,
-}
-
 /// Launches operator thread, that schedules tasks, holds up context and communicates back
 /// to main process
 ///
@@ -104,7 +93,7 @@ pub fn spawn(
                             let type_id = task.provides();
                             schedule_task(task, &mut pool, &mut lock_manager);
                             if TypeId::of::<Done>() == type_id {
-                                control_tx.send(Message::Provide(type_id, data));
+                                control_tx.send(Message::Provide(type_id, data)).ok();
                             } else {
                                 store_data(
                                     type_id,
@@ -151,7 +140,7 @@ pub fn spawn(
                 // execute tasks
                 let mut index = 0;
                 let mut stop_index = queue.len();
-                let instant = std::time::Instant::now();
+                // let instant = std::time::Instant::now();
                 while index < stop_index {
                     let task_id = queue[index];
                     if let Some(slot) = pool.get_mut(&task_id) {
@@ -172,7 +161,7 @@ pub fn spawn(
                                     // move to the end of queue
                                     queue.remove(index);
                                     queue.push(task_id);
-                                    worker_tx.send(Message::Schedule(task));
+                                    worker_tx.send(Message::Schedule(task)).ok();
                                     stop_index -= 1;
                                     continue;
                                 }

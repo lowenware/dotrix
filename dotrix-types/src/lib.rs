@@ -32,7 +32,7 @@ pub use color::Color;
 // pub use ecs::{Priority, RunLevel, System};
 // pub use frame::Frame;
 // pub use globals::Globals;
-pub use id::{Id, IdMap};
+pub use id::Id;
 // pub use input::Input;
 // pub use pose::Pose;
 // pub use ray::Ray;

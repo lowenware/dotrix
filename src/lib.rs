@@ -19,7 +19,7 @@ use dotrix_gpu as gpu;
 use dotrix_window as window;
 
 pub use dotrix_core::{All, Any, Manager, Mut, Ref, State, Task, Tasks};
-pub use dotrix_types::{Color, Id, IdMap, Transform};
+pub use dotrix_types::{Color, Id, Transform};
 
 /*
 pub use dotrix_core::*;
@@ -51,8 +51,11 @@ pub mod prelude {
 }
 */
 
+/// Dotrix settings
 pub struct Settings {
+    /// Wanted FPS
     pub fps: u64,
+    /// Number of workers
     pub workers_number: u32,
 }
 
@@ -65,6 +68,7 @@ impl Default for Settings {
     }
 }
 
+/// Dotrix Application data structure
 pub struct Application {
     settings: Settings,
     task_manager: Manager,
@@ -117,6 +121,7 @@ impl window::HasWindow for Application {
 }
 
 impl Application {
+    /// Constructs new [`Application`] instance
     pub fn new(settings: Settings) -> Self {
         let workers_number = settings.workers_number;
         Self {
@@ -125,6 +130,8 @@ impl Application {
         }
     }
 
+    /// Takes control over execution and runs application.
+    /// Never returns.
     pub fn run(self) {
         use window::HasWindow;
 
@@ -132,6 +139,7 @@ impl Application {
     }
 }
 
+/// Returns [`Application`] instance
 pub fn application(settings: Settings) -> Application {
     Application::new(settings)
 }
