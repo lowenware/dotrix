@@ -9,4 +9,3 @@ dotrix_types = { version = "0.1", path = "../dotrix-types" }
 dotrix_window = { path = "../dotrix-window", version = "0.1.0" }
 futures = {version = "0.3", default-features = false, features = ["std", "executor"] }
 wgpu = { version = "0.13", features = ["trace"] }
-wgpu-subscriber = { version = "0.1.0" }
