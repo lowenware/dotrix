@@ -19,7 +19,7 @@ name = "dotrix"
 path = "src/main.rs"
 
 #[features]
-#default = [ "egui", "overlay", "pbr", "primitives", "sky", "terrain" ]
+#default = [ "egui", "overlay", "pbr", "sky", "terrain" ]
 
 #overlay = ["dotrix_overlay"]
 #sky = ["dotrix_sky"]
@@ -32,31 +32,33 @@ path = "src/main.rs"
 members = [
   "dotrix-assets",
   "dotrix-core",
+  "dotrix-image",
 #  "dotrix_egui",
 #  "dotrix_overlay",
 #  "dotrix_pbr",
-#  "dotrix_primitives",
+  "dotrix-gltf",
   "dotrix-gpu",
+  "dotrix-log",
+  "dotrix-mesh",
   "dotrix-types",
+  "dotrix-wgsl",
   "dotrix-window",
 #  "dotrix_sky",
 #  "dotrix_terrain",
 ]
 
 [dependencies]
-# dotrix_service = { path = "dotrix_service", version = "0.6.0" }
+
 dotrix_assets = { path = "dotrix-assets", version = "0.1.0" }
 dotrix_core = { path = "dotrix-core", version = "0.6.0" }
+dotrix_image = { path = "dotrix-image", version = "0.1.0" }
+dotrix_gltf = { path = "dotrix-gltf", version = "0.1.0" }
 dotrix_gpu = { path = "dotrix-gpu", version = "0.1.0" }
+dotrix_log = { path = "dotrix-log", version = "0.1.0" }
+dotrix_mesh = { path = "dotrix-mesh", version = "0.1.0" }
 dotrix_types = { path = "dotrix-types", version = "0.1.0" }
+dotrix_wgsl = { path = "dotrix-wgsl", version = "0.1.0" }
 dotrix_window = { path = "dotrix-window", version = "0.1.0" }
-#[dependencies.dotrix_core]
-#version = "0.5"
-#path = "./dotrix_core"
-
-#[dependencies.dotrix_math]
-#version = "0.4"
-#path = "./dotrix_math"
 
 # Optional dependencies
 
@@ -73,11 +75,6 @@ dotrix_window = { path = "dotrix-window", version = "0.1.0" }
 #[dependencies.dotrix_pbr]
 #version = "0.2"
 #path = "./dotrix_pbr"
-#optional = true
-
-#[dependencies.dotrix_primitives]
-#version = "0.1"
-#path = "./dotrix_primitives"
 #optional = true
 
 #[dependencies.dotrix_sky]
