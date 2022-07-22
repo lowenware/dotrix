@@ -1,0 +1,12 @@
+[package]
+name = "dotrix_mesh"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dotrix_assets = { path = "../dotrix-assets", version = "0.1" }
+dotrix_types = { path = "../dotrix-types", version = "0.1" }
+dotrix_math = { version = "0.4", path = "../dotrix-math" }
+bytemuck = { version = "1.4", features = ["derive"] }
