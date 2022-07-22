@@ -6,8 +6,9 @@ mod worker;
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::thread;
 
+use dotrix_log::info;
 // TODO: do not export Done
-pub use context::{All, Any, Mut, Ref, State};
+pub use context::{All, Any, Mut, Ref, State, Take};
 pub use scheduler::Done;
 pub use task::Task;
 
@@ -35,8 +36,25 @@ pub struct Tasks {
     scheduler_tx: Arc<Mutex<mpsc::Sender<scheduler::Message>>>,
 }
 
+// NOTE: one instance can be stored, while another can be a part of Manager
+impl Tasks {
+    fn lock_scheduler_tx<'a>(&'a self) -> MutexGuard<'a, mpsc::Sender<scheduler::Message>> {
+        self.scheduler_tx.lock().expect("Mutex to be locked")
+    }
+
+    pub fn provide<T: context::Context + Send>(&self, data: T) {
+        self.lock_scheduler_tx()
+            .send(scheduler::Message::Provide(
+                std::any::TypeId::of::<T>(),
+                Box::new(data),
+            ))
+            .expect("Message to be sent to Scheduler");
+    }
+}
+
 impl Manager {
     pub fn new(workers_count: u32) -> Self {
+        info!("Initializing manager with {} workers", workers_count);
         let context_manager = Arc::new(Mutex::new(context::Manager::new()));
         let (scheduler_tx, scheduler_rx) = mpsc::channel();
         let (worker_tx, worker_rx) = mpsc::channel();
