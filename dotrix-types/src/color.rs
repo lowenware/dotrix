@@ -2,6 +2,8 @@
 use std::convert::From;
 use std::ops::{Index, IndexMut};
 
+use crate::vertex;
+
 /// RGBA Color.
 #[derive(Default, Copy, Clone, Debug)]
 pub struct Color {
@@ -74,6 +76,16 @@ impl Color {
     /// Orange color (r: 1.0, g: 0.5, b: 0.0)
     pub fn orange() -> Self {
         Self::rgb(1.0, 0.5, 0.0)
+    }
+}
+
+impl vertex::Attribute for Color {
+    type Raw = [f32; 4];
+    fn name() -> &'static str {
+        "Color"
+    }
+    fn format() -> vertex::AttributeFormat {
+        vertex::AttributeFormat::Float32x4
     }
 }
 
