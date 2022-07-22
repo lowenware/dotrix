@@ -99,8 +99,6 @@ impl Renderer {
 async fn init(
     window_handle: &window::Handle,
 ) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue, wgpu::Surface) {
-    wgpu_subscriber::initialize_default_subscriber(None);
-
     let backend = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
 
     let instance = wgpu::Instance::new(backend);
