@@ -109,12 +109,12 @@ impl Assets {
     }
 
     /// Stores an asset under user defined name and returns [`Id`] of it
-    pub(crate) fn store_raw(&mut self, namespace: u64, asset: Box<dyn Asset>) {
+    pub(crate) fn store_raw(&mut self, asset: Box<dyn Asset>) {
         let uuid = self
             .registry
             .get(asset.name())
             .map(|id| *id)
-            .unwrap_or_else(|| uuid::Uuid::from_u64_pair(namespace, self.next_id()));
+            .unwrap_or_else(|| uuid::Uuid::from_u64_pair(asset.namespace(), self.next_id()));
 
         self.map.insert(uuid, asset);
     }

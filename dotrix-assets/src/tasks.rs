@@ -32,9 +32,9 @@ impl dotrix::Task for LoadTask {
         for loader in assets.loaders() {
             if loader.can_load(&extension) {
                 if let Ok(mut fs_file) = std::fs::File::open(&file.path) {
-                    let mut buffer = Vec::with_capacity(file.size);
-                    if fs_file.read_to_end(&mut buffer).is_ok() {
-                        list = Some(loader.load(&file_name, buffer));
+                    let mut data = Vec::with_capacity(file.size);
+                    if fs_file.read_to_end(&mut data).is_ok() {
+                        list = Some(loader.load(&file_name, &extension, data));
                     } else {
                         log::error!("Could not read file {:?}", &file.path);
                     }
@@ -67,10 +67,10 @@ impl dotrix::Task for StoreTask {
         use crate::Asset;
 
         let mut meta = Vec::<(String, String)>::with_capacity(bundle.assets.len());
-        while let Some((namespace, asset)) = bundle.assets.pop() {
+        while let Some(asset) = bundle.assets.pop() {
             let name = asset.name().to_string();
             let type_name = asset.type_name().to_string();
-            assets.store_raw(namespace, asset);
+            assets.store_raw(asset);
             meta.push((type_name, name));
         }
 

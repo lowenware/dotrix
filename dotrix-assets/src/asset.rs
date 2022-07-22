@@ -14,6 +14,9 @@ pub trait Asset: types::id::NameSpace + Send + 'static {
 
     /// Returns name of the asset
     fn name(&self) -> &str;
+
+    /// Returns name of the asset
+    fn namespace(&self) -> u64;
 }
 
 impl dyn Asset {
@@ -59,7 +62,7 @@ pub struct Bundle {
     /// Path to asset file
     pub path: std::path::PathBuf,
     /// List of tuple of namespace number and imported assets
-    pub assets: Vec<(u64, Box<dyn Asset>)>,
+    pub assets: Vec<Box<dyn Asset>>,
 }
 
 /// Imported asset file report

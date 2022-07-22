@@ -325,6 +325,10 @@ impl assets::Asset for Mesh {
     fn name(&self) -> &str {
         &self.name
     }
+
+    fn namespace(&self) -> u64 {
+        <Self as id::NameSpace>::namespace()
+    }
 }
 
 impl From<Cube> for Mesh {
