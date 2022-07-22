@@ -133,6 +133,11 @@ impl Manager {
             if let Some(entry) = self.data.get(&type_id) {
                 let instances_len = entry.instances_count;
                 match dependency {
+                    DependencyType::Take => {
+                        if instances_len > 0 {
+                            continue;
+                        }
+                    }
                     DependencyType::Any(index) => {
                         has_any_condition = true;
                         if instances_len > 0 {
@@ -402,6 +407,7 @@ impl LockManager {
 pub enum DependencyType {
     Any(u32),
     All(u32),
+    Take,
 }
 
 impl DependencyType {
@@ -409,6 +415,7 @@ impl DependencyType {
         match self {
             DependencyType::Any(count) => *count = 0,
             DependencyType::All(count) => *count = 0,
+            _ => {}
         }
     }
 }
@@ -438,6 +445,7 @@ impl Clone for Dependencies {
                         match entry {
                             DependencyType::Any(_) => DependencyType::Any(0),
                             DependencyType::All(_) => DependencyType::All(0),
+                            DependencyType::Take => DependencyType::Take,
                         },
                     )
                 })
@@ -685,8 +693,73 @@ where
             .unwrap_or(None)
     }
 
+    fn lock() -> Option<(std::any::TypeId, LockType)> {
+        Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
+    }
+
     fn dependency() -> Option<(std::any::TypeId, DependencyType)> {
         Some((std::any::TypeId::of::<T>(), DependencyType::Any(0)))
+    }
+}
+
+/// Selector that takes ownership over dependency
+#[derive(Debug)]
+pub struct Take<T: Context> {
+    data: T,
+}
+
+impl<T> Deref for Take<T>
+where
+    T: Context,
+{
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { &self.data }
+    }
+}
+
+impl<T> DerefMut for Take<T>
+where
+    T: Context,
+{
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe { &mut self.data }
+    }
+}
+
+unsafe impl<T: Context> Send for Take<T> {}
+unsafe impl<T: Context> Sync for Take<T> {}
+
+impl<T> Selector for Take<T>
+where
+    T: Context,
+{
+    type DataSlot = T;
+
+    fn fetch(manager: &Manager, _: &Dependencies) -> Option<Self> {
+        manager
+            .get_data::<T>()
+            .map(|d| {
+                let slot = unsafe { &mut *((d as *const DataSlot) as *mut DataSlot) };
+                if slot.instances_count == 0 {
+                    return None;
+                }
+                slot.instances_count -= 1;
+                slot.instances.pop().map(|data| Self {
+                    data: *(unsafe {
+                        Box::from_raw((Box::leak(data) as *mut dyn std::any::Any) as *mut T)
+                    }),
+                })
+            })
+            .unwrap_or(None)
+    }
+
+    fn lock() -> Option<(std::any::TypeId, LockType)> {
+        Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
+    }
+
+    fn dependency() -> Option<(std::any::TypeId, DependencyType)> {
+        Some((std::any::TypeId::of::<T>(), DependencyType::Take))
     }
 }
 
@@ -741,6 +814,10 @@ where
             list: &d.instances,
             _phantom: PhantomData,
         })
+    }
+
+    fn lock() -> Option<(std::any::TypeId, LockType)> {
+        Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
     }
 
     fn dependency() -> Option<(std::any::TypeId, DependencyType)> {

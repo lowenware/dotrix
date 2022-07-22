@@ -12,7 +12,7 @@ pub fn spawn(
     thread::Builder::new()
         .name(name.clone())
         .spawn(move || {
-            println!("{} spawned...", name);
+            dotrix_log::info!("started: {}", name);
             loop {
                 let message = rx.lock().unwrap().recv().unwrap();
                 match message {
