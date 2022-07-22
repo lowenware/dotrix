@@ -12,5 +12,5 @@ pub trait Loader: std::any::Any + Send + 'static {
     fn can_load(&self, file_extension: &str) -> bool;
     /// Tries to load assets from file buffer
     /// Returns pair of namespace and imported asset
-    fn load(&self, name: &str, buffer: Vec<u8>) -> Vec<(u64, Box<dyn Asset>)>;
+    fn load(&self, name: &str, extension: &str, data: Vec<u8>) -> Vec<Box<dyn Asset>>;
 }
