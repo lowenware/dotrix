@@ -21,6 +21,7 @@ pub mod id;
 // pub mod ray;
 // pub mod renderer;
 pub mod transform;
+pub mod vertex;
 // pub mod window;
 
 // pub use animation::Animator;
@@ -39,6 +40,7 @@ pub use id::Id;
 // pub use renderer::Renderer;
 // pub use state::State;
 pub use transform::Transform;
+pub use vertex::{Bitangent, Normal, Position, Tangent, TexUV};
 // pub use window::{Monitor, VideoMode, Window};
 // pub use world::World;
 

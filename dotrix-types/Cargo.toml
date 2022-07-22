@@ -16,6 +16,7 @@ default = []
 [dependencies]
 dotrix_math = { version = "0.4", path = "../dotrix-math" }
 uuid = { version = "1.1", features = ["v4"] }
+bytemuck = { version = "1.4", features = ["derive"] }
 
 # [dependencies.base64]
 # version = "0.13.0"
