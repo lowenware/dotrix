@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 dotrix_core = { path="../dotrix-core", version="0.6" }
 dotrix_types = { path="../dotrix-types", version="0.1" }
+dotrix_log = { path="../dotrix-log", version="0.1" }
 uuid = { version = "1.1", features = ["v4"] }

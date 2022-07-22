@@ -50,26 +50,23 @@ impl dyn Asset {
 pub struct File {
     /// Path to asset file
     pub path: std::path::PathBuf,
+    /// File size, used for buffer initial size
+    pub size: usize,
 }
 
 /// Resulting data of an asset file import
 pub struct Bundle {
     /// Path to asset file
     pub path: std::path::PathBuf,
-    /// Last modified timestamp
-    pub last_modified: Option<std::time::Instant>,
-    /// Incremental file version (from startup)
-    pub version: u32,
-    /// List of imported assets
-    pub assets: Vec<Box<dyn Asset>>,
+    /// List of tuple of namespace number and imported assets
+    pub assets: Vec<(u64, Box<dyn Asset>)>,
 }
 
 /// Imported asset file report
+#[derive(Clone)]
 pub struct Resource {
     /// Path to asset file
     pub path: std::path::PathBuf,
-    /// Last modified timestamp
-    pub last_modified: Option<std::time::Instant>,
     /// Incremental file version (from startup)
     pub version: u32,
     /// List type and name pairs of imported assets
@@ -80,7 +77,6 @@ impl Resource {
     pub fn new(path: std::path::PathBuf) -> Self {
         Self {
             path,
-            last_modified: None,
             version: 0,
             assets: Vec::new(),
         }

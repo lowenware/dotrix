@@ -2,6 +2,8 @@ mod asset;
 mod loader;
 mod tasks;
 
+use std::collections::HashMap;
+
 use dotrix_core as dotrix;
 use dotrix_types::Id;
 
@@ -9,20 +11,20 @@ pub use asset::{Asset, Bundle, File, Resource};
 pub use loader::{LoadError, Loader};
 pub use tasks::{LoadTask, StoreTask, Watchdog};
 
-pub const ASSETS_NAMESPACE: u64 = dotrix::NAMESPACE | 0x0100;
+pub const NAMESPACE: u64 = dotrix::NAMESPACE | 0x0100;
 
 /// Assets management service
 pub struct Assets {
     /// Assets root folder path
     root: std::path::PathBuf,
     /// Index of IDs assigned by asset name
-    registry: std::collections::HashMap<String, uuid::Uuid>,
+    registry: HashMap<String, uuid::Uuid>,
     /// Id indexed assets map
-    map: std::collections::HashMap<uuid::Uuid, Box<dyn Asset>>,
+    map: HashMap<uuid::Uuid, Box<dyn Asset>>,
     /// Resources registry indexed by file path
-    resources: std::collections::HashMap<std::path::PathBuf, Resource>,
+    resources: HashMap<std::path::PathBuf, Resource>,
     /// Asset Loaders
-    loaders: std::collections::HashMap<std::any::TypeId, Box<dyn Loader>>,
+    loaders: HashMap<std::any::TypeId, Box<dyn Loader>>,
     /// Id counter
     last_id: u64,
 }
@@ -38,10 +40,10 @@ impl Assets {
     pub fn new_with_root(root: std::path::PathBuf) -> Self {
         Self {
             root,
-            registry: std::collections::HashMap::new(),
-            map: std::collections::HashMap::new(),
-            resources: std::collections::HashMap::new(),
-            loaders: std::collections::HashMap::new(),
+            registry: HashMap::new(),
+            map: HashMap::new(),
+            resources: HashMap::new(),
+            loaders: HashMap::new(),
             last_id: 0,
         }
     }
@@ -78,11 +80,6 @@ impl Assets {
     /// Imports an asset file from specified absolute or relative path and returns [`Id`] of the
     /// [`Resource`]
     pub fn import_from(&mut self, path: std::path::PathBuf) {
-        /* let name = path
-        .file_stem()
-        .map(|n| n.to_str().unwrap())
-        .unwrap()
-        .to_string();*/
         self.resources.insert(path.clone(), Resource::new(path));
     }
 
@@ -111,6 +108,17 @@ impl Assets {
         id
     }
 
+    /// Stores an asset under user defined name and returns [`Id`] of it
+    pub(crate) fn store_raw(&mut self, namespace: u64, asset: Box<dyn Asset>) {
+        let uuid = self
+            .registry
+            .get(asset.name())
+            .map(|id| *id)
+            .unwrap_or_else(|| uuid::Uuid::from_u64_pair(namespace, self.next_id()));
+
+        self.map.insert(uuid, asset);
+    }
+
     /// Searches for an asset by the name and return [`Id`] of it if the asset exists
     pub fn find<T: Asset>(&self, name: &str) -> Option<Id<T>> {
         self.registry.get(name).map(|uuid| Id::from(*uuid))
@@ -137,6 +145,24 @@ impl Assets {
         self.map
             .remove(id.uuid())
             .map(|a| *(unsafe { Box::from_raw((Box::leak(a) as *mut dyn Asset) as *mut T) }))
+    }
+
+    pub(crate) fn resource(&mut self, path: std::path::PathBuf) -> &mut Resource {
+        self.resources
+            .entry(path.clone())
+            .or_insert_with(|| Resource::new(path))
+    }
+
+    pub(crate) fn resources(
+        &self,
+    ) -> std::collections::hash_map::Values<std::path::PathBuf, Resource> {
+        self.resources.values()
+    }
+
+    pub(crate) fn loaders(
+        &self,
+    ) -> std::collections::hash_map::Values<std::any::TypeId, Box<dyn Loader>> {
+        self.loaders.values()
     }
 
     /// Increments last_id counter and returns new value
