@@ -1,6 +1,9 @@
 // ------------------------------------------------------------------------------------------------
 
+use dotrix::log::{error, info, warn};
+
 fn main() {
+    dotrix::log::subscribe(dotrix::Log::default());
     /*
     let mut task_manager = dotrix::TaskManager::new(8);
 
