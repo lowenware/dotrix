@@ -18,7 +18,8 @@
 use dotrix_gpu as gpu;
 use dotrix_window as window;
 
-pub use dotrix_core::{All, Any, Manager, Mut, Ref, State, Task, Tasks};
+pub use dotrix_core::{All, Any, Manager, Mut, Ref, State, Take, Task, Tasks};
+pub use dotrix_log::{self as log, Log};
 pub use dotrix_types::{Color, Id, Transform};
 
 /*
