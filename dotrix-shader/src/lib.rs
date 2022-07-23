@@ -115,14 +115,14 @@ impl assets::Asset for Shader {
     }
 }
 
-pub struct ShaderLoader {
+pub struct Loader {
     regex_macro: regex::Regex,
 }
 
 const MACRO: &str =
     r"(?i)\$\{(([a-z0-9_]+)|(:if\(([a-z0-9_]+)\))|(:include\(([a-z0-9_\-\.]+)\))|(:end))}";
 
-impl Default for ShaderLoader {
+impl Default for Loader {
     fn default() -> Self {
         Self {
             regex_macro: regex::Regex::new(MACRO).unwrap(),
@@ -130,7 +130,7 @@ impl Default for ShaderLoader {
     }
 }
 
-impl ShaderLoader {
+impl Loader {
     fn push_node(stack: &mut Vec<(Option<String>, Code)>, node: Node) {
         if let Some((_, code)) = stack.last_mut() {
             code.nodes.push(node);
@@ -223,7 +223,7 @@ impl ShaderLoader {
     }
 }
 
-impl assets::Loader for ShaderLoader {
+impl assets::Loader for Loader {
     fn can_load(&self, path: &std::path::Path) -> bool {
         path.extension()
             .map(|e| e.to_str().unwrap().eq_ignore_ascii_case("wgsl"))

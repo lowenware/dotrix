@@ -470,7 +470,9 @@ macro_rules! impl_tuple_accessor {
             #[allow(unused)]
             fn fetch(context_manager: &Manager, dependencies: &Dependencies) -> Self {
                 (
-                    $($i::fetch(context_manager, dependencies).expect("Context to be stored"),)*
+                    $($i::fetch(context_manager, dependencies).unwrap_or_else(
+                        || panic!("Failed to fetch '{}'", std::any::type_name::<$i>())
+                    ),)*
                 )
             }
 
