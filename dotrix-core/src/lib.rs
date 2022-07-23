@@ -138,9 +138,9 @@ impl Manager {
     }
 }
 
-pub trait Extension {
+pub trait Extension: 'static + Send {
     // Setup extension
-    fn setup(self, manager: &mut Manager);
+    fn add_to(&self, manager: &mut Manager);
 }
 
 #[cfg(test)]

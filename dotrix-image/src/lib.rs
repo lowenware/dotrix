@@ -46,9 +46,9 @@ impl assets::Asset for Image {
 
 /// Image asset loader
 #[derive(Default)]
-pub struct ImageLoader;
+pub struct Loader;
 
-impl assets::Loader for ImageLoader {
+impl assets::Loader for Loader {
     fn can_load(&self, path: &std::path::Path) -> bool {
         image::ImageFormat::from_path(path).is_ok()
     }

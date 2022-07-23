@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-const MICROSECONDS_PER_SECOND: u64 = 1_000_000;
-
 /// Dotrix window handle
 pub struct Handle {
     window: Arc<winit::window::Window>,
@@ -25,8 +23,8 @@ impl Window {
 }
 
 /// Trait representing ability of application to have a window
-pub trait HasWindow: Sized + 'static {
-    fn fps(&self) -> u64;
+pub trait Controller: Sized + 'static {
+    fn fps(&self) -> f32;
 
     fn init(&mut self, handle: Handle);
 
@@ -45,7 +43,7 @@ pub trait HasWindow: Sized + 'static {
         let window =
             Arc::new(winit::window::Window::new(&event_loop).expect("Window must be created"));
         let fps = self.fps();
-        let frame_duration = std::time::Duration::from_micros(MICROSECONDS_PER_SECOND / fps);
+        let frame_duration = std::time::Duration::from_secs_f32(1.0 / fps);
 
         let mut pool = futures::executor::LocalPool::new();
         let _spawner = pool.spawner();

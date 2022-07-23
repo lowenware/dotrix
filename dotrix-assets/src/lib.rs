@@ -31,13 +31,15 @@ pub struct Assets {
 
 impl Assets {
     /// Constructs new [`Assets`] instance
-    pub fn new() -> Self {
-        let root = std::env::current_dir().expect("Current working directory must be accessible");
-        Self::new_with_root(root)
-    }
+    pub fn new(root: &std::path::Path) -> Self {
+        let root = if root.is_absolute() {
+            root.to_path_buf()
+        } else {
+            std::env::current_dir()
+                .expect("Current working directory must be accessible")
+                .join(root)
+        };
 
-    /// Constructs new [`Assets`] instance with custom root
-    pub fn new_with_root(root: std::path::PathBuf) -> Self {
         Self {
             root,
             registry: HashMap::new(),
@@ -49,9 +51,13 @@ impl Assets {
     }
 
     /// Installs new asset loader
+    pub fn install_raw(&mut self, loader_type_id: std::any::TypeId, loader: Box<dyn Loader>) {
+        self.loaders.insert(loader_type_id, loader);
+    }
+
+    /// Installs new asset loader
     pub fn install<T: Loader>(&mut self, loader: T) {
-        self.loaders
-            .insert(std::any::TypeId::of::<T>(), Box::new(loader));
+        self.install_raw(std::any::TypeId::of::<T>(), Box::new(loader));
     }
 
     /// Uninstalls asset loader
@@ -172,25 +178,30 @@ impl Assets {
     }
 }
 
-impl Default for Assets {
-    fn default() -> Self {
-        Self::new()
-    }
+pub struct Extension {
+    pub root: std::path::PathBuf,
+    pub hot_reload: bool,
+    pub init: fn(&mut Assets),
 }
 
-pub struct Extension {
-    pub hot_reload: bool,
-}
+fn dummy_init(_: &mut Assets) {}
 
 impl Default for Extension {
     fn default() -> Self {
-        Self { hot_reload: false }
+        Self {
+            root: std::path::PathBuf::from(r"./"),
+            hot_reload: false,
+            init: dummy_init,
+        }
     }
 }
 
 impl dotrix::Extension for Extension {
-    fn setup(self, manager: &mut dotrix::Manager) {
-        manager.store(Assets::new());
+    fn add_to(&self, manager: &mut dotrix::Manager) {
+        let mut assets = Assets::new(&self.root);
+        (self.init)(&mut assets);
+
+        manager.store(assets);
         manager.schedule(LoadTask::default());
         manager.schedule(StoreTask::default());
         manager.schedule(Watchdog {
