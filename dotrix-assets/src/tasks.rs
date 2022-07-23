@@ -13,6 +13,7 @@ impl dotrix::Task for LoadTask {
     fn run(&mut self, (file, assets): Self::Context) -> Self::Provides {
         use std::io::Read;
 
+        /*
         let file_name = file
             .path
             .file_stem()
@@ -26,15 +27,16 @@ impl dotrix::Task for LoadTask {
             .map(|e| e.to_str().unwrap())
             .unwrap_or("")
             .to_string();
+        */
 
         let mut list = None;
 
         for loader in assets.loaders() {
-            if loader.can_load(&extension) {
+            if loader.can_load(&file.path) {
                 if let Ok(mut fs_file) = std::fs::File::open(&file.path) {
                     let mut data = Vec::with_capacity(file.size);
                     if fs_file.read_to_end(&mut data).is_ok() {
-                        list = Some(loader.load(&file_name, &extension, data));
+                        list = Some(loader.load(&file.path, data));
                     } else {
                         log::error!("Could not read file {:?}", &file.path);
                     }
