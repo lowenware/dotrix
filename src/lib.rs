@@ -18,9 +18,14 @@
 use dotrix_gpu as gpu;
 use dotrix_window as window;
 
+pub use dotrix_assets as assets;
 pub use dotrix_core::{All, Any, Manager, Mut, Ref, State, Take, Task, Tasks};
+pub use dotrix_image as image;
 pub use dotrix_log::{self as log, Log};
-pub use dotrix_types::{Color, Id, Transform};
+pub use dotrix_mesh as mesh;
+pub use dotrix_shader as shader;
+pub use dotrix_types::vertex::{Bitangent, Normal, Position, Tangent, TexUV};
+pub use dotrix_types::{vertex, Color, Id, Transform};
 
 /*
 pub use dotrix_core::*;
