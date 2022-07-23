@@ -49,12 +49,13 @@ impl assets::Asset for Image {
 pub struct ImageLoader;
 
 impl assets::Loader for ImageLoader {
-    fn can_load(&self, extension: &str) -> bool {
-        image::ImageFormat::from_extension(extension).is_some()
+    fn can_load(&self, path: &std::path::Path) -> bool {
+        image::ImageFormat::from_path(path).is_ok()
     }
 
-    fn load(&self, name: &str, extension: &str, data: Vec<u8>) -> Vec<Box<dyn assets::Asset>> {
-        let format = image::ImageFormat::from_extension(extension).unwrap();
+    fn load(&self, path: &std::path::Path, data: Vec<u8>) -> Vec<Box<dyn assets::Asset>> {
+        let format = image::ImageFormat::from_path(path).unwrap();
+        let name = path.file_stem().map(|n| n.to_str().unwrap()).unwrap();
         let mut result = Vec::new();
         if let Ok(img) = image::load_from_memory_with_format(&data, format) {
             let img = img.into_rgba8();
@@ -62,7 +63,7 @@ impl assets::Loader for ImageLoader {
             let img = Image::new(name, width, height, img.into_vec());
             result.push(Box::new(img) as Box<dyn assets::Asset>);
         } else {
-            log::warn!("could not load image from '{}.{}'", name, extension);
+            log::warn!("could not load image from '{:?}'", path);
         }
         result
     }
