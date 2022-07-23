@@ -40,8 +40,8 @@ members = [
   "dotrix-gpu",
   "dotrix-log",
   "dotrix-mesh",
+  "dotrix-shader",
   "dotrix-types",
-  "dotrix-wgsl",
   "dotrix-window",
 #  "dotrix_sky",
 #  "dotrix_terrain",
@@ -56,8 +56,8 @@ dotrix_gltf = { path = "dotrix-gltf", version = "0.1.0" }
 dotrix_gpu = { path = "dotrix-gpu", version = "0.1.0" }
 dotrix_log = { path = "dotrix-log", version = "0.1.0" }
 dotrix_mesh = { path = "dotrix-mesh", version = "0.1.0" }
+dotrix_shader = { path = "dotrix-shader", version = "0.1.0" }
 dotrix_types = { path = "dotrix-types", version = "0.1.0" }
-dotrix_wgsl = { path = "dotrix-wgsl", version = "0.1.0" }
 dotrix_window = { path = "dotrix-window", version = "0.1.0" }
 
 # Optional dependencies
