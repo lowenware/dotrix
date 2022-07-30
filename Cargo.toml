@@ -32,11 +32,12 @@ path = "src/main.rs"
 members = [
   "dotrix-assets",
   "dotrix-core",
+  "dotrix-ecs",
   "dotrix-image",
 #  "dotrix_egui",
 #  "dotrix_overlay",
 #  "dotrix_pbr",
-  "dotrix-gltf",
+#  "dotrix-gltf",
   "dotrix-gpu",
   "dotrix-log",
   "dotrix-mesh",
@@ -51,8 +52,9 @@ members = [
 
 dotrix_assets = { path = "dotrix-assets", version = "0.1.0" }
 dotrix_core = { path = "dotrix-core", version = "0.6.0" }
+dotrix_ecs = { path = "dotrix-ecs", version = "0.1.0" }
 dotrix_image = { path = "dotrix-image", version = "0.1.0" }
-dotrix_gltf = { path = "dotrix-gltf", version = "0.1.0" }
+# dotrix_gltf = { path = "dotrix-gltf", version = "0.1.0" }
 dotrix_gpu = { path = "dotrix-gpu", version = "0.1.0" }
 dotrix_log = { path = "dotrix-log", version = "0.1.0" }
 dotrix_mesh = { path = "dotrix-mesh", version = "0.1.0" }

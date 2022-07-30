@@ -20,12 +20,16 @@ use dotrix_window as window;
 
 pub use dotrix_assets as assets;
 pub use dotrix_core::{All, Any, Extension, Manager, Mut, Ref, State, Take, Task, Tasks};
+pub use dotrix_ecs as ecs;
+pub use dotrix_ecs::World;
 pub use dotrix_image as image;
 pub use dotrix_log::{self as log, Log};
 pub use dotrix_mesh as mesh;
 pub use dotrix_shader as shader;
 pub use dotrix_types::vertex::{Bitangent, Normal, Position, Tangent, TexUV};
-pub use dotrix_types::{vertex, Color, Id, Transform};
+pub use dotrix_types::{type_lock, vertex, Color, Id, Transform};
+
+//pub use ecs::World;
 
 /*
 pub use dotrix_core::*;
@@ -185,10 +189,13 @@ impl<T: Application> From<T> for Core {
         let mut manager = Manager::new(settings.workers);
         let tasks = manager.context();
 
+        let world = World::new();
+
         app.init(&manager);
 
         manager.store(app);
         manager.store(tasks);
+        manager.store(world);
 
         Core {
             controller: Controller { manager, settings },
