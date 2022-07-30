@@ -482,7 +482,7 @@ dependencies = [
  "bytemuck",
  "dotrix_assets",
  "dotrix_core",
- "dotrix_gltf",
+ "dotrix_ecs",
  "dotrix_gpu",
  "dotrix_image",
  "dotrix_log",
@@ -512,8 +512,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "dotrix_gltf"
+name = "dotrix_ecs"
 version = "0.1.0"
+dependencies = [
+ "dotrix_types",
+]
 
 [[package]]
 name = "dotrix_gpu"
