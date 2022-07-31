@@ -30,7 +30,10 @@ fn main() {
         hot_reload: true,
     };
 
+    let camera = dotrix::camera::Extension::default();
+
     dotrix::run(studio, |core| {
         core.extend_with(assets);
+        core.extend_with(camera);
     });
 }

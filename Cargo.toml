@@ -31,6 +31,7 @@ path = "src/main.rs"
 [workspace]
 members = [
   "dotrix-assets",
+  "dotrix-camera",
   "dotrix-core",
   "dotrix-ecs",
   "dotrix-image",
@@ -51,6 +52,7 @@ members = [
 [dependencies]
 
 dotrix_assets = { path = "dotrix-assets", version = "0.1.0" }
+dotrix_camera = { path = "dotrix-camera", version = "0.1.0" }
 dotrix_core = { path = "dotrix-core", version = "0.6.0" }
 dotrix_ecs = { path = "dotrix-ecs", version = "0.1.0" }
 dotrix_image = { path = "dotrix-image", version = "0.1.0" }
