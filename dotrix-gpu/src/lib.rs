@@ -1,6 +1,8 @@
-mod renderer;
-// mod tasks;
-pub use renderer::{Renderer, RendererOptions};
+pub mod renderer;
+pub use renderer::{
+    ClearFrame, CommandEncoder, Commands, CreateFrame, Descriptor, Frame, PresentFrame, Renderer,
+    ResizeSurface, SubmitCommands, SurfaceSize,
+};
 //pub use tasks::*;
 
 #[cfg(test)]

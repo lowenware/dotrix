@@ -77,32 +77,20 @@ impl Manager {
     pub fn register_provider(&mut self, task: &scheduler::Task) {
         let mut entry = self
             .data
-            .entry(task.provides())
+            .entry(task.output_type_id())
             .or_insert(DataSlot::from(task));
         entry.providers += 1;
     }
 
     pub fn provide(&mut self, type_id: TypeId, data: Box<dyn std::any::Any + Send + 'static>) {
-        if let Some(entry) = self.data.get_mut(&type_id) {
-            entry.instances.push(data);
-            entry.instances_count += 1;
-        }
+        let mut entry = self.data.entry(type_id).or_insert(DataSlot::default());
+        entry.instances.push(data);
+        entry.instances_count += 1;
     }
 
     fn provide_fake(&mut self, type_id: TypeId) {
         if let Some(entry) = self.data.get_mut(&type_id) {
             entry.instances_count += 1;
-        }
-    }
-
-    pub fn subscribe(&mut self, type_id: TypeId) {
-        let mut entry = self.data.entry(type_id).or_insert(DataSlot::default());
-        entry.notify = true;
-    }
-
-    pub fn unsubscribe(&mut self, type_id: TypeId) {
-        if let Some(entry) = self.data.get_mut(&type_id) {
-            entry.notify = false;
         }
     }
 
@@ -185,11 +173,14 @@ impl Manager {
     }
 
     pub fn reset_data(&mut self, reset_providers: bool) {
-        for entry in self.data.values_mut() {
-            entry.instances.clear();
-            entry.instances_count = 0;
-            if reset_providers {
-                entry.providers = 0;
+        let loop_type_id = std::any::TypeId::of::<scheduler::Loop>();
+        for (type_id, entry) in self.data.iter_mut() {
+            if entry.providers != 0 || *type_id == loop_type_id {
+                entry.instances.clear();
+                entry.instances_count = 0;
+                if reset_providers {
+                    entry.providers = 0;
+                }
             }
         }
     }
@@ -247,7 +238,7 @@ impl Manager {
                         {
                             self.register_provider(task);
                             // TODO: add fake provision
-                            self.provide_fake(task.provides());
+                            self.provide_fake(task.output_type_id());
                             dependencies.insert(task.id(), dependencies_state);
                             executed_something = true;
                         }
@@ -285,13 +276,12 @@ struct DataSlot {
     instances: Vec<Box<dyn std::any::Any + Send + 'static>>,
     instances_count: u32,
     providers: u32,
-    notify: bool,
 }
 
 impl From<&scheduler::Task> for DataSlot {
     fn from(task: &scheduler::Task) -> Self {
         DataSlot {
-            name: String::from(task.provides_as_str()),
+            name: String::from(task.output_as_str()),
             ..Default::default()
         }
     }
@@ -501,7 +491,7 @@ macro_rules! impl_tuple_accessor {
                     .map(|d| d.unwrap())
                     .collect::<HashMap<_, _>>();
                 data.insert(
-                    std::any::TypeId::of::<scheduler::Start>(),
+                    std::any::TypeId::of::<scheduler::Loop>(),
                     DependencyType::Any(0)
                 );
                 Dependencies {
@@ -710,6 +700,12 @@ pub struct Take<T: Context> {
     data: T,
 }
 
+impl<T: 'static> Take<T> {
+    pub fn unwrap(self) -> T {
+        self.data
+    }
+}
+
 impl<T> Deref for Take<T>
 where
     T: Context,
@@ -757,7 +753,7 @@ where
     }
 
     fn lock() -> Option<(std::any::TypeId, LockType)> {
-        Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
+        Some((std::any::TypeId::of::<T>(), LockType::Mut))
     }
 
     fn dependency() -> Option<(std::any::TypeId, DependencyType)> {
@@ -820,6 +816,57 @@ where
 
     fn lock() -> Option<(std::any::TypeId, LockType)> {
         Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
+    }
+
+    fn dependency() -> Option<(std::any::TypeId, DependencyType)> {
+        Some((std::any::TypeId::of::<T>(), DependencyType::All(0)))
+    }
+}
+
+/// Selector for collection of all dependencies
+#[derive(Debug)]
+pub struct Collect<T: Context> {
+    inner: Vec<T>,
+}
+
+impl<T: Context> Collect<T> {
+    pub fn count(&self) -> usize {
+        self.inner.len()
+    }
+
+    pub fn collect(self) -> Vec<T> {
+        self.inner
+    }
+}
+
+unsafe impl<T: Context> Send for Collect<T> {}
+unsafe impl<T: Context> Sync for Collect<T> {}
+
+impl<T> Selector for Collect<T>
+where
+    T: Context,
+{
+    type DataSlot = T;
+
+    fn fetch(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
+        manager.get_data::<T>().map(|d| {
+            let capacity = d.instances.len();
+            let list = unsafe {
+                &mut *(&d.instances as *const Vec<Box<dyn std::any::Any + Send>>
+                    as *mut Vec<Box<dyn std::any::Any>>)
+            };
+            let mut collected = Vec::with_capacity(capacity);
+
+            for i in (0..capacity).rev() {
+                collected.insert(i, *list.pop().unwrap().downcast::<T>().unwrap());
+            }
+
+            Collect { inner: collected }
+        })
+    }
+
+    fn lock() -> Option<(std::any::TypeId, LockType)> {
+        Some((std::any::TypeId::of::<T>(), LockType::Mut))
     }
 
     fn dependency() -> Option<(std::any::TypeId, DependencyType)> {

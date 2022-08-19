@@ -1,15 +1,14 @@
 mod context;
 mod scheduler;
-mod task;
+pub mod task;
 mod worker;
 
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::thread;
 
-use dotrix_log::info;
-// TODO: do not export Done
-pub use context::{All, Any, Mut, Ref, State, Take};
-pub use scheduler::Done;
+use dotrix_log as log;
+
+pub use context::{All, Any, Collect, Mut, Ref, State, Take};
 pub use task::Task;
 
 pub const NAMESPACE: u64 = 0x646f7472_69780000;
@@ -54,7 +53,7 @@ impl Tasks {
 
 impl Manager {
     pub fn new(workers_count: u32) -> Self {
-        info!("Initializing manager with {} workers", workers_count);
+        log::info!("Initializing manager with {} workers", workers_count);
         let context_manager = Arc::new(Mutex::new(context::Manager::new()));
         let (scheduler_tx, scheduler_rx) = mpsc::channel();
         let (worker_tx, worker_rx) = mpsc::channel();
@@ -117,16 +116,24 @@ impl Manager {
     }
 
     pub fn run(&self) {
-        self.provide(scheduler::Start::default());
+        self.provide(scheduler::Loop::default());
     }
 
-    pub fn wait(&self) {
+    pub fn wait_for<T: std::any::Any>(&self) -> T {
         loop {
             let message = self.control_rx.recv().expect("Message to be received");
-            if let scheduler::Message::Provide(type_id, _) = message {
-                if type_id == std::any::TypeId::of::<scheduler::Done>() {
-                    return;
+            if let scheduler::Message::Provide(type_id, data) = message {
+                if let Ok(downcasted_data) = data.downcast::<T>() {
+                    return *downcasted_data;
                 }
+            }
+        }
+    }
+    pub fn wait_message(&self) -> Box<dyn std::any::Any> {
+        loop {
+            let message = self.control_rx.recv().expect("Message to be received");
+            if let scheduler::Message::Provide(type_id, data) = message {
+                return data;
             }
         }
     }

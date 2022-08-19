@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 dotrix_core = { version = "0.6", path = "../dotrix-core" }
+dotrix_log = { version = "0.1", path = "../dotrix-log" }
 dotrix_types = { version = "0.1", path = "../dotrix-types" }
 dotrix_window = { path = "../dotrix-window", version = "0.1.0" }
 futures = {version = "0.3", default-features = false, features = ["std", "executor"] }
