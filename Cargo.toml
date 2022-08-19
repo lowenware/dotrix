@@ -37,7 +37,7 @@ members = [
   "dotrix-image",
 #  "dotrix_egui",
 #  "dotrix_overlay",
-#  "dotrix_pbr",
+  "dotrix-pbr",
 #  "dotrix-gltf",
   "dotrix-gpu",
   "dotrix-log",
@@ -50,56 +50,35 @@ members = [
 ]
 
 [dependencies]
-
-dotrix_assets = { path = "dotrix-assets", version = "0.1.0" }
-dotrix_camera = { path = "dotrix-camera", version = "0.1.0" }
-dotrix_core = { path = "dotrix-core", version = "0.6.0" }
-dotrix_ecs = { path = "dotrix-ecs", version = "0.1.0" }
-dotrix_image = { path = "dotrix-image", version = "0.1.0" }
+# Dotrix crates
+dotrix_assets = { path = "dotrix-assets", version = "0.1" }
+dotrix_camera = { path = "dotrix-camera", version = "0.1" }
+dotrix_core = { path = "dotrix-core", version = "0.6" }
+dotrix_ecs = { path = "dotrix-ecs", version = "0.1" }
+dotrix_image = { path = "dotrix-image", version = "0.1" }
 # dotrix_gltf = { path = "dotrix-gltf", version = "0.1.0" }
-dotrix_gpu = { path = "dotrix-gpu", version = "0.1.0" }
-dotrix_log = { path = "dotrix-log", version = "0.1.0" }
-dotrix_mesh = { path = "dotrix-mesh", version = "0.1.0" }
-dotrix_shader = { path = "dotrix-shader", version = "0.1.0" }
-dotrix_types = { path = "dotrix-types", version = "0.1.0" }
-dotrix_window = { path = "dotrix-window", version = "0.1.0" }
+dotrix_gpu = { path = "dotrix-gpu", version = "0.1" }
+dotrix_log = { path = "dotrix-log", version = "0.1" }
+dotrix_math = { path = "dotrix-math", version = "0.4" }
+dotrix_mesh = { path = "dotrix-mesh", version = "0.1" }
+dotrix_pbr = { path = "dotrix-pbr", version = "0.3"}
+dotrix_shader = { path = "dotrix-shader", version = "0.1" }
+dotrix_types = { path = "dotrix-types", version = "0.1" }
+dotrix_window = { path = "dotrix-window", version = "0.1" }
 
-# Optional dependencies
+# Optional Dotrix crates
 
-#[dependencies.dotrix_overlay]
-#version = "0.1"
-#path = "./dotrix_overlay"
-#optional = true
+#dotrix_overlay = { version = "0.1", path = "./dotrix-overlay", optional = true }
+#dotrix_egui = { version = "0.5", path = "./dotrix-egui", optional = true }
+#dotrix_sky = { version = "0.1", path = "./dotrix-sky", optional = true }
+#dotrix_terrain = { version = "0.5", path = "./dotrix-terrain", optional = true }
 
-#[dependencies.dotrix_egui]
-#version = "0.5"
-#path = "./dotrix_egui"
-#optional = true
+# Dependencies
+rand = "0.8"
 
-#[dependencies.dotrix_pbr]
-#version = "0.2"
-#path = "./dotrix_pbr"
-#optional = true
-
-#[dependencies.dotrix_sky]
-#version = "0.1"
-#path = "./dotrix_sky"
-#optional = true
-
-#[dependencies.dotrix_terrain]
-#version = "0.5"
-#path = "./dotrix_terrain"
-#optional = true
-
-[dependencies.rand]
-version = "0.8"
-
-[dev-dependencies.noise]
-version = "0.7"
-
-[dev-dependencies.bytemuck]
-version = "1.4"
-features = ["derive"]
+[dev-dependencies]
+noise = { version = "0.7" }
+bytemuck = { version = "1.4", features = ["derive"] }
 
 #[[example]]
 #name = "demo"

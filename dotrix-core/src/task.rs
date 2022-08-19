@@ -4,24 +4,37 @@ use std::sync::{Arc, Mutex};
 
 pub type Id = u32;
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum OutputChannel {
+    /// Send result to pool
+    Pool,
+    /// Send result to scheduler
+    Scheduler,
+}
+
 pub trait Task: 'static + Send + Sync + Sized {
     type Context: context::TupleSelector;
-    type Provides: 'static + Send;
+    type Output: 'static + Send;
 
-    fn run(&mut self, ctx: Self::Context) -> Self::Provides;
+    fn run(&mut self, ctx: Self::Context) -> Self::Output;
+
+    fn output_channel(&self) -> OutputChannel {
+        OutputChannel::Pool
+    }
 
     fn boxify(mut self) -> Box<dyn Executable> {
         use context::TupleSelector;
         let task_box: TaskBox<_> = TaskBox {
             id: 0,
             type_id: TypeId::of::<Self>(),
-            provides_type_id: TypeId::of::<Self::Provides>(),
-            provides_type_name: String::from(type_name::<Self::Provides>()),
+            output_type_id: TypeId::of::<Self::Output>(),
+            output_type_name: String::from(type_name::<Self::Output>()),
             name: type_name::<Self>(),
             lock: <Self::Context>::lock(),
             dependencies: <Self::Context>::dependencies(),
             states: <Self::Context>::states(),
             dependencies_state: None,
+            output_channel: self.output_channel(),
             run: move |context_manager, dependencies| {
                 let task_context = context_manager
                     .lock()
@@ -44,12 +57,13 @@ where
 {
     id: Id,
     type_id: TypeId,
-    provides_type_id: TypeId,
-    provides_type_name: String,
+    output_type_id: TypeId,
+    output_type_name: String,
     name: &'static str,
     lock: context::Lock,
     dependencies: context::Dependencies,
     states: Vec<TypeId>,
+    output_channel: OutputChannel,
     run: F,
     dependencies_state: Option<context::Dependencies>,
 }
@@ -75,10 +89,10 @@ pub trait Executable: Send + Sync {
     fn type_id(&self) -> TypeId;
 
     /// Get type id of result
-    fn provides(&self) -> TypeId;
+    fn output_type_id(&self) -> TypeId;
 
     /// Get type id of result
-    fn provides_as_str(&self) -> &str;
+    fn output_as_str(&self) -> &str;
 
     /// Get lock for context
     fn lock(&self) -> &context::Lock;
@@ -97,6 +111,9 @@ pub trait Executable: Send + Sync {
 
     /// Reset dependencies
     fn reset(&mut self);
+
+    /// Returns channel where output of the task must be provided
+    fn output_channel(&self) -> OutputChannel;
 }
 
 impl<F> Executable for TaskBox<F>
@@ -134,12 +151,16 @@ where
         self.type_id
     }
 
-    fn provides(&self) -> TypeId {
-        self.provides_type_id
+    fn output_type_id(&self) -> TypeId {
+        self.output_type_id
     }
 
-    fn provides_as_str(&self) -> &str {
-        &self.provides_type_name
+    fn output_as_str(&self) -> &str {
+        &self.output_type_name
+    }
+
+    fn output_channel(&self) -> OutputChannel {
+        self.output_channel
     }
 
     fn lock(&self) -> &context::Lock {

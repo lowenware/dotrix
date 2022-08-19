@@ -8,9 +8,9 @@ pub struct LoadTask {}
 
 impl dotrix::Task for LoadTask {
     type Context = (dotrix::Any<File>, dotrix::Ref<Assets>);
-    type Provides = Bundle;
+    type Output = Bundle;
 
-    fn run(&mut self, (file, assets): Self::Context) -> Self::Provides {
+    fn run(&mut self, (file, assets): Self::Context) -> Self::Output {
         use std::io::Read;
 
         /*
@@ -63,9 +63,9 @@ pub struct StoreTask {}
 
 impl dotrix::Task for StoreTask {
     type Context = (dotrix::Take<Bundle>, dotrix::Mut<Assets>);
-    type Provides = Resource;
+    type Output = Resource;
 
-    fn run(&mut self, (mut bundle, mut assets): Self::Context) -> Self::Provides {
+    fn run(&mut self, (mut bundle, mut assets): Self::Context) -> Self::Output {
         use crate::Asset;
 
         let mut meta = Vec::<(String, String)>::with_capacity(bundle.assets.len());
@@ -101,9 +101,9 @@ impl Default for Watchdog {
 
 impl dotrix::Task for Watchdog {
     type Context = (dotrix::Ref<Assets>, dotrix::Ref<dotrix::Tasks>);
-    type Provides = ();
+    type Output = ();
 
-    fn run(&mut self, (assets, tasks): Self::Context) -> Self::Provides {
+    fn run(&mut self, (assets, tasks): Self::Context) -> Self::Output {
         for resource in assets.resources() {
             if let Ok(metadata) = std::fs::metadata(&resource.path) {
                 if let Ok(resource_modified) = metadata.modified() {

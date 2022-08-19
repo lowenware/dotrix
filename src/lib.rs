@@ -134,6 +134,9 @@ impl Default for Settings {
 struct Controller {
     manager: Manager,
     settings: Settings,
+    //debug:
+    count: u32,
+    instant: std::time::Instant,
 }
 
 impl window::Controller for Controller {
@@ -141,17 +144,25 @@ impl window::Controller for Controller {
         self.settings.fps
     }
 
-    fn init(&mut self, handle: window::Handle) {
-        let renderer = gpu::Renderer::new(&handle, gpu::RendererOptions::default());
-        renderer.clear();
-        let window = window::Window::new(handle);
+    fn init(&mut self, window_handle: window::Handle, width: u32, height: u32) {
+        let renderer = gpu::Renderer::new(gpu::Descriptor {
+            window_handle: &window_handle,
+            fps_request: self.settings.fps,
+            surface_size: [width, height],
+            sample_count: 2, // TODO: MSAA setting
+        });
+        let window = window::Window::new(window_handle);
         // window.set_title(&self.settings.title);
         // window.set_full_screen(self.settings.full_screen);
 
         self.manager.store(window);
         self.manager.store(renderer);
-        // TODO: cleanup
-        // self.manager.add(DummyTask {});
+        // rendering tasks
+        self.manager.schedule(gpu::CreateFrame::default());
+        self.manager.schedule(gpu::ClearFrame::default());
+        self.manager.schedule(gpu::SubmitCommands::default());
+        self.manager.schedule(gpu::PresentFrame::default());
+        self.manager.schedule(gpu::ResizeSurface::default());
         self.manager.run();
     }
 
@@ -161,14 +172,22 @@ impl window::Controller for Controller {
 
     fn on_input(&mut self /* input_event */) {}
 
-    fn on_resize(&mut self, _width: u32, _height: u32) {}
+    fn on_resize(&mut self, width: u32, height: u32) {
+        log::info!("provide new size: {}x{}", width, height);
+        self.manager.provide(gpu::SurfaceSize { width, height });
+    }
 
     fn on_close(&mut self) {}
 
     fn on_draw(&mut self) {
-        self.manager.wait();
-        println!("Draw");
+        self.count += 1;
+        self.manager.wait_for::<gpu::PresentFrame>();
         self.manager.run();
+        if self.instant.elapsed().as_secs_f32() >= 1.0 {
+            log::info!("real fps: {}", self.count);
+            self.instant = std::time::Instant::now();
+            self.count = 0;
+        }
     }
 }
 
@@ -205,7 +224,12 @@ impl<T: Application> From<T> for Core {
         manager.store(world);
 
         Core {
-            controller: Controller { manager, settings },
+            controller: Controller {
+                manager,
+                settings,
+                count: 0,
+                instant: std::time::Instant::now(),
+            },
             extensions: Extensions::default(),
         }
     }

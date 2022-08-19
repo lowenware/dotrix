@@ -1,4 +1,4 @@
-use dotrix::log::{error, info, warn};
+use dotrix::log;
 
 struct Studio {}
 
@@ -17,7 +17,15 @@ impl dotrix::Application for Studio {
 }
 
 fn main() {
-    dotrix::log::subscribe(dotrix::Log::default());
+    let log = dotrix::Log {
+        targets: vec![
+            (String::from("wgpu"), log::LevelFilter::Warn),
+            (String::from("dotrix"), log::LevelFilter::Debug),
+            (String::from(""), log::LevelFilter::Debug),
+        ],
+        ..Default::default()
+    };
+    log::subscribe(log);
 
     let studio = Studio::new();
 

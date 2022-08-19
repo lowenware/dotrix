@@ -26,7 +26,7 @@ impl Window {
 pub trait Controller: Sized + 'static {
     fn fps(&self) -> f32;
 
-    fn init(&mut self, handle: Handle);
+    fn init(&mut self, handle: Handle, width: u32, height: u32);
 
     fn close_request(&self) -> bool;
 
@@ -48,9 +48,15 @@ pub trait Controller: Sized + 'static {
         let mut pool = futures::executor::LocalPool::new();
         let _spawner = pool.spawner();
 
-        self.init(Handle {
-            window: Arc::clone(&window),
-        });
+        let window_size = window.inner_size();
+
+        self.init(
+            Handle {
+                window: Arc::clone(&window),
+            },
+            window_size.width,
+            window_size.height,
+        );
 
         let mut last_frame = std::time::Instant::now();
 
