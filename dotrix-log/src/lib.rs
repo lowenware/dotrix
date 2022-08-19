@@ -15,7 +15,7 @@ impl Default for Log {
             targets: vec![
                 (String::from("wgpu"), LevelFilter::Warn),
                 (String::from("dotrix"), LevelFilter::Info),
-                (String::from(""), LevelFilter::Info),
+                (String::from(""), LevelFilter::Debug),
             ],
         }
     }
