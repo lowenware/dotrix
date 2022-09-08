@@ -28,7 +28,7 @@ impl TypeLock {
 
     pub fn lock(&mut self, locks: &[Lock]) -> bool {
         for lock in locks.iter() {
-            let can_lock = !match lock {
+            let can_lock = match lock {
                 Lock::ReadOnly(type_id) => self
                     .data
                     .get(type_id)
