@@ -64,6 +64,11 @@ impl<T> Id<T> {
         }
     }
 
+    /// Construct new null id
+    pub fn null() -> Self {
+        Self::new(0, 0)
+    }
+
     /// Checks if id is null
     pub fn is_null(&self) -> bool {
         self.value.is_nil()
@@ -72,6 +77,11 @@ impl<T> Id<T> {
     /// Returns reference to internal Uuid instance
     pub fn uuid(&self) -> &uuid::Uuid {
         &self.value
+    }
+
+    /// Clones the Id under another type cast
+    pub fn cast<N>(&self) -> Id<N> {
+        Id::from(self.uuid().clone())
     }
 }
 
@@ -129,6 +139,9 @@ impl<T> Default for Id<T> {
         }
     }
 }
+
+unsafe impl<T> Send for Id<T> {}
+unsafe impl<T> Sync for Id<T> {}
 
 #[cfg(test)]
 mod tests {

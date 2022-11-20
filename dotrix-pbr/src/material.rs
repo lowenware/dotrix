@@ -1,150 +1,79 @@
-use dotrix_core::assets::Texture;
-use dotrix_core::ecs::Mut;
-use dotrix_core::renderer::Buffer;
-use dotrix_core::{Assets, Color, Id, Renderer};
+use dotrix_assets as assets;
+use dotrix_image as image;
+use dotrix_types::{id, Color, Id};
 
-const DUMMY_TEXTURE: &str = "dotrix::dummy_texture";
+pub const MAP_DISABLED: u32 = 0xFFFFFFFF;
 
 /// Material component
 pub struct Material {
-    /// Id of a texture asset
-    pub texture: Id<Texture>,
+    /// Label or material name
+    pub label: String,
     /// Albedo color
     pub albedo: Color,
-    /// Roughness (Random scatter)
-    pub roughness: f32,
-    /// Id of a roughness texture asset
-    pub roughness_texture: Id<Texture>,
+    /// Id of a texture asset
+    pub albedo_map: Id<image::Image>,
+    // Ambient occulsion
+    pub ambient_occlusion: f32,
+    /// Id of a ao texture asset
+    pub ambient_occlusion_map: Id<image::Image>,
     /// Metallic (reflectance)
     pub metallic: f32,
     /// Id of a metallic texture asset
-    pub metallic_texture: Id<Texture>,
-    // Ambient occulsion
-    pub ao: f32,
-    /// Id of a ao texture asset
-    pub ao_texture: Id<Texture>,
+    pub metallic_map: Id<image::Image>,
     /// Id of a normal map asset
-    pub normal_texture: Id<Texture>,
-    /// Pipeline buffer
-    pub uniform: Buffer,
+    pub normal_map: Id<image::Image>,
+    /// Roughness (Random scatter)
+    pub roughness: f32,
+    /// Id of a roughness texture asset
+    pub roughness_map: Id<image::Image>,
 }
 
 impl Default for Material {
     fn default() -> Self {
         Self {
-            texture: Id::default(),
+            label: String::from("dotrix::material"),
             albedo: Color::white(),
-            roughness: 1.0,
-            roughness_texture: Id::default(),
+            albedo_map: Id::default(),
+            ambient_occlusion: 1.0,
+            ambient_occlusion_map: Id::default(),
             metallic: 1.0,
-            metallic_texture: Id::default(),
-            ao: 1.0,
-            ao_texture: Id::default(),
-            normal_texture: Id::default(),
-            uniform: Buffer::uniform("Material Buffer"),
+            metallic_map: Id::default(),
+            normal_map: Id::default(),
+            roughness: 1.0,
+            roughness_map: Id::default(),
         }
-    }
-}
-
-impl Material {
-    /// Loads the [`Material`] into GPU buffers
-    pub fn load(&mut self, renderer: &Renderer, assets: &mut Assets) -> bool {
-        let dummy_id = assets
-            .find::<Texture>(DUMMY_TEXTURE)
-            .expect("System `dotrix::pbr::material::startup` must be executed");
-        if self.texture.is_null() {
-            self.texture = dummy_id;
-        }
-        if self.roughness_texture.is_null() {
-            self.roughness_texture = dummy_id;
-        }
-        if self.metallic_texture.is_null() {
-            self.metallic_texture = dummy_id;
-        }
-        if self.ao_texture.is_null() {
-            self.ao_texture = dummy_id;
-        }
-        if self.normal_texture.is_null() {
-            self.normal_texture = dummy_id;
-        }
-
-        if let Some(texture) = assets.get_mut(self.texture) {
-            texture.load(renderer);
-        } else {
-            return false;
-        }
-        if let Some(texture) = assets.get_mut(self.roughness_texture) {
-            texture.load(renderer);
-        } else {
-            return false;
-        }
-        if let Some(texture) = assets.get_mut(self.metallic_texture) {
-            texture.load(renderer);
-        } else {
-            return false;
-        }
-        if let Some(texture) = assets.get_mut(self.ao_texture) {
-            texture.load(renderer);
-        } else {
-            return false;
-        }
-        if let Some(texture) = assets.get_mut(self.normal_texture) {
-            texture.load(renderer);
-        } else {
-            return false;
-        }
-
-        let mut has_texture: u32 = 0;
-        if self.texture != dummy_id {
-            has_texture |= 0b00001;
-        }
-        if self.roughness_texture != dummy_id {
-            has_texture |= 0b00010;
-        }
-        if self.metallic_texture != dummy_id {
-            has_texture |= 0b00100;
-        }
-        if self.ao_texture != dummy_id {
-            has_texture |= 0b01000;
-        }
-        if self.normal_texture != dummy_id {
-            has_texture |= 0b10000;
-        }
-
-        let uniform = Uniform {
-            albedo: self.albedo.into(),
-            has_texture,
-            roughness: self.roughness,
-            metallic: self.metallic,
-            ao: self.ao,
-        };
-
-        renderer.load_buffer(&mut self.uniform, bytemuck::cast_slice(&[uniform]));
-        true
     }
 }
 
 #[repr(C)]
 #[derive(Default, Debug, Clone, Copy)]
-struct Uniform {
-    albedo: [f32; 4],
-    has_texture: u32,
-    roughness: f32,
-    metallic: f32,
-    ao: f32,
+pub struct MaterialUniform {
+    /// Albedo color RGBA
+    pub color: [f32; 4],
+    /// Order: ambient_occlusion, metallic, roughness
+    pub options: [f32; 4],
+    /// Indices of PBR maps in the buffer
+    /// Order: ambient_occlusion, metallic, normal, roughness
+    pub maps_1: [u32; 4],
+    /// Index of Color map in the buffer + 3 reserved values
+    pub maps_2: [u32; 4],
 }
 
-unsafe impl bytemuck::Zeroable for Uniform {}
-unsafe impl bytemuck::Pod for Uniform {}
+unsafe impl bytemuck::Pod for MaterialUniform {}
+unsafe impl bytemuck::Zeroable for MaterialUniform {}
 
-/// Material startup function
-pub fn startup(mut assets: Mut<Assets>) {
-    let texture = Texture {
-        width: 1,
-        height: 1,
-        depth: 1,
-        data: vec![0, 0, 0, 0],
-        ..Default::default()
-    };
-    assets.store_as(texture, DUMMY_TEXTURE);
+impl id::NameSpace for Material {
+    fn namespace() -> u64 {
+        assets::NAMESPACE | 0x21
+    }
+}
+
+impl assets::Asset for Material {
+    fn name(&self) -> &str {
+        &self.label
+    }
+
+    fn namespace(&self) -> u64 {
+        <Self as id::NameSpace>::namespace()
+    }
 }

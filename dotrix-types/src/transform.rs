@@ -63,11 +63,11 @@ pub struct Transform {
 
 impl Transform {
     /// Constructs new transformation with values that won't change the model
-    pub fn new() -> Self {
+    pub fn new(translate: Vec3, rotate: Quat, scale: Vec3) -> Self {
         Self {
-            translate: Vec3::new(0.0, 0.0, 0.0),
-            rotate: Quat::from_angle_y(Rad(0.0)),
-            scale: Vec3::new(1.0, 1.0, 1.0),
+            translate,
+            rotate,
+            scale,
         }
     }
 
@@ -139,6 +139,10 @@ impl Transform {
 
 impl Default for Transform {
     fn default() -> Self {
-        Self::new()
+        Self {
+            translate: Vec3::new(0.0, 0.0, 0.0),
+            rotate: Quat::from_angle_y(Rad(0.0)),
+            scale: Vec3::new(1.0, 1.0, 1.0),
+        }
     }
 }

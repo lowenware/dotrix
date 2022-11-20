@@ -8,10 +8,90 @@ use dotrix_core as dotrix;
 use dotrix_types::Id;
 
 pub use asset::{Asset, Bundle, File, Resource};
+use core::ops::{Deref, DerefMut};
 pub use loader::{LoadError, Loader};
 pub use tasks::{LoadTask, StoreTask, Watchdog};
 
 pub const NAMESPACE: u64 = dotrix::NAMESPACE | 0x0100;
+
+// TODO: update asset version on rewrite
+struct Slot {
+    name: String,
+    version: u32,
+    asset: Box<dyn Asset>,
+}
+
+impl Slot {
+    pub fn new(asset: Box<dyn Asset>) -> Self {
+        Self::named(asset, Default::default())
+    }
+
+    pub fn named(asset: Box<dyn Asset>, name: String) -> Self {
+        Self {
+            name,
+            version: 0,
+            asset,
+        }
+    }
+
+    pub fn link<T: Asset>(&self) -> Option<Link<&T>> {
+        let version = self.version;
+        let name = &self.name;
+        self.asset.downcast_ref::<T>().map(|asset| Link {
+            name,
+            version,
+            asset,
+        })
+    }
+
+    pub fn link_mut<T: Asset>(&mut self) -> Option<Link<&mut T>> {
+        let version = self.version;
+        let name = &self.name;
+        self.asset.downcast_mut::<T>().map(|asset| Link {
+            name,
+            version,
+            asset,
+        })
+    }
+}
+
+pub struct Link<'a, T> {
+    name: &'a str,
+    version: u32,
+    asset: T,
+}
+
+impl<'a, T> Link<'a, T> {
+    pub fn name(&self) -> &str {
+        self.name
+    }
+
+    pub fn version(&self) -> u32 {
+        self.version
+    }
+}
+
+impl<'a, T> Deref for Link<'a, &'a T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.asset
+    }
+}
+
+impl<'a, T> Deref for Link<'a, &'a mut T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        self.asset
+    }
+}
+
+impl<'a, T> DerefMut for Link<'a, &'a mut T> {
+    fn deref_mut(&mut self) -> &mut T {
+        self.asset
+    }
+}
+
+// TODO: update asset version on rewrite
 
 /// Assets management service
 pub struct Assets {
@@ -20,7 +100,7 @@ pub struct Assets {
     /// Index of IDs assigned by asset name
     registry: HashMap<String, uuid::Uuid>,
     /// Id indexed assets map
-    map: HashMap<uuid::Uuid, Box<dyn Asset>>,
+    map: HashMap<uuid::Uuid, Slot>,
     /// Resources registry indexed by file path
     resources: HashMap<std::path::PathBuf, Resource>,
     /// Asset Loaders
@@ -103,14 +183,15 @@ impl Assets {
     /// Stores an asset under user defined name and returns [`Id`] of it
     pub fn store_as<T: Asset>(&mut self, asset: T, name: &str) -> Id<T> {
         let id = self.register(name);
-        self.map.insert(*id.uuid(), Box::new(asset));
+        self.map
+            .insert(*id.uuid(), Slot::named(Box::new(asset), String::from(name)));
         id
     }
 
     /// Stores an asset and returns [`Id`] of it
     pub fn store<T: Asset>(&mut self, asset: T) -> Id<T> {
         let id = T::id(self.next_id());
-        self.map.insert(*id.uuid(), Box::new(asset));
+        self.map.insert(*id.uuid(), Slot::new(Box::new(asset)));
         id
     }
 
@@ -122,7 +203,7 @@ impl Assets {
             .map(|id| *id)
             .unwrap_or_else(|| uuid::Uuid::from_u64_pair(asset.namespace(), self.next_id()));
 
-        self.map.insert(uuid, asset);
+        self.map.insert(uuid, Slot::new(asset));
     }
 
     /// Searches for an asset by the name and return [`Id`] of it if the asset exists
@@ -131,26 +212,20 @@ impl Assets {
     }
 
     /// Searches an asset by its [`Id`] and returns it by a reference if the asset exists
-    pub fn get<T: Asset>(&self, id: Id<T>) -> Option<&T> {
-        self.map
-            .get(id.uuid())
-            .map(|a| a.downcast_ref::<T>())
-            .unwrap_or(None)
+    pub fn get<T: Asset>(&self, id: Id<T>) -> Option<Link<&T>> {
+        self.map.get(id.uuid()).and_then(|a| a.link::<T>())
     }
 
     /// Searches an asset by its [`Id`] and returns it by a mutual reference if the asset exists
-    pub fn get_mut<T: Asset>(&mut self, id: Id<T>) -> Option<&mut T> {
-        self.map
-            .get_mut(id.uuid())
-            .map(|a| a.downcast_mut::<T>())
-            .unwrap_or(None)
+    pub fn get_mut<T: Asset>(&mut self, id: Id<T>) -> Option<Link<&mut T>> {
+        self.map.get_mut(id.uuid()).and_then(|a| a.link_mut::<T>())
     }
 
     /// Removes an asset from the Service and returns it if the asset exists
     pub fn remove<T: Asset>(&mut self, id: Id<T>) -> Option<T> {
-        self.map
-            .remove(id.uuid())
-            .map(|a| *(unsafe { Box::from_raw((Box::leak(a) as *mut dyn Asset) as *mut T) }))
+        self.map.remove(id.uuid()).map(|slot| {
+            *(unsafe { Box::from_raw((Box::leak(slot.asset) as *mut dyn Asset) as *mut T) })
+        })
     }
 
     pub(crate) fn resource(&mut self, path: std::path::PathBuf) -> &mut Resource {
@@ -219,19 +294,19 @@ mod tests {
     struct DummyLoader(u32);
 
     impl Loader for DummyLoader {
-        fn can_load(&self, _: &str) -> bool {
+        fn can_load(&self, _: &std::path::Path) -> bool {
             false
         }
 
-        fn load(&self, path: &std::path::Path) -> Result<Resource, LoadError> {
-            Err(LoadError::OpenFile)
+        fn load(&self, path: &std::path::Path, data: Vec<u8>) -> Vec<Box<dyn Asset>> {
+            vec![]
         }
     }
 
     #[test]
     fn install_uninstall_loader() {
         let control_value = 57651236;
-        let mut assets = Assets::new();
+        let mut assets = Assets::new(std::path::Path::new("./"));
         assets.install(DummyLoader(control_value));
         let loader: Option<DummyLoader> = assets.uninstall();
         assert_eq!(loader.is_some(), true);

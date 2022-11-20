@@ -1,6 +1,9 @@
+mod states;
+
 use dotrix::log;
 
-struct Studio {}
+/// This can be used in tasks context
+pub struct Studio {}
 
 impl Studio {
     fn new() -> Self {
@@ -13,7 +16,9 @@ impl dotrix::Application for Studio {
         settings.title = String::from("Dotrix Studio");
     }
 
-    fn init(&self, manager: &dotrix::Manager) {}
+    fn init(&self, manager: &mut dotrix::Manager) {
+        manager.schedule(states::Startup::new());
+    }
 }
 
 fn main() {
@@ -40,8 +45,11 @@ fn main() {
 
     let camera = dotrix::camera::Extension::default();
 
+    let pbr = dotrix::pbr::Extension::default();
+
     dotrix::run(studio, |core| {
         core.extend_with(assets);
         core.extend_with(camera);
+        core.extend_with(pbr);
     });
 }
