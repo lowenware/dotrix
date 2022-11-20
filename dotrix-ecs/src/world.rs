@@ -85,7 +85,7 @@ impl World {
         let iter = self
             .content
             .iter()
-            .filter(|&container| Q::matches(container))
+            .filter(|container| Q::matches(container))
             .flat_map(|container| Q::select(container));
 
         QueryIter {
@@ -98,7 +98,7 @@ impl World {
     /// Execute a system for each entity in the world
     pub fn execute<'w, Q, S>(&'w self, system: S)
     where
-        Q: Query<'w>,
+        Q: Query<'w> + 'w,
         S: Fn(<<Q as Query<'_>>::Iter as Iterator>::Item),
     {
         /// TODO: parallelize
@@ -173,7 +173,7 @@ pub trait Query<'w> {
 
 /// Trait defenition of Selector to control mutability of borrows
 pub trait Selector<'w> {
-    type Iter: Iterator;
+    type Iter: Iterator + 'w;
     type Component: std::any::Any;
 
     fn borrow(container: &'w archetype::Container) -> Self::Iter;
@@ -183,7 +183,7 @@ pub trait Selector<'w> {
 
 impl<'w, C> Selector<'w> for &'w C
 where
-    C: std::any::Any + 'static,
+    C: Send + Sync + 'static,
 {
     // type Iter = std::slice::Iter<'w, C>;
     type Iter = archetype::Iter<'w, C>;
@@ -204,7 +204,7 @@ where
 
 impl<'w, C> Selector<'w> for &'w mut C
 where
-    C: std::any::Any + 'static,
+    C: Send + Sync + 'static,
 {
     type Iter = archetype::IterMut<'w, C>;
     type Component = C;
@@ -225,14 +225,14 @@ where
 /// Iterator converting a tuple of iterators into the Iterator of a tuple
 pub struct Zipper<'w, T> {
     tuple: T,
-    _phantom: PhantomData<&'w ()>,
+    _lifetime: PhantomData<&'w ()>,
 }
 
 macro_rules! impl_queries {
     ($($i: ident),*) => {
         impl<'w, $($i),*> Query<'w> for ($($i,)*)
         where
-            $($i: Selector<'w> + 'static,)*
+            $($i: Selector<'w> + 'w,)*
         {
             type Iter = Zipper<'w, ($($i::Iter,)*)>;
 
@@ -244,14 +244,14 @@ macro_rules! impl_queries {
                 Zipper {
                     tuple: ($({$i::borrow(container)},)*),
                     // tuple: ($(container.get::<$i::Component>().unwrap().into_iter(),)*),
-                    _phantom: PhantomData,
+                    _lifetime: PhantomData,
                 }
             }
 
             fn matches(container: &'w archetype::Container) -> bool
             {
                 $(
-                    container.contains(TypeId::of::<$i>())
+                    container.contains(TypeId::of::<$i::Component>())
                 )&&*
             }
 
@@ -288,13 +288,19 @@ macro_rules! impl_queries {
 recursive!(impl_queries, A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);
 
 /// Iterator or Query result
-pub struct QueryIter<I> {
+pub struct QueryIter<I>
+where
+    I: Iterator,
+{
     iter: I,
     locks: Vec<type_lock::Lock>,
     lock_manager: Arc<(Mutex<type_lock::TypeLock>, Condvar)>,
 }
 
-impl<I> Drop for QueryIter<I> {
+impl<I> Drop for QueryIter<I>
+where
+    I: Iterator,
+{
     fn drop(&mut self) {
         let (mutex, cvar) = &*self.lock_manager;
 
@@ -305,7 +311,7 @@ impl<I> Drop for QueryIter<I> {
     }
 }
 
-impl<'w, I> Iterator for QueryIter<I>
+impl<I> Iterator for QueryIter<I>
 where
     I: Iterator,
 {
@@ -384,6 +390,56 @@ impl Default for World {
 
 unsafe impl Send for World {}
 unsafe impl Sync for World {}
+
+#[cfg(test)]
+mod tests {
+    use super::World;
+
+    #[derive(Debug, Eq, PartialEq, Copy, Clone)]
+    struct Armor(u32);
+    #[derive(Debug, Eq, PartialEq, Copy, Clone)]
+    struct Health(u32);
+    struct Speed(u32);
+    struct Damage(u32);
+    struct Weight(u32);
+
+    fn spawn() -> World {
+        let mut world = World::new();
+        world.spawn(Some((Armor(100), Health(100), Damage(300))));
+        world.spawn(Some((Health(80), Speed(10))));
+        world.spawn(Some((Speed(50), Damage(45))));
+        world.spawn(Some((Damage(600), Armor(10))));
+
+        let bulk = (0..9).map(|_| (Speed(35), Weight(5000)));
+        world.spawn(bulk);
+
+        world
+    }
+
+    #[test]
+    fn can_spawn_and_query() {
+        let mut world = spawn();
+        let mut iter = world.query::<(&Armor, &Damage)>();
+
+        let item = iter.next();
+        assert!(item.is_some());
+
+        if let Some((armor, damage)) = item {
+            assert_eq!(armor.0, 100); // Armor(100)
+            assert_eq!(damage.0, 300); // Damage(300)
+        }
+
+        let item = iter.next();
+        assert!(item.is_some());
+
+        let item = item.unwrap();
+        assert_eq!(item.0 .0, 10); // Armor(10)
+        assert_eq!(item.1 .0, 600); // Damage(600)
+
+        let item = iter.next();
+        assert!(item.is_none());
+    }
+}
 
 /*
 #[cfg(test)]

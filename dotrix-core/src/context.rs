@@ -858,7 +858,7 @@ where
             let mut collected = Vec::with_capacity(capacity);
 
             for i in (0..capacity).rev() {
-                collected.insert(i, *list.pop().unwrap().downcast::<T>().unwrap());
+                collected.push(*list.pop().unwrap().downcast::<T>().unwrap());
             }
 
             Collect { inner: collected }

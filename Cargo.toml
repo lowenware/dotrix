@@ -15,15 +15,16 @@ name = "dotrix"
 path = "src/lib.rs"
 
 [[bin]]
-name = "dotrix"
-path = "src/main.rs"
+name = "studio"
+path = "studio/main.rs"
 
-#[features]
-#default = [ "egui", "overlay", "pbr", "sky", "terrain" ]
+[features]
+default = [ "pbr" ]
+# [ "egui", "overlay", "pbr", "sky", "terrain" ]
 
 #overlay = ["dotrix_overlay"]
 #sky = ["dotrix_sky"]
-#pbr = ["dotrix_pbr"]
+pbr = ["dotrix_pbr"]
 #primitives = ["dotrix_primitives"]
 #egui = ["dotrix_egui"]
 #terrain = ["dotrix_terrain"]
@@ -61,7 +62,7 @@ dotrix_gpu = { path = "dotrix-gpu", version = "0.1" }
 dotrix_log = { path = "dotrix-log", version = "0.1" }
 dotrix_math = { path = "dotrix-math", version = "0.4" }
 dotrix_mesh = { path = "dotrix-mesh", version = "0.1" }
-dotrix_pbr = { path = "dotrix-pbr", version = "0.3"}
+dotrix_pbr = { path = "dotrix-pbr", version = "0.4", optional = true}
 dotrix_shader = { path = "dotrix-shader", version = "0.1" }
 dotrix_types = { path = "dotrix-types", version = "0.1" }
 dotrix_window = { path = "dotrix-window", version = "0.1" }

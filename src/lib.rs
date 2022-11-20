@@ -24,6 +24,7 @@ pub use dotrix_ecs as ecs;
 pub use dotrix_gpu as gpu;
 pub use dotrix_image as image;
 pub use dotrix_log as log;
+pub use dotrix_math as math;
 pub use dotrix_mesh as mesh;
 pub use dotrix_shader as shader;
 pub use dotrix_window as window;
@@ -32,9 +33,12 @@ pub use assets::Assets;
 pub use camera::Camera;
 pub use ecs::World;
 pub use log::Log;
-pub use mesh::Mesh;
+pub use mesh::{Armature, Mesh};
 pub use shader::Shader;
 pub use vertex::{Bitangent, Normal, Position, Tangent, TexUV};
+
+#[cfg(feature = "pbr")]
+pub use dotrix_pbr as pbr;
 
 //pub use ecs::World;
 
@@ -48,8 +52,6 @@ pub use dotrix_egui as egui;
 #[cfg(feature = "overlay")]
 pub use dotrix_overlay as overlay;
 
-#[cfg(feature = "pbr")]
-pub use dotrix_pbr as pbr;
 
 #[cfg(feature = "primitives")]
 pub use dotrix_primitives as primitives;
@@ -145,7 +147,7 @@ impl window::Controller for Controller {
     }
 
     fn init(&mut self, window_handle: window::Handle, width: u32, height: u32) {
-        let renderer = gpu::Renderer::new(gpu::Descriptor {
+        let renderer = gpu::Gpu::new(gpu::Descriptor {
             window_handle: &window_handle,
             fps_request: self.settings.fps,
             surface_size: [width, height],
@@ -203,7 +205,7 @@ pub trait Application: 'static + Send {
     /// Provides a possibility for the Application to change Dotrix Settings
     fn configure(&self, settings: &mut Settings) {}
     /// Allows application to initialize all necessary context and tasks
-    fn init(&self, manager: &Manager) {}
+    fn init(&self, manager: &mut Manager) {}
 }
 
 impl<T: Application> From<T> for Core {
@@ -217,7 +219,7 @@ impl<T: Application> From<T> for Core {
 
         let world = World::new();
 
-        app.init(&manager);
+        app.init(&mut manager);
 
         manager.store(app);
         manager.store(tasks);
