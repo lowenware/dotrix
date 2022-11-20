@@ -1,16 +1,16 @@
-mod cube;
-
 use dotrix_assets as assets;
 use dotrix_math::{InnerSpace, Vec2, Vec3, VectorSpace};
 use dotrix_types::{id, vertex};
 use std::any::TypeId;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
-pub use cube::Cube;
+pub mod armature;
+pub use armature::Armature;
 
 /// 3D Model Mesh
 pub struct Mesh {
-    name: String,
+    label: String,
     vertices: HashMap<TypeId, AttributeValues>,
     vertices_count: usize,
     indices: Option<Vec<u32>>,
@@ -18,13 +18,120 @@ pub struct Mesh {
 
 impl Mesh {
     /// Constructs new Mesh instance
-    pub fn new(name: &str) -> Self {
+    pub fn new(label: String) -> Self {
         Self {
-            name: String::from(name),
+            label: String::from(label),
             vertices: HashMap::new(),
             vertices_count: 0,
             indices: None,
         }
+    }
+
+    /// Constructs a cube mesh
+    pub fn cube(label: String) -> Self {
+        Mesh::generate(label, genmesh::generators::Cube::new())
+    }
+
+    /// Constructs a cylinder mesh
+    /// `u` is the number of points across the radius
+    ///
+    /// `h` is the number of segments across the height
+    pub fn cylinder(label: String, u: usize, h: Option<usize>) -> Self {
+        Mesh::generate(
+            label,
+            h.map_or_else(
+                || genmesh::generators::Cylinder::new(u),
+                |h| genmesh::generators::Cylinder::subdivide(u, h),
+            ),
+        )
+    }
+
+    /// Constructs a sphere mesh
+    ///
+    /// `u` is the number of points across the equator of the sphere
+    ///
+    /// `v` is the number of points from pole to pole
+    pub fn sphere(label: String, u: usize, v: usize) -> Self {
+        Mesh::generate(label, genmesh::generators::SphereUv::new(u, v))
+    }
+
+    /// Constructs a cone mesh
+    ///
+    /// `u` is the number of subdivisions around the radius and it must be greater then 1
+    pub fn cone(label: String, u: usize) -> Self {
+        Mesh::generate(label, genmesh::generators::Cone::new(u))
+    }
+
+    /// Constructs a torus mesh
+    ///
+    /// `radius` is the radius from the center [0, 0, 0] to the center of the the tubular
+    /// radius
+    ///
+    /// `tubular_radius is the radius to the surface from the toridal
+    ///
+    /// `tubular_segments` is the number of segments that wrap around the tube, must be at least 3
+    ///
+    /// `radial_segments` is  the number of tube segments requested to generate, must be at least 3
+    pub fn torus(
+        label: String,
+        radius: f32,
+        tubular_radius: f32,
+        radial_segments: usize,
+        tubular_segments: usize,
+    ) -> Self {
+        Mesh::generate(
+            label,
+            genmesh::generators::Torus::new(
+                radius,
+                tubular_radius,
+                radial_segments,
+                tubular_segments,
+            ),
+        )
+    }
+
+    fn generate<G, I, P>(label: String, generator: G) -> Self
+    where
+        I: genmesh::EmitTriangles<Vertex = genmesh::Vertex>,
+        I::Vertex: Clone + Copy + PartialEq,
+        P: genmesh::EmitTriangles<Vertex = usize>,
+        G: genmesh::generators::SharedVertex<I::Vertex>
+            + genmesh::generators::IndexedPolygon<P>
+            + Iterator<Item = I>,
+    {
+        use genmesh::{MapVertex, Triangulate, Vertices};
+
+        let mut mesh = Mesh::new(label);
+        let vertices = generator.shared_vertex_iter().collect::<Vec<_>>();
+        let vertices_count = vertices.len();
+        let mut positions = Vec::with_capacity(vertices_count);
+        let mut normals = Vec::with_capacity(vertices_count);
+        let mut tex_uvs = Vec::with_capacity(vertices_count);
+
+        for (position, normal, tex_uv) in generator
+            .indexed_polygon_iter()
+            .triangulate()
+            .map(|triangle| {
+                triangle.map_vertex(|v| {
+                    let vertex = vertices[v];
+                    let position = [vertex.pos.x, vertex.pos.y, vertex.pos.z];
+                    let normal = [vertex.normal.x, vertex.normal.y, vertex.normal.z];
+                    let tex_uv = [(vertex.pos.x + 1.0) / 2.0, (vertex.pos.y + 1.0) / 2.0];
+                    (position, normal, tex_uv)
+                })
+            })
+            .vertices()
+        {
+            positions.push(position);
+            normals.push(normal);
+            tex_uvs.push(tex_uv);
+        }
+
+        mesh.set_vertices::<vertex::Position>(positions);
+        mesh.set_vertices::<vertex::Normal>(normals);
+        mesh.set_vertices::<vertex::TexUV>(tex_uvs);
+
+        mesh
     }
 
     /// Sets vertices attributes by Type
@@ -36,7 +143,7 @@ impl Mesh {
             if self.vertices_count != 0 {
                 panic!(
                     "Mesh '{}' has {} vertices, but attribute '{}' was given with {} values.",
-                    self.name,
+                    self.label,
                     self.vertices_count,
                     A::name(),
                     vertices_count
@@ -280,8 +387,19 @@ pub struct AttributeValues {
 }
 
 pub trait VertexBufferLayout {
+    type Layout;
     fn layout() -> Vec<TypeId>;
+    fn vertex_size() -> usize;
+    fn attributes() -> VertexAttributeIter<Self::Layout>;
 }
+
+pub struct VertexAttributeIter<T> {
+    index: u32,
+    offset: u64,
+    _phantom_data: PhantomData<T>,
+}
+
+pub type VertexAttributeIterItem = (vertex::AttributeFormat, u64, u32);
 
 macro_rules! impl_layout {
     (($($i: ident),*)) => {
@@ -289,12 +407,50 @@ macro_rules! impl_layout {
         where
             $($i: vertex::Attribute,)*
         {
+            type Layout = ($($i,)*);
+
             fn layout() -> Vec<TypeId> {
                 vec![
                     $(TypeId::of::<$i>(),)*
                 ]
             }
+
+            fn vertex_size() -> usize {
+                0 $(+ ($i::format()).size())*
+            }
+
+            fn attributes() -> VertexAttributeIter<Self::Layout> {
+                VertexAttributeIter {
+                    index: 0,
+                    offset: 0,
+                    _phantom_data: PhantomData
+                }
+            }
         }
+
+        impl<$($i,)*> Iterator for VertexAttributeIter<($($i,)*)>
+        where
+            $($i: vertex::Attribute,)*
+        {
+            type Item = VertexAttributeIterItem;
+            fn next(&mut self) -> Option<VertexAttributeIterItem> {
+                let formats = [ $($i::format(),)* ];
+                let index = self.index;
+                let offset = self.offset;
+                let next_index = index + 1;
+
+                if index < formats.len() as u32 {
+                    let format = formats[index as usize];
+                    self.index = next_index;
+                    self.offset += format.size() as u64;
+
+                    Some((format, offset, index))
+                } else {
+                    None
+                }
+            }
+        }
+
     }
 }
 
@@ -323,7 +479,7 @@ impl id::NameSpace for Mesh {
 
 impl assets::Asset for Mesh {
     fn name(&self) -> &str {
-        &self.name
+        &self.label
     }
 
     fn namespace(&self) -> u64 {
@@ -331,23 +487,13 @@ impl assets::Asset for Mesh {
     }
 }
 
-impl From<Cube> for Mesh {
-    fn from(cube: Cube) -> Self {
-        let mut mesh = Mesh::new("Cube");
-        mesh.set_vertices::<vertex::Position>(cube.positions());
-        mesh.set_vertices::<vertex::TexUV>(cube.tex_uvs);
-        mesh.set_indices(cube.indices);
-        mesh.auto_normals();
-        mesh.auto_tangents_bitangents();
-        mesh
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
-}
+/*
+ * #[cfg(test)]
+ * mod tests {
+ *    #[test]
+ *    fn it_works() {
+ *        let result = 2 + 2;
+ *        assert_eq!(result, 4);
+ *    }
+ *}
+ */

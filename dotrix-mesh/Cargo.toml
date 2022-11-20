@@ -10,3 +10,4 @@ dotrix_assets = { path = "../dotrix-assets", version = "0.1" }
 dotrix_types = { path = "../dotrix-types", version = "0.1" }
 dotrix_math = { version = "0.4", path = "../dotrix-math" }
 bytemuck = { version = "1.4", features = ["derive"] }
+genmesh = { version = "0.6" }
