@@ -1,6 +1,8 @@
 # Dotrix
 
-3D Game Engine written in Rust (development stage)
+Dotrix is an OpenSource 3D engine for Rust developers. The name is a derivation
+from dot and matrix. Two entities that both together and separately are
+keystones of rendering.
 
 [![LICENSE](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE-MIT)
 [![LICENSE](https://img.shields.io/badge/license-apache-blue.svg)](LICENSE-APACHE)
@@ -10,80 +12,45 @@
 [![](https://img.shields.io/badge/lowenware%20-%23FF0000.svg?&style=for-the-badge&logo=YouTube&logoColor=white)](https://www.youtube.com/channel/UCdriNXRizbBFQhqZefaw44A)
 [![](https://img.shields.io/badge/lowenware%20-%231DA1F2.svg?&style=for-the-badge&logo=Twitter&logoColor=white)](http://www.twitter.com/lowenware)
 
-## Overview
+## Important
 
-Dotrix has a flat linear ECS (Entity Component System) in its core, designed for fast querying of
-entities and their components.
+**Dotrix is under heavy refactoring.** If you are looking for the latest stable
+version, then check out
+[release 0.5.3](https://github.com/lowenware/dotrix/tree/release/v0.5.3).
 
-1. **Entities** in Dotrix are virtual abstractions, identified by `EntityId` component containing
-numerical ID. Each entitiy agregates constant number of components.
-2. **Components** are regular Rust structures.
-3. **Systems** are Rust functions, implementing the core logic of a game.
-4. **Services** are Rust objects available through systems, providing some key
-features or access to global resources, like Assets, Input or Render management.
+The **main** branch now holds version 0.6 of the engine that is under active
+development.
 
+## Aproximate TODO list
 
-## Editor
+- [x] Tasks concept with parallel execution
+- [x] New application API with possibility to configure extensions
+- [x] Flexible Mesh API that allow to construct meshes and their buffers with
+validation and various layouts
+- [x] Shader preprocessor (includes, conditions, variables)
+- [x] UUID format for IDs with namespaces
+- [x] ECS update: locks, soft deletion of entities and reuse of released slots,
+faster lookup for an entity by its ID
+- [x] Tasks based assets loading, flexible API, custom assets
+- [x] Constant FPS (if host machine is powerful enough)
+- [x] GPU Driven PBR Rendering (Prototype)
+- [ ] Lights in storage buffers
+- [ ] PBR materials using texture arrays
+- [ ] New Camera crate
+- [ ] New GLTF crate
+- [ ] High-quality PBR rendering
+- [ ] Shadows support
+- [ ] Skinning within the new PBR
+- [ ] Unit tests review
+- [ ] API documentation
+ 
+## Studio
 
-Editor application is under development in the separate [branch](https://github.com/lowenware/dotrix/tree/feat/editor)
+**Dotrix Studio** is a binary that comes within the engine. At this moment it is
+being used for proof-of-concept tests.
 
-## Getting started
-
-The best place to start is to review examples distributed with the engine. All examples are grouped
-under [examples/](examples/) folder. Later when API becomes more or less stable we will prepare a
-Book for a quick start.
-
-## Examples
-[![Demo Example](https://img.youtube.com/vi/KXOr_KxMNWM/0.jpg)](https://www.youtube.com/watch?v=KXOr_KxMNWM)
-
-**Features:** input, skeletal animation, light, terrain, player control
 ```
-cargo run --release --example demo
-```
-
-**Features:** Light, UI, camera control
-```
-cargo run --release --example light
-```
-
-**Features:** skeletal animation, light, camera control
-```
-cargo run --release --example animation
-```
-
-**Features:** skybox, camera control
-```
-cargo run --release --example skybox
-```
-
-**Features:** window management
-```
-cargo run --release --example window
-```
-
-**Features:** shader, uniform buffer
-```
-cargo run --release --example shader
-```
-
-**Features:** compute shader, particles, instanced rendering, storage buffer
-```
-cargo run --release --example compute
-```
-
-**Features:** PBR materials (textureless)
-```
-cargo run --release --example pbr
-```
-
-**Features:** PBR materials (Normal mapping)
-```
-cargo run --release --example normal_map
-```
-
-**Features:** Multisample Antialiasing (msaa), PBR materials (fully textured)
-```
-cargo run --release --example msaa
+cargo run --release --bin studio
 ```
 
 ## Sponsors
