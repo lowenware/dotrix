@@ -9,7 +9,7 @@ use std::thread;
 use dotrix_log as log;
 
 pub use context::{All, Any, Collect, Mut, Ref, State, Take};
-pub use task::Task;
+pub use task::{Output, Task};
 
 pub const NAMESPACE: u64 = 0x646f7472_69780000;
 
