@@ -1,6 +1,7 @@
 mod buffer;
 mod pipeline;
 mod shader;
+mod texture;
 
 use std::any::Any;
 use std::borrow::Cow;
@@ -18,6 +19,7 @@ use types::Id;
 pub use buffer::Buffer;
 pub use pipeline::{PipelineLayout, RenderPipeline};
 pub use shader::ShaderModule;
+pub use texture::{Texture, TextureView};
 
 pub use wgpu as backend;
 
@@ -153,6 +155,10 @@ impl Gpu {
             .and_then(|data| data.downcast_mut::<T>())
     }
 
+    pub fn extract<T: Any>(&self, id: &Id<T>) -> &T {
+        self.get(id).expect("Extraction of non-existing buffer")
+    }
+
     pub fn buffer<'a, 'b>(&'a self, label: &'b str) -> buffer::Builder<'a, 'b> {
         buffer::Builder {
             gpu: self,
@@ -201,6 +207,31 @@ impl Gpu {
     pub fn create_render_pipeline(&self, desc: &wgpu::RenderPipelineDescriptor) -> RenderPipeline {
         RenderPipeline {
             inner: self.device.create_render_pipeline(desc),
+        }
+    }
+
+    pub fn texture<'a, 'b>(&'a self, label: &'b str) -> texture::Builder<'a, 'b> {
+        texture::Builder {
+            gpu: self,
+            descriptor: wgpu::TextureDescriptor {
+                label: Some(label),
+                size: wgpu::Extent3d {
+                    width: 512,
+                    height: 512,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                format: wgpu::TextureFormat::Rgba8Uint,
+                usage: wgpu::TextureUsages::empty(),
+                dimension: wgpu::TextureDimension::D2,
+            },
+        }
+    }
+
+    pub fn create_texture(&self, desc: &wgpu::TextureDescriptor) -> Texture {
+        Texture {
+            inner: self.device.create_texture(desc),
         }
     }
 

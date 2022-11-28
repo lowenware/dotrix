@@ -1,5 +1,6 @@
-mod entity;
-mod material;
+pub mod entity;
+pub mod light;
+pub mod material;
 
 use std::{borrow::Cow, collections::HashMap};
 
@@ -15,6 +16,7 @@ use dotrix_types::{vertex, Id, Transform};
 use gpu::backend as wgpu;
 
 pub use entity::Entity;
+pub use light::Light;
 pub use material::{Material, MaterialUniform};
 
 const DEAFULT_MESH_BUFFER_SIZE: u64 = 64 * 1024 * 1024;
@@ -22,10 +24,32 @@ const DEAFULT_TRANSFORM_BUFFER_SIZE: u64 = 8 * 1024 * 1024;
 const DEAFULT_INDIRECT_BUFFER_SIZE: u64 = 8 * 1024 * 1024;
 const DEAFULT_INSTANCES_BUFFER_SIZE: u64 = 1000 * std::mem::size_of::<Instance>() as u64;
 const DEAFULT_MATERIALS_BUFFER_SIZE: u64 = 50 * std::mem::size_of::<MaterialUniform>() as u64;
+const DEFAULT_MAX_LIGHTS_NUMBER: u32 = 128;
+const DEFAULT_SHADOWS_TEXTURE_WIDTH: u32 = 512;
+const DEFAULT_SHADOWS_TEXTURE_HEIGHT: u32 = 512;
+
+/// PBR Config Uniform
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy)]
+pub struct MetaUniform {
+    pub number_of_lights: u32,
+    pub shadows_enabled: u32,
+    pub reserve: [u32; 2],
+}
+
+unsafe impl bytemuck::Pod for MetaUniform {}
+unsafe impl bytemuck::Zeroable for MetaUniform {}
+
+#[inline(always)]
+fn size_of<T>() -> u64 {
+    std::mem::size_of::<T>() as u64
+}
 
 /// Contains PBR related buffer IDs
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Buffers {
+    /// PBR configuration buffer
+    pub meta: Id<gpu::Buffer>,
     /// Buffer for meshes
     pub mesh: Id<gpu::Buffer>,
     /// Buffer for transformations
@@ -40,6 +64,12 @@ pub struct Buffers {
     pub instances: Id<gpu::Buffer>,
     /// Shader module
     pub shader_module: Id<gpu::ShaderModule>,
+    /// Light sources storage buffer
+    pub light: Id<gpu::Buffer>,
+    /// Shadows Texture
+    pub shadows_texture: Id<gpu::Texture>,
+    /// Shadows Texture View
+    pub shadows_texture_view: Id<gpu::TextureView>,
 
     // TODO: add wrapper
     pub bind_group: Id<wgpu::BindGroup>,
@@ -58,41 +88,32 @@ struct CameraUniform {
 unsafe impl bytemuck::Pod for CameraUniform {}
 unsafe impl bytemuck::Zeroable for CameraUniform {}
 
-pub struct Allocator {
+pub struct PrepareTask {
     mesh_buffer_size: u64,
     transform_buffer_size: u64,
     indirect_buffer_size: u64,
     instances_buffer_size: u64,
     materials_buffer_size: u64,
+    max_lights_number: u32,
+    shadows_texture_width: u32,
+    shadows_texture_height: u32,
     buffers: Option<Buffers>,
 }
 
-impl Allocator {
-    pub fn new(
-        mesh_buffer_size: u64,
-        transform_buffer_size: u64,
-        indirect_buffer_size: u64,
-        instances_buffer_size: u64,
-        materials_buffer_size: u64,
-    ) -> Self {
-        Self {
-            mesh_buffer_size,
-            transform_buffer_size,
-            indirect_buffer_size,
-            instances_buffer_size,
-            materials_buffer_size,
-            buffers: None,
-        }
-    }
-}
-
-impl dotrix::Task for Allocator {
+impl dotrix::Task for PrepareTask {
     type Context = (dotrix::Mut<gpu::Gpu>,);
 
     type Output = Buffers;
 
     fn run(&mut self, (mut gpu,): Self::Context) -> Self::Output {
         if self.buffers.is_none() {
+            let meta_buffer = gpu
+                .buffer("dotrix::pbr::meta")
+                .size(size_of::<MetaUniform>())
+                .allow_copy_dst()
+                .use_as_uniform()
+                .create();
+
             let mesh_buffer = gpu
                 .buffer("dotrix::pbr::mesh")
                 .size(self.mesh_buffer_size)
@@ -128,6 +149,26 @@ impl dotrix::Task for Allocator {
                 .use_as_storage()
                 .create();
 
+            let light_buffer = gpu
+                .buffer("dotrix::pbr::light_sources")
+                .size(self.max_lights_number as u64 * size_of::<light::Uniform>())
+                .allow_copy_dst()
+                .use_as_storage()
+                .create();
+
+            let shadows_texture = gpu
+                .texture("dotrix::pbr::shadows")
+                .size(self.shadows_texture_width, self.shadows_texture_height)
+                .layers(self.max_lights_number)
+                .mip_level_count(1)
+                .sample_count(1)
+                .use_as_render_attachment()
+                .use_as_texture_binding()
+                .format_depth_f32()
+                .create();
+
+            let shadows_texture_view = shadows_texture.view("dotrix::pbr::shadows_view").create();
+
             let shader_module = gpu.create_shader_module(
                 "dotrix::pbr::solid_shader_module",
                 Cow::Borrowed(include_str!("pbr.wgsl")),
@@ -137,24 +178,31 @@ impl dotrix::Task for Allocator {
                 gpu.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                     label: Some("dotrix::pbr::bind_group_layout"),
                     entries: &[
-                        // Camera Binding
+                        // Meta Uniform Binding
                         wgpu::BindGroupLayoutEntry {
                             binding: 0,
+                            visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: wgpu::BufferSize::new(size_of::<MetaUniform>()),
+                            },
+                            count: None,
+                        },
+                        // Camera Binding
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
                             visibility: wgpu::ShaderStages::VERTEX,
                             ty: wgpu::BindingType::Buffer {
                                 ty: wgpu::BufferBindingType::Uniform,
                                 has_dynamic_offset: false,
-                                min_binding_size: wgpu::BufferSize::new(std::mem::size_of::<
-                                    CameraUniform,
-                                >(
-                                )
-                                    as u64),
+                                min_binding_size: wgpu::BufferSize::new(size_of::<CameraUniform>()),
                             },
                             count: None,
                         },
                         // Instances Binding
                         wgpu::BindGroupLayoutEntry {
-                            binding: 1,
+                            binding: 2,
                             visibility: wgpu::ShaderStages::VERTEX,
                             ty: wgpu::BindingType::Buffer {
                                 ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -165,7 +213,7 @@ impl dotrix::Task for Allocator {
                         },
                         // Transform Binding
                         wgpu::BindGroupLayoutEntry {
-                            binding: 2,
+                            binding: 3,
                             visibility: wgpu::ShaderStages::VERTEX,
                             ty: wgpu::BindingType::Buffer {
                                 ty: wgpu::BufferBindingType::Storage { read_only: true },
@@ -176,12 +224,25 @@ impl dotrix::Task for Allocator {
                         },
                         // Materials Binding
                         wgpu::BindGroupLayoutEntry {
-                            binding: 3,
+                            binding: 4,
                             visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                             ty: wgpu::BindingType::Buffer {
                                 ty: wgpu::BufferBindingType::Storage { read_only: true },
                                 has_dynamic_offset: false,
                                 min_binding_size: wgpu::BufferSize::new(self.materials_buffer_size),
+                            },
+                            count: None,
+                        },
+                        // Light Binding
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 5,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                                has_dynamic_offset: false,
+                                min_binding_size: wgpu::BufferSize::new(
+                                    self.max_lights_number as u64 * size_of::<light::Uniform>(),
+                                ),
                             },
                             count: None,
                         },
@@ -193,7 +254,7 @@ impl dotrix::Task for Allocator {
 
             let camera_mockup = gpu
                 .buffer("dotrix::pbr::camera")
-                .size(std::mem::size_of::<CameraUniform>() as u64)
+                .size(size_of::<CameraUniform>())
                 .allow_copy_dst()
                 .use_as_uniform()
                 .create();
@@ -207,25 +268,34 @@ impl dotrix::Task for Allocator {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: camera_mockup.inner.as_entire_binding(),
+                        resource: meta_buffer.inner.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: instances_buffer.inner.as_entire_binding(),
+                        resource: camera_mockup.inner.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: transform_buffer.inner.as_entire_binding(),
+                        resource: instances_buffer.inner.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,
+                        resource: transform_buffer.inner.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
                         resource: materials_buffer.inner.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: light_buffer.inner.as_entire_binding(),
                     },
                 ],
                 label: None,
             });
 
             self.buffers = Some(Buffers {
+                meta: gpu.store(meta_buffer),
                 mesh: gpu.store(mesh_buffer),
                 transform: gpu.store(transform_buffer),
                 materials: gpu.store(materials_buffer),
@@ -235,16 +305,14 @@ impl dotrix::Task for Allocator {
                 bind_group: gpu.store(bind_group),
                 shader_module: gpu.store(shader_module),
                 camera_mockup: gpu.store(camera_mockup),
+                light: gpu.store(light_buffer),
+                shadows_texture: gpu.store(shadows_texture),
+                shadows_texture_view: gpu.store(shadows_texture_view),
             });
         }
 
         self.buffers.as_ref().cloned().unwrap()
     }
-}
-
-pub struct RenderPass {
-    mesh: Id<Mesh>,
-    material: Id<Material>,
 }
 
 pub struct BufferLocation {
@@ -262,7 +330,7 @@ pub struct MeshLayout {
     vertex_count: u32,
 }
 
-pub struct Render {
+pub struct LoadTask {
     meshes: HashMap<Id<Mesh>, MeshLayout>,
     meshes_layout: Vec<Id<Mesh>>,
     meshes_size: u64,
@@ -274,7 +342,7 @@ pub struct Render {
 pub type SolidVertexBufferLayout = (vertex::Position, vertex::Normal, vertex::TexUV);
 //pub type SkeletalVertexBufferLayout = (vertex::Position, vertex::Normal, vertex::TexUV);
 
-impl Render {
+impl LoadTask {
     pub fn new() -> Self {
         Self {
             meshes: HashMap::new(),
@@ -287,32 +355,29 @@ impl Render {
     }
 }
 
-impl dotrix::Task for Render {
+pub struct Data {
+    pub indirect_buffer_len: u32,
+}
+
+impl dotrix::Task for LoadTask {
     type Context = (
         dotrix::Any<Buffers>,
-        dotrix::Any<gpu::Frame>,
         dotrix::Ref<assets::Assets>,
         dotrix::Ref<ecs::World>,
         dotrix::Ref<gpu::Gpu>,
     );
 
-    type Output = gpu::Commands;
+    type Output = Data;
 
-    fn run(&mut self, (buffers, frame, assets, world, gpu): Self::Context) -> Self::Output {
+    fn run(&mut self, (buffers, assets, world, gpu): Self::Context) -> Self::Output {
         // TODO: use several maps: static indexed, static non-indexed, skeletal indexed, skeletal
         // non-indexed
         let mut draw_entries = HashMap::<Id<Mesh>, DrawEntry>::new();
-        let mesh_buffer = gpu.get(&buffers.mesh).expect("Buffer must exist");
-        let transform_buffer = gpu.get(&buffers.transform).expect("Buffer must exist");
-        let materials_buffer = gpu.get(&buffers.materials).expect("Buffer must exist");
-        let indirect_buffer = gpu.get(&buffers.indirect).expect("Buffer must exist");
-        let instances_buffer = gpu.get(&buffers.instances).expect("Buffer must exist");
-        // let camera_buffer = gpu.get(&buffers.camera_mockup).expect("Buffer must exist");
-        let bind_group = gpu.get(&buffers.bind_group).expect("BindGroup must exist");
-
-        let solid_render_pipeline = gpu
-            .get(&buffers.solid_render_pipeline)
-            .expect("BindGroup must exist");
+        let mesh_buffer = gpu.extract(&buffers.mesh);
+        let transform_buffer = gpu.extract(&buffers.transform);
+        let materials_buffer = gpu.extract(&buffers.materials);
+        let indirect_buffer = gpu.extract(&buffers.indirect);
+        let instances_buffer = gpu.extract(&buffers.instances);
 
         let mut instances = 0;
 
@@ -386,8 +451,7 @@ impl dotrix::Task for Render {
                 .transform_bases
                 .entry(*entity_id)
                 .or_insert(transform_bases_len);
-            let transform_offset =
-                base_transform as u64 * std::mem::size_of::<[[f32; 4]; 4]>() as u64;
+            let transform_offset = base_transform as u64 * size_of::<[[f32; 4]; 4]>();
             let transform_matrix: [[f32; 4]; 4] = transform.matrix().into();
 
             gpu.write_buffer(
@@ -402,8 +466,7 @@ impl dotrix::Task for Render {
                 .material_bases
                 .entry(*material_id)
                 .or_insert(material_bases_len);
-            let material_offset =
-                base_material as u64 * std::mem::size_of::<MaterialUniform>() as u64;
+            let material_offset = base_material as u64 * size_of::<MaterialUniform>();
             let material_uniform = MaterialUniform {
                 color: material.albedo.into(),
                 options: [
@@ -478,6 +541,47 @@ impl dotrix::Task for Render {
             bytemuck::cast_slice(indirect_buffer_data.as_slice()),
         );
 
+        Data {
+            indirect_buffer_len: indirect_buffer_data.len() as u32,
+        }
+    }
+}
+
+pub struct EncodeTask {
+    priority: u32,
+}
+
+impl EncodeTask {
+    pub fn new(priority: u32) -> Self {
+        Self { priority }
+    }
+}
+
+impl dotrix::Task for EncodeTask {
+    type Context = (
+        dotrix::Any<Buffers>,
+        dotrix::Any<gpu::Frame>,
+        dotrix::Any<Data>,
+        dotrix::Any<light::Data>,
+        dotrix::Ref<gpu::Gpu>,
+    );
+
+    type Output = gpu::Commands;
+
+    fn run(&mut self, (buffers, frame, pbr_data, light_data, gpu): Self::Context) -> Self::Output {
+        let meta_buffer = gpu.extract(&buffers.meta);
+        let mesh_buffer = gpu.extract(&buffers.mesh);
+        let indirect_buffer = gpu.extract(&buffers.indirect);
+        let bind_group = gpu.extract(&buffers.bind_group);
+        let solid_render_pipeline = gpu.extract(&buffers.solid_render_pipeline);
+
+        let meta = MetaUniform {
+            number_of_lights: light_data.number_of_lights,
+            ..Default::default()
+        };
+
+        gpu.write_buffer(meta_buffer, 0, bytemuck::cast_slice(&[meta]));
+
         let mut encoder = gpu.encoder(Some("dotrix::pbr::solid"));
 
         {
@@ -503,10 +607,10 @@ impl dotrix::Task for Render {
             rpass.pop_debug_group();
             rpass.push_debug_group("dotrix::pbr::solid::draw");
 
-            rpass.multi_draw_indirect(&indirect_buffer.inner, 0, indirect_buffer_data.len() as u32);
+            rpass.multi_draw_indirect(&indirect_buffer.inner, 0, pbr_data.indirect_buffer_len);
         }
 
-        encoder.finish(2000)
+        encoder.finish(self.priority)
     }
 }
 
@@ -611,6 +715,9 @@ pub struct Extension {
     pub indirect_buffer_size: u64,
     pub instances_buffer_size: u64,
     pub materials_buffer_size: u64,
+    pub max_lights_number: u32,
+    pub shadows_texture_width: u32,
+    pub shadows_texture_height: u32,
 }
 
 impl Default for Extension {
@@ -621,23 +728,36 @@ impl Default for Extension {
             indirect_buffer_size: DEAFULT_INDIRECT_BUFFER_SIZE,
             instances_buffer_size: DEAFULT_INSTANCES_BUFFER_SIZE,
             materials_buffer_size: DEAFULT_MATERIALS_BUFFER_SIZE,
+            max_lights_number: DEFAULT_MAX_LIGHTS_NUMBER,
+            shadows_texture_width: DEFAULT_SHADOWS_TEXTURE_WIDTH,
+            shadows_texture_height: DEFAULT_SHADOWS_TEXTURE_HEIGHT,
         }
     }
 }
 
 impl dotrix::Extension for Extension {
     fn add_to(&self, manager: &mut dotrix::Manager) {
-        let allocator = Allocator::new(
-            self.mesh_buffer_size,
-            self.transform_buffer_size,
-            self.indirect_buffer_size,
-            self.instances_buffer_size,
-            self.materials_buffer_size,
-        );
-        let render = Render::new();
+        let pbr_prepare_task = PrepareTask {
+            mesh_buffer_size: self.mesh_buffer_size,
+            transform_buffer_size: self.transform_buffer_size,
+            indirect_buffer_size: self.indirect_buffer_size,
+            instances_buffer_size: self.instances_buffer_size,
+            materials_buffer_size: self.materials_buffer_size,
+            max_lights_number: self.max_lights_number,
+            shadows_texture_width: self.shadows_texture_width,
+            shadows_texture_height: self.shadows_texture_height,
+            buffers: None,
+        };
+        let pbr_load_task = LoadTask::new();
 
-        manager.schedule(allocator);
-        manager.schedule(render);
+        let light_load_task = light::LoadTask::new();
+
+        let pbr_encode_task = EncodeTask::new(2000);
+
+        manager.schedule(pbr_prepare_task);
+        manager.schedule(light_load_task);
+        manager.schedule(pbr_load_task);
+        manager.schedule(pbr_encode_task);
     }
 }
 
