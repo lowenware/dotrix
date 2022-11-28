@@ -15,7 +15,7 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
 #![warn(missing_docs)]
 
-pub use dotrix_core::{All, Any, Extension, Manager, Mut, Ref, State, Take, Task, Tasks};
+pub use dotrix_core::{All, Any, Extension, Manager, Mut, Output, Ref, State, Take, Task, Tasks};
 pub use dotrix_types::{type_lock, vertex, Color, Id, Transform};
 
 pub use dotrix_assets as assets;

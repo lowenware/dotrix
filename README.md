@@ -34,7 +34,7 @@ faster lookup for an entity by its ID
 - [x] Tasks based assets loading, flexible API, custom assets
 - [x] Constant FPS (if host machine is powerful enough)
 - [x] GPU Driven PBR Rendering (Prototype)
-- [ ] Lights in storage buffers
+- [x] Lights in storage buffers
 - [ ] PBR materials using texture arrays
 - [ ] New Camera crate
 - [ ] New GLTF crate
