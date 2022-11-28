@@ -1,5 +1,6 @@
 use crate::context;
 use std::any::{type_name, Any, TypeId};
+use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
 pub type Id = u32;
@@ -186,5 +187,23 @@ where
 
     fn reset(&mut self) {
         self.dependencies.reset();
+    }
+}
+
+pub struct Output<T> {
+    _phantom: PhantomData<T>,
+}
+
+impl<T> Output<T> {
+    pub fn new() -> Self {
+        Self {
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T> Default for Output<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
