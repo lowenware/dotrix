@@ -57,6 +57,9 @@ pub struct Gpu {
     resize_request: Option<[u32; 2]>,
     /// Storage for GPU related objects: Buffers, Textures, Shaders, Pipelines, etc
     storage: HashMap<uuid::Uuid, Box<dyn Any>>,
+    /// depth buffer view
+    depth_buffer: TextureView,
+    multisampled_framebuffer: TextureView,
 }
 
 pub struct Frame {
@@ -118,6 +121,9 @@ impl Gpu {
         let frame_duration = Duration::from_secs_f32(1.0 / fps_request);
         let fps_samples = (FPS_MEASURE_INTERVAL * fps_request.ceil() as u32) as usize;
         let mut frames_duration = VecDeque::with_capacity(fps_samples);
+        let depth_buffer = create_depth_buffer(&device, &surface_conf, sample_count);
+        let multisampled_framebuffer =
+            create_multisampled_framebuffer(&device, &surface_conf, sample_count);
 
         Self {
             fps_request,
@@ -132,6 +138,8 @@ impl Gpu {
             surface_conf,
             resize_request: None,
             storage: HashMap::new(),
+            depth_buffer,
+            multisampled_framebuffer,
         }
     }
 
@@ -264,6 +272,33 @@ impl Gpu {
     pub fn surface_format(&self) -> wgpu::TextureFormat {
         self.surface_conf.format
     }
+
+    pub fn depth_buffer(&self) -> &TextureView {
+        &self.depth_buffer
+    }
+
+    pub fn color_attachment<'a>(
+        &'a self,
+        frame: &'a Frame,
+    ) -> (&'a wgpu::TextureView, Option<&'a wgpu::TextureView>) {
+        if self.sample_count == 1 {
+            (&frame.view, None)
+        } else {
+            (&self.multisampled_framebuffer.inner, Some(&frame.view))
+        }
+    }
+
+    pub fn sample_count(&self) -> u32 {
+        self.sample_count
+    }
+
+    fn create_depth_buffer(&self) -> TextureView {
+        create_depth_buffer(&self.device, &self.surface_conf, self.sample_count)
+    }
+
+    fn create_multisampled_framebuffer(&self) -> TextureView {
+        create_multisampled_framebuffer(&self.device, &self.surface_conf, self.sample_count)
+    }
 }
 
 pub fn map_vertex_format(attr_format: vertex::AttributeFormat) -> wgpu::VertexFormat {
@@ -325,6 +360,8 @@ impl dotrix::Task for CreateFrame {
                 renderer
                     .surface
                     .configure(&renderer.device, &renderer.surface_conf);
+                renderer.depth_buffer = renderer.create_depth_buffer();
+                renderer.multisampled_framebuffer = renderer.create_multisampled_framebuffer();
             }
         }
 
@@ -394,26 +431,38 @@ impl dotrix::Task for ClearFrame {
     type Output = Commands;
     fn run(&mut self, (frame, renderer): Self::Context) -> Self::Output {
         let mut encoder = renderer.encoder(Some("dotrix::gpu::clear_frame"));
+
+        let clear_color = wgpu::Color {
+            r: self.color.r as f64,
+            g: self.color.g as f64,
+            b: self.color.b as f64,
+            a: self.color.a as f64,
+        };
+
+        let (view, resolve_target) = renderer.color_attachment(&frame);
+
+        let rpass_color_attachment = wgpu::RenderPassColorAttachment {
+            view,
+            resolve_target,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Clear(clear_color),
+                store: true,
+            },
+        };
+
         encoder
             .inner
             .begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &frame.view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: self.color.r as f64,
-                            g: self.color.g as f64,
-                            b: self.color.b as f64,
-                            a: self.color.a as f64,
-                        }),
+                color_attachments: &[Some(rpass_color_attachment)],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &renderer.depth_buffer.inner,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
                         store: true,
-                    },
-                })],
-                // We still need to use the depth buffer here
-                // since the pipeline requires it.
-                depth_stencil_attachment: None,
+                    }),
+                    stencil_ops: None,
+                }),
             });
 
         encoder.finish(1000)
@@ -535,6 +584,63 @@ async fn init(
         .expect("Unable to find a suitable GPU adapter!");
 
     (adapter, device, queue, surface)
+}
+
+fn create_depth_buffer(
+    device: &wgpu::Device,
+    config: &wgpu::SurfaceConfiguration,
+    sample_count: u32,
+) -> TextureView {
+    let buffer_extent = wgpu::Extent3d {
+        width: config.width,
+        height: config.height,
+        depth_or_array_layers: 1,
+    };
+
+    let texture = wgpu::TextureDescriptor {
+        label: Some("dotrix::gpu::depth_buffer"),
+        size: buffer_extent,
+        mip_level_count: 1,
+        sample_count,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Depth32Float,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST,
+    };
+
+    TextureView {
+        inner: device
+            .create_texture(&texture)
+            .create_view(&wgpu::TextureViewDescriptor::default()),
+    }
+}
+
+fn create_multisampled_framebuffer(
+    device: &wgpu::Device,
+    config: &wgpu::SurfaceConfiguration,
+    sample_count: u32,
+) -> TextureView {
+    let multisampled_texture_extent = wgpu::Extent3d {
+        width: config.width,
+        height: config.height,
+        depth_or_array_layers: 1,
+    };
+    let multisampled_frame_descriptor = &wgpu::TextureDescriptor {
+        size: multisampled_texture_extent,
+        mip_level_count: 1,
+        sample_count,
+        dimension: wgpu::TextureDimension::D2,
+        format: config.format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        label: Some("dotrix::gpu::multisampled_framebuffer"),
+    };
+
+    TextureView {
+        inner: device
+            .create_texture(multisampled_frame_descriptor)
+            .create_view(&wgpu::TextureViewDescriptor::default()),
+    }
 }
 
 #[cfg(test)]

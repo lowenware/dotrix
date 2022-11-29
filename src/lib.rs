@@ -153,7 +153,7 @@ impl window::Controller for Controller {
             window_handle: &window_handle,
             fps_request: self.settings.fps,
             surface_size: [width, height],
-            sample_count: 2, // TODO: MSAA setting
+            sample_count: 4, // TODO: MSAA setting
         });
         let window = window::Window::new(window_handle);
         // window.set_title(&self.settings.title);

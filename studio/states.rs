@@ -1,6 +1,6 @@
 use dotrix::ecs::Entity;
 use dotrix::math::Vec3;
-use dotrix::{log, pbr};
+use dotrix::{log, pbr, Transform};
 use dotrix::{Mesh, World};
 
 /// Execution state of the application
@@ -44,7 +44,54 @@ impl dotrix::Task for Startup {
             }),
         ];
 
+        let grass_mat = assets.store(dotrix::pbr::Material {
+            albedo: dotrix::Color::rgb(0.595, 0.680, 0.280),
+            ..Default::default()
+        });
+
+        let ground_mat = assets.store(dotrix::pbr::Material {
+            albedo: dotrix::Color::rgb(0.294, 0.227, 0.196),
+            ..Default::default()
+        });
+
+        let sand_mat = assets.store(dotrix::pbr::Material {
+            albedo: dotrix::Color::rgb(0.376, 0.333, 0.310),
+            ..Default::default()
+        });
+
         let cube = assets.store(Mesh::cube(String::from("Cube")));
+
+        let platform = [
+            (
+                Vec3::new(10.0, 10.0, 0.6),
+                Vec3::new(-0.0, -0.0, -2.8),
+                sand_mat,
+            ),
+            (
+                Vec3::new(10.0, 10.0, 0.2),
+                Vec3::new(-0.0, -0.0, -2.4),
+                ground_mat,
+            ),
+            (
+                Vec3::new(10.0, 10.0, 0.2),
+                Vec3::new(-0.0, -0.0, -2.0),
+                grass_mat,
+            ),
+        ];
+
+        let entities = platform
+            .into_iter()
+            .map(|(scale, translate, material)| pbr::Entity {
+                mesh: cube,
+                scale,
+                translate,
+                material,
+                ..Default::default()
+            })
+            .map(Entity::from)
+            .collect::<Vec<_>>();
+
+        world.spawn(entities);
 
         let objects = [
             (cube, Vec3::new(-6.0, 0.0, 0.0), materials[0]),
@@ -54,15 +101,15 @@ impl dotrix::Task for Startup {
                 materials[1],
             ),
             (cube, Vec3::new(0.0, -6.0, 0.0), materials[0]),
-            (cube, Vec3::new(0.0, 0.0, -6.0), materials[0]),
+            (cube, Vec3::new(0.0, 0.0, -0.0), materials[0]),
             (
                 assets.store(Mesh::sphere(String::from("Sphere"), 16, 16)),
-                Vec3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 5.0, 0.0),
                 materials[2],
             ),
             (
                 assets.store(Mesh::cone(String::from("Cone"), 16)),
-                Vec3::new(8.0, 0.0, 8.0),
+                Vec3::new(8.0, 0.0, 0.0),
                 materials[3],
             ),
         ];
@@ -82,7 +129,7 @@ impl dotrix::Task for Startup {
 
         world.spawn([
             (dotrix::pbr::Light::ambient(),),
-            (dotrix::pbr::Light::simple(Vec3::new(0.0, 0.0, 100.0)),),
+            (dotrix::pbr::Light::simple(Vec3::new(0.0, -50.0, 100.0)),),
         ]);
 
         state.push(Execution {});
