@@ -5,12 +5,9 @@ struct VertexOutput {
     @location(2) color: vec4<f32>,
 };
 
-struct Meta {
+struct Global {
     /// x: number_of_lights, y: shadows_enabled, z,w: reserved
     config: vec4<u32>,
-}
-
-struct Camera {
     proj: mat4x4<f32>,
     view: mat4x4<f32>,
 }
@@ -55,11 +52,7 @@ struct Light {
 
 @group(0)
 @binding(0)
-var<uniform> u_meta: Meta;
-
-@group(0)
-@binding(1)
-var<uniform> u_camera: Camera;
+var<uniform> u_global: Global;
 
 @group(0)
 @binding(2)
@@ -94,7 +87,7 @@ fn vs_main_solid(
     let world_normal = mat3x3<f32>(model.x.xyz, model.y.xyz, model.z.xyz) * normal;
 
     result.color = material.color;
-    result.position = u_camera.proj * u_camera.view * world_position;
+    result.position = u_global.proj * u_global.view * world_position;
     result.world_position = world_position;
     result.world_normal = world_normal;
 
@@ -104,7 +97,7 @@ fn vs_main_solid(
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
     var color = vec3<f32>(0.0, 0.0, 0.0);
-    let number_of_lights = u_meta.config.x;
+    let number_of_lights = u_global.config.x;
     let normal = normalize(vertex.world_normal);
     
     for (var i = 0u; i < number_of_lights; i +=1u) {

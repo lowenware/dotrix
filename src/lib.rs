@@ -16,10 +16,9 @@
 #![warn(missing_docs)]
 
 pub use dotrix_core::{All, Any, Extension, Manager, Mut, Output, Ref, State, Take, Task, Tasks};
-pub use dotrix_types::{type_lock, vertex, Color, Id, Transform};
+pub use dotrix_types::{camera, type_lock, vertex, Color, Id, Transform};
 
 pub use dotrix_assets as assets;
-pub use dotrix_camera as camera;
 pub use dotrix_ecs as ecs;
 pub use dotrix_gpu as gpu;
 pub use dotrix_image as image;
@@ -77,6 +76,9 @@ pub struct Core {
 }
 
 impl Core {
+    pub fn schedule<T: Task>(&mut self, task: T) {
+        self.controller.manager.schedule(task);
+    }
     pub fn extend_with<T: Extension>(&mut self, extension: T) {
         extension.add_to(&mut self.controller.manager);
         self.extensions

@@ -13,7 +13,7 @@ mod color;
 
 // pub mod animation;
 // pub mod assets;
-// pub mod camera;
+pub mod camera;
 // pub mod ecs;
 // pub mod frame;
 pub mod id;
@@ -28,7 +28,7 @@ pub mod vertex;
 // pub use animation::Animator;
 // pub use application::{Application, IntoService, Service};
 // pub use assets::Assets;
-// pub use camera::Camera;
+pub use camera::Camera;
 pub use color::Color;
 // pub use cubemap::CubeMap;
 // pub use ecs::{Priority, RunLevel, System};
