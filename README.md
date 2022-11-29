@@ -21,7 +21,7 @@ version, then check out
 The **main** branch now holds version 0.6 of the engine that is under active
 development.
 
-## Aproximate TODO list
+## Approximate TODO list
 
 - [x] Tasks concept with parallel execution
 - [x] New application API with possibility to configure extensions
@@ -42,6 +42,8 @@ faster lookup for an entity by its ID
 - [ ] Shadows support
 - [ ] Skinning within the new PBR
 - [ ] Unit tests review
+- [ ] Antialiasing
+- [ ] Migrate math crate to `glam`
 - [ ] API documentation
  
 ## Studio
