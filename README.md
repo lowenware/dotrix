@@ -42,7 +42,7 @@ faster lookup for an entity by its ID
 - [ ] Shadows support
 - [ ] Skinning within the new PBR
 - [ ] Unit tests review
-- [ ] Antialiasing
+- [x] Antialiasing & Depth buffer
 - [ ] Migrate math crate to `glam`
 - [ ] API documentation
  

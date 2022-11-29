@@ -558,6 +558,7 @@ impl dotrix::Task for EncodeTask {
         gpu.write_buffer(global_buffer, 0, bytemuck::cast_slice(&[global]));
 
         let mut encoder = gpu.encoder(Some("dotrix::pbr::solid"));
+        let (view, resolve_target) = gpu.color_attachment(&frame);
 
         {
             let mut rpass = encoder
@@ -565,14 +566,21 @@ impl dotrix::Task for EncodeTask {
                 .begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: None,
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &frame.view,
-                        resolve_target: None,
+                        view,
+                        resolve_target,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Load,
                             store: true,
                         },
                     })],
-                    depth_stencil_attachment: None,
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: &gpu.depth_buffer().inner,
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: true,
+                        }),
+                        stencil_ops: None,
+                    }),
                 });
 
             rpass.push_debug_group("dotrix::pbr::solid::set");
@@ -680,8 +688,21 @@ fn create_solid_render_pipeline(
             //polygon_mode: wgpu::PolygonMode::Point,
             ..Default::default()
         },
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState {
+                constant: 2, // corresponds to bilinear filtering
+                slope_scale: 2.0,
+                clamp: 0.0,
+            },
+        }),
+        multisample: wgpu::MultisampleState {
+            count: gpu.sample_count(),
+            ..Default::default()
+        },
         multiview: None,
     })
 }
