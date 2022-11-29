@@ -1,3 +1,4 @@
+mod camera;
 mod states;
 
 use dotrix::log;
@@ -43,13 +44,13 @@ fn main() {
         hot_reload: true,
     };
 
-    let camera = dotrix::camera::Extension::default();
+    let camera_control_task = camera::ControlTask::new();
 
     let pbr = dotrix::pbr::Extension::default();
 
     dotrix::run(studio, |core| {
         core.extend_with(assets);
-        core.extend_with(camera);
         core.extend_with(pbr);
+        core.schedule(camera_control_task);
     });
 }

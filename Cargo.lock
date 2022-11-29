@@ -500,7 +500,6 @@ version = "0.6.0"
 dependencies = [
  "bytemuck",
  "dotrix_assets",
- "dotrix_camera",
  "dotrix_core",
  "dotrix_ecs",
  "dotrix_gpu",
@@ -524,14 +523,6 @@ dependencies = [
  "dotrix_log",
  "dotrix_types",
  "uuid",
-]
-
-[[package]]
-name = "dotrix_camera"
-version = "0.1.0"
-dependencies = [
- "dotrix_core",
- "dotrix_math",
 ]
 
 [[package]]

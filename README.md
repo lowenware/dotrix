@@ -36,7 +36,7 @@ faster lookup for an entity by its ID
 - [x] GPU Driven PBR Rendering (Prototype)
 - [x] Lights in storage buffers
 - [ ] PBR materials using texture arrays
-- [ ] New Camera crate
+- [x] New Camera ~crate~ module
 - [ ] New GLTF crate
 - [ ] High-quality PBR rendering
 - [ ] Shadows support

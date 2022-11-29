@@ -44,17 +44,17 @@ impl dotrix::Task for Startup {
             }),
         ];
 
+        let cube = assets.store(Mesh::cube(String::from("Cube")));
+
         let objects = [
-            (
-                assets.store(Mesh::cube(String::from("Cube"))),
-                Vec3::new(-2.0, 0.0, 0.0),
-                materials[0],
-            ),
+            (cube, Vec3::new(-6.0, 0.0, 0.0), materials[0]),
             (
                 assets.store(Mesh::cylinder(String::from("Cylinder"), 8, Some(8))),
-                Vec3::new(-1.0, 0.0, 0.0),
+                Vec3::new(-3.0, 0.0, 0.0),
                 materials[1],
             ),
+            (cube, Vec3::new(0.0, -6.0, 0.0), materials[0]),
+            (cube, Vec3::new(0.0, 0.0, -6.0), materials[0]),
             (
                 assets.store(Mesh::sphere(String::from("Sphere"), 16, 16)),
                 Vec3::new(0.0, 0.0, 0.0),
@@ -62,7 +62,7 @@ impl dotrix::Task for Startup {
             ),
             (
                 assets.store(Mesh::cone(String::from("Cone"), 16)),
-                Vec3::new(-1.0, 0.0, 0.0),
+                Vec3::new(8.0, 0.0, 8.0),
                 materials[3],
             ),
         ];
@@ -79,6 +79,11 @@ impl dotrix::Task for Startup {
             .collect::<Vec<_>>();
 
         world.spawn(entities);
+
+        world.spawn([
+            (dotrix::pbr::Light::ambient(),),
+            (dotrix::pbr::Light::simple(Vec3::new(0.0, 0.0, 100.0)),),
+        ]);
 
         state.push(Execution {});
     }

@@ -11,7 +11,7 @@ use dotrix_gpu as gpu;
 use dotrix_log as log;
 use dotrix_math as math;
 use dotrix_mesh::{Armature, Mesh};
-use dotrix_types::{vertex, Id, Transform};
+use dotrix_types::{vertex, Camera, Id, Transform};
 
 use gpu::backend as wgpu;
 
@@ -31,14 +31,16 @@ const DEFAULT_SHADOWS_TEXTURE_HEIGHT: u32 = 512;
 /// PBR Config Uniform
 #[repr(C)]
 #[derive(Default, Debug, Clone, Copy)]
-pub struct MetaUniform {
+pub struct GlobalUniform {
     pub number_of_lights: u32,
     pub shadows_enabled: u32,
     pub reserve: [u32; 2],
+    proj: [[f32; 4]; 4],
+    view: [[f32; 4]; 4],
 }
 
-unsafe impl bytemuck::Pod for MetaUniform {}
-unsafe impl bytemuck::Zeroable for MetaUniform {}
+unsafe impl bytemuck::Pod for GlobalUniform {}
+unsafe impl bytemuck::Zeroable for GlobalUniform {}
 
 #[inline(always)]
 fn size_of<T>() -> u64 {
@@ -49,7 +51,7 @@ fn size_of<T>() -> u64 {
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Buffers {
     /// PBR configuration buffer
-    pub meta: Id<gpu::Buffer>,
+    pub global: Id<gpu::Buffer>,
     /// Buffer for meshes
     pub mesh: Id<gpu::Buffer>,
     /// Buffer for transformations
@@ -73,17 +75,11 @@ pub struct Buffers {
 
     // TODO: add wrapper
     pub bind_group: Id<wgpu::BindGroup>,
-
-    // TODO: remove when camera is implemented
-    pub camera_mockup: Id<gpu::Buffer>,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-struct CameraUniform {
-    proj: [[f32; 4]; 4],
-    view: [[f32; 4]; 4],
-}
+struct CameraUniform {}
 
 unsafe impl bytemuck::Pod for CameraUniform {}
 unsafe impl bytemuck::Zeroable for CameraUniform {}
@@ -107,9 +103,9 @@ impl dotrix::Task for PrepareTask {
 
     fn run(&mut self, (mut gpu,): Self::Context) -> Self::Output {
         if self.buffers.is_none() {
-            let meta_buffer = gpu
+            let global_buffer = gpu
                 .buffer("dotrix::pbr::meta")
-                .size(size_of::<MetaUniform>())
+                .size(size_of::<GlobalUniform>())
                 .allow_copy_dst()
                 .use_as_uniform()
                 .create();
@@ -185,18 +181,7 @@ impl dotrix::Task for PrepareTask {
                             ty: wgpu::BindingType::Buffer {
                                 ty: wgpu::BufferBindingType::Uniform,
                                 has_dynamic_offset: false,
-                                min_binding_size: wgpu::BufferSize::new(size_of::<MetaUniform>()),
-                            },
-                            count: None,
-                        },
-                        // Camera Binding
-                        wgpu::BindGroupLayoutEntry {
-                            binding: 1,
-                            visibility: wgpu::ShaderStages::VERTEX,
-                            ty: wgpu::BindingType::Buffer {
-                                ty: wgpu::BufferBindingType::Uniform,
-                                has_dynamic_offset: false,
-                                min_binding_size: wgpu::BufferSize::new(size_of::<CameraUniform>()),
+                                min_binding_size: wgpu::BufferSize::new(size_of::<GlobalUniform>()),
                             },
                             count: None,
                         },
@@ -252,27 +237,12 @@ impl dotrix::Task for PrepareTask {
             let solid_render_pipeline =
                 create_solid_render_pipeline(&gpu, &shader_module, &bind_group_layout);
 
-            let camera_mockup = gpu
-                .buffer("dotrix::pbr::camera")
-                .size(size_of::<CameraUniform>())
-                .allow_copy_dst()
-                .use_as_uniform()
-                .create();
-
-            let camera_uniform = create_camera_mockup();
-
-            gpu.write_buffer(&camera_mockup, 0, bytemuck::cast_slice(&[camera_uniform]));
-
             let bind_group = gpu.create_bind_group(&wgpu::BindGroupDescriptor {
                 layout: &bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: meta_buffer.inner.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: camera_mockup.inner.as_entire_binding(),
+                        resource: global_buffer.inner.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
@@ -295,7 +265,7 @@ impl dotrix::Task for PrepareTask {
             });
 
             self.buffers = Some(Buffers {
-                meta: gpu.store(meta_buffer),
+                global: gpu.store(global_buffer),
                 mesh: gpu.store(mesh_buffer),
                 transform: gpu.store(transform_buffer),
                 materials: gpu.store(materials_buffer),
@@ -304,7 +274,6 @@ impl dotrix::Task for PrepareTask {
                 solid_render_pipeline: gpu.store(solid_render_pipeline),
                 bind_group: gpu.store(bind_group),
                 shader_module: gpu.store(shader_module),
-                camera_mockup: gpu.store(camera_mockup),
                 light: gpu.store(light_buffer),
                 shadows_texture: gpu.store(shadows_texture),
                 shadows_texture_view: gpu.store(shadows_texture_view),
@@ -561,6 +530,7 @@ impl dotrix::Task for EncodeTask {
     type Context = (
         dotrix::Any<Buffers>,
         dotrix::Any<gpu::Frame>,
+        dotrix::Any<Camera>,
         dotrix::Any<Data>,
         dotrix::Any<light::Data>,
         dotrix::Ref<gpu::Gpu>,
@@ -568,19 +538,24 @@ impl dotrix::Task for EncodeTask {
 
     type Output = gpu::Commands;
 
-    fn run(&mut self, (buffers, frame, pbr_data, light_data, gpu): Self::Context) -> Self::Output {
-        let meta_buffer = gpu.extract(&buffers.meta);
+    fn run(
+        &mut self,
+        (buffers, frame, camera, pbr_data, light_data, gpu): Self::Context,
+    ) -> Self::Output {
+        let global_buffer = gpu.extract(&buffers.global);
         let mesh_buffer = gpu.extract(&buffers.mesh);
         let indirect_buffer = gpu.extract(&buffers.indirect);
         let bind_group = gpu.extract(&buffers.bind_group);
         let solid_render_pipeline = gpu.extract(&buffers.solid_render_pipeline);
 
-        let meta = MetaUniform {
+        let global = GlobalUniform {
             number_of_lights: light_data.number_of_lights,
+            proj: camera.proj.into(),
+            view: camera.view.into(),
             ..Default::default()
         };
 
-        gpu.write_buffer(meta_buffer, 0, bytemuck::cast_slice(&[meta]));
+        gpu.write_buffer(global_buffer, 0, bytemuck::cast_slice(&[global]));
 
         let mut encoder = gpu.encoder(Some("dotrix::pbr::solid"));
 
@@ -636,6 +611,7 @@ struct DrawEntry {
     instances: Vec<Instance>,
 }
 
+/*
 fn create_camera_mockup() -> CameraUniform {
     let fov = 1.1;
     let near_plane = 0.0625;
@@ -651,6 +627,7 @@ fn create_camera_mockup() -> CameraUniform {
         view: view.into(),
     }
 }
+ */
 
 fn create_solid_render_pipeline(
     gpu: &gpu::Gpu,

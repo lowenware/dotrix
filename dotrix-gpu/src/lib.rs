@@ -64,6 +64,8 @@ pub struct Frame {
     pub view: wgpu::TextureView,
     pub delta: std::time::Duration,
     pub instant: std::time::Instant,
+    pub surface_width: u32,
+    pub surface_height: u32,
 }
 
 pub struct CommandEncoder {
@@ -348,6 +350,8 @@ impl dotrix::Task for CreateFrame {
             view,
             delta,
             instant: Instant::now(),
+            surface_width: renderer.surface_conf.width,
+            surface_height: renderer.surface_conf.height,
         }
     }
 }
