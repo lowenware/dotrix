@@ -10,6 +10,7 @@ struct Global {
     config: vec4<u32>,
     proj: mat4x4<f32>,
     view: mat4x4<f32>,
+    light_proj_view: mat4x4<f32>,
 }
 
 struct Transform {
@@ -32,22 +33,20 @@ struct Material {
 }
 
 struct Light {
-    /// rgb, a: intensity
+    /// ProjView matrix
+    proj_view: mat4x4<f32>,
+    /// rgb, a:unused
     color: vec4<f32>,
-    /// x: enabled, y: mode, z: shadow, w: reserved
+    /// xyz, if w < 1.0 { pos } else { dir } 
+    pos_dir: vec4<f32>,
+    /// xyz, w:unused
+    stream: vec4<f32>,
+    /// x:constant, y:linear, z:quadratic, w:unused
+    blur: vec4<f32>,
+    /// x:cut_off_inner, y:outer_cut_off, zw: unused
+    cut_off: vec4<f32>,
+    /// x:shadow, yzw: unused
     options: vec4<u32>,
-    /// Mode::Ambient -> _
-    /// Mode::Directional -> xyz: direction
-    /// Mode::Simple -> xyz: position
-    /// Mode::Point -> xyz: position
-    /// Mode::Spot -> xyz: position, w: cut_off
-    mode_options_1: vec4<f32>,
-    /// Mode::Ambient -> _
-    /// Mode::Directional -> _
-    /// Mode::Simple -> _
-    /// Mode::Point -> x: constant, y: linear, z: quadratic
-    /// Mode::Spot -> xyz: direction, w: outer_cut_off
-    mode_options_2: vec4<f32>
 }
 
 @group(0)
@@ -69,6 +68,24 @@ var<storage> s_materials: array<Material>;
 @group(0)
 @binding(5)
 var<storage> s_light: array<Light>;
+
+@group(1)
+@binding(0)
+var t_shadow: texture_depth_2d_array;
+@group(1)
+@binding(1)
+var sampler_shadow: sampler_comparison;
+
+@vertex
+fn vs_main_shadows(
+    @location(0) position: vec3<f32>,
+    @builtin(instance_index) instance_id: u32,
+) -> @builtin(position) vec4<f32> {
+    let idx: vec4<u32> = s_instances[instance_id].idx;
+    let model = s_transform[idx.x].model;
+
+    return u_global.light_proj_view * model * vec4<f32>(position, 1.0);
+}
 
 @vertex
 fn vs_main_solid(
@@ -94,23 +111,62 @@ fn vs_main_solid(
     return result;
 }
 
+fn fetch_shadow(light_idx: u32, homogeneous_coords: vec4<f32>) -> f32 {
+    // let pcf_count: i32 = 2;
+    // let total_texels: f32 = (pcf_count * 2.0 + 1.0) * (pcf_count * 2.0 + 1.0);
+    // let map_size: f32 = 512.0;
+    // let texel_size = 1.0 / map_size;
+    // let total = 0.0;
+
+    if (homogeneous_coords.w <= 0.0) {
+        return 1.0;
+    }
+    // compensate for the Y-flip difference between the NDC and texture coordinates
+    let flip_correction = vec2<f32>(0.5, -0.5);
+    // compute texture coordinates for shadow lookup
+    let proj_correction = 1.0 / homogeneous_coords.w;
+    let light_local = homogeneous_coords.xy * flip_correction * proj_correction + vec2<f32>(0.5, 0.5);
+    
+    // do the lookup, using HW PCF and comparison
+    //for (var u = -pcf_count; u <= pcf_count; u += 1u) {
+    //    for (var v = -pcf_count; v <= pcf_count; v += 1u) {
+    //
+    //    }
+    //}
+    
+
+    return textureSampleCompareLevel(t_shadow, sampler_shadow, light_local, i32(light_idx), homogeneous_coords.z * proj_correction);
+}
+
+
 @fragment
 fn fs_main(vertex: VertexOutput) -> @location(0) vec4<f32> {
     var color = vec3<f32>(0.0, 0.0, 0.0);
     let number_of_lights = u_global.config.x;
     let normal = normalize(vertex.world_normal);
+    var shadow_idx: u32 = 0u;
     
     for (var i = 0u; i < number_of_lights; i +=1u) {
-        let light_color = vec3<f32>(s_light[i].color.rgb) * s_light[i].color.a;
-        let light_mode = s_light[i].options.y;
-        if (light_mode == 0u) { // Ambient
-            color += light_color;
-        } else if (light_mode == 2u) { // Simple
-            let light_position = vec3<f32>(s_light[i].mode_options_1.xyz);
-            let light_direction = normalize(light_position.xyz - vertex.world_position.xyz);
-            let diffuse = max(0.0, dot(normal, light_direction));
-            color += diffuse * light_color;
+        let light_color = vec3<f32>(s_light[i].color.rgb);
+        let pos_dir = vec4<f32>(s_light[i].pos_dir);
+        var shadow: f32 = 1.0;
+
+        var light_direction: vec3<f32>;
+        if (pos_dir.w < 1.0) {
+            light_direction = vec3<f32>(-pos_dir.xyz);
+        } else {
+            light_direction = normalize(pos_dir.xyz - vertex.world_position.xyz);
         }
+
+        let drop_shadow: u32 = s_light[i].options.x;
+
+        if (drop_shadow == 1u) {
+            shadow = fetch_shadow(shadow_idx, s_light[i].proj_view * vertex.world_position);
+            shadow_idx += 1u;
+        }
+
+        let diffuse = max(0.0, dot(normal, light_direction));
+        color += shadow * diffuse * light_color;
     }
 
     return vec4<f32>(color, 1.0) * vertex.color;

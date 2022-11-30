@@ -24,7 +24,7 @@ impl Camera {
     }
 
     /// Returns projection matrix constructor
-    pub fn lens(fov: f32, plane: Range<f32>) -> Lens {
+    pub fn lens(fov: impl Into<Rad<f32>>, plane: Range<f32>) -> Lens {
         Lens::new(fov, plane)
     }
 }
@@ -32,33 +32,31 @@ impl Camera {
 /// Projection matrix constructor
 pub struct Lens {
     /// Field of View (rad)
-    pub fov: f32,
+    pub fov: Rad<f32>,
     /// Near..Far plane
     pub plane: Range<f32>,
 }
 
 impl Lens {
     /// Returns new instance of projection matrix constructor
-    pub fn new(fov: f32, plane: Range<f32>) -> Self {
-        Self { fov, plane }
+    pub fn new(fov: impl Into<Rad<f32>>, plane: Range<f32>) -> Self {
+        Self {
+            fov: fov.into(),
+            plane,
+        }
     }
 
     /// Returns projection matrix for the surface
-    pub fn matrix(&self, surface_width: u32, surface_height: u32) -> Mat4 {
+    pub fn proj(&self, surface_width: u32, surface_height: u32) -> Mat4 {
         let aspect_ratio = surface_width as f32 / surface_height as f32;
-        perspective(
-            Rad(self.fov),
-            aspect_ratio,
-            self.plane.start,
-            self.plane.end,
-        )
+        perspective(self.fov, aspect_ratio, self.plane.start, self.plane.end)
     }
 }
 
 impl Default for Lens {
     fn default() -> Self {
         Self {
-            fov: 1.1,
+            fov: Rad(1.1),
             plane: 0.0625..524288.06,
         }
     }
@@ -94,8 +92,13 @@ impl View {
         mx
     }
 
+    /// Return view matrix made from target
+    pub fn target(&self, target: Vec3) -> Mat4 {
+        self.target_up(target, Vec3::unit_z())
+    }
+
     /// Return view matrix made from target and up vector
-    pub fn target(self, target: Vec3, up: Vec3) -> Mat4 {
+    pub fn target_up(&self, target: Vec3, up: Vec3) -> Mat4 {
         Mat4::look_at_rh(
             Point3::new(self.point.x, self.point.y, self.point.z),
             Point3::new(target.x, target.y, target.z),

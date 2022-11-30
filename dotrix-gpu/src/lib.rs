@@ -220,6 +220,10 @@ impl Gpu {
         }
     }
 
+    pub fn create_sampler(&self, desc: &wgpu::SamplerDescriptor) -> wgpu::Sampler {
+        self.device.create_sampler(desc)
+    }
+
     pub fn texture<'a, 'b>(&'a self, label: &'b str) -> texture::Builder<'a, 'b> {
         texture::Builder {
             gpu: self,
@@ -290,6 +294,10 @@ impl Gpu {
 
     pub fn sample_count(&self) -> u32 {
         self.sample_count
+    }
+
+    pub fn features(&self) -> wgpu::Features {
+        self.device.features()
     }
 
     fn create_depth_buffer(&self) -> TextureView {

@@ -2,6 +2,7 @@ use dotrix::ecs::Entity;
 use dotrix::math::Vec3;
 use dotrix::{log, pbr, Transform};
 use dotrix::{Mesh, World};
+use pbr::Light;
 
 /// Execution state of the application
 pub struct Execution {}
@@ -128,8 +129,10 @@ impl dotrix::Task for Startup {
         world.spawn(entities);
 
         world.spawn([
-            (dotrix::pbr::Light::ambient(),),
-            (dotrix::pbr::Light::simple(Vec3::new(0.0, -50.0, 100.0)),),
+            (dotrix::pbr::Light::ambient(0.0, 1.0, -3.0),),
+            (dotrix::pbr::Light::ambient(-1.0, 0.0, -3.0)
+                .intensity(0.1)
+                .shadow(false),),
         ]);
 
         state.push(Execution {});
