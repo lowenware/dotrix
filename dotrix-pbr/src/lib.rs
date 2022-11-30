@@ -19,14 +19,15 @@ pub use entity::Entity;
 pub use light::Light;
 pub use material::{Material, MaterialUniform};
 
-const DEAFULT_MESH_BUFFER_SIZE: u64 = 64 * 1024 * 1024;
-const DEAFULT_TRANSFORM_BUFFER_SIZE: u64 = 8 * 1024 * 1024;
-const DEAFULT_INDIRECT_BUFFER_SIZE: u64 = 8 * 1024 * 1024;
+const DEAFULT_MESH_BUFFER_SIZE: u64 = 8 * 1024 * 1024;
+const DEAFULT_TRANSFORM_BUFFER_SIZE: u64 = 1 * 1024 * 1024;
+const DEAFULT_INDIRECT_BUFFER_SIZE: u64 = 1 * 1024 * 1024;
 const DEAFULT_INSTANCES_BUFFER_SIZE: u64 = 1000 * std::mem::size_of::<Instance>() as u64;
 const DEAFULT_MATERIALS_BUFFER_SIZE: u64 = 50 * std::mem::size_of::<MaterialUniform>() as u64;
-const DEFAULT_MAX_LIGHTS_NUMBER: u32 = 128;
-const DEFAULT_SHADOWS_TEXTURE_WIDTH: u32 = 512;
-const DEFAULT_SHADOWS_TEXTURE_HEIGHT: u32 = 512;
+const DEFAULT_MAX_LIGHTS_NUMBER: u32 = 32;
+const DEFAULT_SHADOWS_TEXTURE_WIDTH: u32 = 2048;
+const DEFAULT_SHADOWS_TEXTURE_HEIGHT: u32 = 2048;
+const DEFAULT_AMBIENT_LIGHT_DISTANCE: f32 = 10.0;
 
 /// PBR Config Uniform
 #[repr(C)]
@@ -37,6 +38,7 @@ pub struct GlobalUniform {
     pub reserve: [u32; 2],
     proj: [[f32; 4]; 4],
     view: [[f32; 4]; 4],
+    light_proj_view: [[f32; 4]; 4],
 }
 
 unsafe impl bytemuck::Pod for GlobalUniform {}
@@ -60,6 +62,8 @@ pub struct Buffers {
     pub materials: Id<gpu::Buffer>,
     /// Solid models rendering pipeline
     pub solid_render_pipeline: Id<gpu::RenderPipeline>,
+    /// Shadow Pipeline
+    pub shadow_render_pipeline: Id<gpu::RenderPipeline>,
     /// Indirect buffer
     pub indirect: Id<gpu::Buffer>,
     /// Instances buffer (contains indices to transformations and materials by instance_id)
@@ -75,6 +79,7 @@ pub struct Buffers {
 
     // TODO: add wrapper
     pub bind_group: Id<wgpu::BindGroup>,
+    pub local_bind_group: Id<wgpu::BindGroup>,
 }
 
 #[repr(C)]
@@ -102,6 +107,7 @@ impl dotrix::Task for PrepareTask {
     type Output = Buffers;
 
     fn run(&mut self, (mut gpu,): Self::Context) -> Self::Output {
+        use dotrix_mesh::VertexBufferLayout;
         if self.buffers.is_none() {
             let global_buffer = gpu
                 .buffer("dotrix::pbr::meta")
@@ -149,6 +155,7 @@ impl dotrix::Task for PrepareTask {
                 .buffer("dotrix::pbr::light_sources")
                 .size(self.max_lights_number as u64 * size_of::<light::Uniform>())
                 .allow_copy_dst()
+                .allow_copy_src()
                 .use_as_storage()
                 .create();
 
@@ -169,6 +176,23 @@ impl dotrix::Task for PrepareTask {
                 "dotrix::pbr::solid_shader_module",
                 Cow::Borrowed(include_str!("pbr.wgsl")),
             );
+
+            let vertex_size = SolidVertexBufferLayout::vertex_size();
+            let attributes = SolidVertexBufferLayout::attributes()
+                .map(
+                    |(vertex_format, offset, shader_location)| wgpu::VertexAttribute {
+                        format: gpu::map_vertex_format(vertex_format),
+                        offset,
+                        shader_location,
+                    },
+                )
+                .collect::<Vec<_>>();
+
+            let vertex_buffer_layout = [wgpu::VertexBufferLayout {
+                array_stride: vertex_size as wgpu::BufferAddress,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: attributes.as_slice(),
+            }];
 
             let bind_group_layout =
                 gpu.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -234,10 +258,59 @@ impl dotrix::Task for PrepareTask {
                     ],
                 });
 
-            let solid_render_pipeline =
-                create_solid_render_pipeline(&gpu, &shader_module, &bind_group_layout);
+            let local_bind_group_layout =
+                gpu.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("dotrix::pbr::bind_group_layout"),
+                    entries: &[
+                        // Shadows textures
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                sample_type: wgpu::TextureSampleType::Depth,
+                                view_dimension: wgpu::TextureViewDimension::D2Array,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Comparison),
+                            count: None,
+                        },
+                    ],
+                });
+
+            let solid_render_pipeline = create_solid_render_pipeline(
+                &gpu,
+                &shader_module,
+                &vertex_buffer_layout,
+                &bind_group_layout,
+                &local_bind_group_layout,
+            );
+
+            let shadow_render_pipeline = create_shadow_pipeline(
+                &gpu,
+                &shader_module,
+                &vertex_buffer_layout,
+                &bind_group_layout,
+            );
+
+            let shadow_sampler = gpu.create_sampler(&wgpu::SamplerDescriptor {
+                label: Some("shadow"),
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Nearest,
+                compare: Some(wgpu::CompareFunction::Less),
+                ..Default::default()
+            });
 
             let bind_group = gpu.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: None,
                 layout: &bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
@@ -261,7 +334,21 @@ impl dotrix::Task for PrepareTask {
                         resource: light_buffer.inner.as_entire_binding(),
                     },
                 ],
+            });
+
+            let local_bind_group = gpu.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: None,
+                layout: &local_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&shadows_texture_view.inner),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&shadow_sampler),
+                    },
+                ],
             });
 
             self.buffers = Some(Buffers {
@@ -272,7 +359,9 @@ impl dotrix::Task for PrepareTask {
                 indirect: gpu.store(indirect_buffer),
                 instances: gpu.store(instances_buffer),
                 solid_render_pipeline: gpu.store(solid_render_pipeline),
+                shadow_render_pipeline: gpu.store(shadow_render_pipeline),
                 bind_group: gpu.store(bind_group),
+                local_bind_group: gpu.store(local_bind_group),
                 shader_module: gpu.store(shader_module),
                 light: gpu.store(light_buffer),
                 shadows_texture: gpu.store(shadows_texture),
@@ -518,11 +607,15 @@ impl dotrix::Task for LoadTask {
 
 pub struct EncodeTask {
     priority: u32,
+    shadows: Vec<gpu::TextureView>,
 }
 
 impl EncodeTask {
     pub fn new(priority: u32) -> Self {
-        Self { priority }
+        Self {
+            priority,
+            shadows: Vec::new(),
+        }
     }
 }
 
@@ -546,9 +639,26 @@ impl dotrix::Task for EncodeTask {
         let mesh_buffer = gpu.extract(&buffers.mesh);
         let indirect_buffer = gpu.extract(&buffers.indirect);
         let bind_group = gpu.extract(&buffers.bind_group);
+        let local_bind_group = gpu.extract(&buffers.local_bind_group);
         let solid_render_pipeline = gpu.extract(&buffers.solid_render_pipeline);
+        let shadow_render_pipeline = gpu.extract(&buffers.shadow_render_pipeline);
+        let shadows_texture = gpu.extract(&buffers.shadows_texture);
+        let light_buffer = gpu.extract(&buffers.light);
 
-        let global = GlobalUniform {
+        while self.shadows.len() < light_data.shadows.len() {
+            self.shadows.push(
+                shadows_texture
+                    .view("dotrix::pbr::shadow_view")
+                    .dimension_d2()
+                    .aspect_all()
+                    .base_mip_level(0)
+                    .base_array_layer(self.shadows.len() as u32)
+                    .array_layer_count(1)
+                    .create(),
+            );
+        }
+
+        let mut global = GlobalUniform {
             number_of_lights: light_data.number_of_lights,
             proj: camera.proj.into(),
             view: camera.view.into(),
@@ -558,6 +668,41 @@ impl dotrix::Task for EncodeTask {
         gpu.write_buffer(global_buffer, 0, bytemuck::cast_slice(&[global]));
 
         let mut encoder = gpu.encoder(Some("dotrix::pbr::solid"));
+        for (i, light_source) in light_data.shadows.iter().enumerate() {
+            encoder.inner.push_debug_group(&format!(
+                "shadow pass {} (light with offset {})",
+                i, light_source
+            ));
+            encoder.inner.copy_buffer_to_buffer(
+                &light_buffer.inner,
+                (*light_source as u64 * size_of::<light::Uniform>()),
+                &global_buffer.inner,
+                size_of::<GlobalUniform>() - size_of::<[[f32; 4]; 4]>(),
+                size_of::<[[f32; 4]; 4]>(),
+            );
+            {
+                let mut rpass = encoder
+                    .inner
+                    .begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: None,
+                        color_attachments: &[],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                            view: &self.shadows[i].inner,
+                            depth_ops: Some(wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(1.0),
+                                store: true,
+                            }),
+                            stencil_ops: None,
+                        }),
+                    });
+                rpass.set_pipeline(&shadow_render_pipeline.inner);
+                rpass.set_bind_group(0, bind_group, &[]);
+                rpass.set_vertex_buffer(0, mesh_buffer.inner.slice(..));
+                rpass.multi_draw_indirect(&indirect_buffer.inner, 0, pbr_data.indirect_buffer_len);
+            }
+            encoder.inner.pop_debug_group();
+        }
+
         let (view, resolve_target) = gpu.color_attachment(&frame);
 
         {
@@ -586,6 +731,7 @@ impl dotrix::Task for EncodeTask {
             rpass.push_debug_group("dotrix::pbr::solid::set");
             rpass.set_pipeline(&solid_render_pipeline.inner);
             rpass.set_bind_group(0, &bind_group, &[]);
+            rpass.set_bind_group(1, &local_bind_group, &[]);
             rpass.set_vertex_buffer(0, mesh_buffer.inner.slice(..));
             rpass.pop_debug_group();
             rpass.push_debug_group("dotrix::pbr::solid::draw");
@@ -619,53 +765,18 @@ struct DrawEntry {
     instances: Vec<Instance>,
 }
 
-/*
-fn create_camera_mockup() -> CameraUniform {
-    let fov = 1.1;
-    let near_plane = 0.0625;
-    let far_plane = 524288.06;
-    let position = math::Point3::new(20.0, -30.0, 20.0);
-    let target = math::Point3::new(0.0, 0.0, 0.0);
-
-    let proj = math::perspective(math::Rad(fov), 640.0 / 480.0, near_plane, far_plane);
-    let view = math::Mat4::look_at_rh(position, target, math::Vec3::new(0.0, 0.0, 1.0));
-
-    CameraUniform {
-        proj: proj.into(),
-        view: view.into(),
-    }
-}
- */
-
 fn create_solid_render_pipeline(
     gpu: &gpu::Gpu,
     shader: &gpu::ShaderModule,
+    vertex_buffer_layout: &[wgpu::VertexBufferLayout],
     bind_group_layout: &wgpu::BindGroupLayout,
+    local_group_layout: &wgpu::BindGroupLayout,
 ) -> gpu::RenderPipeline {
-    use dotrix_mesh::VertexBufferLayout;
-
     let pipeline_layout = gpu.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("dotrix::pbr::pipeline_layout"),
-        bind_group_layouts: &[bind_group_layout],
+        bind_group_layouts: &[bind_group_layout, local_group_layout],
         push_constant_ranges: &[],
     });
-
-    let vertex_size = SolidVertexBufferLayout::vertex_size();
-    let attributes = SolidVertexBufferLayout::attributes()
-        .map(
-            |(vertex_format, offset, shader_location)| wgpu::VertexAttribute {
-                format: gpu::map_vertex_format(vertex_format),
-                offset,
-                shader_location,
-            },
-        )
-        .collect::<Vec<_>>();
-
-    let vertex_buffer_layout = [wgpu::VertexBufferLayout {
-        array_stride: vertex_size as wgpu::BufferAddress,
-        step_mode: wgpu::VertexStepMode::Vertex,
-        attributes: attributes.as_slice(),
-    }];
 
     let target = gpu.surface_format();
 
@@ -675,7 +786,7 @@ fn create_solid_render_pipeline(
         vertex: wgpu::VertexState {
             module: &shader.inner,
             entry_point: "vs_main_solid",
-            buffers: &vertex_buffer_layout,
+            buffers: vertex_buffer_layout,
         },
         fragment: Some(wgpu::FragmentState {
             module: &shader.inner,
@@ -707,6 +818,50 @@ fn create_solid_render_pipeline(
     })
 }
 
+fn create_shadow_pipeline(
+    gpu: &gpu::Gpu,
+    shader: &gpu::ShaderModule,
+    vertex_buffer_layout: &[wgpu::VertexBufferLayout],
+    bind_group_layout: &wgpu::BindGroupLayout,
+) -> gpu::RenderPipeline {
+    let shadows_pipeline_layout = gpu.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("dotrix::pbr::shadows_pipeline_layout"),
+        bind_group_layouts: &[bind_group_layout],
+        push_constant_ranges: &[],
+    });
+
+    gpu.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("dotrix::pbr::render_pipeline"),
+        layout: Some(&shadows_pipeline_layout.inner),
+        vertex: wgpu::VertexState {
+            module: &shader.inner,
+            entry_point: "vs_main_shadows",
+            buffers: vertex_buffer_layout,
+        },
+        fragment: None,
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            front_face: wgpu::FrontFace::Cw,
+            cull_mode: Some(wgpu::Face::Front),
+            unclipped_depth: gpu.features().contains(wgpu::Features::DEPTH_CLIP_CONTROL),
+            ..Default::default()
+        },
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::LessEqual,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState {
+                constant: 2, // corresponds to bilinear filtering
+                slope_scale: 2.0,
+                clamp: 0.0,
+            },
+        }),
+        multisample: wgpu::MultisampleState::default(),
+        multiview: None,
+    })
+}
+
 pub struct Extension {
     pub mesh_buffer_size: u64,
     pub transform_buffer_size: u64,
@@ -716,6 +871,7 @@ pub struct Extension {
     pub max_lights_number: u32,
     pub shadows_texture_width: u32,
     pub shadows_texture_height: u32,
+    pub ambient_light_distance: f32,
 }
 
 impl Default for Extension {
@@ -729,6 +885,7 @@ impl Default for Extension {
             max_lights_number: DEFAULT_MAX_LIGHTS_NUMBER,
             shadows_texture_width: DEFAULT_SHADOWS_TEXTURE_WIDTH,
             shadows_texture_height: DEFAULT_SHADOWS_TEXTURE_HEIGHT,
+            ambient_light_distance: DEFAULT_AMBIENT_LIGHT_DISTANCE,
         }
     }
 }
@@ -748,7 +905,11 @@ impl dotrix::Extension for Extension {
         };
         let pbr_load_task = LoadTask::new();
 
-        let light_load_task = light::LoadTask::new();
+        let light_load_task = light::LoadTask::new(
+            self.shadows_texture_width,
+            self.shadows_texture_height,
+            self.ambient_light_distance,
+        );
 
         let pbr_encode_task = EncodeTask::new(2000);
 

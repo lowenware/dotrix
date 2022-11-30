@@ -39,7 +39,7 @@ faster lookup for an entity by its ID
 - [x] New Camera ~crate~ module
 - [ ] New GLTF crate
 - [ ] High-quality PBR rendering
-- [ ] Shadows support
+- [x] Shadows support
 - [ ] Skinning within the new PBR
 - [ ] Unit tests review
 - [x] Antialiasing & Depth buffer
