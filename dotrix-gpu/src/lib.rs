@@ -113,6 +113,7 @@ impl Gpu {
             width: descriptor.surface_size[0],
             height: descriptor.surface_size[1],
             present_mode: wgpu::PresentMode::Mailbox,
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
         };
 
         surface.configure(&device, &surface_conf);

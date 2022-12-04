@@ -11,7 +11,6 @@ mod color;
 // mod state;
 // mod world;
 
-// pub mod animation;
 // pub mod assets;
 pub mod camera;
 // pub mod ecs;
@@ -25,7 +24,6 @@ pub mod transform;
 pub mod vertex;
 // pub mod window;
 
-// pub use animation::Animator;
 // pub use application::{Application, IntoService, Service};
 // pub use assets::Assets;
 pub use camera::Camera;

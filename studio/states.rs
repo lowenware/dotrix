@@ -129,8 +129,8 @@ impl dotrix::Task for Startup {
         world.spawn(entities);
 
         world.spawn([
-            (dotrix::pbr::Light::ambient(0.0, 1.0, -3.0),),
-            (dotrix::pbr::Light::ambient(-1.0, 0.0, -3.0)
+            (dotrix::pbr::Light::ambient(1.0, 1.0, -3.0),),
+            (dotrix::pbr::Light::ambient(-1.0, -1.0, -3.0)
                 .intensity(0.1)
                 .shadow(false),),
         ]);

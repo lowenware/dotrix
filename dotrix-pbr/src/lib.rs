@@ -528,9 +528,9 @@ impl dotrix::Task for LoadTask {
             let material_uniform = MaterialUniform {
                 color: material.albedo.into(),
                 options: [
-                    material.ambient_occlusion,
-                    material.metallic,
-                    material.roughness,
+                    material.occlusion_factor,
+                    material.metallic_factor,
+                    material.roughness_factor,
                     0.0,
                 ],
                 maps_1: [material::MAP_DISABLED; 4],
