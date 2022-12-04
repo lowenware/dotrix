@@ -35,14 +35,16 @@ faster lookup for an entity by its ID
 - [x] Constant FPS (if host machine is powerful enough)
 - [x] GPU Driven PBR Rendering (Prototype)
 - [x] Lights in storage buffers
-- [ ] PBR materials using texture arrays
 - [x] New Camera ~crate~ module
-- [ ] New GLTF crate
-- [ ] High-quality PBR rendering
-- [x] Shadows support
-- [ ] Skinning within the new PBR
-- [ ] Unit tests review
 - [x] Antialiasing & Depth buffer
+- [x] Shadows support
+- [x] New GLTF crate
+- [ ] New Input crate
+- [ ] Add Material loader from one of toml/json/ron formats
+- [ ] Add support for PBR materials using texture arrays
+- [ ] Add PBR pipeline for entities with armature
+- [ ] Add Overlay and EGUI support
+- [ ] Unit tests review
 - [ ] Migrate math crate to `glam`
 - [ ] API documentation
  

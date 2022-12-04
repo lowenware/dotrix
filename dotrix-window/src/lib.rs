@@ -11,6 +11,12 @@ unsafe impl raw_window_handle::HasRawWindowHandle for Handle {
     }
 }
 
+unsafe impl raw_window_handle::HasRawDisplayHandle for Handle {
+    fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
+        self.window.raw_display_handle()
+    }
+}
+
 /// Window Service
 pub struct Window {
     handle: Handle,

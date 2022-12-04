@@ -13,17 +13,17 @@ pub struct Material {
     /// Id of a texture asset
     pub albedo_map: Id<image::Image>,
     // Ambient occulsion
-    pub ambient_occlusion: f32,
+    pub occlusion_factor: f32,
     /// Id of a ao texture asset
-    pub ambient_occlusion_map: Id<image::Image>,
+    pub occlusion_map: Id<image::Image>,
     /// Metallic (reflectance)
-    pub metallic: f32,
+    pub metallic_factor: f32,
     /// Id of a metallic texture asset
     pub metallic_map: Id<image::Image>,
     /// Id of a normal map asset
     pub normal_map: Id<image::Image>,
     /// Roughness (Random scatter)
-    pub roughness: f32,
+    pub roughness_factor: f32,
     /// Id of a roughness texture asset
     pub roughness_map: Id<image::Image>,
 }
@@ -34,12 +34,12 @@ impl Default for Material {
             label: String::from("dotrix::material"),
             albedo: Color::white(),
             albedo_map: Id::default(),
-            ambient_occlusion: 1.0,
-            ambient_occlusion_map: Id::default(),
-            metallic: 1.0,
+            occlusion_factor: 1.0,
+            occlusion_map: Id::default(),
+            metallic_factor: 1.0,
             metallic_map: Id::default(),
             normal_map: Id::default(),
-            roughness: 1.0,
+            roughness_factor: 1.0,
             roughness_map: Id::default(),
         }
     }

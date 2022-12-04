@@ -6,7 +6,10 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 
 pub mod armature;
-pub use armature::Armature;
+pub use armature::{Armature, Joint};
+
+pub mod animation;
+pub use animation::Animation;
 
 /// 3D Model Mesh
 pub struct Mesh {

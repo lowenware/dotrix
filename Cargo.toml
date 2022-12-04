@@ -38,7 +38,7 @@ members = [
 #  "dotrix_egui",
 #  "dotrix_overlay",
   "dotrix-pbr",
-#  "dotrix-gltf",
+  "dotrix-gltf",
   "dotrix-gpu",
   "dotrix-log",
   "dotrix-mesh",
@@ -55,7 +55,7 @@ dotrix_assets = { path = "dotrix-assets", version = "0.1" }
 dotrix_core = { path = "dotrix-core", version = "0.6" }
 dotrix_ecs = { path = "dotrix-ecs", version = "0.1" }
 dotrix_image = { path = "dotrix-image", version = "0.1" }
-# dotrix_gltf = { path = "dotrix-gltf", version = "0.1.0" }
+dotrix_gltf = { path = "dotrix-gltf", version = "0.1" }
 dotrix_gpu = { path = "dotrix-gpu", version = "0.1" }
 dotrix_log = { path = "dotrix-log", version = "0.1" }
 dotrix_math = { path = "dotrix-math", version = "0.4" }

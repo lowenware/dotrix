@@ -134,3 +134,31 @@ impl Attribute for Bitangent {
         AttributeFormat::Float32x3
     }
 }
+
+pub struct Weights {
+    value: [f32; 4],
+}
+
+impl Attribute for Weights {
+    type Raw = [f32; 4];
+    fn name() -> &'static str {
+        "Weights"
+    }
+    fn format() -> AttributeFormat {
+        AttributeFormat::Float32x4
+    }
+}
+
+pub struct Joints {
+    value: [u16; 4],
+}
+
+impl Attribute for Joints {
+    type Raw = [u16; 4];
+    fn name() -> &'static str {
+        "Weights"
+    }
+    fn format() -> AttributeFormat {
+        AttributeFormat::Uint16x4
+    }
+}
