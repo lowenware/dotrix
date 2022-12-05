@@ -1,3 +1,4 @@
+mod input;
 use std::sync::Arc;
 
 /// Dotrix window handle
@@ -26,6 +27,10 @@ impl Window {
     pub fn new(handle: Handle) -> Self {
         Self { handle }
     }
+
+    pub fn handle(&self) -> &Handle {
+        &self.handle
+    }
 }
 
 /// Trait representing ability of application to have a window
@@ -36,7 +41,7 @@ pub trait Controller: Sized + 'static {
 
     fn close_request(&self) -> bool;
 
-    fn on_input(&mut self /* input_event */);
+    fn on_input(&mut self, event: dotrix_input::Event);
 
     fn on_resize(&mut self, _width: u32, _height: u32);
 
@@ -67,6 +72,9 @@ pub trait Controller: Sized + 'static {
         let mut last_frame = std::time::Instant::now();
 
         event_loop.run(move |event, _, control_flow| {
+            if let Some(dotrix_event) = input::map(&event) {
+                self.on_input(dotrix_event);
+            }
             match event {
                 // window control
                 winit::event::Event::MainEventsCleared => {
