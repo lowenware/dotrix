@@ -5,6 +5,7 @@
 
 // mod application;
 mod color;
+mod frame;
 // mod cubemap;
 // mod globals;
 // mod pose;
@@ -28,6 +29,7 @@ pub mod vertex;
 // pub use assets::Assets;
 pub use camera::Camera;
 pub use color::Color;
+pub use frame::Frame;
 // pub use cubemap::CubeMap;
 // pub use ecs::{Priority, RunLevel, System};
 // pub use frame::Frame;

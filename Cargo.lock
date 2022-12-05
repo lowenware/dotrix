@@ -517,6 +517,7 @@ dependencies = [
  "dotrix_gltf",
  "dotrix_gpu",
  "dotrix_image",
+ "dotrix_input",
  "dotrix_log",
  "dotrix_math",
  "dotrix_mesh",
@@ -591,6 +592,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "dotrix_input"
+version = "0.1.0"
+dependencies = [
+ "bitflags",
+ "dotrix_core",
+ "dotrix_types",
+]
+
+[[package]]
 name = "dotrix_log"
 version = "0.1.0"
 dependencies = [
@@ -656,6 +666,7 @@ dependencies = [
 name = "dotrix_window"
 version = "0.1.0"
 dependencies = [
+ "dotrix_input",
  "futures",
  "raw-window-handle 0.5.0",
  "winit",
