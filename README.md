@@ -39,11 +39,11 @@ faster lookup for an entity by its ID
 - [x] Antialiasing & Depth buffer
 - [x] Shadows support
 - [x] New GLTF crate
-- [ ] New Input crate
+- [x] New Input crate
+- [ ] Add Overlay and EGUI support
 - [ ] Add Material loader from one of toml/json/ron formats
 - [ ] Add support for PBR materials using texture arrays
 - [ ] Add PBR pipeline for entities with armature
-- [ ] Add Overlay and EGUI support
 - [ ] Unit tests review
 - [ ] Migrate math crate to `glam`
 - [ ] API documentation

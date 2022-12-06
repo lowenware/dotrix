@@ -11,7 +11,7 @@ use dotrix_gpu as gpu;
 use dotrix_log as log;
 use dotrix_math as math;
 use dotrix_mesh::{Armature, Mesh};
-use dotrix_types::{vertex, Camera, Id, Transform};
+use dotrix_types::{vertex, Camera, Frame, Id, Transform};
 
 use gpu::backend as wgpu;
 
@@ -622,7 +622,7 @@ impl EncodeTask {
 impl dotrix::Task for EncodeTask {
     type Context = (
         dotrix::Any<Buffers>,
-        dotrix::Any<gpu::Frame>,
+        dotrix::Any<Frame>,
         dotrix::Any<Camera>,
         dotrix::Any<Data>,
         dotrix::Any<light::Data>,
@@ -703,7 +703,7 @@ impl dotrix::Task for EncodeTask {
             encoder.inner.pop_debug_group();
         }
 
-        let (view, resolve_target) = gpu.color_attachment(&frame);
+        let (view, resolve_target) = gpu.color_attachment();
 
         {
             let mut rpass = encoder

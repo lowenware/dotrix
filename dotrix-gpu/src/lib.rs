@@ -14,7 +14,7 @@ use dotrix_types as types;
 use dotrix_window as window;
 
 use types::vertex;
-use types::Id;
+use types::{Frame, Id};
 
 pub use buffer::Buffer;
 pub use pipeline::{PipelineLayout, RenderPipeline};
@@ -60,15 +60,9 @@ pub struct Gpu {
     /// depth buffer view
     depth_buffer: TextureView,
     multisampled_framebuffer: TextureView,
-}
 
-pub struct Frame {
-    pub inner: wgpu::SurfaceTexture,
-    pub view: wgpu::TextureView,
-    pub delta: std::time::Duration,
-    pub instant: std::time::Instant,
-    pub surface_width: u32,
-    pub surface_height: u32,
+    frame_texture: Option<(wgpu::SurfaceTexture, wgpu::TextureView)>,
+    frame_number: u64,
 }
 
 pub struct CommandEncoder {
@@ -141,6 +135,8 @@ impl Gpu {
             storage: HashMap::new(),
             depth_buffer,
             multisampled_framebuffer,
+            frame_texture: None,
+            frame_number: 0,
         }
     }
 
@@ -284,15 +280,27 @@ impl Gpu {
 
     pub fn color_attachment<'a>(
         &'a self,
-        frame: &'a Frame,
     ) -> (&'a wgpu::TextureView, Option<&'a wgpu::TextureView>) {
+        let view = self.frame_texture_view();
         if self.sample_count == 1 {
-            (&frame.view, None)
+            (view, None)
         } else {
-            (&self.multisampled_framebuffer.inner, Some(&frame.view))
+            (&self.multisampled_framebuffer.inner, Some(view))
         }
     }
 
+    pub fn frame_texture_view(&self) -> &wgpu::TextureView {
+        self.frame_texture
+            .as_ref()
+            .map(|(_, view)| view)
+            .expect("Frame does not exists")
+    }
+
+    fn frame_present(&mut self) {
+        let (frame, _) = self.frame_texture.take().expect("Frame does not exists");
+
+        frame.present();
+    }
     pub fn sample_count(&self) -> u32 {
         self.sample_count
     }
@@ -322,12 +330,6 @@ pub fn map_vertex_format(attr_format: vertex::AttributeFormat) -> wgpu::VertexFo
         vertex::AttributeFormat::Uint32x2 => wgpu::VertexFormat::Float32x2,
         vertex::AttributeFormat::Uint32x3 => wgpu::VertexFormat::Float32x3,
         vertex::AttributeFormat::Uint32x4 => wgpu::VertexFormat::Float32x4,
-    }
-}
-
-impl Frame {
-    pub fn delta(&self) -> Duration {
-        self.delta
     }
 }
 
@@ -390,14 +392,17 @@ impl dotrix::Task for CreateFrame {
         let view = wgpu_frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+        renderer.frame_texture = Some((wgpu_frame, view));
+
+        let frame_number = renderer.frame_number;
+        renderer.frame_number += 1;
 
         Frame {
-            inner: wgpu_frame,
-            view,
             delta,
             instant: Instant::now(),
-            surface_width: renderer.surface_conf.width,
-            surface_height: renderer.surface_conf.height,
+            width: renderer.surface_conf.width,
+            height: renderer.surface_conf.height,
+            number: frame_number,
         }
     }
 }
@@ -438,7 +443,7 @@ impl dotrix::Task for ClearFrame {
     type Context = (dotrix::Any<Frame>, dotrix::Ref<Gpu>);
     // The task uses itself as output as a zero-cost abstraction
     type Output = Commands;
-    fn run(&mut self, (frame, renderer): Self::Context) -> Self::Output {
+    fn run(&mut self, (_, renderer): Self::Context) -> Self::Output {
         let mut encoder = renderer.encoder(Some("dotrix::gpu::clear_frame"));
 
         let clear_color = wgpu::Color {
@@ -448,7 +453,7 @@ impl dotrix::Task for ClearFrame {
             a: self.color.a as f64,
         };
 
-        let (view, resolve_target) = renderer.color_attachment(&frame);
+        let (view, resolve_target) = renderer.color_attachment();
 
         let rpass_color_attachment = wgpu::RenderPassColorAttachment {
             view,
@@ -508,7 +513,11 @@ impl dotrix::Task for SubmitCommands {
 pub struct PresentFrame;
 
 impl dotrix::Task for PresentFrame {
-    type Context = (dotrix::Take<Frame>, dotrix::Take<SubmitCommands>);
+    type Context = (
+        dotrix::Take<Frame>,
+        dotrix::Take<SubmitCommands>,
+        dotrix::Mut<Gpu>,
+    );
 
     type Output = PresentFrame;
 
@@ -516,8 +525,8 @@ impl dotrix::Task for PresentFrame {
         dotrix::task::OutputChannel::Scheduler
     }
 
-    fn run(&mut self, (frame, _): Self::Context) -> Self::Output {
-        frame.unwrap().inner.present();
+    fn run(&mut self, (_, _, mut gpu): Self::Context) -> Self::Output {
+        gpu.frame_present();
         PresentFrame
     }
 }

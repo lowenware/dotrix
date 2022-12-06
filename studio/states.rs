@@ -1,8 +1,7 @@
 use dotrix::ecs::Entity;
 use dotrix::math::Vec3;
-use dotrix::{log, pbr, Transform};
-use dotrix::{Mesh, World};
-use pbr::Light;
+use dotrix::Mesh;
+use dotrix::{log, pbr};
 
 /// Execution state of the application
 pub struct Execution {}

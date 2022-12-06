@@ -1,40 +1,36 @@
 mod event;
 
+use std::collections::HashMap;
+use std::time::Instant;
+
 use dotrix_core as dotrix;
 use dotrix_types::Frame;
 
 pub use event::{Button, Event, KeyCode, Modifiers, MouseScroll, ScanCode};
 
+#[derive(Debug, Default, Clone)]
+pub struct ScreenVector {
+    pub horizontal: f64,
+    pub vertical: f64,
+}
+
 /// Inputs for the current frame
 pub struct Input {
     pub events: Vec<Event>,
     pub modifiers: Modifiers,
-}
-
-impl Input {
-    pub fn text(&self) -> String {
-        self.events
-            .iter()
-            .map(|e| match e {
-                Event::CharacterInput { character } => {
-                    let chr = *character;
-                    if is_printable(chr) {
-                        Some(chr)
-                    } else {
-                        None
-                    }
-                }
-                _ => None,
-            })
-            .filter(|i| i.is_some())
-            .map(|i| i.unwrap())
-            .collect::<String>()
-    }
+    pub text: String,
+    pub hold: HashMap<Button, Instant>,
+    pub mouse_position: ScreenVector,
+    pub mouse_move_delta: ScreenVector,
+    pub mouse_scroll_delta_lines: ScreenVector,
+    pub mouse_scroll_delta_pixels: ScreenVector,
 }
 
 #[derive(Default)]
 pub struct ListenTask {
     modifiers: Modifiers,
+    hold: HashMap<Button, Instant>,
+    mouse_position: ScreenVector,
 }
 
 impl ListenTask {
@@ -44,19 +40,77 @@ impl ListenTask {
 }
 
 impl dotrix::Task for ListenTask {
-    type Context = (dotrix::Collect<Event>, dotrix::Any<Frame>);
+    type Context = (dotrix::Fetch<Event>, dotrix::Any<Frame>);
     type Output = Input; // :)
     fn run(&mut self, (events, _): Self::Context) -> Self::Output {
-        let events = events.collect();
+        let events = events.fetch();
+
+        let mut text = String::with_capacity(8);
+        let mut mouse_move_delta = ScreenVector::default();
+        let mut mouse_scroll_delta_lines = ScreenVector::default();
+        let mut mouse_scroll_delta_pixels = ScreenVector::default();
+        let mut mouse_position = self.mouse_position.clone();
+
         for event in events.iter() {
-            if let Event::ModifiersChange { modifiers } = event {
-                self.modifiers = *modifiers;
+            match event {
+                Event::ModifiersChange { modifiers } => {
+                    self.modifiers = *modifiers;
+                }
+                Event::ButtonPress { button } => {
+                    self.hold.entry(*button).or_insert_with(|| Instant::now());
+                }
+                Event::ButtonRelease { button } => {
+                    self.hold.remove(button);
+                }
+                Event::MouseMove {
+                    horizontal,
+                    vertical,
+                } => {
+                    mouse_move_delta.horizontal += *horizontal;
+                    mouse_move_delta.vertical += *vertical;
+                }
+                Event::MouseScroll { delta } => match delta {
+                    MouseScroll::Lines {
+                        horizontal,
+                        vertical,
+                    } => {
+                        mouse_scroll_delta_lines.horizontal += *horizontal;
+                        mouse_scroll_delta_lines.vertical += *vertical;
+                    }
+                    MouseScroll::Pixels {
+                        horizontal,
+                        vertical,
+                    } => {
+                        mouse_scroll_delta_pixels.horizontal += *horizontal;
+                        mouse_scroll_delta_pixels.vertical += *vertical;
+                    }
+                },
+                Event::CursorPosition {
+                    horizontal,
+                    vertical,
+                } => {
+                    mouse_position.horizontal = *horizontal;
+                    mouse_position.vertical = *vertical;
+                }
+                Event::CharacterInput { character } => {
+                    let chr = *character;
+                    if is_printable(chr) {
+                        text.push(chr);
+                    }
+                }
+                _ => {}
             }
         }
 
         Input {
             events,
             modifiers: self.modifiers,
+            hold: self.hold.clone(),
+            mouse_position,
+            mouse_move_delta,
+            mouse_scroll_delta_lines,
+            mouse_scroll_delta_pixels,
+            text,
         }
     }
 }
