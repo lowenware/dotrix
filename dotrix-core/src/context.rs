@@ -121,6 +121,9 @@ impl Manager {
             if let Some(entry) = self.data.get(&type_id) {
                 let instances_len = entry.instances_count;
                 match dependency {
+                    DependencyType::None => {
+                        continue;
+                    }
                     DependencyType::Take => {
                         if instances_len > 0 {
                             continue;
@@ -395,6 +398,7 @@ impl LockManager {
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum DependencyType {
+    None,
     Any(u32),
     All(u32),
     Take,
@@ -433,6 +437,7 @@ impl Clone for Dependencies {
                     (
                         *key,
                         match entry {
+                            DependencyType::None => DependencyType::None,
                             DependencyType::Any(_) => DependencyType::Any(0),
                             DependencyType::All(_) => DependencyType::All(0),
                             DependencyType::Take => DependencyType::Take,
@@ -871,6 +876,62 @@ where
 
     fn dependency() -> Option<(std::any::TypeId, DependencyType)> {
         Some((std::any::TypeId::of::<T>(), DependencyType::All(0)))
+    }
+}
+
+/// Selector for collection of all dependencies even if empty
+#[derive(Debug)]
+pub struct Fetch<T: Context> {
+    inner: Vec<T>,
+}
+
+impl<T: Context> Fetch<T> {
+    pub fn count(&self) -> usize {
+        self.inner.len()
+    }
+
+    pub fn fetch(self) -> Vec<T> {
+        self.inner
+    }
+}
+
+unsafe impl<T: Context> Send for Fetch<T> {}
+unsafe impl<T: Context> Sync for Fetch<T> {}
+
+impl<T> Selector for Fetch<T>
+where
+    T: Context,
+{
+    type DataSlot = T;
+
+    fn fetch(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
+        let empty_instances = vec![];
+        manager
+            .get_data::<T>()
+            .map(|d| &d.instances)
+            .or(Some(&empty_instances))
+            .map(|instances| {
+                let capacity = instances.len();
+                let list = unsafe {
+                    &mut *(instances as *const Vec<Box<dyn std::any::Any + Send>>
+                        as *mut Vec<Box<dyn std::any::Any>>)
+                };
+                let mut collected = Vec::with_capacity(capacity);
+
+                for i in (0..capacity).rev() {
+                    collected.push(*list.pop().unwrap().downcast::<T>().unwrap());
+                }
+
+                Fetch { inner: collected }
+            })
+    }
+
+    fn lock() -> Option<(std::any::TypeId, LockType)> {
+        Some((std::any::TypeId::of::<T>(), LockType::Mut))
+    }
+
+    fn dependency() -> Option<(std::any::TypeId, DependencyType)> {
+        Some((std::any::TypeId::of::<T>(), DependencyType::None))
     }
 }
 
