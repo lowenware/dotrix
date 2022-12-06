@@ -16,12 +16,13 @@
 #![warn(missing_docs)]
 
 pub use dotrix_core::{All, Any, Extension, Manager, Mut, Output, Ref, State, Take, Task, Tasks};
-pub use dotrix_types::{camera, type_lock, vertex, Color, Id, Transform};
+pub use dotrix_types::{camera, type_lock, vertex, Color, Frame, Id, Transform};
 
 pub use dotrix_assets as assets;
 pub use dotrix_ecs as ecs;
 pub use dotrix_gpu as gpu;
 pub use dotrix_image as image;
+pub use dotrix_input as input;
 pub use dotrix_log as log;
 pub use dotrix_math as math;
 pub use dotrix_mesh as mesh;
@@ -31,6 +32,7 @@ pub use dotrix_window as window;
 pub use assets::Assets;
 pub use camera::Camera;
 pub use ecs::World;
+pub use input::Input;
 pub use log::Log;
 pub use mesh::{Armature, Mesh};
 pub use shader::Shader;
@@ -167,6 +169,9 @@ impl window::Controller for Controller {
         self.manager.schedule(gpu::SubmitCommands::default());
         self.manager.schedule(gpu::PresentFrame::default());
         self.manager.schedule(gpu::ResizeSurface::default());
+
+        self.manager.schedule(input::ListenTask::default());
+
         self.manager.run();
     }
 
@@ -174,7 +179,10 @@ impl window::Controller for Controller {
         false
     }
 
-    fn on_input(&mut self /* input_event */) {}
+    fn on_input(&mut self, event: input::Event) {
+        // log::info!("EVENT {:?}", event);
+        self.manager.provide(event);
+    }
 
     fn on_resize(&mut self, width: u32, height: u32) {
         log::info!("provide new size: {}x{}", width, height);
@@ -205,9 +213,9 @@ impl Controller {
 /// Dotrix interface for applications
 pub trait Application: 'static + Send {
     /// Provides a possibility for the Application to change Dotrix Settings
-    fn configure(&self, settings: &mut Settings) {}
+    fn configure(&self, _settings: &mut Settings) {}
     /// Allows application to initialize all necessary context and tasks
-    fn init(&self, manager: &mut Manager) {}
+    fn init(&self, _manager: &mut Manager) {}
 }
 
 impl<T: Application> From<T> for Core {
@@ -248,7 +256,7 @@ where
     setup_extensions(&mut core);
 
     let Core {
-        mut controller,
+        controller,
         extensions,
     } = core;
     controller.manager.store(extensions);

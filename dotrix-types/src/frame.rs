@@ -5,3 +5,9 @@ pub struct Frame {
     pub height: u32,
     pub number: u64,
 }
+
+impl Frame {
+    pub fn delta(&self) -> std::time::Duration {
+        self.delta
+    }
+}

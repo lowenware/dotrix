@@ -1,4 +1,4 @@
-use dotrix::camera::{Camera, Lens};
+use dotrix::camera::Camera;
 use dotrix::math::{Rad, Vec3};
 
 pub struct ControlTask {
@@ -15,7 +15,7 @@ impl ControlTask {
 }
 
 impl dotrix::Task for ControlTask {
-    type Context = (dotrix::Any<dotrix::gpu::Frame>,);
+    type Context = (dotrix::Any<dotrix::Frame>,);
 
     type Output = Camera;
 
@@ -23,8 +23,7 @@ impl dotrix::Task for ControlTask {
         let view =
             Camera::at(self.position.x, self.position.y, self.position.z).target(self.target);
 
-        let proj = Camera::lens(Rad(1.1), 0.0625..524288.06)
-            .proj(frame.surface_width, frame.surface_height);
+        let proj = Camera::lens(Rad(1.1), 0.0625..524288.06).proj(frame.width, frame.height);
 
         Camera::new(proj, view)
     }

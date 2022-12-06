@@ -9,7 +9,6 @@ pub type ScanCode = u32;
 pub enum Event {
     ButtonPress { button: Button },
     ButtonRelease { button: Button },
-    Flush,
     CharacterInput { character: char },
     CursorPosition { horizontal: f64, vertical: f64 },
     ModifiersChange { modifiers: Modifiers },
@@ -20,7 +19,7 @@ pub enum Event {
     DropFile { path: std::path::PathBuf },
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum Button {
     Key {
         key_code: Option<KeyCode>,
