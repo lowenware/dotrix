@@ -94,15 +94,21 @@ fn map_mouse_input(button: &event::MouseButton, state: &event::ElementState) -> 
 }
 
 fn map_hovered_file(path: &std::path::Path) -> input::Event {
-    input::Event::DropFileHover { path: path.into() }
+    input::Event::DragAndDrop {
+        target: input::DragAndDrop::FileDragged { path: path.into() },
+    }
 }
 
 fn map_hovered_file_canceled() -> input::Event {
-    input::Event::DropFileCancel
+    input::Event::DragAndDrop {
+        target: input::DragAndDrop::Canceled,
+    }
 }
 
 fn map_dropped_file(path: &std::path::Path) -> input::Event {
-    input::Event::DropFile { path: path.into() }
+    input::Event::DragAndDrop {
+        target: input::DragAndDrop::FileDropped { path: path.into() },
+    }
 }
 
 #[cfg(test)]

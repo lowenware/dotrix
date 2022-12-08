@@ -1,4 +1,5 @@
 use dotrix::camera::Camera;
+use dotrix::log;
 use dotrix::math::{Rad, Vec3};
 
 pub struct ControlTask {
@@ -15,11 +16,11 @@ impl ControlTask {
 }
 
 impl dotrix::Task for ControlTask {
-    type Context = (dotrix::Any<dotrix::Frame>,);
+    type Context = (dotrix::Any<dotrix::Frame>, dotrix::All<dotrix::ui::Overlay>);
 
     type Output = Camera;
 
-    fn run(&mut self, (frame,): Self::Context) -> Self::Output {
+    fn run(&mut self, (frame, _): Self::Context) -> Self::Output {
         let view =
             Camera::at(self.position.x, self.position.y, self.position.z).target(self.target);
 

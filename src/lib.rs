@@ -41,6 +41,8 @@ pub use vertex::{Bitangent, Normal, Position, Tangent, TexUV};
 #[cfg(feature = "pbr")]
 pub use dotrix_pbr as pbr;
 
+#[cfg(feature = "ui")]
+pub use dotrix_ui as ui;
 //pub use ecs::World;
 
 /*

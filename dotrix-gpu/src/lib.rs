@@ -403,6 +403,7 @@ impl dotrix::Task for CreateFrame {
             width: renderer.surface_conf.width,
             height: renderer.surface_conf.height,
             number: frame_number,
+            scale_factor: 1.0, // TODO: implement
         }
     }
 }
@@ -498,6 +499,10 @@ impl dotrix::Task for SubmitCommands {
         let mut commands = commands.collect();
 
         commands.sort_by(|a, b| a.priority.cmp(&b.priority));
+
+        // for c in commands.iter() {
+        //     log::debug!("Commands: {}", c.priority);
+        // }
 
         let index = renderer.queue.submit(commands.into_iter().map(|c| c.inner));
 
