@@ -4,6 +4,7 @@ pub struct Frame {
     pub width: u32,
     pub height: u32,
     pub number: u64,
+    pub scale_factor: f32,
 }
 
 impl Frame {

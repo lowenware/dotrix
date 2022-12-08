@@ -14,9 +14,14 @@ pub enum Event {
     ModifiersChange { modifiers: Modifiers },
     MouseMove { horizontal: f64, vertical: f64 },
     MouseScroll { delta: MouseScroll },
-    DropFileHover { path: std::path::PathBuf },
-    DropFileCancel,
-    DropFile { path: std::path::PathBuf },
+    DragAndDrop { target: DragAndDrop },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DragAndDrop {
+    FileDragged { path: std::path::PathBuf },
+    FileDropped { path: std::path::PathBuf },
+    Canceled,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]

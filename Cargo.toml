@@ -36,8 +36,8 @@ members = [
   "dotrix-ecs",
   "dotrix-image",
   "dotrix-input",
-#  "dotrix_egui",
-#  "dotrix_overlay",
+  "dotrix-egui",
+  "dotrix-overlay",
   "dotrix-pbr",
   "dotrix-gltf",
   "dotrix-gpu",
@@ -69,8 +69,8 @@ dotrix_window = { path = "dotrix-window", version = "0.1" }
 
 # Optional Dotrix crates
 
-#dotrix_overlay = { version = "0.1", path = "./dotrix-overlay", optional = true }
-#dotrix_egui = { version = "0.5", path = "./dotrix-egui", optional = true }
+dotrix_overlay = { version = "0.2", path = "./dotrix-overlay", optional = true }
+dotrix_egui = { version = "0.6", path = "./dotrix-egui", optional = true }
 #dotrix_sky = { version = "0.1", path = "./dotrix-sky", optional = true }
 #dotrix_terrain = { version = "0.5", path = "./dotrix-terrain", optional = true }
 

@@ -403,6 +403,7 @@ impl dotrix::Task for CreateFrame {
             width: renderer.surface_conf.width,
             height: renderer.surface_conf.height,
             number: frame_number,
+            scale_factor: 1.0, // TODO: implement
         }
     }
 }
