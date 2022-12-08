@@ -6,9 +6,9 @@ use std::time::Instant;
 use dotrix_core as dotrix;
 use dotrix_types::Frame;
 
-pub use event::{Button, Event, KeyCode, Modifiers, MouseScroll, ScanCode};
+pub use event::{Button, DragAndDrop, Event, KeyCode, Modifiers, MouseScroll, ScanCode};
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct ScreenVector {
     pub horizontal: f64,
     pub vertical: f64,

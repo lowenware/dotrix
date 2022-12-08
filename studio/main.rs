@@ -1,5 +1,6 @@
 mod camera;
 mod states;
+mod ui;
 
 use dotrix::log;
 
@@ -48,9 +49,15 @@ fn main() {
 
     let pbr = dotrix::pbr::Extension::default();
 
+    let ui = dotrix::ui::Extension::default();
+
+    let ui_task = ui::UiTask::default();
+
     dotrix::run(studio, |core| {
         core.extend_with(assets);
         core.extend_with(pbr);
+        core.extend_with(ui);
         core.schedule(camera_control_task);
+        core.schedule(ui_task);
     });
 }

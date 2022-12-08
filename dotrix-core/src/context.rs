@@ -122,6 +122,9 @@ impl Manager {
                 let instances_len = entry.instances_count;
                 match dependency {
                     DependencyType::None => {
+                        if skip_accessor_all {
+                            return None;
+                        }
                         continue;
                     }
                     DependencyType::Take => {

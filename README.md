@@ -40,7 +40,7 @@ faster lookup for an entity by its ID
 - [x] Shadows support
 - [x] New GLTF crate
 - [x] New Input crate
-- [ ] Add Overlay and EGUI support
+- [ ] Add Overlay and UI support
 - [ ] Add Material loader from one of toml/json/ron formats
 - [ ] Add support for PBR materials using texture arrays
 - [ ] Add PBR pipeline for entities with armature

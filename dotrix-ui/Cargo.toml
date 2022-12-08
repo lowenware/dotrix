@@ -1,0 +1,16 @@
+[package]
+name = "dotrix_ui"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dotrix_core = {version = "0.6", path="../dotrix-core"}
+dotrix_gpu = {version = "0.1", path="../dotrix-gpu"}
+dotrix_input = {version = "0.1", path="../dotrix-input"}
+dotrix_image = {version = "0.1", path="../dotrix-image"}
+dotrix_log = {version = "0.1", path="../dotrix-log"}
+dotrix_mesh = {version = "0.1", path="../dotrix-mesh"}
+dotrix_types = {version = "0.1", path="../dotrix-types"}
+bytemuck = { version = "1.4", features = ["derive"] }
