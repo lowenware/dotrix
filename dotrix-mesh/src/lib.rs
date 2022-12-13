@@ -206,12 +206,23 @@ impl Mesh {
         self.buffer_from_layout(&T::layout())
     }
 
-    /// Returns vector of vertex buffer data according to layout
-    pub fn buffer_from_layout(&self, layout: &[TypeId]) -> Option<Vec<u8>> {
+    pub fn contains<T: VertexBufferLayout>(&self) -> bool {
+        self.has_layout(&T::layout())
+    }
+
+    pub fn has_layout(&self, layout: &[TypeId]) -> bool {
         for t in layout.iter() {
             if !self.vertices.contains_key(t) {
-                return None;
+                return false;
             }
+        }
+        true
+    }
+
+    /// Returns vector of vertex buffer data according to layout
+    pub fn buffer_from_layout(&self, layout: &[TypeId]) -> Option<Vec<u8>> {
+        if !self.has_layout(layout) {
+            return None;
         }
         let buffer = (0..self.vertices_count)
             .map(|i| {
