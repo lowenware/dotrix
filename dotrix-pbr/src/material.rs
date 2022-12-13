@@ -9,7 +9,7 @@ pub struct Material {
     /// Label or material name
     pub label: String,
     /// Albedo color
-    pub albedo: Color,
+    pub albedo: Color<f32>,
     /// Id of a texture asset
     pub albedo_map: Id<image::Image>,
     // Ambient occulsion

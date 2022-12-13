@@ -428,7 +428,7 @@ impl dotrix::Task for ResizeSurface {
 }
 
 pub struct ClearFrame {
-    color: types::Color,
+    color: types::Color<f32>,
 }
 
 impl Default for ClearFrame {
