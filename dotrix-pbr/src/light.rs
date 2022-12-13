@@ -17,7 +17,7 @@ pub enum Position {
 #[derive(Debug, Clone)]
 pub struct Light {
     /// The color of light, alpha channel is being used as intensity
-    pub color: Color,
+    pub color: Color<f32>,
     /// Light Position
     pub position: Position,
     /// Light Stream Direction vector
@@ -106,7 +106,7 @@ impl Light {
         }
     }
 
-    pub fn color(mut self, color: Color) -> Self {
+    pub fn color(mut self, color: Color<f32>) -> Self {
         self.color.r = color.r;
         self.color.g = color.g;
         self.color.b = color.b;
