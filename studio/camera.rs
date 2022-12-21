@@ -16,11 +16,17 @@ impl ControlTask {
 }
 
 impl dotrix::Task for ControlTask {
-    type Context = (dotrix::Any<dotrix::Frame>, dotrix::All<dotrix::ui::Overlay>);
+    type Context = (
+        dotrix::Any<dotrix::Frame>,
+        dotrix::Any<dotrix::Input>,
+        dotrix::All<dotrix::ui::Overlay>,
+    );
 
     type Output = Camera;
 
-    fn run(&mut self, (frame, _): Self::Context) -> Self::Output {
+    fn run(&mut self, (frame, input, _): Self::Context) -> Self::Output {
+        use std::ops::Deref;
+
         let view =
             Camera::at(self.position.x, self.position.y, self.position.z).target(self.target);
 

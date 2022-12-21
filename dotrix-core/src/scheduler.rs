@@ -2,9 +2,10 @@ use crate::{context, task};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::sync::{mpsc, Arc, Mutex};
-use std::thread;
+use std::{default, thread};
 
 use dotrix_log as log;
+use dotrix_types::Id;
 
 /// Local synonym for boxified task
 pub type Task = Box<dyn task::Executable>;
@@ -14,14 +15,12 @@ pub type Task = Box<dyn task::Executable>;
 pub enum Message {
     /// Schedule a task
     Schedule(Task),
-    /// Unschedule existing task by id
-    Unschedule(task::Id),
     /// Complete task report
-    Complete(Task, Box<dyn Any + 'static + Send>),
-    /// Store a new context
+    Output(Task, Box<dyn Any + 'static + Send>),
+    /// Store a new global context
     Store(TypeId, Box<dyn Any + 'static + Send>),
-    /// Discard previously stored context
-    Discard(TypeId),
+    /// Register dependency type (with Name)
+    Register(TypeId, String, usize),
     /// Provide dependency data for tasks
     Provide(TypeId, Box<dyn Any + 'static + Send>),
     /// Kill Signal
@@ -43,7 +42,7 @@ pub struct TaskSlot {
 /// input_rx -> recieve requests from main process and workers
 /// worker_tx -> send commands to workers
 /// control_tx -> response to control requests to main process
-pub fn spawn(
+pub fn spawn<T: context::Context>(
     context_manager: Arc<Mutex<context::Manager>>,
     input_rx: mpsc::Receiver<Message>,
     worker_tx: mpsc::Sender<Message>,
@@ -54,16 +53,21 @@ pub fn spawn(
     // lock manager controls access to context
     let mut lock_manager = context::LockManager::new();
     // all tasks of the application
-    let mut pool = HashMap::<task::Id, TaskSlot>::new();
+    let mut pool = task::Pool::new();
     // tasks selected for execution
-    let mut queue = Vec::<task::Id>::new();
+    let mut queue: Vec<Id<task::Slot>> = vec![];
     // flag controls change of the tasks graph
     let mut tasks_graph_changed = true;
 
     context_manager
         .lock()
         .expect("Mutex to be locked")
-        .register(std::any::TypeId::of::<Loop>());
+        .register(
+            std::any::TypeId::of::<Loop>(),
+            std::any::type_name::<Loop>().into(),
+            1,
+            false,
+        );
 
     thread::Builder::new()
         .name(name)
@@ -71,6 +75,8 @@ pub fn spawn(
             let mut pending_tasks = 0;
             let mut lock_for_input = false;
             let mut loop_scheduled = false;
+            let mut restart_queue = false;
+            let mut queue_executed = true;
             loop {
                 let mut command = if lock_for_input {
                     // There is nothing else to do, except for waiting
@@ -81,18 +87,18 @@ pub fn spawn(
                 if let Some(command) = command.take() {
                     match command {
                         Message::Schedule(task) => {
-                            tasks_graph_changed = schedule_task(task, &mut pool, &mut lock_manager);
-                        }
-                        Message::Unschedule(task_id) => {
-                            pool.remove(&task_id);
+                            context_manager.lock().unwrap().register_provider(&task);
+                            pool.store(task);
                             tasks_graph_changed = true;
                         }
-                        Message::Complete(task, data) => {
+                        Message::Output(task, data) => {
                             let type_id = task.output_type_id();
                             let output_channel = task.output_channel();
-                            schedule_task(task, &mut pool, &mut lock_manager);
+                            lock_manager.unlock(task.lock());
+                            pool.store(task);
 
                             pending_tasks -= 1;
+
                             match output_channel {
                                 task::OutputChannel::Pool => {
                                     context_manager.lock().unwrap().provide(type_id, data);
@@ -101,18 +107,27 @@ pub fn spawn(
                                     control_tx.send(Message::Provide(type_id, data)).ok();
                                 }
                             };
+
+                            if type_id == TypeId::of::<T>() {
+                                queue_executed = true;
+                            }
                         }
                         Message::Store(type_id, ctx) => {
-                            context_manager.lock().unwrap().store(type_id, ctx);
+                            context_manager.lock().unwrap().store_boxed(type_id, ctx);
                         }
-                        Message::Discard(type_id) => {
-                            context_manager.lock().unwrap().discard(type_id);
+                        Message::Register(type_id, name, providers) => {
+                            context_manager
+                                .lock()
+                                .unwrap()
+                                .register(type_id, name, providers, true);
                         }
+
                         Message::Provide(type_id, data) => {
                             if type_id == TypeId::of::<Loop>() {
-                                loop_scheduled = true;
+                                restart_queue = true;
+                            } else {
+                                context_manager.lock().unwrap().provide(type_id, data);
                             }
-                            context_manager.lock().unwrap().provide(type_id, data);
                         }
                         Message::Kill => {
                             panic!("Message::Kill is not implemented");
@@ -124,27 +139,36 @@ pub fn spawn(
                     continue;
                 }
 
-                if loop_scheduled {
-                    if pending_tasks == 0 {
-                        {
-                            let mut ctx = context_manager.lock().expect("Mutex to be locked");
-                            ctx.reset_data(tasks_graph_changed);
-                            ctx.provide(std::any::TypeId::of::<Loop>(), Box::new(Loop::default()));
-                            ctx.apply_states_changes();
-                            queue.clear();
+                if restart_queue {
+                    if queue_executed {
+                        let mut ctx = context_manager.lock().expect("Mutex to be locked");
+                        ctx.reset_data(tasks_graph_changed);
+                        ctx.apply_states_changes();
+                        queue.clear();
+                        ctx.provide(TypeId::of::<Loop>(), Box::new(Loop::default()));
 
-                            schedule_graph(&ctx, &mut pool, &mut queue);
-
-                            if tasks_graph_changed {
-                                ctx.rebuild_graph(&pool, &queue);
-                                tasks_graph_changed = false;
+                        let default_state = TypeId::of::<()>();
+                        let current_state = ctx.current_state();
+                        if current_state != default_state {
+                            if let Some(tasks) = pool.select_for_state(&default_state) {
+                                queue.extend_from_slice(tasks);
                             }
                         }
-                        loop_scheduled = false;
-                    } else {
-                        // wait for workers to finish
-                        lock_for_input = true;
-                        continue;
+                        if let Some(tasks) = pool.select_for_state(&current_state) {
+                            queue.extend_from_slice(tasks);
+                        }
+
+                        pool.reset_tasks(&queue);
+
+                        if tasks_graph_changed {
+                            unsafe {
+                                // TODO: move completely to the Pool
+                                ctx.calculate_providers::<T>(&pool, &queue);
+                            }
+                            tasks_graph_changed = false;
+                        }
+                        queue_executed = false;
+                        restart_queue = false;
                     }
                 }
 
@@ -154,33 +178,31 @@ pub fn spawn(
                 // let instant = std::time::Instant::now();
                 while index < stop_index {
                     let task_id = queue[index];
-                    if let Some(slot) = pool.get_mut(&task_id) {
-                        if let Some(mut task) = slot.task.take() {
-                            if !task.is_scheduled() {
-                                if let Some(dependencies_state) = context_manager
-                                    .lock()
-                                    .unwrap()
-                                    .match_dependencies(task.dependencies(), false)
-                                {
-                                    task.schedule_with(dependencies_state);
-                                }
+                    if let Some(mut task) = pool.take(&task_id) {
+                        if !task.is_scheduled() {
+                            if let Some(dependencies_state) = context_manager
+                                .lock()
+                                .unwrap()
+                                .match_dependencies(task.dependencies())
+                            {
+                                task.schedule_with(dependencies_state);
                             }
-
-                            // get dependencies
-                            if task.is_scheduled() {
-                                if lock_manager.lock(task.lock()) {
-                                    // move to the end of queue
-                                    queue.remove(index);
-                                    queue.push(task_id);
-                                    worker_tx.send(Message::Schedule(task)).ok();
-                                    pending_tasks += 1;
-                                    stop_index -= 1;
-                                    continue;
-                                }
-                            }
-                            // postpone execution
-                            slot.task = Some(task);
                         }
+
+                        // get dependencies
+                        if task.is_scheduled() {
+                            if lock_manager.lock(task.lock()) {
+                                // move to the end of queue
+                                queue.remove(index);
+                                queue.push(task_id);
+                                worker_tx.send(Message::Schedule(task)).ok();
+                                pending_tasks += 1;
+                                stop_index -= 1;
+                                continue;
+                            }
+                        }
+                        // postpone execution
+                        pool.store(task);
                     }
                     index += 1;
                 }
@@ -188,43 +210,4 @@ pub fn spawn(
             }
         })
         .expect("Thread to be spawned")
-}
-
-/// Schedules task and returns true if task is new, false if task was accepted from worker
-fn schedule_task(
-    task: Task,
-    pool: &mut HashMap<task::Id, TaskSlot>,
-    lock_manager: &mut context::LockManager,
-) -> bool {
-    let task_id = task.id();
-    if let Some(mut slot) = pool.get_mut(&task_id) {
-        lock_manager.unlock(task.lock());
-        slot.task = Some(task);
-        slot.executions_count += 1;
-        return false;
-    }
-    pool.insert(
-        task_id,
-        TaskSlot {
-            task: Some(task),
-            executions_count: 0,
-        },
-    );
-    true
-}
-
-fn schedule_graph(
-    ctx: &context::Manager,
-    pool: &mut HashMap<task::Id, TaskSlot>,
-    queue: &mut Vec<task::Id>,
-) {
-    // add tasks to queue for the new cycle
-    for (tid, slot) in pool.iter_mut() {
-        if let Some(task) = slot.task.as_mut() {
-            if ctx.match_states(task.states()) {
-                task.reset();
-                queue.push(*tid);
-            }
-        }
-    }
 }

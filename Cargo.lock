@@ -545,6 +545,7 @@ name = "dotrix_core"
 version = "0.6.0"
 dependencies = [
  "dotrix_log",
+ "dotrix_types",
 ]
 
 [[package]]
@@ -598,6 +599,7 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "dotrix_core",
+ "dotrix_log",
  "dotrix_types",
 ]
 

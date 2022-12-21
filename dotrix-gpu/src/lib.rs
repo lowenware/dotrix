@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 
+use dotrix::Output;
 use dotrix_core as dotrix;
 use dotrix_log as log;
 use dotrix_types as types;
@@ -27,14 +28,12 @@ const FPS_MEASURE_INTERVAL: u32 = 5; // seconds
 
 pub struct Descriptor<'a> {
     pub window_handle: &'a window::Handle,
-    pub fps_request: f32,
+    pub fps_limit: Option<f32>,
     pub surface_size: [u32; 2],
     pub sample_count: u32,
 }
 
 pub struct Gpu {
-    /// Desired FPS
-    fps_request: f32,
     /// Sample Count
     sample_count: u32,
     /// Log of frames duration
@@ -42,7 +41,7 @@ pub struct Gpu {
     /// Last frame timestamp
     last_frame: Option<Instant>,
     /// Real fps
-    fps: f32,
+    // fps: f32,
     /// WGPU Adapter
     adapter: wgpu::Adapter,
     /// WGPU Device
@@ -112,20 +111,17 @@ impl Gpu {
 
         surface.configure(&device, &surface_conf);
         let sample_count = descriptor.sample_count;
-        let fps_request = descriptor.fps_request;
-        let frame_duration = Duration::from_secs_f32(1.0 / fps_request);
-        let fps_samples = (FPS_MEASURE_INTERVAL * fps_request.ceil() as u32) as usize;
-        let mut frames_duration = VecDeque::with_capacity(fps_samples);
+        let fps_limit = descriptor.fps_limit.unwrap_or(240.0);
+        let fps_samples = (FPS_MEASURE_INTERVAL * fps_limit.round() as u32) as usize;
+        let frames_duration = VecDeque::with_capacity(fps_samples);
         let depth_buffer = create_depth_buffer(&device, &surface_conf, sample_count);
         let multisampled_framebuffer =
             create_multisampled_framebuffer(&device, &surface_conf, sample_count);
 
         Self {
-            fps_request,
             sample_count,
             frames_duration,
-            fps: fps_request,
-            last_frame: None,
+            last_frame: Some(Instant::now()),
             adapter,
             device,
             queue,
@@ -296,10 +292,12 @@ impl Gpu {
             .expect("Frame does not exists")
     }
 
-    fn frame_present(&mut self) {
-        let (frame, _) = self.frame_texture.take().expect("Frame does not exists");
-
-        frame.present();
+    fn take_frame_output(&mut self) -> FrameOutput {
+        let (surface_texture, view) = self.frame_texture.take().expect("Frame does not exists");
+        FrameOutput {
+            surface_texture,
+            view,
+        }
     }
     pub fn sample_count(&self) -> u32 {
         self.sample_count
@@ -318,6 +316,17 @@ impl Gpu {
     }
 }
 
+pub struct FrameOutput {
+    surface_texture: wgpu::SurfaceTexture,
+    view: wgpu::TextureView,
+}
+
+impl FrameOutput {
+    pub fn present(self) {
+        self.surface_texture.present();
+    }
+}
+
 pub fn map_vertex_format(attr_format: vertex::AttributeFormat) -> wgpu::VertexFormat {
     match attr_format {
         vertex::AttributeFormat::Float32 => wgpu::VertexFormat::Float32,
@@ -333,8 +342,19 @@ pub fn map_vertex_format(attr_format: vertex::AttributeFormat) -> wgpu::VertexFo
     }
 }
 
-#[derive(Default)]
-pub struct CreateFrame;
+pub struct CreateFrame {
+    last_report: Instant,
+    report_interval: Duration,
+}
+
+impl Default for CreateFrame {
+    fn default() -> Self {
+        Self {
+            last_report: Instant::now(),
+            report_interval: Duration::from_secs_f32(5.0),
+        }
+    }
+}
 
 impl dotrix::Task for CreateFrame {
     type Context = (dotrix::Mut<Gpu>,);
@@ -345,7 +365,7 @@ impl dotrix::Task for CreateFrame {
             .last_frame
             .replace(Instant::now())
             .map(|i| i.elapsed())
-            .unwrap_or_else(|| Duration::from_secs_f32(1.0 / renderer.fps_request));
+            .unwrap();
 
         if renderer.frames_duration.len() == renderer.frames_duration.capacity() {
             renderer.frames_duration.pop_back();
@@ -360,8 +380,6 @@ impl dotrix::Task for CreateFrame {
             .map(|d| d.as_secs_f32())
             .sum();
         let fps = frames / duration;
-
-        renderer.fps = fps;
 
         if let Some(resize_request) = renderer.resize_request.take() {
             let [width, height] = resize_request;
@@ -397,7 +415,13 @@ impl dotrix::Task for CreateFrame {
         let frame_number = renderer.frame_number;
         renderer.frame_number += 1;
 
+        if self.last_report.elapsed() > self.report_interval {
+            log::info!("FPS: {:.02}", fps);
+            self.last_report = Instant::now();
+        }
+
         Frame {
+            fps,
             delta,
             instant: Instant::now(),
             width: renderer.surface_conf.width,
@@ -415,16 +439,18 @@ unsafe impl Sync for Gpu {}
 pub struct ResizeSurface;
 
 impl dotrix::Task for ResizeSurface {
-    type Context = (dotrix::Take<SurfaceSize>, dotrix::Mut<Gpu>);
+    type Context = (dotrix::Take<dotrix::All<SurfaceSize>>, dotrix::Mut<Gpu>);
     type Output = ();
 
-    fn run(&mut self, (surface_size, mut renderer): Self::Context) -> Self::Output {
-        log::info!(
-            "create surface resize request for: {}x{}",
-            surface_size.width,
-            surface_size.height
-        );
-        renderer.resize_request = Some([surface_size.width, surface_size.height]);
+    fn run(&mut self, (mut sizes, mut renderer): Self::Context) -> Self::Output {
+        if let Some(surface_size) = sizes.drain().last() {
+            log::info!(
+                "create surface resize request for: {}x{}",
+                surface_size.width,
+                surface_size.height
+            );
+            renderer.resize_request = Some([surface_size.width, surface_size.height]);
+        }
     }
 }
 
@@ -490,13 +516,18 @@ pub struct SubmitCommands;
 impl dotrix::Task for SubmitCommands {
     type Context = (
         dotrix::Any<Frame>,
-        dotrix::Collect<Commands>,
-        dotrix::Ref<Gpu>,
+        dotrix::Take<dotrix::All<Commands>>,
+        dotrix::Mut<Gpu>,
     );
+
+    fn output_channel(&self) -> dotrix::task::OutputChannel {
+        dotrix::task::OutputChannel::Scheduler
+    }
+
     // The task uses itself as output as a zero-cost abstraction
-    type Output = SubmitCommands;
-    fn run(&mut self, (_, commands, renderer): Self::Context) -> Self::Output {
-        let mut commands = commands.collect();
+    type Output = FrameOutput;
+    fn run(&mut self, (_, commands, mut gpu): Self::Context) -> Self::Output {
+        let mut commands = commands.take();
 
         commands.sort_by(|a, b| a.priority.cmp(&b.priority));
 
@@ -504,35 +535,14 @@ impl dotrix::Task for SubmitCommands {
         //     log::debug!("Commands: {}", c.priority);
         // }
 
-        let index = renderer.queue.submit(commands.into_iter().map(|c| c.inner));
+        let index = gpu.queue.submit(commands.into_iter().map(|c| c.inner));
 
-        while !renderer
+        while !gpu
             .device
             .poll(wgpu::Maintain::WaitForSubmissionIndex(index))
         {}
-        SubmitCommands
-    }
-}
 
-#[derive(Default)]
-pub struct PresentFrame;
-
-impl dotrix::Task for PresentFrame {
-    type Context = (
-        dotrix::Take<Frame>,
-        dotrix::Take<SubmitCommands>,
-        dotrix::Mut<Gpu>,
-    );
-
-    type Output = PresentFrame;
-
-    fn output_channel(&self) -> dotrix::task::OutputChannel {
-        dotrix::task::OutputChannel::Scheduler
-    }
-
-    fn run(&mut self, (_, _, mut gpu): Self::Context) -> Self::Output {
-        gpu.frame_present();
-        PresentFrame
+        gpu.take_frame_output()
     }
 }
 

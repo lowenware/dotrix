@@ -35,8 +35,6 @@ impl Window {
 
 /// Trait representing ability of application to have a window
 pub trait Controller: Sized + 'static {
-    fn fps(&self) -> f32;
-
     fn init(&mut self, handle: Handle, width: u32, height: u32);
 
     fn close_request(&self) -> bool;
@@ -49,12 +47,13 @@ pub trait Controller: Sized + 'static {
 
     fn on_draw(&mut self);
 
-    fn run_window(mut self) {
+    fn run_window(mut self, fps_limit: Option<f32>) {
         let event_loop = winit::event_loop::EventLoop::new();
         let window =
             Arc::new(winit::window::Window::new(&event_loop).expect("Window must be created"));
-        let fps = self.fps();
-        let frame_duration = std::time::Duration::from_secs_f32(1.0 / fps);
+        let frame_duration = std::time::Duration::from_secs_f32(
+            fps_limit.map(|fps_limit| 1.0 / fps_limit).unwrap_or(0.0),
+        );
 
         let mut pool = futures::executor::LocalPool::new();
         let _spawner = pool.spawner();

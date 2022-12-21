@@ -19,9 +19,7 @@ pub fn spawn(
                     scheduler::Message::Schedule(mut task) => {
                         let result = task.run(&context_manager);
                         let response = tx.lock().expect("Mutex to be locked");
-                        response
-                            .send(scheduler::Message::Complete(task, result))
-                            .ok();
+                        response.send(scheduler::Message::Output(task, result)).ok();
                     }
                     scheduler::Message::Kill => break,
                     // TODO: implement Debug trait for message

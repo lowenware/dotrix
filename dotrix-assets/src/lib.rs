@@ -272,17 +272,19 @@ impl Default for Extension {
 }
 
 impl dotrix::Extension for Extension {
-    fn add_to(&self, manager: &mut dotrix::Manager) {
+    fn load(&self, manager: &dotrix::Manager) {
         let mut assets = Assets::new(&self.root);
         (self.init)(&mut assets);
 
         manager.store(assets);
         manager.schedule(LoadTask::default());
         manager.schedule(StoreTask::default());
+        /*
         manager.schedule(Watchdog {
             hot_reload: self.hot_reload,
             ..Default::default()
         });
+        */
     }
 }
 

@@ -1,4 +1,5 @@
 pub struct Frame {
+    pub fps: f32,
     pub delta: std::time::Duration,
     pub instant: std::time::Instant,
     pub width: u32,

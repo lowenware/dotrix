@@ -7,11 +7,14 @@ use dotrix::{log, pbr};
 pub struct Execution {}
 
 /// Startup task performs initial routines and enters the Execution state
-pub struct Startup {}
+pub struct Startup {
+    // TODO: solve this using default state
+    pub done: bool,
+}
 
 impl Startup {
     pub fn new() -> Self {
-        Self {}
+        Self { done: false }
     }
 }
 
@@ -24,6 +27,10 @@ impl dotrix::Task for Startup {
     type Output = ();
 
     fn run(&mut self, (mut assets, mut world, state): Self::Context) -> Self::Output {
+        if (self.done) {
+            return ();
+        }
+        self.done = true;
         log::info!("Starting Dotrix Studio");
         let materials = [
             assets.store(dotrix::pbr::Material {

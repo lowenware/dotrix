@@ -15,7 +15,10 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
 #![warn(missing_docs)]
 
-pub use dotrix_core::{All, Any, Extension, Manager, Mut, Output, Ref, State, Take, Task, Tasks};
+pub mod extensions;
+pub mod settings;
+
+pub use dotrix_core::{All, Any, Extension, Manager, Mut, Output, Ref, State, Take, Task};
 pub use dotrix_types::{camera, type_lock, vertex, Color, Frame, Id, Transform};
 
 pub use dotrix_assets as assets;
@@ -32,6 +35,7 @@ pub use dotrix_window as window;
 pub use assets::Assets;
 pub use camera::Camera;
 pub use ecs::World;
+use gpu::ResizeSurface;
 pub use input::Input;
 pub use log::Log;
 pub use mesh::{Armature, Mesh};
@@ -43,136 +47,100 @@ pub use dotrix_pbr as pbr;
 
 #[cfg(feature = "ui")]
 pub use dotrix_ui as ui;
-//pub use ecs::World;
 
-/*
-pub use dotrix_core::*;
-pub use dotrix_math as math;
+pub use extensions::Extensions;
+pub use settings::Settings;
 
-#[cfg(feature = "egui")]
-pub use dotrix_egui as egui;
-
-#[cfg(feature = "overlay")]
-pub use dotrix_overlay as overlay;
-
-
-#[cfg(feature = "primitives")]
-pub use dotrix_primitives as primitives;
-
-#[cfg(feature = "sky")]
-pub use dotrix_sky as sky;
-
-#[cfg(feature = "terrain")]
-pub use dotrix_terrain as terrain;
-
-pub mod prelude {
-    pub use crate::Dotrix;
-    pub use dotrix_core::ecs::{Const, Context, Mut, System};
-    pub use dotrix_core::Service;
-    pub use dotrix_core::{Color, Id};
-}
-*/
-
-/// Dotrix Core data structure
-pub struct Core {
-    controller: Controller,
-    extensions: Extensions,
+/// Dotrix interface for applications
+pub trait Application: 'static + Send {
+    /// Provides a possibility for the Application to change Dotrix Settings
+    fn configure(&self, _settings: &mut Settings) {}
+    /// Allows application to initialize all necessary context and tasks
+    fn init(&self, _builder: &Manager) {}
 }
 
-impl Core {
-    pub fn schedule<T: Task>(&mut self, task: T) {
-        self.controller.manager.schedule(task);
+/// Runs application
+pub fn run<A: Application, F>(app: A, setup_extensions: F)
+where
+    F: FnOnce(&mut extensions::Loader),
+{
+    let mut settings = Settings::default();
+    let mut extensions = Extensions::default();
+
+    // configure dotrix for the app
+    app.configure(&mut settings);
+
+    // Set target output, so scheduler can build the dependency graph
+    let manager = Manager::new::<gpu::FrameOutput>(settings.workers);
+    // load extensions
+    {
+        let mut loader = extensions::Loader::new(&manager, &mut extensions);
+
+        setup_extensions(&mut loader);
     }
-    pub fn extend_with<T: Extension>(&mut self, extension: T) {
-        extension.add_to(&mut self.controller.manager);
-        self.extensions
-            .registry
-            .insert(std::any::TypeId::of::<T>(), Box::new(extension));
-    }
-}
+    manager.store(extensions);
 
-/// Dotrix Extensions registry
-pub struct Extensions {
-    registry: std::collections::HashMap<std::any::TypeId, Box<dyn Extension>>,
-}
+    // initialize application
+    app.init(&manager);
+    manager.store(app);
 
-impl Default for Extensions {
-    fn default() -> Self {
-        Self {
-            registry: std::collections::HashMap::new(),
-        }
-    }
-}
-
-/// Dotrix Core Settings
-pub struct Settings {
-    /// Application Window Title
-    pub title: String,
-    /// Desired FPS
-    pub fps: f32,
-    /// Number of workers
-    pub workers: u32,
-    /// If true, Dotrix will try to run in full screen mode
-    pub full_screen: bool,
-    /// If true, Dotrix will take care about screen clearing
-    pub clear_screen: bool,
-}
-
-impl Settings {
-    pub fn validate(&mut self) {
-        if self.workers < 2 {
-            self.workers = 2;
-        }
-    }
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            title: String::from("Dotrix Application"),
-            fps: 60.0,
-            workers: 8,
-            full_screen: false,
-            clear_screen: true,
-        }
-    }
+    Dotrix::new(settings, manager).run();
 }
 
 /// Application Controller object
-struct Controller {
+pub struct Dotrix {
     manager: Manager,
     settings: Settings,
-    //debug:
-    count: u32,
-    instant: std::time::Instant,
+    frames: u64,
 }
 
-impl window::Controller for Controller {
-    fn fps(&self) -> f32 {
-        self.settings.fps
+impl Dotrix {
+    pub fn new(settings: Settings, manager: Manager) -> Self {
+        Self {
+            manager,
+            settings,
+            frames: 0,
+        }
     }
 
+    pub fn run(self) {
+        use window::Controller;
+        let fps_limit = self.settings.fps_limit.clone();
+        self.run_window(fps_limit);
+    }
+}
+
+impl window::Controller for Dotrix {
     fn init(&mut self, window_handle: window::Handle, width: u32, height: u32) {
-        let renderer = gpu::Gpu::new(gpu::Descriptor {
+        let gpu = gpu::Gpu::new(gpu::Descriptor {
             window_handle: &window_handle,
-            fps_request: self.settings.fps,
+            fps_limit: self.settings.fps_limit,
             surface_size: [width, height],
             sample_count: 4, // TODO: MSAA setting
         });
         let window = window::Window::new(window_handle);
+        // TODO:
         // window.set_title(&self.settings.title);
         // window.set_full_screen(self.settings.full_screen);
+        let world = World::new();
 
+        // add last globals
+        self.manager.store(gpu);
         self.manager.store(window);
-        self.manager.store(renderer);
-        // rendering tasks
+        self.manager.store(world);
+
+        // schedule rendering tasks
         self.manager.schedule(gpu::CreateFrame::default());
         self.manager.schedule(gpu::ClearFrame::default());
         self.manager.schedule(gpu::SubmitCommands::default());
-        self.manager.schedule(gpu::PresentFrame::default());
         self.manager.schedule(gpu::ResizeSurface::default());
 
+        // Input listening
         self.manager.schedule(input::ListenTask::default());
+
+        // register data provided by window controller
+        self.manager.register::<gpu::SurfaceSize>(0);
+        self.manager.register::<input::Event>(0);
 
         self.manager.run();
     }
@@ -187,81 +155,22 @@ impl window::Controller for Controller {
     }
 
     fn on_resize(&mut self, width: u32, height: u32) {
-        log::info!("provide new size: {}x{}", width, height);
+        log::info!(
+            "provide new size: {}x{} {:?}",
+            width,
+            height,
+            std::any::TypeId::of::<gpu::SurfaceSize>()
+        );
         self.manager.provide(gpu::SurfaceSize { width, height });
     }
 
     fn on_close(&mut self) {}
 
     fn on_draw(&mut self) {
-        self.count += 1;
-        self.manager.wait_for::<gpu::PresentFrame>();
+        log::debug!("Draw Request {}", self.frames);
+        self.manager.wait_for::<gpu::FrameOutput>().present();
+
         self.manager.run();
-        if self.instant.elapsed().as_secs_f32() >= 1.0 {
-            log::info!("real fps: {}", self.count);
-            self.instant = std::time::Instant::now();
-            self.count = 0;
-        }
+        self.frames += 1;
     }
-}
-
-impl Controller {
-    fn run(self) {
-        use window::Controller;
-        self.run_window();
-    }
-}
-
-/// Dotrix interface for applications
-pub trait Application: 'static + Send {
-    /// Provides a possibility for the Application to change Dotrix Settings
-    fn configure(&self, _settings: &mut Settings) {}
-    /// Allows application to initialize all necessary context and tasks
-    fn init(&self, _manager: &mut Manager) {}
-}
-
-impl<T: Application> From<T> for Core {
-    fn from(app: T) -> Self {
-        let mut settings = Settings::default();
-        app.configure(&mut settings);
-        settings.validate();
-
-        let mut manager = Manager::new(settings.workers);
-        let tasks = manager.context();
-
-        let world = World::new();
-
-        app.init(&mut manager);
-
-        manager.store(app);
-        manager.store(tasks);
-        manager.store(world);
-
-        Core {
-            controller: Controller {
-                manager,
-                settings,
-                count: 0,
-                instant: std::time::Instant::now(),
-            },
-            extensions: Extensions::default(),
-        }
-    }
-}
-
-/// Runs application
-pub fn run<A: Application, F>(app: A, setup_extensions: F)
-where
-    F: FnOnce(&mut Core),
-{
-    let mut core = Core::from(app);
-    setup_extensions(&mut core);
-
-    let Core {
-        controller,
-        extensions,
-    } = core;
-    controller.manager.store(extensions);
-
-    controller.run();
 }

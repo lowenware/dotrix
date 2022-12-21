@@ -1,19 +1,71 @@
-use core::ops::{Deref, DerefMut};
+use crate::{scheduler, task};
+use dotrix_log as log;
+use dotrix_types::Id;
 use std::any::TypeId;
+use std::cell::UnsafeCell;
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::marker::PhantomData;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
-use crate::{scheduler, task};
+/// Memory slot to keep global data
+pub struct GlobalSlot {
+    pub data: UnsafeCell<Box<dyn std::any::Any + Send + 'static>>,
+}
+
+/// Memory slot to keep data provided as a task output
+#[derive(Default)]
+pub struct OutputSlot {
+    name: String,
+    instances: Vec<UnsafeCell<Option<Box<dyn std::any::Any + Send + 'static>>>>,
+    providers: usize,
+    /// Protected cells keep data if Some() on reset
+    protected: bool,
+}
+
+pub struct StateSlot {
+    pub id: std::any::TypeId,
+    pub name: String,
+    pub data: UnsafeCell<Box<dyn std::any::Any + Send + 'static>>,
+}
 
 ///  Context Manager
 pub struct Manager {
-    // TODO: introduce ServiceSlot
-    services: HashMap<TypeId, Box<dyn std::any::Any + Send + 'static>>,
-    data: HashMap<TypeId, DataSlot>,
+    globals: HashMap<TypeId, GlobalSlot>,
+    outputs: HashMap<TypeId, OutputSlot>,
     states_stack: Vec<StateSlot>,
     states_changes: Arc<Mutex<VecDeque<StatesStackOperation>>>,
+}
+
+impl GlobalSlot {
+    fn new<T: Context>(context: T) -> Self
+    where
+        T: std::any::Any + Send + 'static,
+    {
+        Self {
+            data: UnsafeCell::new(Box::new(context)),
+        }
+    }
+}
+
+impl From<Box<dyn std::any::Any + Send + 'static>> for GlobalSlot {
+    fn from(boxed: Box<dyn std::any::Any + Send + 'static>) -> Self {
+        Self {
+            data: UnsafeCell::new(boxed),
+        }
+    }
+}
+
+impl From<&scheduler::Task> for OutputSlot {
+    fn from(task: &scheduler::Task) -> Self {
+        Self {
+            name: String::from(task.output_as_str()),
+            instances: vec![],
+            providers: 0,
+            protected: false,
+        }
+    }
 }
 
 // NOTE: It is safe to use in combination with Locker
@@ -22,168 +74,256 @@ unsafe impl Sync for Manager {}
 impl Manager {
     pub fn new() -> Self {
         Self {
-            services: HashMap::new(),
-            data: HashMap::new(),
+            globals: HashMap::new(),
+            outputs: HashMap::new(),
             states_stack: vec![StateSlot::from(())],
             states_changes: Arc::new(Mutex::new(VecDeque::with_capacity(4))),
         }
     }
 
-    fn get<T: Context + std::any::Any>(&self) -> Option<&T> {
-        self.services
-            .get(&TypeId::of::<T>())
-            .map(|srv| srv.downcast_ref::<T>().unwrap())
+    unsafe fn select_mut<T: Context>(&self) -> Option<Mut<T>> {
+        self.globals
+            .get(&std::any::TypeId::of::<T>())
+            .and_then(|slot| (&mut *slot.data.get()).downcast_mut::<T>())
+            .map(|data| Mut {
+                data: data as *mut T,
+            })
     }
 
-    fn state<T: Context + std::any::Any>(&self) -> Option<&T> {
+    unsafe fn select_ref<T: Context>(&self) -> Option<Ref<T>> {
+        self.globals
+            .get(&std::any::TypeId::of::<T>())
+            .and_then(|slot| (&*slot.data.get()).downcast_ref::<T>())
+            .map(|data| Ref {
+                data: data as *const T,
+            })
+    }
+
+    unsafe fn select_any<T: Context>(&self, index: usize) -> Option<Any<T>> {
+        self.outputs
+            .get(&std::any::TypeId::of::<T>())
+            .and_then(|slot| {
+                let total = slot.instances.len();
+                (&*slot.instances[index].get())
+                    .as_ref()
+                    .and_then(|data| data.downcast_ref::<T>())
+                    .map(|data| (data, total))
+            })
+            .map(|(data, total)| Any {
+                data: data as *const T,
+                index,
+                total,
+            })
+    }
+
+    unsafe fn select_all<T: Context>(&self) -> Option<All<T>> {
+        self.outputs.get(&std::any::TypeId::of::<T>()).map(|slot| {
+            let data = slot
+                .instances
+                .iter()
+                .filter(|data| (&*data.get()).is_some())
+                .map(|data| {
+                    (&*data.get())
+                        .as_ref()
+                        .unwrap()
+                        .downcast_ref::<T>()
+                        .unwrap() as *const T
+                })
+                .collect::<Vec<_>>();
+
+            All { data }
+        })
+    }
+
+    unsafe fn take_any<T: Context>(&self, index: usize) -> Option<Take<Any<T>>> {
+        self.outputs
+            .get(&std::any::TypeId::of::<T>())
+            .and_then(|slot| {
+                let total = slot.instances.len();
+                (&mut *slot.instances[index].get())
+                    .take()
+                    .and_then(|data| data.downcast::<T>().ok())
+                    .map(|data| (data, total))
+            })
+            .map(|(data, total)| Take {
+                selection: Any {
+                    data: Box::<T>::into_raw(data) as *const T,
+                    index,
+                    total,
+                },
+            })
+    }
+
+    unsafe fn take_all<T: Context>(&self) -> Option<Take<All<T>>> {
+        self.outputs.get(&std::any::TypeId::of::<T>()).map(|slot| {
+            let data = slot
+                .instances
+                .iter()
+                .map(|data| (&mut *data.get()).take())
+                .filter(|data| data.is_some())
+                .map(|data| Box::<T>::into_raw(data.unwrap().downcast::<T>().unwrap()) as *const T)
+                .collect::<Vec<_>>();
+            Take {
+                selection: All { data },
+            }
+        })
+    }
+
+    unsafe fn state_ref<T: Context + std::any::Any>(&self) -> Option<State<Ref<T>>> {
         let state_id = TypeId::of::<T>();
         let state = if state_id == TypeId::of::<()>() {
             self.states_stack.first()
         } else {
             self.states_stack.last()
         };
-        state.map(|state| state.data.downcast_ref::<T>().expect("Valid states stack"))
+
+        state
+            .and_then(|state| (&*state.data.get()).downcast_ref::<T>())
+            .map(|state| State {
+                selection: Ref {
+                    data: state as *const T,
+                },
+                changes: Arc::clone(&self.states_changes),
+            })
     }
 
-    fn get_mut<T: Context + std::any::Any>(&mut self) -> Option<&mut T> {
-        self.services
-            .get_mut(&TypeId::of::<T>())
-            .map(|srv| srv.downcast_mut::<T>().unwrap())
-    }
+    unsafe fn state_mut<T: Context + std::any::Any>(&self) -> Option<State<Mut<T>>> {
+        let state_id = TypeId::of::<T>();
+        let state = if state_id == TypeId::of::<()>() {
+            self.states_stack.first()
+        } else {
+            self.states_stack.last()
+        };
 
-    fn get_data<T: Context + std::any::Any>(&self) -> Option<&DataSlot> {
-        self.data.get(&TypeId::of::<T>())
+        state
+            .and_then(|state| (&mut *state.data.get()).downcast_mut::<T>())
+            .map(|state| State {
+                selection: Mut {
+                    data: state as *mut T,
+                },
+                changes: Arc::clone(&self.states_changes),
+            })
     }
 
     pub fn store_as<T: std::any::Any + Send + 'static>(&mut self, context: T) {
-        self.services
-            .insert(std::any::TypeId::of::<T>(), Box::new(context));
+        self.globals
+            .insert(std::any::TypeId::of::<T>(), GlobalSlot::new(context));
     }
 
-    pub fn store(&mut self, type_id: TypeId, context: Box<dyn std::any::Any + Send + 'static>) {
-        self.services.insert(type_id, context);
+    pub fn store_boxed(
+        &mut self,
+        type_id: TypeId,
+        context: Box<dyn std::any::Any + Send + 'static>,
+    ) {
+        self.globals.insert(type_id, GlobalSlot::from(context));
     }
 
     pub fn discard(&mut self, type_id: TypeId) {
-        self.services.remove(&type_id);
+        self.globals.remove(&type_id);
     }
 
     /// Register dependecy data
-    pub fn register(&mut self, type_id: TypeId) {
-        let mut entry = self.data.entry(type_id).or_insert(DataSlot::default());
-        entry.providers += 1;
+    pub fn register(&mut self, type_id: TypeId, name: String, providers: usize, protected: bool) {
+        let entry = self.outputs.entry(type_id).or_insert(OutputSlot {
+            name,
+            protected,
+            providers,
+            ..Default::default()
+        });
     }
 
     pub fn register_provider(&mut self, task: &scheduler::Task) {
-        let mut entry = self
-            .data
+        let entry = self
+            .outputs
             .entry(task.output_type_id())
-            .or_insert(DataSlot::from(task));
+            .or_insert(OutputSlot::from(task));
         entry.providers += 1;
     }
 
     pub fn provide(&mut self, type_id: TypeId, data: Box<dyn std::any::Any + Send + 'static>) {
-        let mut entry = self.data.entry(type_id).or_insert(DataSlot::default());
-        entry.instances.push(data);
-        entry.instances_count += 1;
+        let entry = self.outputs.entry(type_id).or_insert(OutputSlot::default());
+        entry.instances.push(UnsafeCell::new(Some(data)));
+        log::debug!(
+            "Provide {} -> {} of {}",
+            entry.name,
+            entry.instances.len(),
+            entry.providers
+        );
+    }
+
+    pub fn output_name(&self, type_id: &TypeId) -> Option<&str> {
+        self.outputs.get(type_id).map(|slot| slot.name.as_str())
     }
 
     fn provide_fake(&mut self, type_id: TypeId) {
-        if let Some(entry) = self.data.get_mut(&type_id) {
-            entry.instances_count += 1;
+        if let Some(entry) = self.outputs.get_mut(&type_id) {
+            entry.instances.push(UnsafeCell::new(None));
         }
     }
 
-    pub fn match_states(&self, states: &[TypeId]) -> bool {
-        let current_state_id = self.states_stack.last().unwrap().id;
-        for state_id in states.iter() {
-            if *state_id != current_state_id {
-                return false;
-            }
-        }
-        true
+    pub fn current_state(&self) -> TypeId {
+        let state = self
+            .states_stack
+            .last()
+            .expect("There always must be a state");
+
+        log::debug!("Current state: {} ({:?})", state.name, state.id);
+        state.id
     }
 
-    pub fn match_dependencies(
-        &self,
-        dependencies: &Dependencies,
-        skip_accessor_all: bool,
-    ) -> Option<Dependencies> {
-        // NOTE: when task has several Any<T> dependencies (keep in mind, that every task has
-        // implicit Any<scheduler::Start> dependency), the condition to run is to have at least one provision
-        // of each Any<T> dependency with at least one new provision
+    pub fn match_dependencies(&self, dependencies: &Dependencies) -> Option<Dependencies> {
         let mut result = dependencies.clone();
-        let mut has_any_condition = false;
-        // let mut has_all_condition = false;
-        let mut meet_any_condition = false;
-        let mut task_was_executed = false;
         for (type_id, dependency) in dependencies.data.iter() {
-            if let Some(entry) = self.data.get(&type_id) {
-                let instances_len = entry.instances_count;
-                match dependency {
-                    DependencyType::None => {
-                        if skip_accessor_all {
-                            return None;
-                        }
+            let entry = match self.outputs.get(&type_id) {
+                Some(dependency) => dependency,
+                None => {
+                    return None;
+                }
+            };
+            let instances_len = entry.instances.len();
+            match dependency {
+                DependencyType::Any(index) => {
+                    if instances_len > 0 && *index < instances_len {
+                        result
+                            .data
+                            .insert(*type_id, DependencyType::Any(*index + 1));
                         continue;
+                    } else {
+                        return None;
                     }
-                    DependencyType::Take => {
-                        if instances_len > 0 {
-                            continue;
-                        }
-                    }
-                    DependencyType::Any(index) => {
-                        has_any_condition = true;
-                        if instances_len > 0 {
-                            if *index < instances_len {
-                                meet_any_condition = true;
-                            }
-                            result
-                                .data
-                                .insert(*type_id, DependencyType::Any(*index + 1));
-                            continue;
-                        }
-                    }
-                    DependencyType::All(count) => {
-                        // has_all_condition = true;
-                        if skip_accessor_all {
-                            return None;
-                        }
-                        if *count == instances_len {
-                            task_was_executed = true;
-                        }
+                }
+                DependencyType::All(count) => {
+                    if *count == 0 && instances_len >= entry.providers {
                         result
                             .data
                             .insert(*type_id, DependencyType::All(instances_len));
-                        if entry.providers == instances_len {
-                            continue;
-                        }
+                        continue;
+                    } else {
+                        return None;
                     }
                 }
             }
-            return None;
         }
 
-        if !meet_any_condition && !(!has_any_condition && !task_was_executed) {
-            return None;
-        }
-
-        return Some(result);
+        Some(result)
     }
 
-    pub fn fetch<T>(&self, dependencies: &Dependencies) -> T
+    pub unsafe fn fetch<T>(&self, dependencies: &Dependencies) -> T
     where
-        T: TupleSelector,
+        T: ContextSelector,
     {
-        T::fetch(self, dependencies)
+        T::select_context(self, dependencies)
     }
 
     pub fn reset_data(&mut self, reset_providers: bool) {
         let loop_type_id = std::any::TypeId::of::<scheduler::Loop>();
-        for (type_id, entry) in self.data.iter_mut() {
-            if entry.providers != 0 || *type_id == loop_type_id {
+        for (type_id, entry) in self.outputs.iter_mut() {
+            if entry.protected {
+                unsafe {
+                    entry.instances.retain(|data| (&*data.get()).is_some());
+                }
+            } else {
                 entry.instances.clear();
-                entry.instances_count = 0;
                 if reset_providers {
                     entry.providers = 0;
                 }
@@ -191,11 +331,13 @@ impl Manager {
         }
     }
 
-    fn cleanup_graph(&mut self) {
-        for entry in self.data.values_mut() {
-            if entry.instances.len() == 0 && entry.instances_count != 0 {
-                entry.instances_count = 0;
-            }
+    unsafe fn cleanup_graph(&mut self) {
+        for entry in self.outputs.values_mut() {
+            // can't use clear here, because some control data should stay in the pool
+            entry.instances.retain(|data| (&*data.get()).is_some());
+            // if entry.instances.len() == 0 && entry.instances.len()_count != 0 {
+            //     entry.instances_count = 0;
+            //}
         }
     }
 
@@ -222,7 +364,30 @@ impl Manager {
         }
     }
 
-    pub fn rebuild_graph(
+    pub unsafe fn calculate_providers<T: Context>(
+        &mut self,
+        pool: &task::Pool,
+        queue: &[Id<task::Slot>],
+    ) {
+        let loop_providers = pool.calculate_context_providers(queue, TypeId::of::<T>(), self);
+
+        if loop_providers != 1 {
+            log::warn!("Invalid Loop providers number: {}", loop_providers);
+        }
+    }
+
+    pub fn set_output_providers(&mut self, type_id: TypeId, providers: usize) {
+        if let Some(slot) = self.outputs.get_mut(&type_id) {
+            if !slot.protected {
+                slot.providers = providers;
+            }
+        } else {
+            log::warn!("No slot for type {:?}. Missing task?", type_id);
+        }
+    }
+
+    /*
+    pub unsafe fn rebuild_graph(
         &mut self,
         pool: &HashMap<task::Id, scheduler::TaskSlot>,
         queue: &[task::Id],
@@ -243,7 +408,6 @@ impl Manager {
                             self.match_dependencies(task_dependencies, skip_accessor_all)
                         {
                             self.register_provider(task);
-                            // TODO: add fake provision
                             self.provide_fake(task.output_type_id());
                             dependencies.insert(task.id(), dependencies_state);
                             executed_something = true;
@@ -265,9 +429,10 @@ impl Manager {
             }
         }
     }
+    */
 }
 
-enum StatesStackOperation {
+pub enum StatesStackOperation {
     Push(StateSlot),
     Pop,
     PopUntil(std::any::TypeId),
@@ -276,64 +441,13 @@ enum StatesStackOperation {
 pub trait Context: std::any::Any + 'static {}
 impl<T: 'static> Context for T {}
 
-#[derive(Default)]
-struct DataSlot {
-    name: String,
-    instances: Vec<Box<dyn std::any::Any + Send + 'static>>,
-    instances_count: u32,
-    providers: u32,
-}
-
-impl From<&scheduler::Task> for DataSlot {
-    fn from(task: &scheduler::Task) -> Self {
-        DataSlot {
-            name: String::from(task.output_as_str()),
-            ..Default::default()
-        }
-    }
-}
-
-struct StateSlot {
-    id: std::any::TypeId,
-    name: String,
-    data: Box<dyn std::any::Any + Send + 'static>,
-}
-
 impl StateSlot {
     fn from<T: std::any::Any + Send + 'static>(data: T) -> Self {
         Self {
             id: std::any::TypeId::of::<T>(),
             name: String::from(std::any::type_name::<T>()),
-            data: Box::new(data),
+            data: UnsafeCell::new(Box::new(data)),
         }
-    }
-}
-
-pub struct State<T: Selector> {
-    selector: T,
-    changes: Arc<Mutex<VecDeque<StatesStackOperation>>>,
-}
-
-impl<T: Selector> State<T> {
-    pub fn push<D: std::any::Any + Send + 'static>(&self, data: D) {
-        self.changes
-            .lock()
-            .expect("Mutex to be locked")
-            .push_back(StatesStackOperation::Push(StateSlot::from(data)));
-    }
-
-    pub fn pop(&self) {
-        self.changes
-            .lock()
-            .expect("Mutex to be locked")
-            .push_back(StatesStackOperation::Pop);
-    }
-
-    pub fn pop_until<D: std::any::Any + Send + 'static>(&self) {
-        self.changes
-            .lock()
-            .expect("Mutex to be locked")
-            .push_back(StatesStackOperation::PopUntil(std::any::TypeId::of::<D>()));
     }
 }
 
@@ -401,16 +515,14 @@ impl LockManager {
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum DependencyType {
-    None,
-    Any(u32),
-    All(u32),
-    Take,
+    Any(usize),
+    All(usize),
 }
 
 impl DependencyType {
     pub fn reset(&mut self) {
         match self {
-            DependencyType::Any(count) => *count = 0,
+            DependencyType::Any(index) => *index = 0,
             DependencyType::All(count) => *count = 0,
             _ => {}
         }
@@ -419,7 +531,7 @@ impl DependencyType {
 
 #[derive(Debug, Default)]
 pub struct Dependencies {
-    data: HashMap<TypeId, DependencyType>,
+    pub data: HashMap<TypeId, DependencyType>,
 }
 
 impl Dependencies {
@@ -440,10 +552,8 @@ impl Clone for Dependencies {
                     (
                         *key,
                         match entry {
-                            DependencyType::None => DependencyType::None,
                             DependencyType::Any(_) => DependencyType::Any(0),
                             DependencyType::All(_) => DependencyType::All(0),
-                            DependencyType::Take => DependencyType::Take,
                         },
                     )
                 })
@@ -452,31 +562,64 @@ impl Clone for Dependencies {
     }
 }
 
-pub trait TupleSelector: Sized {
-    fn fetch(context_manager: &Manager, dependencies: &Dependencies) -> Self;
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub enum SelectorTarget {
+    Global,
+    Output(DependencyType),
+    State,
+}
+
+/// Selector of specific context data from the context manager
+pub trait Selector: Sized + Send + Sync {
+    /// Type of Service to be accessed
+    type DataSlot: Context;
+
+    /// Returns State Dependency
+    fn target() -> (std::any::TypeId, SelectorTarget);
+
+    /// Fetches the Service from the storage
+    unsafe fn select(context: &Manager, dependencies: &Dependencies) -> Option<Self>;
+
+    /// Returns DataSlot type and lock type
+    fn lock_type() -> Option<(std::any::TypeId, LockType)> {
+        None
+    }
+
+    /// Very unsafe, only selectors like Take<T> can call this
+    unsafe fn drop_data(&mut self) {}
+
+    // / Returns Dependency
+    //fn dependency_type() -> Option<(std::any::TypeId, DependencyType)> {
+    //    None
+    //}
+}
+
+/// Selector of a complete context tuple from the context manager
+pub trait ContextSelector: Sized {
+    unsafe fn select_context(manager: &Manager, dependencies: &Dependencies) -> Self;
     fn lock() -> Lock;
     fn dependencies() -> Dependencies;
     fn states() -> Vec<std::any::TypeId>;
 }
 
-macro_rules! impl_tuple_accessor {
+macro_rules! impl_context_selector {
     (($($i: ident),*)) => {
-        impl<$($i,)*> TupleSelector for ($($i,)*)
+        impl<$($i,)*> ContextSelector for ($($i,)*)
         where
             $($i: Selector,)*
         {
             #[allow(unused)]
-            fn fetch(context_manager: &Manager, dependencies: &Dependencies) -> Self {
+            unsafe fn select_context(manager: &Manager, dependencies: &Dependencies) -> Self {
                 (
-                    $($i::fetch(context_manager, dependencies).unwrap_or_else(
-                        || panic!("Failed to fetch '{}'", std::any::type_name::<$i>())
+                    $($i::select(manager, dependencies).unwrap_or_else(
+                        || panic!("Failed to fetch ({})", std::any::type_name::<$i>())
                     ),)*
                 )
             }
 
             fn lock() -> Lock {
                 Lock {
-                    data: [ $($i::lock(),)* ]
+                    data: [ $($i::lock_type(),)* ]
                         .into_iter()
                         .filter(|l: &Option<(std::any::TypeId, LockType)>| l.is_some())
                         .map(|l| l.unwrap())
@@ -485,23 +628,49 @@ macro_rules! impl_tuple_accessor {
             }
 
             fn states() -> Vec<std::any::TypeId> {
-                [ $($i::state(),)* ]
+                let mut has_default_state = false;
+                [
+                    (
+                        std::any::TypeId::of::<scheduler::Loop>(),
+                        SelectorTarget::Output(DependencyType::Any(0))
+                    ),
+                    $($i::target(),)*
+                ]
                     .into_iter()
-                    .filter(|l: &Option<std::any::TypeId>| l.is_some())
-                    .map(|l| l.unwrap())
+                    .filter_map(|(type_id, target)| match target {
+                        SelectorTarget::State => {
+                            if type_id == TypeId::of::<()>() {
+                                has_default_state = true;
+                            }
+                            Some(type_id)
+                        },
+                        _ => None
+                    })
                     .collect::<Vec<_>>()
+
+                // if !has_default_state {
+                //     states.push(TypeId::of::<()>());
+                // }
+                // states
             }
 
             fn dependencies() -> Dependencies {
-                let mut data = [ $($i::dependency(),)* ]
+                let data = [
+                    (
+                        std::any::TypeId::of::<scheduler::Loop>(),
+                        SelectorTarget::Output(DependencyType::Any(0))
+                    ),
+                    $($i::target(),)*
+                ]
                     .into_iter()
-                    .filter(|d: &Option<(std::any::TypeId, DependencyType)>| d.is_some())
-                    .map(|d| d.unwrap())
+                    .filter_map(|(type_id, target)| match target {
+                        SelectorTarget::Output(dependency_type) => Some(
+                            (type_id, dependency_type)
+                        ),
+                        _ => None
+                    })
                     .collect::<HashMap<_, _>>();
-                data.insert(
-                    std::any::TypeId::of::<scheduler::Loop>(),
-                    DependencyType::Any(0)
-                );
+
                 Dependencies {
                     data
                 }
@@ -510,42 +679,60 @@ macro_rules! impl_tuple_accessor {
     }
 }
 
-impl_tuple_accessor!(());
-impl_tuple_accessor!((A));
-impl_tuple_accessor!((A, B));
-impl_tuple_accessor!((A, B, C));
-impl_tuple_accessor!((A, B, C, D));
-impl_tuple_accessor!((A, B, C, D, E));
-impl_tuple_accessor!((A, B, C, D, E, F));
-impl_tuple_accessor!((A, B, C, D, E, F, G));
-impl_tuple_accessor!((A, B, C, D, E, F, G, H));
-impl_tuple_accessor!((A, B, C, D, E, F, G, H, I));
-impl_tuple_accessor!((A, B, C, D, E, F, G, H, I, J));
-impl_tuple_accessor!((A, B, C, D, E, F, G, H, I, J, K));
-impl_tuple_accessor!((A, B, C, D, E, F, G, H, I, J, K, L));
-impl_tuple_accessor!((A, B, C, D, E, F, G, H, I, J, K, L, M));
-impl_tuple_accessor!((A, B, C, D, E, F, G, H, I, J, K, L, M, N));
-impl_tuple_accessor!((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O));
-impl_tuple_accessor!((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P));
+impl_context_selector!(());
+impl_context_selector!((A));
+impl_context_selector!((A, B));
+impl_context_selector!((A, B, C));
+impl_context_selector!((A, B, C, D));
+impl_context_selector!((A, B, C, D, E));
+impl_context_selector!((A, B, C, D, E, F));
+impl_context_selector!((A, B, C, D, E, F, G));
+impl_context_selector!((A, B, C, D, E, F, G, H));
+impl_context_selector!((A, B, C, D, E, F, G, H, I));
+impl_context_selector!((A, B, C, D, E, F, G, H, I, J));
+impl_context_selector!((A, B, C, D, E, F, G, H, I, J, K));
+impl_context_selector!((A, B, C, D, E, F, G, H, I, J, K, L));
+impl_context_selector!((A, B, C, D, E, F, G, H, I, J, K, L, M));
+impl_context_selector!((A, B, C, D, E, F, G, H, I, J, K, L, M, N));
+impl_context_selector!((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O));
+impl_context_selector!((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P));
 
-/// Abstraction to access Service in the storage
-pub trait Selector: Sized + Send + Sync {
-    /// Type of Service to be accessed
-    type DataSlot: Context;
-    /// Fetches the Service from the storage
-    fn fetch(context: &Manager, dependencies: &Dependencies) -> Option<Self>;
-    /// Returns DataSlot type and lock type
-    fn lock() -> Option<(std::any::TypeId, LockType)> {
-        None
-    }
-    /// Returns Dependency
-    fn dependency() -> Option<(std::any::TypeId, DependencyType)> {
-        None
-    }
-    /// Returns State Dependency
-    fn state() -> Option<std::any::TypeId> {
-        None
-    }
+pub struct Ref<T>
+where
+    T: Context,
+{
+    data: *const T,
+}
+
+pub struct Mut<T>
+where
+    T: Context,
+{
+    data: *mut T,
+}
+
+/// Selector for provision of any dependency
+#[derive(Debug)]
+pub struct Any<T: Context> {
+    data: *const T,
+    index: usize,
+    total: usize,
+}
+
+/// Selector for provision of all dependencies
+#[derive(Debug)]
+pub struct All<T: Context> {
+    data: Vec<*const T>,
+}
+
+/// context::Selector that takes ownership over selected data
+pub struct Take<T: Selector> {
+    selection: T,
+}
+
+pub struct State<T: Selector> {
+    selection: T,
+    changes: Arc<Mutex<VecDeque<StatesStackOperation>>>,
 }
 
 impl<T> Selector for Mut<T>
@@ -554,23 +741,191 @@ where
 {
     type DataSlot = T;
 
-    fn fetch(manager: &Manager, _: &Dependencies) -> Option<Self> {
-        manager.get::<T>().map(|data_ref| Self {
-            data: (data_ref as *const T) as *mut T,
-        })
+    fn target() -> (std::any::TypeId, SelectorTarget) {
+        (std::any::TypeId::of::<T>(), SelectorTarget::Global)
     }
 
-    fn lock() -> Option<(std::any::TypeId, LockType)> {
+    unsafe fn select(manager: &Manager, _: &Dependencies) -> Option<Self> {
+        manager.select_mut::<T>()
+    }
+
+    fn lock_type() -> Option<(std::any::TypeId, LockType)> {
         Some((std::any::TypeId::of::<T>(), LockType::Mut))
     }
 }
 
-/// Mutable accessor for [`Context`] instance
-pub struct Mut<T>
+impl<T> Selector for Ref<T>
 where
     T: Context,
 {
-    data: *mut T,
+    type DataSlot = T;
+
+    fn target() -> (std::any::TypeId, SelectorTarget) {
+        (std::any::TypeId::of::<T>(), SelectorTarget::Global)
+    }
+
+    unsafe fn select(manager: &Manager, _: &Dependencies) -> Option<Self> {
+        manager.select_ref::<T>()
+    }
+
+    fn lock_type() -> Option<(std::any::TypeId, LockType)> {
+        Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
+    }
+}
+
+impl<T> Selector for Any<T>
+where
+    T: Context,
+{
+    type DataSlot = T;
+
+    fn target() -> (std::any::TypeId, SelectorTarget) {
+        (
+            std::any::TypeId::of::<T>(),
+            SelectorTarget::Output(DependencyType::Any(0)),
+        )
+    }
+
+    unsafe fn select(manager: &Manager, dependencies: &Dependencies) -> Option<Self> {
+        let index = match dependencies
+            .data
+            .get(&std::any::TypeId::of::<T>())
+            .expect("Dependency to be consistant")
+        {
+            DependencyType::Any(index) => *index as usize,
+            _ => panic!("Dependency and accessor missmatch"),
+        };
+        manager.select_any(index)
+    }
+
+    fn lock_type() -> Option<(std::any::TypeId, LockType)> {
+        Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
+    }
+
+    unsafe fn drop_data(&mut self) {
+        if !self.data.is_null() {
+            let _ = unsafe { *Box::from_raw(self.data as *mut T) };
+        }
+    }
+}
+
+impl<T> Selector for All<T>
+where
+    T: Context,
+{
+    type DataSlot = T;
+
+    fn target() -> (std::any::TypeId, SelectorTarget) {
+        (
+            std::any::TypeId::of::<T>(),
+            SelectorTarget::Output(DependencyType::All(0)),
+        )
+    }
+
+    unsafe fn select(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
+        manager.select_all::<T>()
+    }
+
+    fn lock_type() -> Option<(std::any::TypeId, LockType)> {
+        Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
+    }
+
+    unsafe fn drop_data(&mut self) {
+        while let Some(ptr) = self.data.pop() {
+            let _ = unsafe { *Box::from_raw(ptr as *mut T) };
+        }
+    }
+}
+
+impl<T> Selector for Take<Any<T>>
+where
+    T: Context,
+{
+    type DataSlot = T;
+
+    fn target() -> (std::any::TypeId, SelectorTarget) {
+        (
+            std::any::TypeId::of::<T>(),
+            SelectorTarget::Output(DependencyType::Any(0)),
+        )
+    }
+
+    unsafe fn select(manager: &Manager, dependencies: &Dependencies) -> Option<Self> {
+        let index = match dependencies
+            .data
+            .get(&std::any::TypeId::of::<T>())
+            .expect("Dependency to be consistant")
+        {
+            DependencyType::Any(index) => *index as usize,
+            _ => panic!("Dependency and accessor missmatch"),
+        };
+
+        manager.take_any::<T>(index)
+    }
+
+    fn lock_type() -> Option<(std::any::TypeId, LockType)> {
+        Some((std::any::TypeId::of::<T>(), LockType::Mut))
+    }
+}
+
+impl<T> Selector for Take<All<T>>
+where
+    T: Context,
+{
+    type DataSlot = T;
+
+    fn target() -> (std::any::TypeId, SelectorTarget) {
+        (
+            std::any::TypeId::of::<T>(),
+            SelectorTarget::Output(DependencyType::All(0)),
+        )
+    }
+
+    unsafe fn select(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
+        manager.take_all::<T>()
+    }
+
+    fn lock_type() -> Option<(std::any::TypeId, LockType)> {
+        Some((std::any::TypeId::of::<T>(), LockType::Mut))
+    }
+}
+
+impl<T> Selector for State<Ref<T>>
+where
+    T: Context,
+{
+    type DataSlot = T;
+
+    fn target() -> (std::any::TypeId, SelectorTarget) {
+        (std::any::TypeId::of::<T>(), SelectorTarget::State)
+    }
+
+    unsafe fn select(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
+        manager.state_ref::<T>()
+    }
+
+    fn lock_type() -> Option<(std::any::TypeId, LockType)> {
+        Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
+    }
+}
+
+impl<T> Selector for State<Mut<T>>
+where
+    T: Context,
+{
+    type DataSlot = T;
+
+    fn target() -> (std::any::TypeId, SelectorTarget) {
+        (std::any::TypeId::of::<T>(), SelectorTarget::State)
+    }
+
+    unsafe fn select(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
+        manager.state_mut::<T>()
+    }
+
+    fn lock_type() -> Option<(std::any::TypeId, LockType)> {
+        Some((std::any::TypeId::of::<T>(), LockType::Mut))
+    }
 }
 
 impl<T> Deref for Mut<T>
@@ -592,17 +947,6 @@ where
     }
 }
 
-unsafe impl<T: Context> Send for Mut<T> {}
-unsafe impl<T: Context> Sync for Mut<T> {}
-
-/// Imutable accessor for [`Context`] instance
-pub struct Ref<T>
-where
-    T: Context,
-{
-    data: *const T,
-}
-
 impl<T> Deref for Ref<T>
 where
     T: Context,
@@ -610,43 +954,6 @@ where
     type Target = T;
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.data }
-    }
-}
-
-unsafe impl<T: Context> Send for Ref<T> {}
-unsafe impl<T: Context> Sync for Ref<T> {}
-
-impl<T> Selector for Ref<T>
-where
-    T: Context,
-{
-    type DataSlot = T;
-
-    fn fetch(manager: &Manager, _: &Dependencies) -> Option<Self> {
-        manager.get::<T>().map(|data_ref| Self {
-            data: data_ref as *const T,
-        })
-    }
-
-    fn lock() -> Option<(std::any::TypeId, LockType)> {
-        Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
-    }
-}
-
-/// Selector for provision of any dependency
-#[derive(Debug)]
-pub struct Any<T: Context> {
-    data: *const T,
-    index: u32,
-    total: u32,
-}
-
-impl<T: Context> Any<T> {
-    pub fn index(&self) -> u32 {
-        self.index
-    }
-    pub fn total(&self) -> u32 {
-        self.total
     }
 }
 
@@ -660,335 +967,24 @@ where
     }
 }
 
-unsafe impl<T: Context> Send for Any<T> {}
-unsafe impl<T: Context> Sync for Any<T> {}
-
-impl<T> Selector for Any<T>
-where
-    T: Context,
-{
-    type DataSlot = T;
-
-    fn fetch(manager: &Manager, dependencies: &Dependencies) -> Option<Self> {
-        let index = match dependencies
-            .data
-            .get(&std::any::TypeId::of::<T>())
-            .expect("Dependency to be consistant")
-        {
-            DependencyType::Any(index) => *index,
-            _ => panic!("Dependency and accessor missmatch"),
-        };
-        manager
-            .get_data::<T>()
-            .map(|d| {
-                if d.instances.len() > index as usize {
-                    return Some(Self {
-                        data: d.instances[index as usize].downcast_ref::<T>().unwrap(),
-                        total: d.providers,
-                        index,
-                    });
-                }
-                None
-            })
-            .unwrap_or(None)
-    }
-
-    fn lock() -> Option<(std::any::TypeId, LockType)> {
-        Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
-    }
-
-    fn dependency() -> Option<(std::any::TypeId, DependencyType)> {
-        Some((std::any::TypeId::of::<T>(), DependencyType::Any(0)))
-    }
-}
-
-/// Selector that takes ownership over dependency
-#[derive(Debug)]
-pub struct Take<T: Context> {
-    data: T,
-}
-
-impl<T: 'static> Take<T> {
-    pub fn unwrap(self) -> T {
-        self.data
-    }
-}
-
-impl<T> Deref for Take<T>
+impl<T> Deref for Take<Any<T>>
 where
     T: Context,
 {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        unsafe { &self.data }
+        unsafe { &*self.selection.data }
     }
 }
 
-impl<T> DerefMut for Take<T>
+impl<T> DerefMut for Take<Any<T>>
 where
     T: Context,
 {
     fn deref_mut(&mut self) -> &mut T {
-        unsafe { &mut self.data }
+        unsafe { &mut *(self.selection.data as *mut T) }
     }
 }
-
-unsafe impl<T: Context> Send for Take<T> {}
-unsafe impl<T: Context> Sync for Take<T> {}
-
-impl<T> Selector for Take<T>
-where
-    T: Context,
-{
-    type DataSlot = T;
-
-    fn fetch(manager: &Manager, _: &Dependencies) -> Option<Self> {
-        manager
-            .get_data::<T>()
-            .map(|d| {
-                let slot = unsafe { &mut *((d as *const DataSlot) as *mut DataSlot) };
-                if slot.instances_count == 0 {
-                    return None;
-                }
-                slot.instances_count -= 1;
-                slot.instances.pop().map(|data| Self {
-                    data: *(unsafe {
-                        Box::from_raw((Box::leak(data) as *mut dyn std::any::Any) as *mut T)
-                    }),
-                })
-            })
-            .unwrap_or(None)
-    }
-
-    fn lock() -> Option<(std::any::TypeId, LockType)> {
-        Some((std::any::TypeId::of::<T>(), LockType::Mut))
-    }
-
-    fn dependency() -> Option<(std::any::TypeId, DependencyType)> {
-        Some((std::any::TypeId::of::<T>(), DependencyType::Take))
-    }
-}
-
-/// Selector for provision of all dependencies
-#[derive(Debug)]
-pub struct All<T: Context> {
-    list: *const Vec<Box<dyn std::any::Any + Send + 'static>>,
-    _phantom: PhantomData<T>,
-}
-
-pub struct AllIter<'a, T> {
-    iter: std::slice::Iter<'a, Box<dyn std::any::Any + Send + 'static>>,
-    _phantom: PhantomData<T>,
-}
-
-impl<T: Context> All<T> {
-    pub fn count(&self) -> usize {
-        unsafe { &*self.list }.len()
-    }
-
-    pub fn iter<'a>(&'a self) -> AllIter<'a, T> {
-        AllIter {
-            iter: unsafe { &*self.list }.iter(),
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<'a, T> Iterator for AllIter<'a, T>
-where
-    T: Context,
-{
-    type Item = &'a T;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter
-            .next()
-            .map(|item| item.downcast_ref::<T>().unwrap())
-    }
-}
-
-unsafe impl<T: Context> Send for All<T> {}
-unsafe impl<T: Context> Sync for All<T> {}
-
-impl<T> Selector for All<T>
-where
-    T: Context,
-{
-    type DataSlot = T;
-
-    fn fetch(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
-        manager.get_data::<T>().map(|d| All {
-            list: &d.instances,
-            _phantom: PhantomData,
-        })
-    }
-
-    fn lock() -> Option<(std::any::TypeId, LockType)> {
-        Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
-    }
-
-    fn dependency() -> Option<(std::any::TypeId, DependencyType)> {
-        Some((std::any::TypeId::of::<T>(), DependencyType::All(0)))
-    }
-}
-
-/// Selector for collection of all dependencies
-#[derive(Debug)]
-pub struct Collect<T: Context> {
-    inner: Vec<T>,
-}
-
-impl<T: Context> Collect<T> {
-    pub fn count(&self) -> usize {
-        self.inner.len()
-    }
-
-    pub fn collect(self) -> Vec<T> {
-        self.inner
-    }
-}
-
-unsafe impl<T: Context> Send for Collect<T> {}
-unsafe impl<T: Context> Sync for Collect<T> {}
-
-impl<T> Selector for Collect<T>
-where
-    T: Context,
-{
-    type DataSlot = T;
-
-    fn fetch(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
-        manager.get_data::<T>().map(|d| {
-            let capacity = d.instances.len();
-            let list = unsafe {
-                &mut *(&d.instances as *const Vec<Box<dyn std::any::Any + Send>>
-                    as *mut Vec<Box<dyn std::any::Any>>)
-            };
-            let mut collected = Vec::with_capacity(capacity);
-
-            for i in (0..capacity).rev() {
-                collected.push(*list.pop().unwrap().downcast::<T>().unwrap());
-            }
-
-            Collect { inner: collected }
-        })
-    }
-
-    fn lock() -> Option<(std::any::TypeId, LockType)> {
-        Some((std::any::TypeId::of::<T>(), LockType::Mut))
-    }
-
-    fn dependency() -> Option<(std::any::TypeId, DependencyType)> {
-        Some((std::any::TypeId::of::<T>(), DependencyType::All(0)))
-    }
-}
-
-/// Selector for collection of all dependencies even if empty
-#[derive(Debug)]
-pub struct Fetch<T: Context> {
-    inner: Vec<T>,
-}
-
-impl<T: Context> Fetch<T> {
-    pub fn count(&self) -> usize {
-        self.inner.len()
-    }
-
-    pub fn fetch(self) -> Vec<T> {
-        self.inner
-    }
-}
-
-unsafe impl<T: Context> Send for Fetch<T> {}
-unsafe impl<T: Context> Sync for Fetch<T> {}
-
-impl<T> Selector for Fetch<T>
-where
-    T: Context,
-{
-    type DataSlot = T;
-
-    fn fetch(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
-        let empty_instances = vec![];
-        manager
-            .get_data::<T>()
-            .map(|d| &d.instances)
-            .or(Some(&empty_instances))
-            .map(|instances| {
-                let capacity = instances.len();
-                let list = unsafe {
-                    &mut *(instances as *const Vec<Box<dyn std::any::Any + Send>>
-                        as *mut Vec<Box<dyn std::any::Any>>)
-                };
-                let mut collected = Vec::with_capacity(capacity);
-
-                for i in (0..capacity).rev() {
-                    collected.push(*list.pop().unwrap().downcast::<T>().unwrap());
-                }
-
-                Fetch { inner: collected }
-            })
-    }
-
-    fn lock() -> Option<(std::any::TypeId, LockType)> {
-        Some((std::any::TypeId::of::<T>(), LockType::Mut))
-    }
-
-    fn dependency() -> Option<(std::any::TypeId, DependencyType)> {
-        Some((std::any::TypeId::of::<T>(), DependencyType::None))
-    }
-}
-
-impl<T> Selector for State<Ref<T>>
-where
-    T: Context,
-{
-    type DataSlot = T;
-
-    fn fetch(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
-        manager.state::<T>().map(|data_ref| State {
-            selector: Ref {
-                data: data_ref as *const T,
-            },
-            changes: Arc::clone(&manager.states_changes),
-        })
-    }
-
-    fn lock() -> Option<(std::any::TypeId, LockType)> {
-        Some((std::any::TypeId::of::<T>(), LockType::Ref(0)))
-    }
-
-    fn state() -> Option<std::any::TypeId> {
-        Some(std::any::TypeId::of::<T>())
-    }
-}
-//unsafe impl<T: Context> Send for State<Ref<T>> {}
-//unsafe impl<T: Context> Sync for State<Ref<T>> {}
-
-impl<T> Selector for State<Mut<T>>
-where
-    T: Context,
-{
-    type DataSlot = T;
-
-    fn fetch(manager: &Manager, _dependencies: &Dependencies) -> Option<Self> {
-        manager.state::<T>().map(|data_ref| State {
-            selector: Mut {
-                data: (data_ref as *const T) as *mut T,
-            },
-            changes: Arc::clone(&manager.states_changes),
-        })
-    }
-
-    fn lock() -> Option<(std::any::TypeId, LockType)> {
-        Some((std::any::TypeId::of::<T>(), LockType::Mut))
-    }
-
-    fn state() -> Option<std::any::TypeId> {
-        Some(std::any::TypeId::of::<T>())
-    }
-}
-//unsafe impl<T: Context> Send for State<Mut<T>> {}
-//unsafe impl<T: Context> Sync for State<Mut<T>> {}
 
 impl<T> Deref for State<Ref<T>>
 where
@@ -996,7 +992,7 @@ where
 {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.selector.data }
+        unsafe { &*self.selection.data }
     }
 }
 
@@ -1006,7 +1002,7 @@ where
 {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.selector.data }
+        unsafe { &*self.selection.data }
     }
 }
 
@@ -1015,6 +1011,126 @@ where
     T: Context,
 {
     fn deref_mut(&mut self) -> &mut T {
-        unsafe { &mut *self.selector.data }
+        unsafe { &mut *self.selection.data }
     }
 }
+
+impl<T: Context> Any<T> {
+    pub fn index(&self) -> usize {
+        self.index
+    }
+
+    pub fn total(&self) -> usize {
+        self.total
+    }
+}
+
+impl<T: Context> All<T> {
+    pub fn iter<'a>(&'a self) -> AllIter<'a, T> {
+        AllIter {
+            inner: self.data.iter(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+}
+
+pub struct AllIter<'i, T> {
+    inner: std::slice::Iter<'i, *const T>,
+}
+
+impl<'i, T: Context> Iterator for AllIter<'i, T> {
+    type Item = &'i T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next().map(|i| unsafe { &**i })
+    }
+}
+
+impl<T: Context> Take<Any<T>> {
+    pub fn take(mut self) -> T {
+        unsafe {
+            let result = *Box::from_raw(self.selection.data as *mut T);
+            self.selection.data = std::ptr::null();
+            result
+        }
+    }
+}
+
+impl<T: Context> Take<All<T>> {
+    pub fn take(mut self) -> Vec<T> {
+        unsafe {
+            let result = self
+                .selection
+                .data
+                .iter()
+                .map(|i| *Box::from_raw(*i as *mut T))
+                .collect::<Vec<_>>();
+            self.selection.data.clear();
+            result
+        }
+    }
+
+    pub fn drain<'a>(&'a mut self) -> TakeAllIter<'a, T> {
+        let len = self.selection.data.len();
+        TakeAllIter {
+            inner: self.selection.data.drain(0..len),
+        }
+    }
+}
+
+pub struct TakeAllIter<'a, T> {
+    inner: std::vec::Drain<'a, *const T>,
+}
+
+impl<'a, T: Context> Iterator for TakeAllIter<'a, T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner
+            .next()
+            .map(|i| unsafe { *Box::from_raw(i as *mut T) })
+    }
+}
+
+impl<T: Selector> Drop for Take<T> {
+    fn drop(&mut self) {
+        unsafe {
+            self.selection.drop_data();
+        }
+    }
+}
+
+impl<T: Selector> State<T> {
+    pub fn push<D: std::any::Any + Send + 'static>(&self, data: D) {
+        self.changes
+            .lock()
+            .expect("Mutex to be locked")
+            .push_back(StatesStackOperation::Push(StateSlot::from(data)));
+    }
+
+    pub fn pop(&self) {
+        self.changes
+            .lock()
+            .expect("Mutex to be locked")
+            .push_back(StatesStackOperation::Pop);
+    }
+
+    pub fn pop_until<D: std::any::Any + Send + 'static>(&self) {
+        self.changes
+            .lock()
+            .expect("Mutex to be locked")
+            .push_back(StatesStackOperation::PopUntil(std::any::TypeId::of::<D>()));
+    }
+}
+
+unsafe impl<T: Context> Send for Ref<T> {}
+unsafe impl<T: Context> Sync for Ref<T> {}
+unsafe impl<T: Context> Send for Mut<T> {}
+unsafe impl<T: Context> Sync for Mut<T> {}
+unsafe impl<T: Context> Send for Any<T> {}
+unsafe impl<T: Context> Sync for Any<T> {}
+unsafe impl<T: Context> Send for All<T> {}
+unsafe impl<T: Context> Sync for All<T> {}
