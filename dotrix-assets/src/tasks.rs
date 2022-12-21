@@ -3,6 +3,8 @@ use dotrix_core as dotrix;
 use dotrix_log as log;
 use std::collections::HashMap;
 
+use dotrix::{Any, Take};
+
 #[derive(Default)]
 pub struct LoadTask {}
 
@@ -62,7 +64,7 @@ impl dotrix::Task for LoadTask {
 pub struct StoreTask {}
 
 impl dotrix::Task for StoreTask {
-    type Context = (dotrix::Take<Bundle>, dotrix::Mut<Assets>);
+    type Context = (Take<Any<Bundle>>, dotrix::Mut<Assets>);
     type Output = Resource;
 
     fn run(&mut self, (mut bundle, mut assets): Self::Context) -> Self::Output {
@@ -99,6 +101,7 @@ impl Default for Watchdog {
     }
 }
 
+/*
 impl dotrix::Task for Watchdog {
     type Context = (dotrix::Ref<Assets>, dotrix::Ref<dotrix::Tasks>);
     type Output = ();
@@ -125,3 +128,4 @@ impl dotrix::Task for Watchdog {
         }
     }
 }
+*/

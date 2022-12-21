@@ -16,18 +16,22 @@ impl Studio {
 impl dotrix::Application for Studio {
     fn configure(&self, settings: &mut dotrix::Settings) {
         settings.title = String::from("Dotrix Studio");
+        // settings.fps_limit = Some(30.0);
     }
 
-    fn init(&self, manager: &mut dotrix::Manager) {
+    fn init(&self, manager: &dotrix::Manager) {
         manager.schedule(states::Startup::new());
+        manager.schedule(camera::ControlTask::new());
+        manager.schedule(ui::UiTask::default());
     }
 }
 
 fn main() {
     let log = dotrix::Log {
         targets: vec![
+            (String::from("naga"), log::LevelFilter::Warn),
             (String::from("wgpu"), log::LevelFilter::Warn),
-            (String::from("dotrix"), log::LevelFilter::Debug),
+            (String::from("dotrix"), log::LevelFilter::Info),
             (String::from(""), log::LevelFilter::Debug),
         ],
         ..Default::default()
@@ -45,19 +49,13 @@ fn main() {
         hot_reload: true,
     };
 
-    let camera_control_task = camera::ControlTask::new();
-
     let pbr = dotrix::pbr::Extension::default();
 
     let ui = dotrix::ui::Extension::default();
 
-    let ui_task = ui::UiTask::default();
-
-    dotrix::run(studio, |core| {
-        core.extend_with(assets);
-        core.extend_with(pbr);
-        core.extend_with(ui);
-        core.schedule(camera_control_task);
-        core.schedule(ui_task);
+    dotrix::run(studio, |extensions| {
+        extensions.load(assets);
+        extensions.load(pbr);
+        extensions.load(ui);
     });
 }

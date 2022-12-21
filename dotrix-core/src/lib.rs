@@ -1,4 +1,4 @@
-mod context;
+pub mod context;
 mod scheduler;
 pub mod task;
 mod worker;
@@ -6,9 +6,11 @@ mod worker;
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::thread;
 
+use context::Context;
 use dotrix_log as log;
+use dotrix_types::Id;
 
-pub use context::{All, Any, Collect, Fetch, Mut, Ref, State, Take};
+pub use context::{All, Any, Mut, Ref, State, Take};
 pub use task::{Output, Task};
 
 pub const NAMESPACE: u64 = 0x646f7472_69780000;
@@ -25,34 +27,10 @@ pub struct Manager {
     control_rx: mpsc::Receiver<scheduler::Message>,
     /// Send commands to scheduler
     scheduler_tx: Arc<Mutex<mpsc::Sender<scheduler::Message>>>,
-    /// Task Id
-    next_task_id: task::Id,
-}
-
-/// Tasks Context structure to be used inside of a task as a regular context
-pub struct Tasks {
-    /// Send commands to scheduler
-    scheduler_tx: Arc<Mutex<mpsc::Sender<scheduler::Message>>>,
-}
-
-// NOTE: one instance can be stored, while another can be a part of Manager
-impl Tasks {
-    fn lock_scheduler_tx<'a>(&'a self) -> MutexGuard<'a, mpsc::Sender<scheduler::Message>> {
-        self.scheduler_tx.lock().expect("Mutex to be locked")
-    }
-
-    pub fn provide<T: context::Context + Send>(&self, data: T) {
-        self.lock_scheduler_tx()
-            .send(scheduler::Message::Provide(
-                std::any::TypeId::of::<T>(),
-                Box::new(data),
-            ))
-            .expect("Message to be sent to Scheduler");
-    }
 }
 
 impl Manager {
-    pub fn new(workers_count: u32) -> Self {
+    pub fn new<T: Context>(workers_count: u32) -> Self {
         log::info!("Initializing manager with {} workers", workers_count);
         let context_manager = Arc::new(Mutex::new(context::Manager::new()));
         let (scheduler_tx, scheduler_rx) = mpsc::channel();
@@ -72,14 +50,13 @@ impl Manager {
             })
             .collect::<Vec<_>>();
 
-        let scheduler = scheduler::spawn(context_manager, scheduler_rx, worker_tx, control_tx);
+        let scheduler = scheduler::spawn::<T>(context_manager, scheduler_rx, worker_tx, control_tx);
 
         Self {
             scheduler,
             workers,
             control_rx,
             scheduler_tx,
-            next_task_id: 1,
         }
     }
 
@@ -87,16 +64,16 @@ impl Manager {
         self.scheduler_tx.lock().expect("Mutex to be locked")
     }
 
-    pub fn schedule<T: task::Task>(&mut self, task: T) {
-        let tid = self.next_task_id;
-        let mut task = task.boxify();
-        task.set_id(tid);
+    /// Add task to the scheduler
+    pub fn schedule<T: task::Task>(&self, task: T) {
+        let id = Id::random();
+        let mut task = task.boxify(id);
         self.lock_scheduler_tx()
             .send(scheduler::Message::Schedule(task))
             .expect("Message to be sent to Scheduler");
-        self.next_task_id += 1;
     }
 
+    /// Add global data to the context
     pub fn store<T: context::Context + Send>(&self, ctx: T) {
         self.lock_scheduler_tx()
             .send(scheduler::Message::Store(
@@ -106,6 +83,18 @@ impl Manager {
             .expect("Message to be sent to Scheduler");
     }
 
+    /// Register output data type
+    pub fn register<T: context::Context + Send>(&self, providers: usize) {
+        self.lock_scheduler_tx()
+            .send(scheduler::Message::Register(
+                std::any::TypeId::of::<T>(),
+                std::any::type_name::<T>().into(),
+                providers,
+            ))
+            .expect("Message to be sent to Scheduler");
+    }
+
+    /// Provide output data
     pub fn provide<T: context::Context + Send>(&self, data: T) {
         self.lock_scheduler_tx()
             .send(scheduler::Message::Provide(
@@ -129,6 +118,7 @@ impl Manager {
             }
         }
     }
+
     pub fn wait_message(&self) -> Box<dyn std::any::Any> {
         loop {
             let message = self.control_rx.recv().expect("Message to be received");
@@ -137,24 +127,9 @@ impl Manager {
             }
         }
     }
-
-    pub fn context(&self) -> Tasks {
-        Tasks {
-            scheduler_tx: Arc::clone(&self.scheduler_tx),
-        }
-    }
 }
 
 pub trait Extension: 'static + Send {
     // Setup extension
-    fn add_to(&self, manager: &mut Manager);
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
+    fn load(&self, manager: &Manager);
 }

@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use dotrix_core as dotrix;
+use dotrix_log as log;
 use dotrix_types::Frame;
 
 pub use event::{Button, DragAndDrop, Event, KeyCode, Modifiers, MouseScroll, ScanCode};
@@ -15,6 +16,7 @@ pub struct ScreenVector {
 }
 
 /// Inputs for the current frame
+#[derive(Debug)]
 pub struct Input {
     pub events: Vec<Event>,
     pub modifiers: Modifiers,
@@ -40,10 +42,12 @@ impl ListenTask {
 }
 
 impl dotrix::Task for ListenTask {
-    type Context = (dotrix::Fetch<Event>, dotrix::Any<Frame>);
+    type Context = (dotrix::Take<dotrix::All<Event>>, dotrix::Any<Frame>);
     type Output = Input; // :)
     fn run(&mut self, (events, _): Self::Context) -> Self::Output {
-        let events = events.fetch();
+        log::debug!("Input:");
+        let events = events.take();
+        log::debug!("{:?}", events);
 
         let mut text = String::with_capacity(8);
         let mut mouse_move_delta = ScreenVector::default();
@@ -60,7 +64,7 @@ impl dotrix::Task for ListenTask {
                     self.hold.entry(*button).or_insert_with(|| Instant::now());
                 }
                 Event::ButtonRelease { button } => {
-                    self.hold.remove(button);
+                    self.hold.remove(&button);
                 }
                 Event::MouseMove {
                     horizontal,

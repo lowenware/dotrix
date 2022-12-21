@@ -54,7 +54,7 @@ pub struct DrawTask {
 
 impl dotrix::Task for DrawTask {
     type Context = (
-        dotrix::Collect<Overlay>,
+        dotrix::Take<dotrix::All<Overlay>>,
         dotrix::Any<Camera>,
         dotrix::Any<Frame>,
         //dotrix::Any<Input>,
@@ -62,7 +62,10 @@ impl dotrix::Task for DrawTask {
     );
     type Output = gpu::Commands;
 
-    fn run(&mut self, (overlay, _camera, frame, /*input,*/ gpu): Self::Context) -> Self::Output {
+    fn run(
+        &mut self,
+        (mut overlay, _camera, frame, /*input,*/ gpu): Self::Context,
+    ) -> Self::Output {
         let render = self
             .render
             .get_or_insert_with(|| render::Render::new(&gpu, INITIAL_VERTEX_COUNT));
@@ -78,8 +81,7 @@ impl dotrix::Task for DrawTask {
             let mut index_buffer_size: u64 = 0;
 
             let (vertices, indices): (Vec<_>, Vec<_>) = overlay
-                .collect()
-                .into_iter()
+                .drain()
                 .map(|mut entry| {
                     let Widget { mesh, .. } =
                         entry.view.compose(entry.rect, /*&input, */ &frame);
@@ -172,7 +174,7 @@ impl vertex::Attribute for Position {
 pub struct Extension {}
 
 impl dotrix::Extension for Extension {
-    fn add_to(&self, manager: &mut dotrix::Manager) {
+    fn load(&self, manager: &dotrix::Manager) {
         manager.schedule(DrawTask::default())
     }
 }

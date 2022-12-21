@@ -891,7 +891,7 @@ impl Default for Extension {
 }
 
 impl dotrix::Extension for Extension {
-    fn add_to(&self, manager: &mut dotrix::Manager) {
+    fn load(&self, manager: &dotrix::Manager) {
         let pbr_prepare_task = PrepareTask {
             mesh_buffer_size: self.mesh_buffer_size,
             transform_buffer_size: self.transform_buffer_size,
