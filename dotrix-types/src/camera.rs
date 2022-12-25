@@ -111,14 +111,14 @@ impl View {
         use dotrix_math::{InnerSpace, Rotation3};
 
         let target = &self.point;
-        let dy = distance * tilt.sin();
-        let dxz = distance * tilt.cos();
-        let dx = dxz * pan.cos();
-        let dz = dxz * pan.sin();
+        let dz = distance * tilt.sin();
+        let dxy = distance * tilt.cos();
+        let dx = dxy * pan.cos();
+        let dy = dxy * pan.sin();
         let position = Vec3::new(target.x + dx, target.y + dy, target.z + dz);
         let direction = (target - position).normalize();
         let roll = Quat::from_axis_angle(direction, Rad(roll));
-        let camera_right = direction.cross(Vec3::unit_y());
+        let camera_right = direction.cross(Vec3::unit_z());
         let camera_up = roll * camera_right.cross(direction);
 
         Mat4::look_at_rh(
