@@ -44,10 +44,9 @@ impl ListenTask {
 impl dotrix::Task for ListenTask {
     type Context = (dotrix::Take<dotrix::All<Event>>, dotrix::Any<Frame>);
     type Output = Input; // :)
-    fn run(&mut self, (events, _): Self::Context) -> Self::Output {
-        log::debug!("Input:");
-        let events = events.take();
-        log::debug!("{:?}", events);
+    fn run(&mut self, (mut events, _): Self::Context) -> Self::Output {
+        let capacity = events.len();
+        let mut list = Vec::with_capacity(capacity);
 
         let mut text = String::with_capacity(8);
         let mut mouse_move_delta = ScreenVector::default();
@@ -55,13 +54,13 @@ impl dotrix::Task for ListenTask {
         let mut mouse_scroll_delta_pixels = ScreenVector::default();
         let mut mouse_position = self.mouse_position.clone();
 
-        for event in events.iter() {
+        for event in events.drain() {
             match event {
                 Event::ModifiersChange { modifiers } => {
-                    self.modifiers = *modifiers;
+                    self.modifiers = modifiers;
                 }
                 Event::ButtonPress { button } => {
-                    self.hold.entry(*button).or_insert_with(|| Instant::now());
+                    self.hold.entry(button).or_insert_with(|| Instant::now());
                 }
                 Event::ButtonRelease { button } => {
                     self.hold.remove(&button);
@@ -70,44 +69,45 @@ impl dotrix::Task for ListenTask {
                     horizontal,
                     vertical,
                 } => {
-                    mouse_move_delta.horizontal += *horizontal;
-                    mouse_move_delta.vertical += *vertical;
+                    mouse_move_delta.horizontal += horizontal;
+                    mouse_move_delta.vertical += vertical;
                 }
                 Event::MouseScroll { delta } => match delta {
                     MouseScroll::Lines {
                         horizontal,
                         vertical,
                     } => {
-                        mouse_scroll_delta_lines.horizontal += *horizontal;
-                        mouse_scroll_delta_lines.vertical += *vertical;
+                        mouse_scroll_delta_lines.horizontal += horizontal;
+                        mouse_scroll_delta_lines.vertical += vertical;
                     }
                     MouseScroll::Pixels {
                         horizontal,
                         vertical,
                     } => {
-                        mouse_scroll_delta_pixels.horizontal += *horizontal;
-                        mouse_scroll_delta_pixels.vertical += *vertical;
+                        mouse_scroll_delta_pixels.horizontal += horizontal;
+                        mouse_scroll_delta_pixels.vertical += vertical;
                     }
                 },
                 Event::CursorPosition {
                     horizontal,
                     vertical,
                 } => {
-                    mouse_position.horizontal = *horizontal;
-                    mouse_position.vertical = *vertical;
+                    mouse_position.horizontal = horizontal;
+                    mouse_position.vertical = vertical;
                 }
                 Event::CharacterInput { character } => {
-                    let chr = *character;
+                    let chr = character;
                     if is_printable(chr) {
                         text.push(chr);
                     }
                 }
                 _ => {}
             }
+            list.push(event);
         }
 
         Input {
-            events,
+            events: list,
             modifiers: self.modifiers,
             hold: self.hold.clone(),
             mouse_position,
