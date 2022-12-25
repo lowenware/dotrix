@@ -380,6 +380,7 @@ impl dotrix::Task for CreateFrame {
             .map(|d| d.as_secs_f32())
             .sum();
         let fps = frames / duration;
+        let mut resized = false;
 
         if let Some(resize_request) = renderer.resize_request.take() {
             let [width, height] = resize_request;
@@ -391,6 +392,7 @@ impl dotrix::Task for CreateFrame {
                     .configure(&renderer.device, &renderer.surface_conf);
                 renderer.depth_buffer = renderer.create_depth_buffer();
                 renderer.multisampled_framebuffer = renderer.create_multisampled_framebuffer();
+                resized = true;
             }
         }
 
@@ -428,6 +430,7 @@ impl dotrix::Task for CreateFrame {
             height: renderer.surface_conf.height,
             number: frame_number,
             scale_factor: 1.0, // TODO: implement
+            resized,
         }
     }
 }
