@@ -1060,6 +1060,10 @@ impl<T: Context> Take<Any<T>> {
 }
 
 impl<T: Context> Take<All<T>> {
+    pub fn len(&self) -> usize {
+        self.selection.data.len()
+    }
+
     pub fn take(mut self) -> Vec<T> {
         unsafe {
             let result = self
