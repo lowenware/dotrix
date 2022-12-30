@@ -93,8 +93,17 @@ impl Attribute for Normal {
     }
 }
 
+#[derive(Default, Debug, Clone, Copy)]
 pub struct TexUV {
-    pub value: Vec2,
+    pub u: f32,
+    pub v: f32,
+}
+
+// TODO: introduce pack in teh  Attribute trait
+impl TexUV {
+    pub fn pack(&self) -> [f32; 2] {
+        [self.u, self.v]
+    }
 }
 
 impl Attribute for TexUV {
@@ -104,6 +113,12 @@ impl Attribute for TexUV {
     }
     fn format() -> AttributeFormat {
         AttributeFormat::Float32x2
+    }
+}
+
+impl From<&TexUV> for [f32; 2] {
+    fn from(value: &TexUV) -> Self {
+        [value.u, value.v]
     }
 }
 
