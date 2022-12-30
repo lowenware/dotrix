@@ -6,7 +6,7 @@ use dotrix_gpu as gpu;
 use dotrix_gpu::backend as wgpu;
 use dotrix_log as log;
 
-use crate::VertexAttributes;
+use crate::widget::VertexAttributes;
 
 pub struct Render {
     pub render_pipeline: gpu::RenderPipeline,
@@ -229,18 +229,7 @@ impl Render {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_color_format,
-                    blend: Some(wgpu::BlendState {
-                        color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
-                            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                        alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::OneMinusDstAlpha,
-                            dst_factor: wgpu::BlendFactor::One,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                    }),
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),

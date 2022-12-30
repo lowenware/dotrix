@@ -32,6 +32,7 @@ fn position_from_screen(position: vec2<f32>) -> vec4<f32> {
 
 @vertex
 fn vs_main(
+    @builtin(vertex_index) my_index: u32,
     @location(0) a_position: vec2<f32>,
     @location(1) a_tex_uv: vec2<f32>,
     @location(2) a_color: u32,
@@ -39,6 +40,16 @@ fn vs_main(
     var out: VertexOutput;
     out.tex_uv = a_tex_uv;
     out.color = color_from_u32(a_color);
+    /*
+    var z: f32 = 0.0;
+    if my_index > 6u {
+        z = 1.0;
+        out.color = vec4<f32>(0.0, 0.0, 1.0, 1.0);
+    } else {
+        out.color = vec4<f32>(1.0, 0.0, 1.0, 0.0);
+        
+    }
+    */
     out.position = position_from_screen(a_position);
     return out;
 }
