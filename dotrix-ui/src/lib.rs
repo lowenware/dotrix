@@ -14,8 +14,8 @@ use dotrix_gpu::backend as wgpu;
 use dotrix_log as log;
 
 use dotrix_input::Input;
-use dotrix_types::{vertex, Camera, Color, Frame, Id};
-use std::ops::Range;
+use dotrix_types::{Camera, Frame, Id};
+use std::collections::HashMap;
 
 pub use edit::Edit;
 pub use overlay::{Overlay, Rect};
@@ -28,10 +28,10 @@ use composer::Composer;
 
 const INITIAL_VERTEX_COUNT: u64 = 4 * 64;
 
-#[derive(Default)]
 pub struct DrawTask {
     render: Option<render::Render>,
     ctx: context::Context,
+    texture_bind_groups: HashMap<Id<gpu::TextureView>, wgpu::BindGroup>,
 }
 
 impl dotrix::Task for DrawTask {
@@ -56,33 +56,37 @@ impl dotrix::Task for DrawTask {
         let mut vertex_buffer_size: u64 = 0;
         let mut index_buffer_size: u64 = 0;
 
-        let mut composer = Composer::new(&mut self.ctx, &input, &frame);
-
         render.write_uniform(&gpu, frame.width as f32, frame.height as f32);
 
         for entry in overlay.drain() {
-            entry.compose(&mut composer);
-            let all = 0..composer.widgets.len();
-            let (vertices, indices): (Vec<_>, Vec<_>) = composer
-                .widgets
-                .drain(all)
-                .map(|widget| {
-                    let vertices = widget
-                        .mesh
-                        .buffer::<widget::VertexAttributes>()
-                        .expect("Unsupported overlay mesh layout");
-                    let indices = Vec::from(
-                        widget
+            let (drawings, vertices, indices) = {
+                let mut composer = Composer::new(&mut self.ctx, &input, &frame);
+                entry.compose(&mut composer);
+                let widgets_len = composer.widgets.len();
+                let mut drawings = Vec::with_capacity(widgets_len);
+                let (vertices, indices): (Vec<_>, Vec<_>) = composer
+                    .widgets
+                    .drain(0..widgets_len)
+                    .map(|widget| {
+                        let vertices = widget
                             .mesh
-                            .indices::<u8>()
-                            .expect("Overlay mesh MUST be indexed"),
-                    );
-                    vertex_buffer_size += vertices.len() as u64;
-                    index_buffer_size += indices.len() as u64;
+                            .buffer::<widget::VertexAttributes>()
+                            .expect("Unsupported overlay mesh layout");
+                        let indices = Vec::from(
+                            widget
+                                .mesh
+                                .indices::<u8>()
+                                .expect("Overlay mesh MUST be indexed"),
+                        );
+                        drawings.push((widget.texture, widget.rect.clone()));
+                        vertex_buffer_size += vertices.len() as u64;
+                        index_buffer_size += indices.len() as u64;
 
-                    (vertices, indices)
-                })
-                .unzip();
+                        (vertices, indices)
+                    })
+                    .unzip();
+                (drawings, vertices, indices)
+            };
 
             render.clear_vertex_buffer(&gpu, vertex_buffer_size);
             render.clear_index_buffer(&gpu, index_buffer_size);
@@ -90,13 +94,31 @@ impl dotrix::Task for DrawTask {
             render.vertex_buffer.write(&gpu, &vertices);
             render.index_buffer.write(&gpu, &indices);
 
-            let slices = render
-                .vertex_buffer
-                .slices
-                .iter()
-                .zip(render.index_buffer.slices.iter());
+            let drawings = drawings.into_iter().zip(
+                render
+                    .vertex_buffer
+                    .slices
+                    .iter()
+                    .zip(render.index_buffer.slices.iter()),
+            );
 
-            for (vertex_buffer_slice, index_buffer_slice) in slices {
+            for ((texture_id, rect), (vertex_buffer_slice, index_buffer_slice)) in drawings {
+                let texture_bind_group = if texture_id.is_null() {
+                    &render.default_texture_bind_group
+                } else {
+                    if self.texture_bind_groups.get(&texture_id).is_none() {
+                        if let Some(texture) = gpu.get(&texture_id) {
+                            let texture_bind_group =
+                                render.create_texture_bind_group(&gpu, texture);
+                            self.texture_bind_groups
+                                .insert(texture_id, texture_bind_group);
+                        } else {
+                            continue;
+                        }
+                    }
+                    self.texture_bind_groups.get(&texture_id).unwrap()
+                };
+
                 encoder.inner.push_debug_group("dotrix::ui::overlay");
                 let mut rpass = encoder
                     .inner
@@ -113,10 +135,16 @@ impl dotrix::Task for DrawTask {
                         depth_stencil_attachment: None,
                     });
 
-                //rpass.set_scissor_rect(rect.x, rect.y, rect.width, rect.height);
+                rpass.set_scissor_rect(
+                    rect.horizontal.round() as u32,
+                    rect.vertical.round() as u32,
+                    rect.width.round() as u32,
+                    rect.height.round() as u32,
+                );
 
                 rpass.set_pipeline(&render.render_pipeline.inner);
                 rpass.set_bind_group(0, &render.bind_group, &[]);
+                rpass.set_bind_group(1, texture_bind_group, &[]);
 
                 rpass.set_vertex_buffer(
                     0,
@@ -147,6 +175,16 @@ impl dotrix::Task for DrawTask {
         }
 
         encoder.finish(9000)
+    }
+}
+
+impl Default for DrawTask {
+    fn default() -> Self {
+        Self {
+            render: None,
+            ctx: context::Context::default(),
+            texture_bind_groups: HashMap::new(),
+        }
     }
 }
 
