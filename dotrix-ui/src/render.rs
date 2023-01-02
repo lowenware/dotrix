@@ -5,6 +5,7 @@ use std::ops::Range;
 use dotrix_gpu as gpu;
 use dotrix_gpu::backend as wgpu;
 use dotrix_log as log;
+use gpu::backend::BindGroupEntry;
 
 use crate::widget::VertexAttributes;
 
@@ -17,6 +18,9 @@ pub struct Render {
     pub uniform_bind_group_layout: gpu::backend::BindGroupLayout,
     pub texture_bind_group_layout: gpu::backend::BindGroupLayout,
     pub bind_group: gpu::backend::BindGroup,
+    pub default_texture: gpu::Texture,
+    pub default_sampler: gpu::backend::Sampler,
+    pub default_texture_bind_group: gpu::backend::BindGroup,
 }
 
 impl Render {
@@ -50,9 +54,7 @@ impl Render {
             gpu,
             &shader_module,
             None,
-            &[
-                &uniform_bind_group_layout, /* &texture_bind_group_layout */
-            ],
+            &[&uniform_bind_group_layout, &texture_bind_group_layout],
         );
 
         let bind_group = gpu.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -64,6 +66,15 @@ impl Render {
             }],
         });
 
+        let default_texture = Self::create_default_texture(gpu);
+        let default_sampler = Self::create_default_sampler(gpu);
+        let default_texture_bind_group = Self::create_default_texture_bind_group(
+            gpu,
+            &texture_bind_group_layout,
+            &default_texture.create_view(&wgpu::TextureViewDescriptor::default()),
+            &default_sampler,
+        );
+
         Self {
             render_pipeline,
             shader_module,
@@ -73,6 +84,9 @@ impl Render {
             uniform_bind_group_layout,
             texture_bind_group_layout,
             bind_group,
+            default_texture,
+            default_sampler,
+            default_texture_bind_group,
         }
     }
 
@@ -149,7 +163,7 @@ impl Render {
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        sample_type: wgpu::TextureSampleType::Uint, // { filterable: true },
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -235,6 +249,62 @@ impl Render {
             }),
             multiview: None,
         })
+    }
+
+    fn create_default_texture(gpu: &gpu::Gpu) -> gpu::Texture {
+        let data = [255, 255, 255, 0];
+        gpu.texture("dotrix::ui::default_texture")
+            .size(1, 1)
+            .allow_copy_dst()
+            .dimension_d2()
+            .format_rgba_u8()
+            .use_as_texture_binding()
+            .data(&data)
+            .create()
+    }
+
+    fn create_default_sampler(gpu: &gpu::Gpu) -> wgpu::Sampler {
+        gpu.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+
+            ..Default::default()
+        })
+    }
+
+    fn create_default_texture_bind_group(
+        gpu: &gpu::Gpu,
+        texture_bind_group_layout: &wgpu::BindGroupLayout,
+        default_texture_view: &gpu::TextureView,
+        default_sampler: &wgpu::Sampler,
+    ) -> wgpu::BindGroup {
+        gpu.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("dotrix::ui::texture_bind_group"),
+            layout: texture_bind_group_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&default_texture_view.inner),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&default_sampler),
+                },
+            ],
+        })
+    }
+
+    pub fn create_texture_bind_group(
+        &self,
+        gpu: &gpu::Gpu,
+        texture: &gpu::TextureView,
+    ) -> wgpu::BindGroup {
+        Self::create_default_texture_bind_group(
+            gpu,
+            &self.texture_bind_group_layout,
+            texture,
+            &self.default_sampler,
+        )
     }
 }
 

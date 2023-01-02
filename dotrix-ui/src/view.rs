@@ -25,15 +25,14 @@ impl Compose for View {
             let frame_width = composer.frame.width as f32;
             let frame_height = composer.frame.height as f32;
 
-            let (builder, pushed) = composer.builder(background.texture);
-
-            log::debug!("Builder pushed: {}", pushed);
-
             let (x0, x1) =
                 Self::calculate_side(frame_width, outer_rect.horizontal, outer_rect.width);
             let (y0, y1) =
                 Self::calculate_side(frame_height, outer_rect.vertical, outer_rect.height);
 
+            let (builder, pushed) = composer.builder(outer_rect, background.texture);
+
+            log::debug!("Builder pushed: {}", pushed);
             let vertex_base = builder.positions.len() as u32;
 
             builder

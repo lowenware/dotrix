@@ -31,6 +31,7 @@ impl<'c, 'i, 'f> Composer<'c, 'i, 'f> {
 
     pub fn builder<'a>(
         &'a mut self,
+        rect: Rect,
         texture: Id<gpu::TextureView>,
     ) -> (&'a mut widget::Builder, bool) {
         let exists = self
@@ -48,7 +49,7 @@ impl<'c, 'i, 'f> Composer<'c, 'i, 'f> {
         //let exists = false;
 
         if !exists {
-            self.build_stack.push(widget::Builder::new(texture));
+            self.build_stack.push(widget::Builder::new(rect, texture));
         }
         (self.build_stack.last_mut().unwrap(), !exists)
     }
