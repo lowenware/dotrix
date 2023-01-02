@@ -24,12 +24,13 @@ impl Texture {
 }
 
 /// Texture builder
-pub struct Builder<'a, 'b> {
+pub struct Builder<'a, 'b, 'd> {
     pub gpu: &'a crate::Gpu,
     pub descriptor: wgpu::TextureDescriptor<'b>,
+    pub data: Option<&'d [u8]>,
 }
 
-impl<'a, 'b> Builder<'a, 'b> {
+impl<'a, 'b, 'd> Builder<'a, 'b, 'd> {
     #[inline(always)]
     pub fn size(mut self, width: u32, height: u32) -> Self {
         self.descriptor.size.width = width;
@@ -102,8 +103,41 @@ impl<'a, 'b> Builder<'a, 'b> {
         self
     }
     #[inline(always)]
-    pub fn create(self) -> Texture {
-        self.gpu.create_texture(&self.descriptor)
+    pub fn data(mut self, data: &'d [u8]) -> Self {
+        self.data = Some(data);
+        self
+    }
+    #[inline(always)]
+    pub fn create(mut self) -> Texture {
+        let texture = self.gpu.create_texture(&self.descriptor);
+        if let Some(data) = self.data.take() {
+            let width = self.descriptor.size.width;
+            let height = self.descriptor.size.height;
+            let bytes_per_pixel = match self.descriptor.format {
+                wgpu::TextureFormat::Rgba8Uint | wgpu::TextureFormat::Depth32Float => 4,
+                _ => panic!("Not implemented: {:?}", self.descriptor.format),
+            };
+            self.gpu.write_texture(
+                wgpu::ImageCopyTexture {
+                    texture: &texture.inner,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                data,
+                wgpu::ImageDataLayout {
+                    offset: 0,
+                    bytes_per_row: NonZeroU32::new(bytes_per_pixel * width),
+                    rows_per_image: NonZeroU32::new(height),
+                },
+                wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+        texture
     }
 }
 

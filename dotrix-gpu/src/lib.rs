@@ -217,7 +217,7 @@ impl Gpu {
         self.device.create_sampler(desc)
     }
 
-    pub fn texture<'a, 'b>(&'a self, label: &'b str) -> texture::Builder<'a, 'b> {
+    pub fn texture<'a, 'b, 'd>(&'a self, label: &'b str) -> texture::Builder<'a, 'b, 'd> {
         texture::Builder {
             gpu: self,
             descriptor: wgpu::TextureDescriptor {
@@ -233,6 +233,7 @@ impl Gpu {
                 usage: wgpu::TextureUsages::empty(),
                 dimension: wgpu::TextureDimension::D2,
             },
+            data: None,
         }
     }
 
@@ -240,6 +241,16 @@ impl Gpu {
         Texture {
             inner: self.device.create_texture(desc),
         }
+    }
+
+    pub fn write_texture(
+        &self,
+        texture: wgpu::ImageCopyTexture,
+        data: &[u8],
+        layout: wgpu::ImageDataLayout,
+        size: wgpu::Extent3d,
+    ) {
+        self.queue.write_texture(texture, data, layout, size);
     }
 
     pub fn create_shader_module(&self, name: &str, source: Cow<str>) -> ShaderModule {
