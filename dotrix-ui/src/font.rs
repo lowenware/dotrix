@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::ops::Range;
 
-use dotrix_types::vertex;
+use dotrix_types::{vertex, TexUV};
 
 use crate::Rect;
 
@@ -100,8 +100,6 @@ impl Atlas {
         let mut vertical_offset: usize = spacing;
         let mut line_height: usize = 0;
 
-        let mut lines = 0;
-
         for glyph in glyphs.iter_mut() {
             let glyph_width = glyph.rect.width.ceil() as usize;
             let glyph_height = glyph.rect.height.ceil() as usize;
@@ -114,18 +112,11 @@ impl Atlas {
             horizontal_offset += glyph_width + 2 * spacing;
 
             if horizontal_offset > width {
-                println!("break: {horizontal_offset} > {width}");
                 // go next line
                 glyph_horizontal_offset = spacing;
                 horizontal_offset = glyph_width + 3 * spacing;
                 vertical_offset += line_height + spacing;
                 line_height = 0;
-
-                lines += 1;
-
-                // if lines == 3 {
-                //     break;
-                // }
             }
 
             if line_height < glyph_height {
@@ -138,10 +129,17 @@ impl Atlas {
                 }
             }
 
-            println!(
-                " -> {}:{} x {}:{}",
-                glyph_horizontal_offset, glyph_width, vertical_offset, glyph_height,
-            );
+            let u0 = glyph_horizontal_offset as f32 / width as f32;
+            let v0 = vertical_offset as f32 / height as f32;
+            let u1 = (glyph_horizontal_offset + glyph_width) as f32 / width as f32;
+            let v1 = (vertical_offset + glyph_height) as f32 / height as f32;
+
+            glyph.uvs = [
+                TexUV::new(u0, v0),
+                TexUV::new(u1, v0),
+                TexUV::new(u1, v1),
+                TexUV::new(u0, v1),
+            ];
 
             for row in 0..glyph_height {
                 let offset = (vertical_offset + row) * width + glyph_horizontal_offset;
@@ -159,7 +157,6 @@ impl Atlas {
     }
 
     fn calculate_size(glyphs: &[Glyph], font_size: f32) -> (usize, usize) {
-        // ((glyphs.len() as f32).sqrt() * (font_size + 2.0 * Self::SPACING)).ceil() as usize
         let reserve_factor = 1.2;
         let size = (reserve_factor
             * glyphs
