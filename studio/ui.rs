@@ -1,5 +1,5 @@
 use dotrix::ui::style;
-use dotrix::Color;
+use dotrix::{Color, Id, TexUV};
 
 #[derive(Default)]
 pub struct UiTask {}
@@ -9,7 +9,7 @@ impl dotrix::Task for UiTask {
     type Output = dotrix::ui::Overlay;
     fn run(&mut self, (frame,): Self::Context) -> Self::Output {
         let mut root = dotrix::ui::View::new(dotrix::ui::Style {
-            background: Some(style::Background::from_color(Color::white())),
+            background: Some(style::Background::from_color(Color::red())),
             padding: style::Spacing {
                 top: 2.0,
                 left: 3.0,
@@ -20,7 +20,21 @@ impl dotrix::Task for UiTask {
         });
 
         let inner = dotrix::ui::View::new(dotrix::ui::Style {
-            background: Some(style::Background::from_color(Color::red())),
+            background: Some(style::Background {
+                color: style::Corners {
+                    top_left: Color::white(),
+                    top_right: Color::white(),
+                    bottom_right: Color::white(),
+                    bottom_left: Color::white(),
+                },
+                uvs: style::Corners {
+                    top_left: TexUV::new(0.0, 0.0),
+                    top_right: TexUV::new(1.0, 0.0),
+                    bottom_right: TexUV::new(1.0, 1.0),
+                    bottom_left: TexUV::new(0.0, 1.0),
+                },
+                texture: Id::default(),
+            }),
             ..Default::default()
         });
 
