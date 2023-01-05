@@ -44,8 +44,8 @@ impl dotrix::Task for UiTask {
             rect: dotrix::ui::Rect {
                 horizontal: 24.0,
                 vertical: 24.0,
-                width: 280.0,
-                height: 400.0,
+                width: 251.0,
+                height: 251.0,
             },
             view: root,
         }
