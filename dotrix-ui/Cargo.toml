@@ -14,3 +14,4 @@ dotrix_log = {version = "0.1", path="../dotrix-log"}
 dotrix_mesh = {version = "0.1", path="../dotrix-mesh"}
 dotrix_types = {version = "0.1", path="../dotrix-types"}
 bytemuck = { version = "1.4", features = ["derive"] }
+fontdue = { version = "0.7" }

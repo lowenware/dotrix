@@ -72,6 +72,7 @@ dotrix_ui = { version = "0.1", path = "./dotrix-ui", optional = true }
 
 # Dependencies
 rand = "0.8"
+image = { version = "0.24" }
 
 [dev-dependencies]
 noise = { version = "0.8" }

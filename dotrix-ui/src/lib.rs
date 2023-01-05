@@ -1,6 +1,7 @@
 pub mod composer;
 pub mod context;
 pub mod edit;
+pub mod font;
 pub mod overlay;
 pub mod render;
 pub mod style;
