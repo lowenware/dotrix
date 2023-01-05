@@ -526,6 +526,7 @@ dependencies = [
  "dotrix_types",
  "dotrix_ui",
  "dotrix_window",
+ "image 0.24.3",
  "noise",
  "rand 0.8.5",
 ]
@@ -677,6 +678,7 @@ dependencies = [
  "dotrix_log",
  "dotrix_mesh",
  "dotrix_types",
+ "fontdue",
 ]
 
 [[package]]
@@ -769,6 +771,16 @@ name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
+
+[[package]]
+name = "fontdue"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a62391ecb864cf12ed06b2af4eda2e609b97657950d6a8f06841b17726ab253"
+dependencies = [
+ "hashbrown 0.11.2",
+ "ttf-parser",
+]
 
 [[package]]
 name = "foreign-types"
@@ -2228,6 +2240,12 @@ checksum = "8d82e1a7758622a465f8cee077614c73484dac5b836c02ff6a40d5d1010324d7"
 dependencies = [
  "serde",
 ]
+
+[[package]]
+name = "ttf-parser"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7b3e06c9b9d80ed6b745c7159c40b311ad2916abb34a49e9be2653b90db0d8dd"
 
 [[package]]
 name = "unicode-ident"
