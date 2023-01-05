@@ -101,6 +101,9 @@ pub struct TexUV {
 
 // TODO: introduce pack in teh  Attribute trait
 impl TexUV {
+    pub fn new(u: f32, v: f32) -> Self {
+        Self { u, v }
+    }
     pub fn pack(&self) -> [f32; 2] {
         [self.u, self.v]
     }

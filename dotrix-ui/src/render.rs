@@ -7,6 +7,7 @@ use dotrix_gpu::backend as wgpu;
 use dotrix_log as log;
 use gpu::backend::BindGroupEntry;
 
+use crate::font;
 use crate::widget::VertexAttributes;
 
 pub struct Render {
@@ -163,7 +164,7 @@ impl Render {
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
-                        sample_type: wgpu::TextureSampleType::Uint, // { filterable: true },
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
@@ -252,14 +253,22 @@ impl Render {
     }
 
     fn create_default_texture(gpu: &gpu::Gpu) -> gpu::Texture {
-        let data = [255, 255, 255, 0];
+        let charsets = [
+            font::Charset::Latin,
+            font::Charset::Cyrillic,
+            font::Charset::Greek,
+        ];
+        let font_bytes = include_bytes!("../../resources/fonts/Jura-Regular.ttf") as &[u8];
+        let font = font::Font::from_bytes(28.0, &charsets, font_bytes);
+        let atlas = font.atlas();
+
         gpu.texture("dotrix::ui::default_texture")
-            .size(1, 1)
+            .size(atlas.width(), atlas.height())
             .allow_copy_dst()
             .dimension_d2()
-            .format_rgba_u8()
+            .format_alpha_u8()
             .use_as_texture_binding()
-            .data(&data)
+            .data(atlas.bitmap())
             .create()
     }
 
