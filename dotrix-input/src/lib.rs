@@ -16,7 +16,7 @@ pub struct ScreenVector {
 }
 
 /// Inputs for the current frame
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct Input {
     pub events: Vec<Event>,
     pub modifiers: Modifiers,

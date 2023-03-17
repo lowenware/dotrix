@@ -2,16 +2,15 @@ use dotrix_gpu as gpu;
 use dotrix_input::Input;
 use dotrix_types::{Frame, Id};
 
-use crate::context::Context;
-use crate::widget;
+use crate::overlay;
 use crate::Rect;
 
 pub struct Composer<'c, 'i, 'f> {
     pub ctx: &'c mut Context,
     pub input: &'i Input,
     pub frame: &'f Frame,
-    pub build_stack: Vec<widget::Builder>,
-    pub widgets: Vec<widget::Widget>,
+    pub build_stack: Vec<overlay::Builder>,
+    pub widgets: Vec<overlay::Widget>,
 }
 
 pub trait Compose: Send {
@@ -33,7 +32,7 @@ impl<'c, 'i, 'f> Composer<'c, 'i, 'f> {
         &'a mut self,
         rect: Rect,
         texture: Id<gpu::TextureView>,
-    ) -> (&'a mut widget::Builder, bool) {
+    ) -> (&'a mut overlay::Builder, bool) {
         let exists = self
             .build_stack
             .last()
@@ -49,16 +48,16 @@ impl<'c, 'i, 'f> Composer<'c, 'i, 'f> {
         //let exists = false;
 
         if !exists {
-            self.build_stack.push(widget::Builder::new(rect, texture));
+            self.build_stack.push(overlay::Builder::new(rect, texture));
         }
         (self.build_stack.last_mut().unwrap(), !exists)
     }
 
-    pub fn builder_pop(&mut self) -> Option<widget::Builder> {
+    pub fn builder_pop(&mut self) -> Option<overlay::Builder> {
         self.build_stack.pop()
     }
 
-    pub fn add_widget(&mut self, widget: widget::Widget) {
+    pub fn add_widget(&mut self, widget: overlay::Widget) {
         self.widgets.push(widget);
     }
 }
