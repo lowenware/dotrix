@@ -31,7 +31,7 @@ fn main() {
         targets: vec![
             (String::from("naga"), log::LevelFilter::Warn),
             (String::from("wgpu"), log::LevelFilter::Warn),
-            (String::from("dotrix"), log::LevelFilter::Debug),
+            (String::from("dotrix"), log::LevelFilter::Info),
             (String::from(""), log::LevelFilter::Debug),
         ],
         ..Default::default()

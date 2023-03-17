@@ -8,7 +8,7 @@ use dotrix_log as log;
 use gpu::backend::BindGroupEntry;
 
 use crate::font;
-use crate::widget::VertexAttributes;
+use crate::overlay::VertexAttributes;
 
 pub struct Render {
     pub render_pipeline: gpu::RenderPipeline,

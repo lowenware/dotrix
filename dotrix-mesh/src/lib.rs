@@ -21,9 +21,9 @@ pub struct Mesh {
 
 impl Mesh {
     /// Constructs new Mesh instance
-    pub fn new(label: String) -> Self {
+    pub fn new(label: impl ToString) -> Self {
         Self {
-            label: String::from(label),
+            label: label.to_string(),
             vertices: HashMap::new(),
             vertices_count: 0,
             indices: None,

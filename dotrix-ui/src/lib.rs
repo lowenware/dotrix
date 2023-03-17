@@ -1,4 +1,4 @@
-pub mod composer;
+// pub mod composer;
 pub mod context;
 pub mod edit;
 pub mod font;
@@ -7,7 +7,9 @@ pub mod render;
 pub mod style;
 pub mod text;
 pub mod view;
-pub mod widget;
+
+use std::collections::HashMap;
+use std::time::Instant;
 
 use dotrix_core as dotrix;
 use dotrix_gpu as gpu;
@@ -16,22 +18,223 @@ use dotrix_log as log;
 
 use dotrix_input::Input;
 use dotrix_types::{Camera, Frame, Id};
-use std::collections::HashMap;
 
 pub use edit::Edit;
-pub use overlay::{Overlay, Rect};
-pub use style::Style;
+pub use overlay::{Overlay, Rect, Widget};
+pub use style::{Direction, Style};
 pub use text::Text;
 pub use view::View;
-pub use widget::Widget;
 
-use composer::Composer;
+// use composer::Composer;
 
 const INITIAL_VERTEX_COUNT: u64 = 4 * 64;
 
+#[derive(Debug, Clone)]
+pub enum Value {
+    None,
+    Text(String),
+    Number(i64),
+    Decimal(f64),
+}
+
+impl Default for Value {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+#[derive(Clone)]
+pub struct State {
+    last_change: Instant,
+    vertical_offset: f32,
+    horizontal_offset: f32,
+    value: Value,
+    hovered: bool,
+    has_focus: bool,
+}
+
+impl State {
+    pub fn update(&mut self, rect: &Rect, input: &Input) {
+        log::warn!("State::update is not implemented yet")
+    }
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            last_change: Instant::now(),
+            vertical_offset: 0.0,
+            horizontal_offset: 0.0,
+            value: Value::None,
+            hovered: false,
+            has_focus: false,
+        }
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+pub struct Viewport {
+    pub rect: Rect,
+    pub content_width: f32,
+    pub content_height: f32,
+    pub direction: Direction,
+}
+
+impl Viewport {
+    pub fn new(rect: Rect, direction: Direction) -> Self {
+        Self {
+            rect,
+            direction,
+            content_width: 0.0,
+            content_height: 0.0,
+        }
+    }
+
+    /// Returns next child empty `Rect`
+    pub fn place_content(&self) -> Rect {
+        match self.direction {
+            Direction::Vertical => Rect {
+                horizontal: self.rect.horizontal,
+                vertical: self.rect.vertical + self.content_height,
+                width: self.rect.width,
+                height: self.rect.height - self.content_height,
+            },
+            Direction::Horizontal => Rect {
+                horizontal: self.rect.horizontal + self.content_width,
+                vertical: self.rect.vertical,
+                width: self.rect.width - self.content_width,
+                height: self.content_height,
+            },
+        }
+    }
+
+    /// Update the view port with child
+    pub fn append(&mut self, rect: &Rect) {
+        match self.direction {
+            Direction::Vertical => {
+                self.content_height += rect.height;
+                if self.content_width < rect.width {
+                    self.content_width = rect.width;
+                }
+            }
+            Direction::Horizontal => {
+                self.content_width += rect.width;
+                if self.content_height < rect.height {
+                    self.content_height = rect.height;
+                }
+            }
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct Context {
+    states: HashMap<String, State>,
+    frame_width: f32,
+    frame_height: f32,
+    scale_factor: f32,
+    stack: Vec<Viewport>,
+    widgets: Vec<overlay::Widget>,
+    input: Input,
+}
+
+impl Context {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn update(&mut self, input: &Input, frame: &Frame) {
+        self.input = input.clone();
+        self.frame_width = frame.width as f32;
+        self.frame_height = frame.height as f32;
+        self.scale_factor = frame.scale_factor;
+    }
+
+    pub fn view<F>(&mut self, id: Option<&str>, style: &Style, callback: F)
+    where
+        F: FnOnce(&mut Context),
+    {
+        // Get parent viewport
+        let viewport = self
+            .stack
+            .last()
+            .cloned()
+            .expect("Overlay stack MUST always contain a viewport");
+
+        // Calculate rectangle of the next child, taking in account existing content of parent
+        let rect = viewport.place_content();
+        let mut view = View::new(rect.clone(), style);
+
+        // Get viewport with empty content of the current view, taking in account
+        // its internal direction
+        self.stack.push(view.viewport());
+
+        // Run callback for children
+        callback(self);
+
+        // Retrieve the viewport with updated content size
+        let viewport = self
+            .stack
+            .pop()
+            .expect("The owner view MUST pop out its viewport");
+
+        // Update view's rectangle, because now we know its content size
+        view.update_size(viewport.content_width, viewport.content_height);
+
+        // Update View's state with user inputs
+        let state = id.map(|id| {
+            let state = self.states.get(id);
+            let state = state.cloned();
+            let mut state = state.unwrap_or_default();
+
+            // Here must be handled all the inputs
+            state.update(&view.inner, &self.input);
+
+            self.states.insert(String::from(id), state.clone());
+            state
+        });
+
+        // Update parent Viewport's content size with size of this View
+        {
+            let viewport = self.stack.last_mut().expect("Parent viewport must exists");
+            viewport.append(&view.outer);
+        }
+        // If the view has renderable content, make a widget from it
+        let frame_width = self.frame_width;
+        let frame_height = self.frame_height;
+        let scale_factor = self.scale_factor;
+        if let Some(widget) = view.compose(state, frame_width, frame_height, scale_factor) {
+            self.widgets.push(widget);
+        }
+    }
+
+    // pub fn label(&mut self, id: Option<&str>, style: &FontStyle, text: impl Into<String>) {
+    //     let label = Label::new(id, style, text);
+    // }
+
+    pub fn overlay<F>(&mut self, rect: Rect, callback: F) -> Overlay
+    where
+        F: FnOnce(&mut Context),
+    {
+        let viewport = Viewport::new(rect, Direction::Vertical);
+
+        self.stack.clear();
+        self.widgets.clear();
+        self.stack.push(viewport);
+
+        callback(self);
+
+        self.stack.pop();
+
+        let widgets_len = self.widgets.len();
+        let widgets = self.widgets.drain(0..widgets_len).collect::<Vec<_>>();
+
+        Overlay { widgets }
+    }
+}
+
 pub struct DrawTask {
     render: Option<render::Render>,
-    ctx: context::Context,
     texture_bind_groups: HashMap<Id<gpu::TextureView>, wgpu::BindGroup>,
 }
 
@@ -45,7 +248,10 @@ impl dotrix::Task for DrawTask {
     );
     type Output = gpu::Commands;
 
-    fn run(&mut self, (mut overlay, _camera, frame, input, gpu): Self::Context) -> Self::Output {
+    fn run(
+        &mut self,
+        (mut overlay_collection, _camera, frame, input, gpu): Self::Context,
+    ) -> Self::Output {
         let render = self
             .render
             .get_or_insert_with(|| render::Render::new(&gpu, INITIAL_VERTEX_COUNT));
@@ -54,24 +260,22 @@ impl dotrix::Task for DrawTask {
 
         let (view, resolve_target) = gpu.color_attachment();
 
-        let mut vertex_buffer_size: u64 = 0;
-        let mut index_buffer_size: u64 = 0;
-
         render.write_uniform(&gpu, frame.width as f32, frame.height as f32);
 
-        for entry in overlay.drain() {
+        for mut overlay in overlay_collection.drain() {
+            let mut vertex_buffer_size: u64 = 0;
+            let mut index_buffer_size: u64 = 0;
             let (drawings, vertices, indices) = {
-                let mut composer = Composer::new(&mut self.ctx, &input, &frame);
-                entry.compose(&mut composer);
-                let widgets_len = composer.widgets.len();
+                let widgets_len = overlay.widgets.len();
                 let mut drawings = Vec::with_capacity(widgets_len);
-                let (vertices, indices): (Vec<_>, Vec<_>) = composer
+                let (vertices, indices): (Vec<_>, Vec<_>) = overlay
                     .widgets
                     .drain(0..widgets_len)
+                    .rev()
                     .map(|widget| {
                         let vertices = widget
                             .mesh
-                            .buffer::<widget::VertexAttributes>()
+                            .buffer::<overlay::VertexAttributes>()
                             .expect("Unsupported overlay mesh layout");
                         let indices = Vec::from(
                             widget
@@ -166,11 +370,11 @@ impl dotrix::Task for DrawTask {
                 let indices_count = (index_buffer_slice.end - index_buffer_slice.start)
                     / std::mem::size_of::<u32>() as u64;
 
-                log::debug!(
-                    "rpass vertices: {:?}, indices: {}",
-                    vertex_buffer_slice,
-                    indices_count
-                );
+                // log::debug!(
+                //    "rpass vertices: {:?}, indices: {}",
+                //    vertex_buffer_slice,
+                //    indices_count
+                // );
                 rpass.draw_indexed(0..indices_count as u32, 0, 0..1);
             }
         }
@@ -183,7 +387,6 @@ impl Default for DrawTask {
     fn default() -> Self {
         Self {
             render: None,
-            ctx: context::Context::default(),
             texture_bind_groups: HashMap::new(),
         }
     }
