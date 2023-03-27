@@ -103,10 +103,16 @@ impl<'a, 'b, 'd> Builder<'a, 'b, 'd> {
         self
     }
     #[inline(always)]
+    pub fn format_rgba_u8_norm_srgb(mut self) -> Self {
+        self.descriptor.format = wgpu::TextureFormat::Rgba8UnormSrgb;
+        self
+    }
+    #[inline(always)]
     pub fn format_alpha_u8(mut self) -> Self {
         self.descriptor.format = wgpu::TextureFormat::R8Unorm;
         self
     }
+
     #[inline(always)]
     pub fn data(mut self, data: &'d [u8]) -> Self {
         self.data = Some(data);
@@ -119,7 +125,9 @@ impl<'a, 'b, 'd> Builder<'a, 'b, 'd> {
             let width = self.descriptor.size.width;
             let height = self.descriptor.size.height;
             let bytes_per_pixel = match self.descriptor.format {
-                wgpu::TextureFormat::Rgba8Uint | wgpu::TextureFormat::Depth32Float => 4,
+                wgpu::TextureFormat::Rgba8Uint
+                | wgpu::TextureFormat::Depth32Float
+                | wgpu::TextureFormat::Rgba8UnormSrgb => 4,
                 wgpu::TextureFormat::R8Unorm => 1,
                 _ => panic!("Not implemented: {:?}", self.descriptor.format),
             };

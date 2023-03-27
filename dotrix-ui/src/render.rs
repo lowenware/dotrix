@@ -253,6 +253,17 @@ impl Render {
     }
 
     fn create_default_texture(gpu: &gpu::Gpu) -> gpu::Texture {
+        let default_texture_size = 1;
+        let default_texture_bytes = [0xFF, 0xFF, 0xFF, 0xFF];
+        gpu.texture("dotrix::ui::default_texture")
+            .size(default_texture_size, default_texture_size)
+            .allow_copy_dst()
+            .dimension_d2()
+            .format_rgba_u8_norm_srgb()
+            .use_as_texture_binding()
+            .data(&default_texture_bytes)
+            .create()
+        /* TODO: copy that code to application level
         let charsets = [
             font::Charset::Latin,
             font::Charset::Cyrillic,
@@ -270,6 +281,7 @@ impl Render {
             .use_as_texture_binding()
             .data(atlas.bitmap())
             .create()
+        */
     }
 
     fn create_default_sampler(gpu: &gpu::Gpu) -> wgpu::Sampler {
