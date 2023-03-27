@@ -68,10 +68,10 @@ fn fs_main(
         // return vec4<f32>(in.color.rga, 0.3);
     //} 
     // We always have an sRGB aware texture at the moment.
-    // let tex_color = textureSample(t_texture, s_sampler, in.tex_uv);
+    let tex_color = textureSample(t_texture, s_sampler, in.tex_uv);
     // let tex_gamma = gamma_from_linear_rgba(tex_linear);
     // let out_color_gamma = in.color * tex_gamma;
     // return vec4<f32>(in.color.rgb, 1.0);
     // return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-    return color; //  tex_color;
+    return color * tex_color;
 }
