@@ -43,6 +43,7 @@ members = [
   "dotrix-shader",
   "dotrix-types",
   "dotrix-window",
+  "dotrix-postprocess",
 #  "dotrix_sky",
 #  "dotrix_terrain",
 ]

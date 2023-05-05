@@ -1,0 +1,14 @@
+[package]
+name = "dotrix-postprocess"
+version = "0.1.0"
+authors = ["Oliver Reznicek <reznicek.oliver@gmail.com>"]
+edition = "2021"
+
+description = "Post processing library for Dotrix 3D Game Engine"
+license = "MIT"
+
+[dependencies]
+dotrix_core = { version = "0.6", path = "../dotrix-core" }
+dotrix_gpu = { version = "0.1", path = "../dotrix-gpu" }
+dotrix_types = { version = "0.1", path = "../dotrix-types" }
+dotrix_math = { version = "0.4", path = "../dotrix-math" }

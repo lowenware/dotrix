@@ -531,6 +531,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "dotrix-postprocess"
+version = "0.1.0"
+dependencies = [
+ "dotrix_core",
+ "dotrix_gpu",
+ "dotrix_math",
+ "dotrix_types",
+]
+
+[[package]]
 name = "dotrix_assets"
 version = "0.1.0"
 dependencies = [
