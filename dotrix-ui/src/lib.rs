@@ -2,6 +2,7 @@
 pub mod context;
 pub mod edit;
 pub mod font;
+pub mod label;
 pub mod overlay;
 pub mod render;
 pub mod style;
@@ -16,12 +17,15 @@ use dotrix_gpu as gpu;
 use dotrix_gpu::backend as wgpu;
 use dotrix_log as log;
 
+use dotrix_assets::Assets;
 use dotrix_input::Input;
 use dotrix_types::{Camera, Frame, Id};
 
 pub use edit::Edit;
+pub use font::Font;
+pub use label::Label;
 pub use overlay::{Overlay, Rect, Widget};
-pub use style::{Direction, Style};
+pub use style::{Direction, Style, FontStyle};
 pub use text::Text;
 pub use view::View;
 
@@ -127,9 +131,17 @@ impl Viewport {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Canvas {
+    pub width: f32,
+    pub height: f32,
+    pub scale: f32,
+}
+
 #[derive(Default)]
 pub struct Context {
     states: HashMap<String, State>,
+    canvas: Canvas,
     frame_width: f32,
     frame_height: f32,
     scale_factor: f32,
@@ -143,7 +155,7 @@ impl Context {
         Self::default()
     }
 
-    pub fn update(&mut self, input: &Input, frame: &Frame) {
+    pub fn set(&mut self, input: &Input, frame: &Frame, assets: &Assets) {
         self.input = input.clone();
         self.frame_width = frame.width as f32;
         self.frame_height = frame.height as f32;
@@ -208,9 +220,45 @@ impl Context {
         }
     }
 
-    // pub fn label(&mut self, id: Option<&str>, style: &FontStyle, text: impl Into<String>) {
-    //     let label = Label::new(id, style, text);
-    // }
+    pub fn label(&mut self, id: Option<&str>, style: &FontStyle, text: &str) {
+        // Get parent viewport
+        let viewport = self
+            .stack
+            .last()
+            .cloned()
+            .expect("Overlay stack MUST always contain a viewport");
+
+        // Calculate rectangle of the next child, taking in account existing content of parent
+        let rect = viewport.place_content();
+        let mut label = Label::new(id, rect, style, text);
+
+        // Update View's state with user inputs
+        let state = id.map(|id| {
+            let state = self.states.get(id);
+            let state = state.cloned();
+            let mut state = state.unwrap_or_default();
+
+            // Here must be handled all the inputs
+            state.update(label.rect(), &self.input);
+
+            self.states.insert(String::from(id), state.clone());
+            state
+        });
+
+        // Update parent Viewport's content size with size of this View
+        {
+            let viewport = self.stack.last_mut().expect("Parent viewport must exists");
+            viewport.append(label.rect());
+        }
+
+        // If the label has renderable content, make a widget from it
+        let frame_width = self.frame_width;
+        let frame_height = self.frame_height;
+        let scale_factor = self.scale_factor;
+        if let Some(widget) = label.compose(state, frame_width, frame_height, scale_factor) {
+            self.widgets.push(widget);
+        }
+    }
 
     pub fn overlay<F>(&mut self, rect: Rect, callback: F) -> Overlay
     where

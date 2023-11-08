@@ -9,9 +9,9 @@ pub struct UiTask {
 }
 
 impl dotrix::Task for UiTask {
-    type Context = (dotrix::Any<dotrix::Input>, dotrix::Any<dotrix::Frame>);
+    type Context = (dotrix::Any<dotrix::Input>, dotrix::Any<dotrix::Frame>, dotrix::Ref<dotrix::Assets>);
     type Output = dotrix::ui::Overlay;
-    fn run(&mut self, (input, frame): Self::Context) -> Self::Output {
+    fn run(&mut self, (input, frame, assets): Self::Context) -> Self::Output {
         let rect = Rect {
             width: 200.0,
             height: 200.0,
@@ -31,7 +31,7 @@ impl dotrix::Task for UiTask {
             padding: style::Spacing::from(16.0),
             ..Default::default()
         };
-        self.ctx.update(&input, &frame);
+        self.ctx.set(&input, &frame, &assets);
 
         log::warn!("Begin overlay");
         self.ctx.overlay(rect, |ui| {
