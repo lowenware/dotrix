@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+dotrix_assets = {version = "0.1", path="../dotrix-assets"}
 dotrix_core = {version = "0.6", path="../dotrix-core"}
 dotrix_gpu = {version = "0.1", path="../dotrix-gpu"}
 dotrix_input = {version = "0.1", path="../dotrix-input"}

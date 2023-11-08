@@ -2,6 +2,8 @@ use dotrix_gpu as gpu;
 use dotrix_types::vertex::TexUV;
 use dotrix_types::{Color, Id};
 
+use crate::Font;
+
 #[derive(Default)]
 pub struct Style {
     pub background: Option<Background>,
@@ -10,6 +12,12 @@ pub struct Style {
     pub padding: Spacing,
     pub width: Size,
     pub height: Size,
+}
+
+pub struct FontStyle<'f> {
+    pub texture: Id<gpu::TextureView>,
+    pub font: &'f Font,
+    pub color: Color<u8>,
 }
 
 pub struct Background {

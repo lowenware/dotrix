@@ -671,6 +671,7 @@ name = "dotrix_ui"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "dotrix_assets",
  "dotrix_core",
  "dotrix_gpu",
  "dotrix_image",

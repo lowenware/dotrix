@@ -2,10 +2,12 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use dotrix_types::{vertex, TexUV};
+use dotrix_log as log;
 
 use crate::Rect;
 
 pub struct Font {
+    size: f32,
     atlas: Atlas,
     map: HashMap<char, usize>,
     glyphs: Vec<Glyph>,
@@ -67,6 +69,7 @@ impl Font {
         let atlas = Atlas::new(&mut glyphs, font_size);
 
         Self {
+            size: font_size,
             atlas,
             glyphs,
             map,
@@ -74,12 +77,31 @@ impl Font {
         }
     }
 
-    pub fn line_metrix(&self) -> &LineMetrics {
+    pub fn line_metrics(&self) -> &LineMetrics {
         &self.line_metrics
     }
 
     pub fn atlas(&self) -> &Atlas {
         &self.atlas
+    }
+
+    /// Returns a tuple of vertices and texture uvs
+    pub fn tesselate(
+        &self,
+        rect: &Rect,
+        cursor: &mut Cursor,
+        character: char
+    ) -> ([[f32; 2]; 4], [[f32; 2]; 4]) {
+        log::error!("font::tesselate is not implemented!");
+        ([[0.0; 2]; 4], [[0.0; 2]; 4])
+    }
+
+    pub fn place_word(&self, rect: &Rect, cursor: &mut Cursor, word: &str) {
+        // we are at the beginning of the line, render word even if width is not enough
+        if cursor.offset.is_none() {
+            return;
+        }
+        todo!("Place word at the end or go next line, but if not first line");
     }
 }
 
@@ -222,6 +244,13 @@ impl Charset {
             Charset::Greek => &[0x0370..0x03FF],
         }
     }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Cursor {
+    pub offset: Option<f32>,
+    pub width: f32,
+    pub height: f32,
 }
 
 // Note: the following code can be used for debug purposes
