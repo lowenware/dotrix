@@ -1,61 +1,44 @@
-mod camera;
-mod states;
-mod ui;
+// mod camera;
+// mod states;
+// mod ui;
 
 use dotrix::log;
 
-/// This can be used in tasks context
-pub struct Studio {}
-
-impl Studio {
-    fn new() -> Self {
-        Self {}
-    }
-}
-
-impl dotrix::Application for Studio {
-    fn configure(&self, settings: &mut dotrix::Settings) {
-        settings.title = String::from("Dotrix Studio");
-        // settings.fps_limit = Some(30.0);
-    }
-
-    fn init(&self, manager: &dotrix::Manager) {
-        manager.schedule(states::Startup::new());
-        manager.schedule(camera::ControlTask::new());
-        manager.schedule(ui::UiTask::default());
-    }
-}
+const APP_NAME: &str = "Dotrix Studio";
 
 fn main() {
-    let log = dotrix::Log {
-        targets: vec![
-            (String::from("naga"), log::LevelFilter::Warn),
-            (String::from("wgpu"), log::LevelFilter::Warn),
-            (String::from("dotrix"), log::LevelFilter::Info),
-            (String::from(""), log::LevelFilter::Debug),
-        ],
-        ..Default::default()
-    };
-    log::subscribe(log);
+    // Initialize logging
+    dotrix::Log::default()
+        .level("dotrix", log::LevelFilter::Debug)
+        .level("*", log::LevelFilter::Debug)
+        .subscribe();
 
-    let studio = Studio::new();
+    let version = env!("CARGO_PKG_VERSION_MAJOR")
+        .parse::<u32>()
+        .ok()
+        .unwrap_or(0);
 
-    let assets = dotrix::assets::Extension {
-        root: std::path::PathBuf::from("./resources"),
-        init: |assets| {
-            assets.install(dotrix::image::Loader::default());
-            assets.install(dotrix::shader::Loader::default());
-        },
-        hot_reload: true,
-    };
+    let (mut display, gpu, event_loop) = dotrix::Core::setup()
+        .application_name(APP_NAME)
+        .application_version(version)
+        .workers(8)
+        .fps_request(Some(30.0))
+        .create()
+        .into_tuple();
 
-    let pbr = dotrix::pbr::Extension::default();
+    let present_complete_semaphore = gpu.create_semaphore();
+    let renderer = dotrix::Renderer::setup()
+        .surface_format(display.surface_format())
+        .wait_semaphores([present_complete_semaphore.clone()])
+        .create(gpu.clone());
+    let render_complete_semaphore = renderer.complete_semaphore().clone();
 
-    let ui = dotrix::ui::Extension::default();
+    display.set_render_complete_semaphore(render_complete_semaphore);
+    display.set_present_complete_semaphore(present_complete_semaphore);
 
-    dotrix::run(studio, |extensions| {
-        extensions.load(assets);
-        extensions.load(pbr);
-        extensions.load(ui);
+    dotrix::run(event_loop, |scheduler| {
+        scheduler.add_context(display);
+        // scheduler.add_context(my_context);
+        scheduler.add_task(renderer);
     });
 }

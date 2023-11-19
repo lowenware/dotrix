@@ -27,7 +27,7 @@ impl dotrix::Task for Startup {
     type Output = ();
 
     fn run(&mut self, (mut assets, mut world, state): Self::Context) -> Self::Output {
-        if (self.done) {
+        if self.done {
             return ();
         }
         self.done = true;
