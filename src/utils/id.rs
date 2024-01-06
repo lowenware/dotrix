@@ -31,33 +31,9 @@ pub struct Id<T> {
     phantom: PhantomData<T>,
 }
 
-/// Id namespace abstraction
-pub trait NameSpace {
-    /// Returns low 8 bytes
-    fn namespace() -> u64
-    where
-        Self: Sized;
-
-    /// Returns ID from the namespace with defined high bytes
-    fn id(high: u64) -> Id<Self>
-    where
-        Self: Sized,
-    {
-        Id::new(Self::namespace(), high)
-    }
-}
-
 impl<T> Id<T> {
-    /// Construct new Id from parts
-    pub fn new(low: u64, high: u64) -> Self {
-        Self {
-            value: uuid::Uuid::from_u64_pair(low, high),
-            phantom: PhantomData,
-        }
-    }
-
     /// Constructs new random id
-    pub fn random() -> Self {
+    pub fn new() -> Self {
         Self {
             value: uuid::Uuid::new_v4(),
             phantom: PhantomData,
@@ -66,7 +42,7 @@ impl<T> Id<T> {
 
     /// Construct new null id
     pub fn null() -> Self {
-        Self::new(0, 0)
+        Self::from((0, 0))
     }
 
     /// Checks if id is null
@@ -89,6 +65,16 @@ impl<T> From<uuid::Uuid> for Id<T> {
     fn from(value: uuid::Uuid) -> Self {
         Self {
             value,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<T> From<(u64, u64)> for Id<T> {
+    fn from(value: (u64, u64)) -> Self {
+        let (high, low) = value;
+        Self {
+            value: Uuid::from_u64_pair(high, low),
             phantom: PhantomData,
         }
     }

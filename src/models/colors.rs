@@ -1,8 +1,7 @@
 //! data structure and constructors
-use std::convert::From;
+use super::VertexAttribute;
+use crate::render::Format;
 use std::ops::{Index, IndexMut};
-
-use crate::vertex;
 
 pub trait Channel {
     fn value(value: f32) -> Self;
@@ -97,13 +96,16 @@ where
     }
 }
 
-impl vertex::Attribute for Color<f32> {
+impl VertexAttribute for Color<f32> {
     type Raw = [f32; 4];
     fn name() -> &'static str {
         "Color"
     }
-    fn format() -> vertex::AttributeFormat {
-        vertex::AttributeFormat::Float32x4
+    fn format() -> Format {
+        Format::Float32x4
+    }
+    fn pack(&self) -> Self::Raw {
+        self.into()
     }
 }
 
@@ -128,30 +130,33 @@ impl From<[f32; 4]> for Color<f32> {
     }
 }
 
-impl From<Color<f32>> for [f32; 4] {
-    fn from(color: Color<f32>) -> Self {
+impl From<&Color<f32>> for [f32; 4] {
+    fn from(color: &Color<f32>) -> Self {
         [color.r, color.g, color.b, color.a]
     }
 }
 
-impl From<Color<f32>> for [f32; 3] {
-    fn from(color: Color<f32>) -> Self {
+impl From<&Color<f32>> for [f32; 3] {
+    fn from(color: &Color<f32>) -> Self {
         [color.r, color.g, color.b]
     }
 }
 
-impl vertex::Attribute for Color<u8> {
+impl VertexAttribute for Color<u8> {
     type Raw = u32;
     fn name() -> &'static str {
         "Color"
     }
-    fn format() -> vertex::AttributeFormat {
-        vertex::AttributeFormat::Uint32
+    fn format() -> Format {
+        Format::Uint32
+    }
+    fn pack(&self) -> Self::Raw {
+        self.into()
     }
 }
 
-impl From<Color<u8>> for u32 {
-    fn from(color: Color<u8>) -> Self {
+impl From<&Color<u8>> for u32 {
+    fn from(color: &Color<u8>) -> Self {
         (color.r as u32) << 24 | (color.g as u32) << 16 | (color.b as u32) << 8 | color.a as u32
     }
 }

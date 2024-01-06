@@ -37,7 +37,7 @@ pub struct Scheduler<'a> {
 impl<'a> Scheduler<'a> {
     /// Add task to the scheduler
     pub fn add_task<T: task::Task>(&self, task: T) -> Id<task::Slot> {
-        let id = Id::random();
+        let id = Id::new();
         let task = task.boxify(id);
         self.guard
             .send(scheduler::Message::Schedule(task))

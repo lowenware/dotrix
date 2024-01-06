@@ -1,17 +1,30 @@
-use assets::Asset;
-use gltf::Gltf;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::Read;
+use std::path::Path;
 
-use dotrix_assets as assets;
-use dotrix_image as image;
-use dotrix_image::Image;
-use dotrix_log as log;
-use dotrix_math::{Mat4, Quat, Vec3};
-use dotrix_mesh::animation::{Animation, Interpolation};
-use dotrix_mesh::{Armature, Joint, Mesh};
-use dotrix_pbr::Material;
-use dotrix_types::{vertex, Color};
-use dotrix_types::{Id, Transform};
+use gltf::Gltf;
+
+//use dotrix_assets as assets;
+//use dotrix_image as image;
+//use dotrix_Image;
+//use dotrix_log as log;
+//use dotrix_math::{Mat4, Quat, Vec3};
+//use dotrix_mesh::animation::{Animation, Interpolation};
+//use dotrix_mesh::{Armature, Joint, Mesh};
+//use dotrix_pbr::Material;
+//use dotrix_types::{vertex, Color};
+//use dotrix_types::{Id, Transform};
+
+use crate::log;
+use crate::math::{Mat4, Quat, Vec3};
+use crate::models::{
+    Animation, Armature, Color, Image, ImageFormat, Interpolation, Joint, Material, Mesh,
+    Transform, VertexJoints, VertexNormal, VertexPosition, VertexTexture, VertexWeights,
+};
+use crate::utils::Id;
+
+use super::{Asset, ImageLoader, ResourceBundle, ResourceLoader, ResourceTarget};
 
 type JsonIndex = usize;
 type ResultIndex = usize;
@@ -27,9 +40,69 @@ struct Output {
 }
 
 /// Gltf file loader
-pub struct Loader;
+#[derive(Default)]
+pub struct GltfLoader;
 
-impl Loader {
+impl ResourceLoader for GltfLoader {
+    fn read(&self, path: &Path, targets: &HashSet<ResourceTarget>) -> ResourceBundle {
+        let mut file = File::open(path).expect("Could not open GLTF resource file");
+        let metadata = std::fs::metadata(path).expect("Could not read GLTF file metadata");
+        let mut data = vec![0; metadata.len() as usize];
+        file.read(&mut data)
+            .expect("Could not read GLTF resource file into buffer");
+
+        let mut output = Output {
+            result: Vec::with_capacity(targets.len()),
+            ..Default::default()
+        };
+
+        match Gltf::from_slice(&data) {
+            Ok(gltf) => {
+                if let Some(buffers) = Self::read_buffers(&gltf, path) {
+                    let name: String = path
+                        .file_stem()
+                        .expect("GLTF path has no file name")
+                        .to_str()
+                        .expect("Could not read file name to string")
+                        .into();
+                    for scene in gltf.scenes() {
+                        for node in scene.nodes() {
+                            Self::read_node(&mut output, &node, &buffers, &name, None);
+                        }
+                    }
+                    for animation in gltf.animations() {
+                        Self::read_animation(&mut output, &animation, &buffers, &name);
+                    }
+                }
+            }
+            Err(e) => log::error!("Could not read GLTF file `{:?}`: {:?}", path, e),
+        };
+
+        let mut bundle = targets
+            .iter()
+            .map(|target| (target.clone(), None))
+            .collect::<HashMap<_, _>>();
+
+        let no_targets = targets.len() == 0;
+
+        for asset in output.result.into_iter() {
+            let target = ResourceTarget {
+                type_id: asset.type_id(),
+                name: asset.name().into(),
+            };
+            if no_targets || targets.contains(&target) {
+                bundle.insert(target, Some(asset));
+            }
+        }
+
+        ResourceBundle {
+            resource: path.into(),
+            bundle,
+        }
+    }
+}
+
+impl GltfLoader {
     fn read_buffers(gltf: &Gltf, path: &std::path::Path) -> Option<Vec<Vec<u8>>> {
         const URI_BASE64: &str = "data:application/octet-stream;base64,";
         let mut buffers = Vec::new();
@@ -113,9 +186,10 @@ impl Loader {
             return;
         }
         let reader = skin.reader(|buffer| Some(&buffers[buffer.index()]));
-        let inverse_bind_matrices = reader
-            .read_inverse_bind_matrices()
-            .map(|v| v.map(Mat4::from).collect::<Vec<_>>());
+        let inverse_bind_matrices = reader.read_inverse_bind_matrices().map(|v| {
+            v.map(|mx| Mat4::from_cols_array_2d(&mx))
+                .collect::<Vec<_>>()
+        });
 
         let asset_name = [name, "armature"].join("::");
 
@@ -159,12 +233,13 @@ impl Loader {
         node: &gltf::Node,
         parent_id: Option<Id<Joint>>,
     ) {
-        let id = Id::random();
+        let id = Id::new();
 
         let (translation, rotation, scale) = node.transform().decomposed();
         let local_bind_transform = Transform::new(
             Vec3::from(translation),
-            Quat::new(rotation[3], rotation[0], rotation[1], rotation[2]),
+            // Quat::new(rotation[3], rotation[0], rotation[1], rotation[2]),
+            Quat::from_xyzw(rotation[0], rotation[1], rotation[2], rotation[3]),
             Vec3::from(scale),
         );
         let index = node.index();
@@ -214,23 +289,23 @@ impl Loader {
             .read_positions()
             .map(|p| p.collect::<Vec<[f32; 3]>>())
         {
-            mesh.set_vertices::<vertex::Position>(positions);
+            mesh.set_vertices::<VertexPosition>(positions);
         }
 
         if let Some(normals) = reader.read_normals().map(|n| n.collect::<Vec<[f32; 3]>>()) {
-            mesh.set_vertices::<vertex::Normal>(normals);
+            mesh.set_vertices::<VertexNormal>(normals);
         }
 
         if let Some(uvs) = reader.read_tex_coords(0) {
-            mesh.set_vertices::<vertex::TexUV>(uvs.into_f32().collect::<Vec<_>>());
+            mesh.set_vertices::<VertexTexture>(uvs.into_f32().collect::<Vec<_>>());
         }
 
         if let Some(weights) = reader.read_weights(0) {
-            mesh.set_vertices::<vertex::Weights>(weights.into_f32().collect::<Vec<[f32; 4]>>());
+            mesh.set_vertices::<VertexWeights>(weights.into_f32().collect::<Vec<[f32; 4]>>());
         }
 
         if let Some(joints) = reader.read_joints(0) {
-            mesh.set_vertices::<vertex::Joints>(joints.into_u16().collect::<Vec<[u16; 4]>>());
+            mesh.set_vertices::<VertexJoints>(joints.into_u16().collect::<Vec<[u16; 4]>>());
         }
 
         output
@@ -276,7 +351,7 @@ impl Loader {
 
         let asset_name = [name, material.name().unwrap_or("material")].join("::");
         let material_asset = Material {
-            label: asset_name,
+            name: asset_name,
             albedo,
             albedo_map,
             normal_map,
@@ -315,7 +390,7 @@ impl Loader {
                     }
 
                     match base64::decode(&uri[URI_IMAGE_PNG.len()..]) {
-                        Ok(data) => (data, image::Format::Png),
+                        Ok(data) => (data, ImageFormat::Png),
                         Err(e) => {
                             log::error!("Could not decode texture data: {:?}", e);
                             return Id::default();
@@ -334,11 +409,11 @@ impl Loader {
                     let tail = offset + view.length();
                     let data = &buffers[index][offset..tail];
 
-                    (data.to_vec(), image::Format::Png)
+                    (data.to_vec(), ImageFormat::Png)
                 }
             };
 
-            if let Some(image) = image::Image::from_buffer_as(asset_name, &data, format) {
+            if let Some(image) = ImageLoader::read_buffer(asset_name, &data, format) {
                 let index = output.result.len();
                 result_index.replace(index);
                 output.loaded_images.insert(image_index, index);
@@ -346,7 +421,7 @@ impl Loader {
             }
         }
 
-        Id::new(result_index.unwrap() as u64, 0)
+        Id::new()
     }
 
     fn read_animation(
@@ -394,7 +469,7 @@ impl Loader {
                     interpolation,
                     timestamps,
                     out.into_f32()
-                        .map(|q| Quat::new(q[3], q[0], q[1], q[2]))
+                        .map(|q| Quat::from_xyzw(q[0], q[1], q[2], q[3]))
                         .collect(),
                 ),
                 gltf::animation::util::ReadOutputs::Scales(out) => asset.add_scale_channel(
@@ -408,51 +483,5 @@ impl Loader {
         }
 
         output.result.push(Box::new(asset));
-    }
-}
-
-impl assets::Loader for Loader {
-    fn can_load(&self, path: &std::path::Path) -> bool {
-        path.extension()
-            .map(|ext| ext == "gltf" || ext == "glb")
-            .unwrap_or(false)
-    }
-
-    fn load(&self, path: &std::path::Path, data: Vec<u8>) -> Vec<Box<dyn assets::Asset>> {
-        let mut output = Output::default();
-
-        match Gltf::from_slice(&data) {
-            Ok(gltf) => {
-                if let Some(buffers) = Self::read_buffers(&gltf, path) {
-                    let name: String = path
-                        .file_stem()
-                        .expect("GLTF path has no file name")
-                        .to_str()
-                        .expect("Could not read file name to string")
-                        .into();
-
-                    for scene in gltf.scenes() {
-                        for node in scene.nodes() {
-                            Self::read_node(&mut output, &node, &buffers, &name, None);
-                        }
-                    }
-                    for animation in gltf.animations() {
-                        Self::read_animation(&mut output, &animation, &buffers, &name);
-                    }
-                }
-            }
-            Err(e) => log::error!("Could not read GLTF file `{:?}`: {:?}", path, e),
-        };
-
-        output.result
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
     }
 }

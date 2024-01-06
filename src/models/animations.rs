@@ -1,11 +1,10 @@
-use dotrix_assets as assets;
-use dotrix_math::{slerp, Quat, Vec3};
-use dotrix_types::{id, transform};
-use dotrix_types::{Id, Transform};
 use std::collections::HashMap;
 use std::time::Duration;
 
-use crate::armature::Joint;
+use super::{Joint, Transform, TransformBuilder};
+use crate::loaders::Asset;
+use crate::math::{Quat, Vec3};
+use crate::utils::Id;
 
 pub struct Animation {
     name: String,
@@ -89,7 +88,7 @@ impl Animation {
 
     /// Samples the animeation at some keyframe (s) and returns a HashMap of
     /// [`crate::assets::Skin`] joint id to [`TransformBuilder`]
-    pub fn sample(&self, keyframe: f32) -> HashMap<Id<Joint>, transform::Builder> {
+    pub fn sample(&self, keyframe: f32) -> HashMap<Id<Joint>, TransformBuilder> {
         let mut result = HashMap::new();
 
         for channel in &self.translation_channels {
@@ -127,21 +126,9 @@ impl Animation {
     }
 }
 
-const NAMESPACE: u64 = 0x07;
-
-impl id::NameSpace for Animation {
-    fn namespace() -> u64 {
-        assets::NAMESPACE | NAMESPACE
-    }
-}
-
-impl assets::Asset for Animation {
+impl Asset for Animation {
     fn name(&self) -> &str {
         &self.name
-    }
-
-    fn namespace(&self) -> u64 {
-        <Self as id::NameSpace>::namespace()
     }
 }
 
@@ -162,14 +149,14 @@ trait Interpolate: Copy {
 
 impl Interpolate for Vec3 {
     fn linear(self, target: Self, value: f32) -> Self {
-        use dotrix_math::VectorSpace;
         self.lerp(target, value)
     }
 }
 
 impl Interpolate for Quat {
     fn linear(self, target: Self, value: f32) -> Self {
-        slerp(self, target, value)
+        // NOTE: try slerp from math if any issue
+        self.slerp(target, value)
     }
 }
 

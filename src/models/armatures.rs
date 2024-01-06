@@ -1,21 +1,22 @@
-use dotrix_assets as assets;
-use dotrix_math::Mat4;
-use dotrix_types::id;
-use dotrix_types::{Id, Transform};
 use std::collections::HashMap;
+
+use super::Transform;
+use crate::loaders::Asset;
+use crate::math::Mat4;
+use crate::utils::Id;
 
 #[derive(Default, Debug, Clone)]
 pub struct Armature {
-    pub label: String,
+    pub name: String,
     pub joints: HashMap<Id<Joint>, Joint>,
     pub names: HashMap<String, Id<Joint>>,
     pub index: Vec<Id<Joint>>,
 }
 
 impl Armature {
-    pub fn new(label: String, capacity: usize) -> Self {
+    pub fn new(name: String, capacity: usize) -> Self {
         Self {
-            label,
+            name,
             joints: HashMap::with_capacity(capacity),
             names: HashMap::with_capacity(capacity),
             index: Vec::with_capacity(capacity),
@@ -43,18 +44,8 @@ pub struct Joint {
     pub parent_id: Option<Id<Joint>>,
 }
 
-impl id::NameSpace for Armature {
-    fn namespace() -> u64 {
-        assets::NAMESPACE | 0x11
-    }
-}
-
-impl assets::Asset for Armature {
+impl Asset for Armature {
     fn name(&self) -> &str {
-        &self.label
-    }
-
-    fn namespace(&self) -> u64 {
-        <Self as id::NameSpace>::namespace()
+        &self.name
     }
 }

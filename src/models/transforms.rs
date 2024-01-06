@@ -1,9 +1,9 @@
 //! Transformation structure and builder
-use dotrix_math::{Mat4, Quat, Rad, Rotation3, Vec3};
+use crate::math::{Mat4, Quat, Vec3};
 
 /// Agregator for skin transformations
 #[derive(Default)]
-pub struct Builder {
+pub struct TransformBuilder {
     /// Optional translation vector
     pub translate: Option<Vec3>,
     /// Optional rotation quaternion
@@ -12,7 +12,7 @@ pub struct Builder {
     pub scale: Option<Vec3>,
 }
 
-impl Builder {
+impl TransformBuilder {
     /// Constructs the builder from translation vector
     #[must_use]
     pub fn with_translate(mut self, translate: Vec3) -> Self {
@@ -72,21 +72,18 @@ impl Transform {
     }
 
     /// Constructs transformation builder
-    pub fn builder() -> Builder {
-        Builder::default()
+    pub fn builder() -> TransformBuilder {
+        TransformBuilder::default()
     }
 
     /// Returns transformation matrix
     pub fn matrix(&self) -> Mat4 {
-        let t = Mat4::from_translation(self.translate);
-        let r = Mat4::from(self.rotate);
-        let s = Mat4::from_nonuniform_scale(self.scale.x, self.scale.y, self.scale.z);
-        t * r * s
+        Mat4::from_scale_rotation_translation(self.scale, self.rotate, self.translate)
     }
 
-    /// Merge current transformation with values from the [`Builder`] respectively
+    /// Merge current transformation with values from the [`TransformBuilder`] respectively
     #[must_use]
-    pub fn merge(&self, builder: &Builder) -> Self {
+    pub fn merge(&self, builder: &TransformBuilder) -> Self {
         Self {
             translate: builder.translate.unwrap_or(self.translate),
             rotate: builder.rotate.unwrap_or(self.rotate),
@@ -141,7 +138,7 @@ impl Default for Transform {
     fn default() -> Self {
         Self {
             translate: Vec3::new(0.0, 0.0, 0.0),
-            rotate: Quat::from_angle_y(Rad(0.0)),
+            rotate: Quat::from_rotation_y(0.0),
             scale: Vec3::new(1.0, 1.0, 1.0),
         }
     }
