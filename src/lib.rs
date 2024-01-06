@@ -15,24 +15,42 @@
 #![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
 //#![warn(missing_docs)]
 
+/// Loaders for assets from resources
+pub mod loaders;
+pub use loaders::{ImportResource, ResourceFile};
+
 /// Logging utilities
 pub mod log;
 pub use crate::log::Log;
 
+/// Math module
+pub mod math;
+
+/// Models abstractions
+pub mod models;
+pub use models::{
+    VertexAttribute, VertexBitangent, VertexJoints, VertexNormal, VertexPosition, VertexTangent,
+    VertexTexture, VertexWeights,
+};
+
 /// Rendering tools and routines
 pub mod render;
-pub use render::{DeviceType, Display, Extent2D, Frame, Gpu, Renderer, Semaphore};
+pub use render::{DeviceType, Display, Extent2D, Format, Frame, Gpu, Renderer, Semaphore};
 
 /// Tasks and execution
 pub mod tasks;
 pub use tasks::{All, Any, Mut, Output, Ref, State, Take, Task, TaskManager};
 
+/// Utils
+pub mod utils;
+
+/// World
+pub mod world;
+pub use world::World;
+
 /// Window API and input events
 pub mod window;
 pub use window::Window;
-
-/// Utils
-pub mod utils;
 
 //pub use utils::{ Id };
 

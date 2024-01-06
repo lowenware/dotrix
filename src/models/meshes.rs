@@ -1,19 +1,19 @@
-use dotrix_assets as assets;
-use dotrix_math::{InnerSpace, Vec2, Vec3, VectorSpace};
-use dotrix_types::{id, vertex};
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
-pub mod armature;
-pub use armature::{Armature, Joint};
+use crate::loaders::Asset;
+use crate::math::{Vec2, Vec3};
+use crate::render::Format;
+use crate::utils::Id;
 
-pub mod animation;
-pub use animation::Animation;
+use super::{
+    VertexAttribute, VertexBitangent, VertexNormal, VertexPosition, VertexTangent, VertexTexture,
+};
 
 /// 3D Model Mesh
 pub struct Mesh {
-    label: String,
+    name: String,
     vertices: HashMap<TypeId, AttributeValues>,
     vertices_count: usize,
     indices: Option<Vec<u32>>,
@@ -21,9 +21,9 @@ pub struct Mesh {
 
 impl Mesh {
     /// Constructs new Mesh instance
-    pub fn new(label: impl ToString) -> Self {
+    pub fn new(name: impl ToString) -> Self {
         Self {
-            label: label.to_string(),
+            name: name.to_string(),
             vertices: HashMap::new(),
             vertices_count: 0,
             indices: None,
@@ -31,17 +31,17 @@ impl Mesh {
     }
 
     /// Constructs a cube mesh
-    pub fn cube(label: String) -> Self {
-        Mesh::generate(label, genmesh::generators::Cube::new())
+    pub fn cube(name: String) -> Self {
+        Mesh::generate(name, genmesh::generators::Cube::new())
     }
 
     /// Constructs a cylinder mesh
     /// `u` is the number of points across the radius
     ///
     /// `h` is the number of segments across the height
-    pub fn cylinder(label: String, u: usize, h: Option<usize>) -> Self {
+    pub fn cylinder(name: String, u: usize, h: Option<usize>) -> Self {
         Mesh::generate(
-            label,
+            name,
             h.map_or_else(
                 || genmesh::generators::Cylinder::new(u),
                 |h| genmesh::generators::Cylinder::subdivide(u, h),
@@ -54,15 +54,15 @@ impl Mesh {
     /// `u` is the number of points across the equator of the sphere
     ///
     /// `v` is the number of points from pole to pole
-    pub fn sphere(label: String, u: usize, v: usize) -> Self {
-        Mesh::generate(label, genmesh::generators::SphereUv::new(u, v))
+    pub fn sphere(name: String, u: usize, v: usize) -> Self {
+        Mesh::generate(name, genmesh::generators::SphereUv::new(u, v))
     }
 
     /// Constructs a cone mesh
     ///
     /// `u` is the number of subdivisions around the radius and it must be greater then 1
-    pub fn cone(label: String, u: usize) -> Self {
-        Mesh::generate(label, genmesh::generators::Cone::new(u))
+    pub fn cone(name: String, u: usize) -> Self {
+        Mesh::generate(name, genmesh::generators::Cone::new(u))
     }
 
     /// Constructs a torus mesh
@@ -76,14 +76,14 @@ impl Mesh {
     ///
     /// `radial_segments` is  the number of tube segments requested to generate, must be at least 3
     pub fn torus(
-        label: String,
+        name: String,
         radius: f32,
         tubular_radius: f32,
         radial_segments: usize,
         tubular_segments: usize,
     ) -> Self {
         Mesh::generate(
-            label,
+            name,
             genmesh::generators::Torus::new(
                 radius,
                 tubular_radius,
@@ -93,7 +93,7 @@ impl Mesh {
         )
     }
 
-    fn generate<G, I, P>(label: String, generator: G) -> Self
+    fn generate<G, I, P>(name: String, generator: G) -> Self
     where
         I: genmesh::EmitTriangles<Vertex = genmesh::Vertex>,
         I::Vertex: Clone + Copy + PartialEq,
@@ -104,7 +104,7 @@ impl Mesh {
     {
         use genmesh::{MapVertex, Triangulate, Vertices};
 
-        let mut mesh = Mesh::new(label);
+        let mut mesh = Mesh::new(name);
         let vertices = generator.shared_vertex_iter().collect::<Vec<_>>();
         let vertices_count = vertices.len();
         let mut positions = Vec::with_capacity(vertices_count);
@@ -130,15 +130,15 @@ impl Mesh {
             tex_uvs.push(tex_uv);
         }
 
-        mesh.set_vertices::<vertex::Position>(positions);
-        mesh.set_vertices::<vertex::Normal>(normals);
-        mesh.set_vertices::<vertex::TexUV>(tex_uvs);
+        mesh.set_vertices::<VertexPosition>(positions);
+        mesh.set_vertices::<VertexNormal>(normals);
+        mesh.set_vertices::<VertexTexture>(tex_uvs);
 
         mesh
     }
 
     /// Sets vertices attributes by Type
-    pub fn set_vertices<A: vertex::Attribute>(&mut self, values: Vec<A::Raw>) {
+    pub fn set_vertices<A: VertexAttribute>(&mut self, values: Vec<A::Raw>) {
         let vertices_count = values.len();
 
         // assert vertices count
@@ -146,7 +146,7 @@ impl Mesh {
             if self.vertices_count != 0 {
                 panic!(
                     "Mesh '{}' has {} vertices, but attribute '{}' was given with {} values.",
-                    self.label,
+                    self.name,
                     self.vertices_count,
                     A::name(),
                     vertices_count
@@ -173,7 +173,7 @@ impl Mesh {
     }
 
     /// Returns slice of vertices attributes if exists
-    pub fn vertices<A: vertex::Attribute>(&self) -> Option<&[A::Raw]> {
+    pub fn vertices<A: VertexAttribute>(&self) -> Option<&[A::Raw]> {
         self.vertices
             .get(&TypeId::of::<A>())
             .map(|values| bytemuck::cast_slice(&values.bytes))
@@ -254,7 +254,7 @@ impl Mesh {
 
     /// Calculates normals for the Mesh
     pub fn calculate_normals(&self) -> Option<Vec<[f32; 3]>> {
-        self.vertices::<vertex::Position>().map(|positions| {
+        self.vertices::<VertexPosition>().map(|positions| {
             let mut normals = vec![[99.9; 3]; self.vertices_count];
             let faces = self.count_faces();
             for face in 0..faces {
@@ -292,18 +292,18 @@ impl Mesh {
 
     /// Calculates normals for the mesh and stores them
     pub fn auto_normals(&mut self) {
-        if self.vertices.contains_key(&TypeId::of::<vertex::Normal>()) {
+        if self.vertices.contains_key(&TypeId::of::<VertexNormal>()) {
             return;
         }
         if let Some(normals) = self.calculate_normals() {
-            self.set_vertices::<vertex::Normal>(normals);
+            self.set_vertices::<VertexNormal>(normals);
         }
     }
 
     /// Calculates tangents for the mesh
     pub fn calculate_tangents_bitangents(&self) -> Option<(Vec<[f32; 3]>, Vec<[f32; 3]>)> {
-        self.vertices::<vertex::Position>()
-            .zip(self.vertices::<vertex::TexUV>())
+        self.vertices::<VertexPosition>()
+            .zip(self.vertices::<VertexTexture>())
             .map(|(positions, uvs)| {
                 let mut tangents = vec![[99.9; 3]; self.vertices_count];
                 let mut bitangents = vec![[99.9; 3]; self.vertices_count];
@@ -381,22 +381,20 @@ impl Mesh {
 
     /// Calculates tangents for the mesh and stores them
     pub fn auto_tangents_bitangents(&mut self) {
-        let has_tangents = self.vertices.contains_key(&TypeId::of::<vertex::Tangent>());
-        let has_bitangents = self
-            .vertices
-            .contains_key(&TypeId::of::<vertex::Bitangent>());
+        let has_tangents = self.vertices.contains_key(&TypeId::of::<VertexTangent>());
+        let has_bitangents = self.vertices.contains_key(&TypeId::of::<VertexBitangent>());
         if has_tangents && has_bitangents {
             return;
         }
         if let Some((tangents, bitangents)) = self.calculate_tangents_bitangents() {
-            self.set_vertices::<vertex::Tangent>(tangents);
-            self.set_vertices::<vertex::Bitangent>(bitangents);
+            self.set_vertices::<VertexTangent>(tangents);
+            self.set_vertices::<VertexBitangent>(bitangents);
         }
     }
 }
 
 pub struct AttributeValues {
-    format: vertex::AttributeFormat,
+    format: Format,
     bytes: Vec<u8>,
 }
 
@@ -413,13 +411,13 @@ pub struct VertexAttributeIter<T> {
     _phantom_data: PhantomData<T>,
 }
 
-pub type VertexAttributeIterItem = (vertex::AttributeFormat, u64, u32);
+pub type VertexAttributeIterItem = (Format, u64, u32);
 
 macro_rules! impl_layout {
     (($($i: ident),*)) => {
         impl<$($i,)*> VertexBufferLayout for ($($i,)*)
         where
-            $($i: vertex::Attribute,)*
+            $($i: VertexAttribute,)*
         {
             type Layout = ($($i,)*);
 
@@ -444,7 +442,7 @@ macro_rules! impl_layout {
 
         impl<$($i,)*> Iterator for VertexAttributeIter<($($i,)*)>
         where
-            $($i: vertex::Attribute,)*
+            $($i: VertexAttribute,)*
         {
             type Item = VertexAttributeIterItem;
             fn next(&mut self) -> Option<VertexAttributeIterItem> {
@@ -478,36 +476,9 @@ impl_layout!((A, B, C, D, E, F, G));
 impl_layout!((A, B, C, D, E, F, G, H));
 impl_layout!((A, B, C, D, E, F, G, H, I));
 impl_layout!((A, B, C, D, E, F, G, H, I, J));
-impl_layout!((A, B, C, D, E, F, G, H, I, J, K));
-impl_layout!((A, B, C, D, E, F, G, H, I, J, K, L));
-impl_layout!((A, B, C, D, E, F, G, H, I, J, K, L, M));
-impl_layout!((A, B, C, D, E, F, G, H, I, J, K, L, M, N));
-impl_layout!((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O));
-impl_layout!((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P));
 
-impl id::NameSpace for Mesh {
-    fn namespace() -> u64 {
-        assets::NAMESPACE | 0x01
-    }
-}
-
-impl assets::Asset for Mesh {
+impl Asset for Mesh {
     fn name(&self) -> &str {
-        &self.label
-    }
-
-    fn namespace(&self) -> u64 {
-        <Self as id::NameSpace>::namespace()
+        &self.name
     }
 }
-
-/*
- * #[cfg(test)]
- * mod tests {
- *    #[test]
- *    fn it_works() {
- *        let result = 2 + 2;
- *        assert_eq!(result, 4);
- *    }
- *}
- */

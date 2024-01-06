@@ -1,15 +1,15 @@
+mod storage;
+
 use std::sync::{Arc, Condvar, Mutex};
 use std::{any::TypeId, collections::HashMap, marker::PhantomData};
 
-use dotrix_types::type_lock::{Lock, LockMode};
-use dotrix_types::{recursive, type_lock, Id};
-
-use crate::archetype;
-use crate::{Entity, IntoEntity, NAMESPACE};
+use crate::recursive;
+use crate::utils::{Id, Lock, TypeLock};
+pub use storage::{Entity, IntoEntity};
 
 #[derive(Default, Debug, Eq, PartialEq)]
 struct Index {
-    /// Container Index
+    /// storage::Container Index
     container: usize,
     /// Entity Index
     address: usize,
@@ -18,13 +18,13 @@ struct Index {
 /// Service to store and manage entities
 pub struct World {
     /// Entities container grouped by archetypes
-    content: Vec<archetype::Container>,
+    content: Vec<storage::Container>,
     /// Index of the container that holds Entity
     index: HashMap<Id<Entity>, Index>,
     /// Spawn counter for Entity ID generation
     next_id: u64,
     /// Lock for multithread safety
-    lock: Arc<(Mutex<type_lock::TypeLock>, Condvar)>,
+    lock: Arc<(Mutex<TypeLock>, Condvar)>,
 }
 
 impl World {
@@ -34,7 +34,7 @@ impl World {
             content: Vec::new(),
             index: HashMap::new(),
             next_id: 1,
-            lock: Arc::new((Mutex::new(type_lock::TypeLock::new()), Condvar::new())),
+            lock: Arc::new((Mutex::new(TypeLock::new()), Condvar::new())),
         }
     }
 
@@ -147,7 +147,7 @@ impl World {
 
     fn create_container_for_entity(&mut self, entity: &Entity) -> usize {
         let index = self.content.len();
-        self.content.push(archetype::Container::from(entity));
+        self.content.push(storage::Container::from(entity));
         index
     }
 
@@ -164,11 +164,11 @@ pub trait Query<'w> {
     /// Returns vector of locks necesary for the query execution
     fn locks() -> Vec<Lock>;
     /// Selects entities from container
-    fn select(container: &'w archetype::Container) -> Self::Iter;
-    /// Checks if [`Query`] matches the [`archetype::Container`]
-    fn matches(container: &'w archetype::Container) -> bool;
+    fn select(container: &'w storage::Container) -> Self::Iter;
+    /// Checks if [`Query`] matches the [`storage::Container`]
+    fn matches(container: &'w storage::Container) -> bool;
     /// Pick specific entity by its index in container
-    fn pick(container: &'w archetype::Container, entity_index: usize) -> Self;
+    fn pick(container: &'w storage::Container, entity_index: usize) -> Self;
 }
 
 /// Trait defenition of Selector to control mutability of borrows
@@ -176,8 +176,8 @@ pub trait Selector<'w> {
     type Iter: Iterator + 'w;
     type Component: std::any::Any;
 
-    fn borrow(container: &'w archetype::Container) -> Self::Iter;
-    fn borrow_one(container: &'w archetype::Container, entity_index: usize) -> Self;
+    fn borrow(container: &'w storage::Container) -> Self::Iter;
+    fn borrow_one(container: &'w storage::Container, entity_index: usize) -> Self;
     fn lock() -> Lock;
 }
 
@@ -186,14 +186,14 @@ where
     C: Send + Sync + 'static,
 {
     // type Iter = std::slice::Iter<'w, C>;
-    type Iter = archetype::Iter<'w, C>;
+    type Iter = storage::Iter<'w, C>;
     type Component = C;
 
-    fn borrow(container: &'w archetype::Container) -> Self::Iter {
+    fn borrow(container: &'w storage::Container) -> Self::Iter {
         container.iter::<C>()
     }
 
-    fn borrow_one(container: &'w archetype::Container, entity_index: usize) -> Self {
+    fn borrow_one(container: &'w storage::Container, entity_index: usize) -> Self {
         container.get::<C>(entity_index).unwrap()
     }
 
@@ -206,14 +206,14 @@ impl<'w, C> Selector<'w> for &'w mut C
 where
     C: Send + Sync + 'static,
 {
-    type Iter = archetype::IterMut<'w, C>;
+    type Iter = storage::IterMut<'w, C>;
     type Component = C;
 
-    fn borrow(container: &'w archetype::Container) -> Self::Iter {
+    fn borrow(container: &'w storage::Container) -> Self::Iter {
         unsafe { container.iter_mut::<C>() }
     }
 
-    fn borrow_one(container: &'w archetype::Container, entity_index: usize) -> Self {
+    fn borrow_one(container: &'w storage::Container, entity_index: usize) -> Self {
         unsafe { container.get_mut::<C>(entity_index).unwrap() }
     }
 
@@ -236,11 +236,11 @@ macro_rules! impl_queries {
         {
             type Iter = Zipper<'w, ($($i::Iter,)*)>;
 
-            fn pick(container: &'w archetype::Container, entity_index: usize) -> ($($i,)*) {
+            fn pick(container: &'w storage::Container, entity_index: usize) -> ($($i,)*) {
                 ($({$i::borrow_one(container, entity_index)},)*)
             }
 
-            fn select(container: &'w archetype::Container) -> Self::Iter {
+            fn select(container: &'w storage::Container) -> Self::Iter {
                 Zipper {
                     tuple: ($({$i::borrow(container)},)*),
                     // tuple: ($(container.get::<$i::Component>().unwrap().into_iter(),)*),
@@ -248,7 +248,7 @@ macro_rules! impl_queries {
                 }
             }
 
-            fn matches(container: &'w archetype::Container) -> bool
+            fn matches(container: &'w storage::Container) -> bool
             {
                 $(
                     container.contains(TypeId::of::<$i::Component>())
@@ -293,8 +293,8 @@ where
     I: Iterator,
 {
     iter: I,
-    locks: Vec<type_lock::Lock>,
-    lock_manager: Arc<(Mutex<type_lock::TypeLock>, Condvar)>,
+    locks: Vec<Lock>,
+    lock_manager: Arc<(Mutex<TypeLock>, Condvar)>,
 }
 
 impl<I> Drop for QueryIter<I>
@@ -344,7 +344,7 @@ where
     type Item = Id<Entity>;
     fn next(&mut self) -> Option<Self::Item> {
         self.entries.next().map(|entry| {
-            let id = Id::<Entity>::new(NAMESPACE, self.world.next_id());
+            let id = Id::<Entity>::new();
             let volatile = T::volatile();
             let mut entity = entry.entity().with(id);
             self.container_index = self
