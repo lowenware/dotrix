@@ -4,7 +4,7 @@
 
 use dotrix::log;
 
-const APP_NAME: &str = "Dotrix Studio";
+const APP_NAME: &str = "Dotrix Demo";
 
 fn main() {
     // Initialize logging

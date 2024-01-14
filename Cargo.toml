@@ -15,8 +15,8 @@ name = "dotrix"
 path = "src/lib.rs"
 
 [[bin]]
-name = "studio"
-path = "studio/main.rs"
+name = "demo"
+path = "demo/main.rs"
 
 [features]
 default = []
