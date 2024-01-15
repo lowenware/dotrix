@@ -17,7 +17,7 @@
 
 /// Loaders for assets from resources
 pub mod loaders;
-pub use loaders::{ImportResource, ResourceFile};
+pub use loaders::{Asset, Assets, ImportResource, ResourceFile};
 
 /// Logging utilities
 pub mod log;
@@ -29,8 +29,9 @@ pub mod math;
 /// Models abstractions
 pub mod models;
 pub use models::{
-    VertexAttribute, VertexBitangent, VertexJoints, VertexNormal, VertexPosition, VertexTangent,
-    VertexTexture, VertexWeights,
+    Animation, Armature, Color, Image, Joint, Material, Mesh, Model, Transform, VertexAttribute,
+    VertexBitangent, VertexJoints, VertexNormal, VertexPosition, VertexTangent, VertexTexture,
+    VertexWeights,
 };
 
 /// Rendering tools and routines
@@ -43,10 +44,11 @@ pub use tasks::{All, Any, Mut, Output, Ref, State, Take, Task, TaskManager};
 
 /// Utils
 pub mod utils;
+pub use utils::Id;
 
 /// World
 pub mod world;
-pub use world::World;
+pub use world::{Entity, World};
 
 /// Window API and input events
 pub mod window;

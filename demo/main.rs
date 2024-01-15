@@ -1,6 +1,7 @@
 // mod camera;
 // mod states;
 // mod ui;
+mod scene;
 
 use dotrix::log;
 
@@ -13,11 +14,13 @@ fn main() {
         .level("*", log::LevelFilter::Debug)
         .subscribe();
 
+    // get version from Cargo.toml
     let version = env!("CARGO_PKG_VERSION_MAJOR")
         .parse::<u32>()
         .ok()
         .unwrap_or(0);
 
+    // Setup dotrix core
     let (mut display, gpu, event_loop) = dotrix::Core::setup()
         .application_name(APP_NAME)
         .application_version(version)
@@ -26,6 +29,7 @@ fn main() {
         .create()
         .into_tuple();
 
+    // Setup rendering semaphores
     let present_complete_semaphore = gpu.create_semaphore();
     let renderer = dotrix::Renderer::setup()
         .surface_format(display.surface_format())
@@ -36,9 +40,17 @@ fn main() {
     display.set_render_complete_semaphore(render_complete_semaphore);
     display.set_present_complete_semaphore(present_complete_semaphore);
 
+    // run application
     dotrix::run(event_loop, |scheduler| {
+        // add Assets context
+        scheduler.add_context(dotrix::Assets::default());
+        // add Display context
         scheduler.add_context(display);
-        // scheduler.add_context(my_context);
+        // add World context
+        scheduler.add_context(dotrix::World::default());
+        // add spawner tasks
+        scheduler.add_task(scene::SpawnEntities::default());
+        // add rendering task
         scheduler.add_task(renderer);
     });
 }

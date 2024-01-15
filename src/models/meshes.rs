@@ -31,7 +31,7 @@ impl Mesh {
     }
 
     /// Constructs a cube mesh
-    pub fn cube(name: String) -> Self {
+    pub fn cube(name: impl ToString) -> Self {
         Mesh::generate(name, genmesh::generators::Cube::new())
     }
 
@@ -39,7 +39,7 @@ impl Mesh {
     /// `u` is the number of points across the radius
     ///
     /// `h` is the number of segments across the height
-    pub fn cylinder(name: String, u: usize, h: Option<usize>) -> Self {
+    pub fn cylinder(name: impl ToString, u: usize, h: Option<usize>) -> Self {
         Mesh::generate(
             name,
             h.map_or_else(
@@ -54,14 +54,14 @@ impl Mesh {
     /// `u` is the number of points across the equator of the sphere
     ///
     /// `v` is the number of points from pole to pole
-    pub fn sphere(name: String, u: usize, v: usize) -> Self {
+    pub fn sphere(name: impl ToString, u: usize, v: usize) -> Self {
         Mesh::generate(name, genmesh::generators::SphereUv::new(u, v))
     }
 
     /// Constructs a cone mesh
     ///
     /// `u` is the number of subdivisions around the radius and it must be greater then 1
-    pub fn cone(name: String, u: usize) -> Self {
+    pub fn cone(name: impl ToString, u: usize) -> Self {
         Mesh::generate(name, genmesh::generators::Cone::new(u))
     }
 
@@ -76,7 +76,7 @@ impl Mesh {
     ///
     /// `radial_segments` is  the number of tube segments requested to generate, must be at least 3
     pub fn torus(
-        name: String,
+        name: impl ToString,
         radius: f32,
         tubular_radius: f32,
         radial_segments: usize,
@@ -93,7 +93,7 @@ impl Mesh {
         )
     }
 
-    fn generate<G, I, P>(name: String, generator: G) -> Self
+    fn generate<G, I, P>(name: impl ToString, generator: G) -> Self
     where
         I: genmesh::EmitTriangles<Vertex = genmesh::Vertex>,
         I::Vertex: Clone + Copy + PartialEq,
