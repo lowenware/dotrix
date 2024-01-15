@@ -41,18 +41,18 @@ impl World {
     /// Spawn single or multiple entities in the world
     ///
     /// Returns number of spawned entities
-    pub fn spawn<T, I>(&mut self, entries: I) -> usize
+    pub fn spawn_and_count<T, I>(&mut self, entries: I) -> usize
     where
         T: IntoEntity,
         I: IntoIterator<Item = T>,
     {
-        self.spawn_iter(entries).count()
+        self.spawn(entries).count()
     }
 
     /// Returns an iterator over entity IDs
     ///
     /// Actual spawning of the entity occurs on iterator consuming
-    pub fn spawn_iter<T, I>(&mut self, entries: I) -> SpawnIter<I, T>
+    pub fn spawn<T, I>(&mut self, entries: I) -> SpawnIter<I, T>
     where
         T: IntoEntity,
         I: IntoIterator<Item = T>,

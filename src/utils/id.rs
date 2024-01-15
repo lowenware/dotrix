@@ -42,7 +42,7 @@ impl<T> Id<T> {
 
     /// Construct new null id
     pub fn null() -> Self {
-        Self::from((0, 0))
+        Self::default()
     }
 
     /// Checks if id is null
