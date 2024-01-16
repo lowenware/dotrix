@@ -5,7 +5,6 @@ use std::marker::PhantomData;
 use crate::loaders::Asset;
 use crate::math::{Vec2, Vec3};
 use crate::render::Format;
-use crate::utils::Id;
 
 use super::{
     VertexAttribute, VertexBitangent, VertexNormal, VertexPosition, VertexTangent, VertexTexture,

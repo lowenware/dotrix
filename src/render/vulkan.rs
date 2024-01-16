@@ -631,8 +631,6 @@ impl Display {
 
         let swapchain = unsafe { Swapchain::create(&device, &surface) };
 
-        let semaphore_create_info = vk::SemaphoreCreateInfo::default();
-
         Self {
             device,
             surface,

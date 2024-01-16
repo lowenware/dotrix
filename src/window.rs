@@ -1,12 +1,13 @@
+mod input;
 mod map;
 
 pub mod event;
 
-use crate::log;
 use crate::render::Extent2D;
 use std::sync::Arc;
 
 pub use event::Event;
+pub use input::ReadInput;
 
 /// Window resize request context
 #[derive(Default, Debug)]

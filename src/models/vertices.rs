@@ -1,4 +1,4 @@
-use crate::math::{Vec2, Vec3};
+use crate::math::Vec3;
 use crate::render::Format;
 
 pub trait VertexAttribute: 'static {

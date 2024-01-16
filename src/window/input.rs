@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-use dotrix_core as dotrix;
-use dotrix_log as log;
-use dotrix_types::Frame;
+use crate::render::Frame;
+use crate::tasks::{All, Any, Take, Task};
 
-pub use create::window::event::{Button, DragAndDrop, Event, KeyCode, Modifiers, MouseScroll, ScanCode};
+pub use super::event::{Button, DragAndDrop, Event, KeyCode, Modifiers, MouseScroll, ScanCode};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ScreenVector {
@@ -27,20 +26,20 @@ pub struct Input {
 }
 
 #[derive(Default)]
-pub struct ListenTask {
+pub struct ReadInput {
     modifiers: Modifiers,
     hold: HashMap<Button, Instant>,
     mouse_position: ScreenVector,
 }
 
-impl ListenTask {
+impl ReadInput {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl dotrix::Task for ListenTask {
-    type Context = (dotrix::Take<dotrix::All<Event>>, dotrix::Any<Frame>);
+impl Task for ReadInput {
+    type Context = (Take<All<Event>>, Any<Frame>);
     type Output = Input; // :)
     fn run(&mut self, (mut events, _): Self::Context) -> Self::Output {
         let capacity = events.len();

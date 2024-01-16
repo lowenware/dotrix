@@ -76,15 +76,16 @@ impl Task for CreateFrame {
             .unwrap_or_else(|| Duration::from_secs_f32(1.0 / self.fps_request.unwrap_or(60.0)));
 
         // resize surface before aquiring of the new frame
+        let mut resized = false;
         if display.surface_resize_request() {
             display.resize_surface();
+            resized = true;
         }
         let surface_resolution = display.surface_resolution();
 
         let swapchain_index = display.next_frame();
         // TODO: scale factor comes from a window, so shall it be taken from `Window` instance?
         let scale_factor = 1.0;
-        let mut resized = false;
 
         // update frames durations buffer
         if self.frames_duration.len() == self.frames_duration.capacity() {
