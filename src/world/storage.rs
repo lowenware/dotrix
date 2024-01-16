@@ -2,8 +2,6 @@ use std::any::{Any, TypeId};
 use std::collections::{hash_map, HashMap};
 use std::marker::PhantomData;
 
-use crate::utils::Id;
-
 /// Entity structure has only id field and represent an agregation of components
 pub struct Entity {
     map: HashMap<TypeId, Box<dyn Any>>,
@@ -43,7 +41,7 @@ pub struct Archetype<'a> {
 }
 
 impl<'a> Archetype<'a> {
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.len
     }
 }

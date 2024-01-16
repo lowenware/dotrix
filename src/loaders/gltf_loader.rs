@@ -119,7 +119,7 @@ impl GltfLoader {
                 }
                 gltf::buffer::Source::Uri(uri) => {
                     if let Some(stripped) = uri.strip_prefix(URI_BASE64) {
-                        match base64::decode(stripped) {
+                        match base64_decode(stripped) {
                             Ok(buffer) => buffers.push(buffer),
                             Err(e) => {
                                 log::error!("Could not decode Base64 buffer: {:?}", e);
@@ -389,7 +389,7 @@ impl GltfLoader {
                         return Id::default();
                     }
 
-                    match base64::decode(&uri[URI_IMAGE_PNG.len()..]) {
+                    match base64_decode(&uri[URI_IMAGE_PNG.len()..]) {
                         Ok(data) => (data, ImageFormat::Png),
                         Err(e) => {
                             log::error!("Could not decode texture data: {:?}", e);
@@ -484,4 +484,10 @@ impl GltfLoader {
 
         output.result.push(Box::new(asset));
     }
+}
+
+fn base64_decode<T: AsRef<[u8]>>(input: T) -> Result<Vec<u8>, base64::DecodeError> {
+    use base64::Engine;
+    let engine = base64::engine::general_purpose::STANDARD;
+    engine.decode(input)
 }

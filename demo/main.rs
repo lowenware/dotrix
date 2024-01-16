@@ -31,7 +31,7 @@ fn main() {
 
     // Setup rendering semaphores
     let present_complete_semaphore = gpu.create_semaphore();
-    let renderer = dotrix::Renderer::setup()
+    let renderer = dotrix::RenderModels::setup()
         .surface_format(display.surface_format())
         .wait_semaphores([present_complete_semaphore.clone()])
         .create(gpu.clone());

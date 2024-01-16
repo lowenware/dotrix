@@ -1,7 +1,6 @@
 //! data structure and constructors
 use super::VertexAttribute;
 use crate::render::Format;
-use std::ops::{Index, IndexMut};
 
 pub trait Channel {
     fn value(value: f32) -> Self;

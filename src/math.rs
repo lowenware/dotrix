@@ -1,9 +1,4 @@
-//! Dotrix wrapper around cgmath
-//!
-//! This crate will either turn into our native implementation of become a wrapper to nalgebra.
-
-#![doc(html_logo_url = "https://raw.githubusercontent.com/lowenware/dotrix/master/logo.png")]
-#![warn(missing_docs)]
+//! Dotrix wrapper around glam
 
 pub use glam::{
     IVec2 as Vec2i, IVec3 as Vec3i, IVec4 as Vec4i, Mat3, Mat4, Quat, UVec2 as Vec2u,

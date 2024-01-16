@@ -36,7 +36,7 @@ pub use models::{
 
 /// Rendering tools and routines
 pub mod render;
-pub use render::{DeviceType, Display, Extent2D, Format, Frame, Gpu, Renderer, Semaphore};
+pub use render::{DeviceType, Display, Extent2D, Format, Frame, Gpu, RenderModels, Semaphore};
 
 /// Tasks and execution
 pub mod tasks;
@@ -52,7 +52,7 @@ pub use world::{Entity, World};
 
 /// Window API and input events
 pub mod window;
-pub use window::Window;
+pub use window::{ReadInput, Window};
 
 //pub use utils::{ Id };
 

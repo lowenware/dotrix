@@ -21,8 +21,8 @@ pub struct World {
     content: Vec<storage::Container>,
     /// Index of the container that holds Entity
     index: HashMap<Id<Entity>, Index>,
-    /// Spawn counter for Entity ID generation
-    next_id: u64,
+    // /// Spawn counter for Entity ID generation
+    // next_id: u64,
     /// Lock for multithread safety
     lock: Arc<(Mutex<TypeLock>, Condvar)>,
 }
@@ -33,7 +33,7 @@ impl World {
         Self {
             content: Vec::new(),
             index: HashMap::new(),
-            next_id: 1,
+            // next_id: 1,
             lock: Arc::new((Mutex::new(TypeLock::new()), Condvar::new())),
         }
     }
@@ -101,7 +101,7 @@ impl World {
         Q: Query<'w> + 'w,
         S: Fn(<<Q as Query<'_>>::Iter as Iterator>::Item),
     {
-        /// TODO: parallelize
+        // TODO: parallelize
         for item in self.query::<Q>() {
             system(item);
         }
@@ -134,14 +134,14 @@ impl World {
     /// Clear entities from the world and reset to initial state
     pub fn reset(&mut self) {
         self.clear();
-        self.next_id = 0;
+        // self.next_id = 0;
     }
 
     fn find_container_for_entity(&self, entity: &Entity) -> Option<usize> {
         self.content
             .iter()
             .enumerate()
-            .find(|(index, container)| container.matches(&mut entity.archetype()))
+            .find(|(_, container)| container.matches(&mut entity.archetype()))
             .map(|(index, _)| index)
     }
 
@@ -151,11 +151,11 @@ impl World {
         index
     }
 
-    fn next_id(&mut self) -> u64 {
-        let next_id = self.next_id;
-        self.next_id += 1;
-        next_id
-    }
+    // fn next_id(&mut self) -> u64 {
+    //    let next_id = self.next_id;
+    //    self.next_id += 1;
+    //    next_id
+    // }
 }
 
 /// Abstraction for queries inoked by [`World::query`]
@@ -346,7 +346,7 @@ where
         self.entries.next().map(|entry| {
             let id = Id::<Entity>::new();
             let volatile = T::volatile();
-            let mut entity = entry.entity().with(id);
+            let entity = entry.entity().with(id);
             self.container_index = self
                 .container_index
                 // container was previously set
@@ -362,7 +362,7 @@ where
 
             let index = {
                 let container_index = self.container_index.unwrap();
-                let mut container = &mut self.world.content[container_index];
+                let container = &mut self.world.content[container_index];
                 let address = container.store(entity);
                 Index {
                     container: container_index,
@@ -373,7 +373,7 @@ where
             id
         })
     }
-    fn count(mut self) -> usize {
+    fn count(self) -> usize {
         let mut result = 0;
         for _ in self {
             result += 1;

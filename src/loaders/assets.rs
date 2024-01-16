@@ -94,7 +94,6 @@ impl Assets {
 
     /// Stores an already boxed asset
     pub fn store(&mut self, asset: Box<dyn Asset>) -> (u64, u64) {
-        let asset_name = asset.name();
         let uuid = self
             .registry
             .entry(String::from(asset.name()))

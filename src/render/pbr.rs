@@ -4,7 +4,7 @@ use crate::render::vk;
 use crate::render::{CommandRecorder, Framebuffers, Semaphore};
 use crate::{Any, Display, Frame, Gpu, Ref, Task};
 
-pub struct Renderer {
+pub struct RenderModels {
     gpu: Gpu,
     wait_semaphores: Vec<Semaphore>,
     signal_semaphore: Semaphore,
@@ -18,7 +18,7 @@ pub struct Renderer {
     surface_version: u64,
 }
 
-impl Drop for Renderer {
+impl Drop for RenderModels {
     fn drop(&mut self) {
         unsafe {
             self.gpu.destroy_command_pool(self.command_pool);
@@ -31,7 +31,7 @@ impl Drop for Renderer {
     }
 }
 
-impl Task for Renderer {
+impl Task for RenderModels {
     type Context = (Any<Frame>, Ref<Display>);
     type Output = RenderPass;
 
@@ -55,12 +55,12 @@ impl Task for Renderer {
     }
 }
 
-impl Renderer {
-    pub fn setup() -> RendererSetup {
-        RendererSetup::default()
+impl RenderModels {
+    pub fn setup() -> RenderModelsSetup {
+        RenderModelsSetup::default()
     }
 
-    pub fn new(gpu: Gpu, setup: RendererSetup) -> Self {
+    pub fn new(gpu: Gpu, setup: RenderModelsSetup) -> Self {
         let pool_create_info = vk::CommandPoolCreateInfo::builder()
             .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
             .queue_family_index(gpu.queue_family_index())
@@ -229,12 +229,12 @@ impl Renderer {
 }
 
 #[derive(Default)]
-pub struct RendererSetup {
+pub struct RenderModelsSetup {
     wait_semaphores: Vec<Semaphore>,
     surface_format: vk::Format,
 }
 
-impl RendererSetup {
+impl RenderModelsSetup {
     pub fn wait_semaphores(mut self, semaphores: impl IntoIterator<Item = Semaphore>) -> Self {
         self.wait_semaphores.extend(semaphores);
         self
@@ -245,7 +245,7 @@ impl RendererSetup {
         self
     }
 
-    pub fn create(self, gpu: Gpu) -> Renderer {
-        Renderer::new(gpu, self)
+    pub fn create(self, gpu: Gpu) -> RenderModels {
+        RenderModels::new(gpu, self)
     }
 }
