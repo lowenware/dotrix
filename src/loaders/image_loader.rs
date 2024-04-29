@@ -3,9 +3,9 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
+use crate::graphics::Extent2D;
 use crate::log;
 use crate::models::{Image, ImageFormat};
-use crate::render::Extent2D;
 
 use super::{Asset, ResourceBundle, ResourceLoader, ResourceTarget};
 

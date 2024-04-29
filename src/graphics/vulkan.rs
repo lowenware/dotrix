@@ -393,6 +393,32 @@ impl Gpu {
     }
 
     #[inline(always)]
+    pub unsafe fn get_buffer_memory_requirements(
+        &self,
+        buffer: vk::Buffer,
+    ) -> vk::MemoryRequirements {
+        self.device.vk_device.get_buffer_memory_requirements(buffer)
+    }
+
+    #[inline(always)]
+    pub unsafe fn allocate_memory(
+        &self,
+        memory_allocate_info: &vk::MemoryAllocateInfo,
+    ) -> Result<vk::DeviceMemory, vk::Result> {
+        self.device
+            .vk_device
+            .allocate_memory(memory_allocate_info, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn create_buffer(&self, buffer_create_info: &vk::BufferCreateInfo) -> vk::Buffer {
+        self.device
+            .vk_device
+            .create_buffer(buffer_create_info, None)
+            .expect("Failed to create a vk::Buffer")
+    }
+
+    #[inline(always)]
     pub unsafe fn create_render_pass(
         &self,
         render_pass_create_info: &vk::RenderPassCreateInfo,
@@ -474,6 +500,22 @@ impl Gpu {
     #[inline(always)]
     pub unsafe fn reset_fences(&self, fences: &[vk::Fence]) -> Result<(), vk::Result> {
         self.device.vk_device.reset_fences(fences)
+    }
+
+    pub fn find_memory_type_index(
+        &self,
+        memory_requirements: &vk::MemoryRequirements,
+        flags: vk::MemoryPropertyFlags,
+    ) -> Option<u32> {
+        let memory_type_count = self.device.memory_properties.memory_type_count;
+        self.device.memory_properties.memory_types[..memory_type_count as _]
+            .iter()
+            .enumerate()
+            .find(|(index, memory_type)| {
+                (1 << index) & memory_requirements.memory_type_bits != 0
+                    && memory_type.property_flags & flags == flags
+            })
+            .map(|(index, _memory_type)| index as _)
     }
 }
 
@@ -1164,6 +1206,116 @@ impl CommandRecorderSetup {
             gpu,
             command_buffer: self.command_buffer,
             one_time_submit: self.one_time_submit,
+        }
+    }
+}
+
+pub struct Buffer {
+    vk_buffer: vk::Buffer,
+    device_memory: vk::DeviceMemory,
+}
+
+impl Buffer {
+    pub fn setup() -> BufferSetup {
+        BufferSetup::default()
+    }
+}
+
+#[derive(Default)]
+pub struct BufferSetup {
+    size: u64,
+    usage_flags: vk::BufferUsageFlags,
+    sharing_mode: vk::SharingMode,
+}
+
+impl BufferSetup {
+    pub fn size(mut self, size: u64) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn use_as_source(mut self) -> Self {
+        self.usage_flags |= vk::BufferUsageFlags::TRANSFER_SRC;
+        self
+    }
+
+    pub fn use_as_target(mut self) -> Self {
+        self.usage_flags |= vk::BufferUsageFlags::TRANSFER_DST;
+        self
+    }
+
+    pub fn use_as_uniform_texel(mut self) -> Self {
+        self.usage_flags |= vk::BufferUsageFlags::UNIFORM_TEXEL_BUFFER;
+        self
+    }
+
+    pub fn use_as_storage_texel(mut self) -> Self {
+        self.usage_flags |= vk::BufferUsageFlags::STORAGE_TEXEL_BUFFER;
+        self
+    }
+
+    pub fn use_as_uniform(mut self) -> Self {
+        self.usage_flags |= vk::BufferUsageFlags::UNIFORM_BUFFER;
+        self
+    }
+
+    pub fn use_as_storage(mut self) -> Self {
+        self.usage_flags |= vk::BufferUsageFlags::STORAGE_BUFFER;
+        self
+    }
+
+    pub fn use_as_index(mut self) -> Self {
+        self.usage_flags |= vk::BufferUsageFlags::INDEX_BUFFER;
+        self
+    }
+
+    pub fn use_as_vertex(mut self) -> Self {
+        self.usage_flags |= vk::BufferUsageFlags::VERTEX_BUFFER;
+        self
+    }
+
+    pub fn use_as_indirect(mut self) -> Self {
+        self.usage_flags |= vk::BufferUsageFlags::INDIRECT_BUFFER;
+        self
+    }
+
+    pub fn exculsive_access(mut self) -> Self {
+        self.sharing_mode = vk::SharingMode::EXCLUSIVE;
+        self
+    }
+
+    pub fn concurent_access(mut self) -> Self {
+        self.sharing_mode = vk::SharingMode::CONCURRENT;
+        self
+    }
+
+    pub unsafe fn create(&self, gpu: &Gpu) -> Buffer {
+        let buffer_create_info = vk::BufferCreateInfo::builder()
+            .size(self.size as u64)
+            .usage(self.usage_flags)
+            .sharing_mode(self.sharing_mode)
+            .build();
+
+        let vk_buffer = gpu.create_buffer(&buffer_create_info);
+        let memory_requirements = gpu.get_buffer_memory_requirements(vk_buffer);
+        let buffer_memory_index = gpu
+            .find_memory_type_index(
+                &memory_requirements,
+                vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+            )
+            .expect("Could not find a suitable memory for a Vulkan buffer");
+        let memory_allocate_info = vk::MemoryAllocateInfo {
+            allocation_size: memory_requirements.size,
+            memory_type_index: buffer_memory_index,
+            ..Default::default()
+        };
+        let device_memory = gpu
+            .allocate_memory(&memory_allocate_info)
+            .expect("Could not allocate memory for a Vulkan buffer");
+
+        Buffer {
+            vk_buffer,
+            device_memory,
         }
     }
 }
