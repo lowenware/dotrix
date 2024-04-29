@@ -118,7 +118,7 @@ fn dropped_file(path: &std::path::Path) -> event::Event {
 #[cfg(test)]
 mod tests {
     use crate::window::event;
-    use winit::winit::event::{ModifiersState, VirtualKeyCode};
+    use winit::event::{ModifiersState, VirtualKeyCode};
 
     #[test]
     fn dotrix_and_winit_modifiers_matches() {

@@ -1,6 +1,6 @@
 //! data structure and constructors
 use super::VertexAttribute;
-use crate::render::Format;
+use crate::graphics::Format;
 
 pub trait Channel {
     fn value(value: f32) -> Self;

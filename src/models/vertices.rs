@@ -1,5 +1,5 @@
+use crate::graphics::Format;
 use crate::math::Vec3;
-use crate::render::Format;
 
 pub trait VertexAttribute: 'static {
     type Raw: bytemuck::Pod + bytemuck::Zeroable;

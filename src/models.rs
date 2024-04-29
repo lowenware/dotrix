@@ -18,6 +18,9 @@ pub use meshes::{
     AttributeValues, Mesh, VertexAttributeIter, VertexAttributeIterItem, VertexBufferLayout,
 };
 
+mod renderer;
+pub use renderer::{RenderModels, RenderModelsSetup};
+
 mod transforms;
 pub use transforms::{Transform, TransformBuilder};
 

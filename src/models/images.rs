@@ -1,5 +1,5 @@
+use crate::graphics::Extent2D;
 use crate::loaders::Asset;
-use crate::render::Extent2D;
 
 #[derive(Debug, Clone, Copy)]
 pub enum ImageFormat {

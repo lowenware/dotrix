@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
-use crate::render::Frame;
+use crate::graphics::Frame;
 use crate::tasks::{All, Any, Take, Task};
 
 pub use super::event::{Button, DragAndDrop, Event, KeyCode, Modifiers, MouseScroll, ScanCode};
