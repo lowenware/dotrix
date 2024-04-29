@@ -2,9 +2,9 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
+use crate::graphics::Format;
 use crate::loaders::Asset;
 use crate::math::{Vec2, Vec3};
-use crate::render::Format;
 
 use super::{
     VertexAttribute, VertexBitangent, VertexNormal, VertexPosition, VertexTangent, VertexTexture,

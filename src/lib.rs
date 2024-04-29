@@ -29,14 +29,14 @@ pub mod math;
 /// Models abstractions
 pub mod models;
 pub use models::{
-    Animation, Armature, Color, Image, Joint, Material, Mesh, Model, Transform, VertexAttribute,
-    VertexBitangent, VertexJoints, VertexNormal, VertexPosition, VertexTangent, VertexTexture,
-    VertexWeights,
+    Animation, Armature, Color, Image, Joint, Material, Mesh, Model, RenderModels, Transform,
+    VertexAttribute, VertexBitangent, VertexJoints, VertexNormal, VertexPosition, VertexTangent,
+    VertexTexture, VertexWeights,
 };
 
 /// Rendering tools and routines
-pub mod render;
-pub use render::{DeviceType, Display, Extent2D, Format, Frame, Gpu, RenderModels, Semaphore};
+pub mod graphics;
+pub use graphics::{DeviceType, Display, Extent2D, Format, Frame, Gpu, Semaphore};
 
 /// Tasks and execution
 pub mod tasks;
@@ -168,7 +168,7 @@ impl<'a> CoreSetup<'a> {
         let fullscreen = false;
         let (window, window_event_loop) = Window::new(self.app_name, resolution, fullscreen);
 
-        let display_setup = render::DisplaySetup {
+        let display_setup = graphics::DisplaySetup {
             window,
             app_name: self.app_name,
             app_version: self.app_version,
@@ -247,16 +247,16 @@ where
     window_event_loop.set_frame_duration(frame_duration);
 
     // Set target output, so scheduler can build the dependency graph
-    let task_manager = TaskManager::new::<render::FramePresenter>(workers);
+    let task_manager = TaskManager::new::<graphics::FramePresenter>(workers);
     {
         let scheduler = task_manager.scheduler();
 
-        let create_frame_task = render::CreateFrame::default()
+        let create_frame_task = graphics::CreateFrame::default()
             .log_fps_interval(log_fps_interval)
             .fps_request(fps_request);
         scheduler.add_task(create_frame_task);
 
-        let submit_frame_task = render::SubmitFrame::default();
+        let submit_frame_task = graphics::SubmitFrame::default();
         scheduler.add_task(submit_frame_task);
 
         setup(&scheduler);
@@ -319,7 +319,7 @@ impl window::EventHandler for WindowEventHandler {
     fn on_draw(&mut self) {
         log::info!("Wait for presenter...");
         self.task_manager
-            .wait_for::<render::FramePresenter>()
+            .wait_for::<graphics::FramePresenter>()
             .present();
         log::info!("...presented");
         self.task_manager.run();

@@ -1,6 +1,5 @@
 pub mod formats;
 pub mod frame;
-pub mod pbr;
 pub mod vulkan;
 
 pub use ash::vk;
@@ -9,7 +8,6 @@ use crate::window::Window;
 
 pub use formats::Extent2D;
 pub use frame::{CreateFrame, Frame, RenderPass, SubmitFrame};
-pub use pbr::RenderModels;
 pub use vulkan::{
     CommandBufferIter, CommandRecorder, CommandRecorderSetup, Device, Display, FramePresenter,
     Framebuffers, Gpu, Semaphore, Surface,

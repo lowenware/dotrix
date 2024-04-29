@@ -3,7 +3,7 @@ mod map;
 
 pub mod event;
 
-use crate::render::Extent2D;
+use crate::graphics::Extent2D;
 use std::sync::Arc;
 
 pub use event::Event;
