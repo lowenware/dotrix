@@ -5,7 +5,7 @@ use std::sync::Arc;
 pub use ash::vk;
 
 use crate::log;
-use crate::window::Window;
+use crate::window;
 
 use super::{DeviceType, DisplaySetup, Extent2D};
 
@@ -17,7 +17,7 @@ pub struct Device {
     vk_instance: ash::Instance,
     _vk_entry: ash::Entry,
 
-    vk_debug: Option<(ash::extensions::ext::DebugUtils, vk::DebugUtilsMessengerEXT)>,
+    vk_debug: Option<(ash::ext::debug_utils::Instance, vk::DebugUtilsMessengerEXT)>,
 }
 
 impl Drop for Device {
@@ -36,7 +36,7 @@ impl Drop for Device {
 }
 
 pub struct Surface {
-    loader: ash::extensions::khr::Surface,
+    loader: ash::khr::surface::Instance,
     vk_surface: vk::SurfaceKHR,
     vk_surface_format: vk::SurfaceFormatKHR,
     vk_surface_capabilities: vk::SurfaceCapabilitiesKHR,
@@ -67,11 +67,19 @@ impl Surface {
         }
     }
 
-    unsafe fn new(window: &Window, vk_instance: &ash::Instance, vk_entry: &ash::Entry) -> Self {
-        use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
-
-        let raw_display_handle = window.handle().raw_display_handle();
-        let raw_window_handle = window.handle().raw_window_handle();
+    unsafe fn new(
+        window: &window::Instance,
+        vk_instance: &ash::Instance,
+        vk_entry: &ash::Entry,
+    ) -> Self {
+        let raw_display_handle = window
+            .display_handle()
+            .expect("Can't get display handle")
+            .as_raw();
+        let raw_window_handle = window
+            .window_handle()
+            .expect("Can't get window handle")
+            .as_raw();
         let window_resolution = window.resolution();
         let vk_surface_resolution = vk::Extent2D {
             width: window_resolution.width,
@@ -87,7 +95,7 @@ impl Surface {
         )
         .expect("Failed to create a Vulkan surface");
 
-        let loader = ash::extensions::khr::Surface::new(vk_entry, vk_instance);
+        let loader = ash::khr::surface::Instance::new(vk_entry, vk_instance);
 
         Self {
             loader,
@@ -173,15 +181,15 @@ impl Surface {
 }
 
 struct Swapchain {
-    loader: ash::extensions::khr::Swapchain,
+    loader: ash::khr::swapchain::Device,
     vk_swapchain: vk::SwapchainKHR,
-    vk_present_images: Vec<vk::Image>,
+    _vk_present_images: Vec<vk::Image>,
     vk_present_image_views: Vec<vk::ImageView>,
 }
 
 impl Swapchain {
     unsafe fn create(device: &Device, surface: &Surface) -> Swapchain {
-        let swapchain_create_info = vk::SwapchainCreateInfoKHR::builder()
+        let swapchain_create_info = vk::SwapchainCreateInfoKHR::default()
             .surface(surface.vk_surface)
             .min_image_count(surface.images_count)
             .image_color_space(surface.vk_surface_format.color_space)
@@ -193,10 +201,9 @@ impl Swapchain {
             .composite_alpha(vk::CompositeAlphaFlagsKHR::OPAQUE)
             .present_mode(surface.vk_present_mode)
             .clipped(true)
-            .image_array_layers(1)
-            .build();
+            .image_array_layers(1);
 
-        let loader = ash::extensions::khr::Swapchain::new(&device.vk_instance, &device.vk_device);
+        let loader = ash::khr::swapchain::Device::new(&device.vk_instance, &device.vk_device);
 
         let vk_swapchain = loader
             .create_swapchain(&swapchain_create_info, None)
@@ -207,7 +214,7 @@ impl Swapchain {
         let vk_present_image_views: Vec<vk::ImageView> = vk_present_images
             .iter()
             .map(|&image| {
-                let create_view_info = vk::ImageViewCreateInfo::builder()
+                let create_view_info = vk::ImageViewCreateInfo::default()
                     .view_type(vk::ImageViewType::TYPE_2D)
                     .format(surface.vk_surface_format.format)
                     .components(vk::ComponentMapping {
@@ -237,7 +244,7 @@ impl Swapchain {
         Swapchain {
             loader,
             vk_swapchain,
-            vk_present_images,
+            _vk_present_images: vk_present_images,
             vk_present_image_views,
         }
     }
@@ -274,13 +281,12 @@ impl Framebuffers {
             .iter()
             .map(|&present_image_view| {
                 let framebuffer_attachments = [present_image_view /*, base.depth_image_view*/];
-                let frame_buffer_create_info = vk::FramebufferCreateInfo::builder()
+                let frame_buffer_create_info = vk::FramebufferCreateInfo::default()
                     .render_pass(render_pass)
                     .attachments(&framebuffer_attachments)
                     .width(resolution.width)
                     .height(resolution.height)
-                    .layers(1)
-                    .build();
+                    .layers(1);
 
                 display
                     .device
@@ -573,7 +579,7 @@ pub struct Display {
     device: Arc<Device>,
     swapchain: Arc<Swapchain>,
     surface: Surface,
-    window: Window,
+    window: window::Instance,
     present_complete_semaphore: Option<Semaphore>,
     render_complete_semaphore: Option<Semaphore>,
 }
@@ -595,7 +601,7 @@ impl Display {
         let vk_instance = unsafe { Self::create_instance(&desc, &vk_entry) };
 
         let vk_debug = if desc.debug {
-            let debug_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
+            let debug_info = vk::DebugUtilsMessengerCreateInfoEXT::default()
                 .message_severity(
                     vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
                         | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
@@ -606,10 +612,9 @@ impl Display {
                         | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
                         | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
                 )
-                .pfn_user_callback(Some(vulkan_debug_callback))
-                .build();
+                .pfn_user_callback(Some(vulkan_debug_callback));
 
-            let vk_debug_utils = ash::extensions::ext::DebugUtils::new(&vk_entry, &vk_instance);
+            let vk_debug_utils = ash::ext::debug_utils::Instance::new(&vk_entry, &vk_instance);
             let vk_debug_callback = unsafe {
                 vk_debug_utils
                     .create_debug_utils_messenger(&debug_info, None)
@@ -620,7 +625,7 @@ impl Display {
             None
         };
 
-        let window = desc.window;
+        let window = desc.window_instance;
 
         let mut surface = unsafe { Surface::new(&window, &vk_instance, &vk_entry) };
 
@@ -636,23 +641,23 @@ impl Display {
         };
         let priorities = [1.0];
 
-        let queue_info = vk::DeviceQueueCreateInfo::builder()
+        let queue_info = vk::DeviceQueueCreateInfo::default()
             .queue_family_index(queue_family_index)
-            .queue_priorities(&priorities)
-            .build();
+            .queue_priorities(&priorities);
 
         let device_memory_properties =
             unsafe { vk_instance.get_physical_device_memory_properties(physical_device) };
 
-        let device_create_info = vk::DeviceCreateInfo::builder()
+        let extensions_names = [
+            ash::khr::swapchain::NAME.as_ptr(),
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            ash::vk::KhrPortabilitySubsetFn::NAME.as_ptr(),
+        ];
+
+        let device_create_info = vk::DeviceCreateInfo::default()
             .queue_create_infos(std::slice::from_ref(&queue_info))
-            .enabled_extension_names(&[
-                ash::extensions::khr::Swapchain::name().as_ptr(),
-                #[cfg(any(target_os = "macos", target_os = "ios"))]
-                ash::vk::KhrPortabilitySubsetFn::NAME.as_ptr(),
-            ])
-            .enabled_features(&features)
-            .build();
+            .enabled_extension_names(&extensions_names)
+            .enabled_features(&features);
 
         let vk_device = unsafe {
             vk_instance
@@ -683,7 +688,7 @@ impl Display {
         }
     }
 
-    pub(crate) fn gpu(&self) -> Gpu {
+    pub fn gpu(&self) -> Gpu {
         Gpu {
             device: Arc::clone(&self.device),
         }
@@ -797,19 +802,20 @@ impl Display {
     }
 
     unsafe fn create_instance(desc: &DisplaySetup, vk_entry: &ash::Entry) -> ash::Instance {
-        use raw_window_handle::HasRawDisplayHandle;
-
-        let window = &desc.window;
+        let window = &desc.window_instance;
 
         //let (surface_width, surface_height) = desc.window.size();
-        let raw_display_handle = window.handle().raw_display_handle();
+        let raw_display_handle = window
+            .display_handle()
+            .expect("Could not get display handle")
+            .as_raw();
         //let raw_window_handle = desc.window.handle().raw_window_handle();
         let mut extensions = ash_window::enumerate_required_extensions(raw_display_handle)
             .expect("Failed to obtain extensions requirements")
             .to_vec();
 
         if desc.debug {
-            extensions.push(ash::extensions::ext::DebugUtils::name().as_ptr());
+            extensions.push(ash::ext::debug_utils::NAME.as_ptr());
         }
 
         #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -826,13 +832,12 @@ impl Display {
             .ok()
             .unwrap_or(0);
 
-        let app_info = vk::ApplicationInfo::builder()
+        let app_info = vk::ApplicationInfo::default()
             .application_name(&app_name)
             .application_version(desc.app_version)
             .engine_name(&engine_name)
             .engine_version(engine_version)
-            .api_version(vk::make_api_version(0, 1, 0, 0))
-            .build();
+            .api_version(vk::make_api_version(0, 1, 0, 0));
 
         let create_flags = if cfg!(any(target_os = "macos", target_os = "ios")) {
             vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR
@@ -845,12 +850,11 @@ impl Display {
             .map(|raw_name| unsafe { CStr::from_bytes_with_nul_unchecked(*raw_name).as_ptr() })
             .collect();
 
-        let create_info = vk::InstanceCreateInfo::builder()
+        let create_info = vk::InstanceCreateInfo::default()
             .application_info(&app_info)
             .enabled_layer_names(&layers_names_raw)
             .enabled_extension_names(&extensions)
-            .flags(create_flags)
-            .build();
+            .flags(create_flags);
 
         vk_entry
             .create_instance(&create_info, None)
@@ -1090,11 +1094,10 @@ impl FramePresenter {
         let wait_semaphores = [*self.render_complete_semaphore.vk_semaphore()];
         let swapchains = [self.swapchain.as_ref().vk_swapchain];
         let image_indices = [self.swapchain_index];
-        let present_info = vk::PresentInfoKHR::builder()
+        let present_info = vk::PresentInfoKHR::default()
             .wait_semaphores(&wait_semaphores)
             .swapchains(&swapchains)
-            .image_indices(&image_indices)
-            .build();
+            .image_indices(&image_indices);
 
         log::debug!("Begin present: {}", self.swapchain_index);
 
@@ -1188,9 +1191,8 @@ impl CommandRecorderSetup {
             }
 
             if self.one_time_submit {
-                let command_buffer_begin_info = vk::CommandBufferBeginInfo::builder()
-                    .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT)
-                    .build();
+                let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
+                    .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
                 gpu.reset_command_buffer(
                     self.command_buffer,
@@ -1211,6 +1213,7 @@ impl CommandRecorderSetup {
 }
 
 pub struct Buffer {
+    device: Arc<Device>,
     vk_buffer: vk::Buffer,
     device_memory: vk::DeviceMemory,
 }
@@ -1218,6 +1221,26 @@ pub struct Buffer {
 impl Buffer {
     pub fn setup() -> BufferSetup {
         BufferSetup::default()
+    }
+
+    pub fn write<T: Copy>(&self, offset: u64, data: &[T]) {
+        unsafe {
+            let size = data.len() as u64;
+            let memory_ptr = self
+                .device
+                .vk_device
+                .map_memory(
+                    self.device_memory,
+                    offset,
+                    size,
+                    vk::MemoryMapFlags::empty(),
+                )
+                .expect("Could not map buffer memory");
+            let mut index_slice =
+                ash::util::Align::new(memory_ptr, std::mem::align_of::<T>() as u64, size);
+            index_slice.copy_from_slice(data);
+            self.device.vk_device.unmap_memory(self.device_memory);
+        }
     }
 }
 
@@ -1290,11 +1313,10 @@ impl BufferSetup {
     }
 
     pub unsafe fn create(&self, gpu: &Gpu) -> Buffer {
-        let buffer_create_info = vk::BufferCreateInfo::builder()
+        let buffer_create_info = vk::BufferCreateInfo::default()
             .size(self.size as u64)
             .usage(self.usage_flags)
-            .sharing_mode(self.sharing_mode)
-            .build();
+            .sharing_mode(self.sharing_mode);
 
         let vk_buffer = gpu.create_buffer(&buffer_create_info);
         let memory_requirements = gpu.get_buffer_memory_requirements(vk_buffer);
@@ -1313,9 +1335,29 @@ impl BufferSetup {
             .allocate_memory(&memory_allocate_info)
             .expect("Could not allocate memory for a Vulkan buffer");
 
+        let device = Arc::clone(&gpu.device);
+        device
+            .vk_device
+            .bind_buffer_memory(vk_buffer, device_memory, 0)
+            .expect("Failed to bind buffer memory");
+
         Buffer {
+            device,
             vk_buffer,
             device_memory,
+        }
+    }
+}
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        unsafe {
+            self.device
+                .vk_device
+                .device_wait_idle()
+                .expect("Device is not idle");
+            self.device.vk_device.free_memory(self.device_memory, None);
+            self.device.vk_device.destroy_buffer(self.vk_buffer, None);
         }
     }
 }

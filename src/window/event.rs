@@ -12,16 +12,13 @@ pub enum Event {
     ButtonPress {
         /// Button info
         button: Button,
+        /// Text input
+        text: Option<String>,
     },
     /// Button release event
     ButtonRelease {
         /// Button info
         button: Button,
-    },
-    /// Text character input event
-    CharacterInput {
-        /// Character
-        character: char,
     },
     /// Cursor position change event
     CursorPosition {
@@ -87,6 +84,10 @@ pub enum Button {
     MouseRight,
     /// Middle mouse button
     MouseMiddle,
+    /// Forward mouse button
+    Forward,
+    /// Back mouse button
+    Back,
     /// Other mouse button represented by numeric code
     MouseOther(u16),
 }
@@ -227,9 +228,9 @@ pub enum KeyCode {
     F23,
     F24,
 
-    Snapshot,
+    PrintScreen,
 
-    Scroll,
+    ScrollLock,
 
     Pause,
 

@@ -4,7 +4,7 @@ pub mod vulkan;
 
 pub use ash::vk;
 
-use crate::window::Window;
+use crate::window;
 
 pub use formats::Extent2D;
 pub use frame::{CreateFrame, Frame, RenderPass, SubmitFrame};
@@ -24,7 +24,7 @@ pub enum DeviceType {
 
 pub struct DisplaySetup<'a> {
     /// Window reference
-    pub window: Window,
+    pub window_instance: window::Instance,
     /// Application name
     pub app_name: &'a str,
     /// Application version

@@ -90,27 +90,24 @@ impl RenderModels {
     }
 
     pub fn new(gpu: Gpu, setup: RenderModelsSetup) -> Self {
-        let pool_create_info = vk::CommandPoolCreateInfo::builder()
+        let pool_create_info = vk::CommandPoolCreateInfo::default()
             .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
-            .queue_family_index(gpu.queue_family_index())
-            .build();
+            .queue_family_index(gpu.queue_family_index());
         let command_pool = unsafe { gpu.create_command_pool(&pool_create_info) };
         let framebuffers = Framebuffers::new();
 
-        let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::builder()
+        let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::default()
             .command_buffer_count(2)
             .command_pool(command_pool)
-            .level(vk::CommandBufferLevel::PRIMARY)
-            .build();
+            .level(vk::CommandBufferLevel::PRIMARY);
 
         let (setup_command_buffer, draw_command_buffer) = unsafe {
             gpu.allocate_command_buffers(&command_buffer_allocate_info)
                 .into()
         };
 
-        let fence_create_info = vk::FenceCreateInfo::builder()
-            .flags(vk::FenceCreateFlags::SIGNALED)
-            .build();
+        let fence_create_info =
+            vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
 
         let setup_command_buffer_reuse_fence = unsafe { gpu.create_fence(&fence_create_info) };
         let draw_command_buffer_reuse_fence = unsafe { gpu.create_fence(&fence_create_info) };
@@ -153,17 +150,15 @@ impl RenderModels {
             ..Default::default()
         }];
 
-        let subpass = vk::SubpassDescription::builder()
+        let subpass = vk::SubpassDescription::default()
             .color_attachments(&color_attachment_refs)
             // .depth_stencil_attachment(&depth_attachment_ref)
-            .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
-            .build();
+            .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS);
 
-        let renderpass_create_info = vk::RenderPassCreateInfo::builder()
+        let renderpass_create_info = vk::RenderPassCreateInfo::default()
             .attachments(&renderpass_attachments)
             .subpasses(std::slice::from_ref(&subpass))
-            .dependencies(&dependencies)
-            .build();
+            .dependencies(&dependencies);
 
         let render_pass = unsafe { gpu.create_render_pass(&renderpass_create_info) };
 
@@ -408,7 +403,7 @@ impl RenderModels {
             //    },
         ];
 
-        let render_pass_begin_info = vk::RenderPassBeginInfo::builder()
+        let render_pass_begin_info = vk::RenderPassBeginInfo::default()
             .render_pass(self.render_pass)
             .framebuffer(self.framebuffers.get(frame.swapchain_index))
             .render_area(vk::Rect2D {
@@ -418,8 +413,7 @@ impl RenderModels {
                     height: frame.resolution.height,
                 },
             })
-            .clear_values(&clear_values)
-            .build();
+            .clear_values(&clear_values);
 
         recorder.begin_render_pass(&render_pass_begin_info, vk::SubpassContents::INLINE);
 
@@ -439,12 +433,11 @@ impl RenderModels {
             .unzip();
         let signal_semaphores = [*self.signal_semaphore.vk_semaphore()];
         let command_buffers = [self.draw_command_buffer];
-        let submits = [vk::SubmitInfo::builder()
+        let submits = [vk::SubmitInfo::default()
             .wait_semaphores(wait_semaphores.as_slice())
             .wait_dst_stage_mask(wait_dst_stage_mask.as_slice())
             .command_buffers(&command_buffers)
-            .signal_semaphores(&signal_semaphores)
-            .build()];
+            .signal_semaphores(&signal_semaphores)];
 
         log::debug!(
             "buffers: {}, wait: {}, signal: {}, deps: {}",
