@@ -86,242 +86,59 @@ pub use window::{ReadInput, Window};
 // pub use dotrix_ui as ui;
 
 /// Dotrix Settings
-pub struct CoreSetup<'a> {
+pub trait Application {
+    /// Startup
+    fn startup(self, scheduler: &tasks::Scheduler, display: &mut graphics::Display);
+
     /// Number of workers
-    pub workers: u32,
+    fn workers(&self) -> u32 {
+        std::thread::available_parallelism()
+            .map(|value| value.get() as u32)
+            .unwrap_or(4)
+    }
+
     /// FPS preference
-    pub fps_request: Option<f32>,
+    fn fps_request(&self) -> Option<f32> {
+        None
+    }
+
     /// Log fps within an interval
-    pub log_fps_interval: Option<std::time::Duration>,
+    fn log_fps_interval(&self) -> Option<std::time::Duration> {
+        None
+    }
+
     /// Application name
-    pub app_name: &'a str,
+    fn app_name<'a>(&'a self) -> &'a str {
+        "Dotrix Application"
+    }
+
     /// Application version
-    pub app_version: u32,
+    fn app_version(&self) -> u32 {
+        0
+    }
+
     /// Debug flag
-    pub debug: bool,
+    fn debug(&self) -> bool {
+        true
+    }
+
     /// Device type request
-    pub device_type_request: Option<DeviceType>,
-}
-
-impl<'a> Default for CoreSetup<'a> {
-    fn default() -> Self {
-        Self {
-            workers: 8,
-            fps_request: None,
-            log_fps_interval: None,
-            app_name: env!("CARGO_PKG_NAME"),
-            app_version: 0,
-            debug: false,
-            device_type_request: None,
-        }
-    }
-}
-
-impl<'a> CoreSetup<'a> {
-    /// Sets number of workers
-    pub fn workers(mut self, value: u32) -> Self {
-        self.workers = value;
-        self
+    fn device_type_request(&self) -> Option<DeviceType> {
+        Some(DeviceType::Discrete)
     }
 
-    /// Sets FPS preference
-    pub fn fps_request(mut self, value: Option<f32>) -> Self {
-        self.fps_request = value;
-        self
+    /// Is full screen
+    fn full_screen(&self) -> bool {
+        false
     }
 
-    /// Sets FPS logging
-    pub fn log_fps_interval(mut self, value: Option<std::time::Duration>) -> Self {
-        self.log_fps_interval = value;
-        self
-    }
-
-    /// Sets application name for rendering backend
-    pub fn application_name(mut self, app_name: &'a str) -> Self {
-        self.app_name = app_name;
-        self
-    }
-
-    /// Sets application version for rendering backend
-    pub fn application_version(mut self, app_version: u32) -> Self {
-        self.app_version = app_version;
-        self
-    }
-
-    /// Enables debug mode for rendering backend
-    pub fn debug(mut self, debug: bool) -> Self {
-        self.debug = debug;
-        self
-    }
-
-    /// Sets device type preference
-    pub fn device_type_request(mut self, device_type_request: Option<DeviceType>) -> Self {
-        self.device_type_request = device_type_request;
-        self
-    }
-
-    pub fn create(self) -> Core {
-        let resolution = Extent2D {
-            width: 800,
-            height: 600,
-        };
-        let fullscreen = false;
-        let (window, window_event_loop) = Window::new(self.app_name, resolution, fullscreen);
-
-        let display_setup = graphics::DisplaySetup {
-            window,
-            app_name: self.app_name,
-            app_version: self.app_version,
-            debug: self.debug,
-            device_type_request: self.device_type_request,
-        };
-
-        let display = Display::new(display_setup);
-        let gpu = display.gpu();
-
-        let event_loop = EventLoop {
-            window_event_loop,
-            workers: self.workers,
-            fps_request: self.fps_request,
-            log_fps_interval: self.log_fps_interval,
-        };
-
-        Core {
-            display,
-            gpu,
-            event_loop,
-        }
-    }
-}
-
-pub struct EventLoop {
-    window_event_loop: window::EventLoop,
-    workers: u32,
-    fps_request: Option<f32>,
-    log_fps_interval: Option<std::time::Duration>,
-}
-
-pub struct Core {
-    pub display: Display,
-    pub gpu: Gpu,
-    pub event_loop: EventLoop,
-}
-
-impl Core {
-    pub fn setup<'a>() -> CoreSetup<'a> {
-        CoreSetup::default()
-    }
-
-    pub fn into_tuple(self) -> (Display, Gpu, EventLoop) {
-        self.into()
-    }
-}
-
-impl From<Core> for (Display, Gpu, EventLoop) {
-    fn from(core: Core) -> Self {
-        (core.display, core.gpu, core.event_loop)
+    /// Initial resolution
+    fn resolution(&self) -> (f32, f32) {
+        (800.0, 600.0)
     }
 }
 
 /// Application launcher
-///
-/// Inicializes window application with `Settings`, `Gpu` and provides a setup callback
-pub fn run<F>(event_loop: EventLoop, setup: F)
-where
-    F: FnOnce(&tasks::Scheduler) + 'static,
-{
-    let EventLoop {
-        mut window_event_loop,
-        workers,
-        fps_request,
-        log_fps_interval,
-    } = event_loop;
-
-    let frame_duration = std::time::Duration::from_secs_f32(
-        fps_request
-            .as_ref()
-            .map(|fps_request| 1.0 / fps_request)
-            .unwrap_or(0.0),
-    );
-
-    window_event_loop.set_frame_duration(frame_duration);
-
-    // Set target output, so scheduler can build the dependency graph
-    let task_manager = TaskManager::new::<graphics::FramePresenter>(workers);
-    {
-        let scheduler = task_manager.scheduler();
-
-        let create_frame_task = graphics::CreateFrame::default()
-            .log_fps_interval(log_fps_interval)
-            .fps_request(fps_request);
-        scheduler.add_task(create_frame_task);
-
-        let submit_frame_task = graphics::SubmitFrame::default();
-        scheduler.add_task(submit_frame_task);
-
-        setup(&scheduler);
-        // self.task_manager.schedule(gpu::ClearFrame::default());
-        // self.task_manager.schedule(gpu::SubmitCommands::default());
-        // self.task_manager.schedule(gpu::ResizeSurface::default());
-
-        // Input listening
-        // self.task_manager.schedule(input::ListenTask::default());
-
-        // register data provided by window controller
-        // self.task_manager.register::<window::ResizeRequest>(0);
-        // self.task_manager.register::<input::Event>(0);
-    }
-
-    let event_handler = WindowEventHandler::new(task_manager);
-
-    window_event_loop.run(event_handler);
-}
-
-struct WindowEventHandler {
-    task_manager: TaskManager,
-}
-
-impl WindowEventHandler {
-    fn new(task_manager: TaskManager) -> Self {
-        Self { task_manager }
-    }
-}
-
-impl window::EventHandler for WindowEventHandler {
-    fn on_start(&mut self) {
-        log::info!("main loop has been started");
-
-        // TODO: verify GPU and Window contexts exist
-        self.task_manager.run();
-    }
-
-    fn on_input(&mut self, event: window::Event) {
-        // log::info!("EVENT {:?}", event);
-        self.task_manager.provide(event);
-    }
-
-    fn on_resize(&mut self, width: u32, height: u32) {
-        log::info!(
-            "provide new size: {}x{} {:?}",
-            width,
-            height,
-            std::any::TypeId::of::<window::ResizeRequest>()
-        );
-        // if let Some(gpu) = self.gpu.as_mut() {
-        //     gpu.resize_surface(width, height);
-        // }
-        self.task_manager
-            .provide(window::ResizeRequest { width, height });
-    }
-
-    fn on_close(&mut self) {}
-
-    fn on_draw(&mut self) {
-        log::info!("Wait for presenter...");
-        self.task_manager
-            .wait_for::<graphics::FramePresenter>()
-            .present();
-        log::info!("...presented");
-        self.task_manager.run();
-    }
+pub fn run<A: Application>(application: A) {
+    window::EventLoop::new(application).run();
 }

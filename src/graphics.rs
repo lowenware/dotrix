@@ -4,14 +4,11 @@ pub mod vulkan;
 
 pub use ash::vk;
 
-use crate::window::Window;
+use crate::window;
 
 pub use formats::Extent2D;
 pub use frame::{CreateFrame, Frame, RenderPass, SubmitFrame};
-pub use vulkan::{
-    CommandBufferIter, CommandRecorder, CommandRecorderSetup, Device, Display, FramePresenter,
-    Framebuffers, Gpu, Semaphore, Surface,
-};
+pub use vulkan::{CommandBufferIter, Display, FramePresenter, Gpu, Semaphore, Surface};
 
 /// GPU device type
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -24,7 +21,7 @@ pub enum DeviceType {
 
 pub struct DisplaySetup<'a> {
     /// Window reference
-    pub window: Window,
+    pub window_instance: window::Instance,
     /// Application name
     pub app_name: &'a str,
     /// Application version
