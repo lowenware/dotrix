@@ -8,6 +8,7 @@ pub trait VertexAttribute: 'static {
     fn pack(&self) -> Self::Raw;
 }
 
+#[derive(Copy, Clone, Debug, Default)]
 pub struct VertexPosition {
     pub value: Vec3,
 }
@@ -25,6 +26,7 @@ impl VertexAttribute for VertexPosition {
     }
 }
 
+#[derive(Copy, Clone, Debug, Default)]
 pub struct VertexNormal {
     pub value: Vec3,
 }
@@ -67,6 +69,7 @@ impl VertexAttribute for VertexTexture {
     }
 }
 
+#[derive(Copy, Clone, Debug, Default)]
 pub struct VertexTangent {
     pub value: Vec3,
 }
@@ -84,6 +87,7 @@ impl VertexAttribute for VertexTangent {
     }
 }
 
+#[derive(Copy, Clone, Debug, Default)]
 pub struct VertexBitangent {
     pub value: Vec3,
 }
@@ -101,6 +105,7 @@ impl VertexAttribute for VertexBitangent {
     }
 }
 
+#[derive(Copy, Clone, Debug, Default)]
 pub struct VertexWeights {
     value: [f32; 4],
 }
@@ -118,6 +123,7 @@ impl VertexAttribute for VertexWeights {
     }
 }
 
+#[derive(Copy, Clone, Debug, Default)]
 pub struct VertexJoints {
     value: [u16; 4],
 }

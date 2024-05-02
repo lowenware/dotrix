@@ -3,11 +3,16 @@ mod map;
 
 pub mod event;
 
-use crate::graphics::Extent2D;
 use std::sync::Arc;
+use std::time;
 
 pub use event::Event;
 pub use input::ReadInput;
+use winit::event::StartCause;
+
+use crate::graphics::{self, Display, DisplaySetup, Extent2D};
+use crate::tasks::TaskManager;
+use crate::Application;
 
 /// Window resize request context
 #[derive(Default, Debug)]
@@ -20,34 +25,227 @@ pub struct ResizeRequest {
 
 /// Dotrix window handle
 #[derive(Debug, Clone)]
-pub struct Handle {
-    window: Arc<winit::window::Window>,
+pub struct Instance {
+    winit_window: Arc<winit::window::Window>,
 }
 
-unsafe impl raw_window_handle::HasRawWindowHandle for Handle {
-    fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
-        self.window.raw_window_handle()
+impl Instance {
+    pub fn window_handle(
+        &self,
+    ) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
+        use raw_window_handle::HasWindowHandle;
+        self.winit_window.window_handle()
     }
-}
 
-unsafe impl raw_window_handle::HasRawDisplayHandle for Handle {
-    fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
-        self.window.raw_display_handle()
+    pub fn display_handle(
+        &self,
+    ) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
+        use raw_window_handle::HasDisplayHandle;
+        self.winit_window.display_handle()
+    }
+
+    pub fn resolution(&self) -> Extent2D {
+        let size = self.winit_window.inner_size();
+        Extent2D {
+            width: size.width,
+            height: size.height,
+        }
     }
 }
 
 /// Main Loop
-pub struct EventLoop {
-    event_loop: winit::event_loop::EventLoop<()>,
+pub struct EventLoop<T: Application> {
+    application: Option<T>,
+    request_redraw: bool,
+    wait_cancelled: bool,
+    close_requested: bool,
     frame_duration: std::time::Duration,
-    window_handle: Handle,
+    window_instance: Option<Instance>,
+    task_manager: TaskManager,
 }
 
-impl EventLoop {
-    pub fn set_frame_duration(&mut self, frame_duration: std::time::Duration) {
-        self.frame_duration = frame_duration;
+impl<T: Application> EventLoop<T> {
+    pub fn new(application: T) -> Self {
+        let workers = application.workers();
+        let frame_duration = std::time::Duration::from_secs_f32(
+            application
+                .fps_request()
+                .as_ref()
+                .map(|fps_request| 1.0 / fps_request)
+                .unwrap_or(0.0),
+        );
+        Self {
+            application: Some(application),
+            frame_duration,
+            request_redraw: false,
+            wait_cancelled: false,
+            close_requested: false,
+            window_instance: None,
+            task_manager: TaskManager::new::<graphics::FramePresenter>(workers),
+        }
     }
 
+    // pub fn set_frame_duration(&mut self, frame_duration: std::time::Duration) {
+    //     self.frame_duration = frame_duration;
+    // }
+    pub fn run(&mut self) {
+        let event_loop =
+            winit::event_loop::EventLoop::new().expect("Could not create window event loop");
+
+        event_loop.run_app(self).ok();
+    }
+}
+
+impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
+    fn new_events(
+        &mut self,
+        _event_loop: &winit::event_loop::ActiveEventLoop,
+        cause: winit::event::StartCause,
+    ) {
+        log::info!("new_events: {cause:?}");
+        self.wait_cancelled = match cause {
+            StartCause::WaitCancelled { .. } => true,
+            _ => false,
+        }
+    }
+
+    fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        log::info!("resumed");
+        if self.window_instance.is_some() {
+            panic!("Window suspend/resume is not supported yet");
+        }
+        let app = self
+            .application
+            .take()
+            .expect("Application instance was not provided");
+
+        let (width, height) = app.resolution();
+
+        let window_attributes = winit::window::Window::default_attributes()
+            .with_title(app.app_name())
+            .with_inner_size(winit::dpi::LogicalSize::new(width, height))
+            .with_fullscreen(if app.full_screen() {
+                Some(winit::window::Fullscreen::Borderless(None))
+            } else {
+                None
+            });
+
+        let window_instance = Instance {
+            winit_window: Arc::new(
+                event_loop
+                    .create_window(window_attributes)
+                    .expect("Could not create window"),
+            ),
+        };
+
+        let display_setup = DisplaySetup {
+            window_instance: window_instance.clone(),
+            app_name: app.app_name(),
+            app_version: app.app_version(),
+            debug: app.debug(),
+            device_type_request: app.device_type_request(),
+        };
+
+        let mut display = Display::new(display_setup);
+        {
+            let scheduler = self.task_manager.scheduler();
+
+            let create_frame_task = graphics::CreateFrame::default()
+                .log_fps_interval(app.log_fps_interval())
+                .fps_request(app.fps_request());
+            scheduler.add_task(create_frame_task);
+
+            let submit_frame_task = graphics::SubmitFrame::default();
+            scheduler.add_task(submit_frame_task);
+
+            app.startup(&scheduler, &mut display);
+
+            // add Display context
+            scheduler.add_context(display);
+        }
+
+        self.window_instance = Some(window_instance);
+
+        self.task_manager.run();
+    }
+
+    fn window_event(
+        &mut self,
+        _event_loop: &winit::event_loop::ActiveEventLoop,
+        _window_id: winit::window::WindowId,
+        event: winit::event::WindowEvent,
+    ) {
+        log::info!("{event:?}");
+        match event {
+            winit::event::WindowEvent::CloseRequested => {
+                self.close_requested = true;
+            }
+            winit::event::WindowEvent::KeyboardInput {
+                event:
+                    winit::event::KeyEvent {
+                        logical_key: key,
+                        state: winit::event::ElementState::Pressed,
+                        ..
+                    },
+                ..
+            } => {
+                log::info!("input: {key:?}");
+                // TODO: map to window::Event and provide
+                // self.task_manager.provide(event);
+            }
+            winit::event::WindowEvent::RedrawRequested => {
+                if let Some(instance) = self.window_instance.as_ref() {
+                    instance.winit_window.pre_present_notify();
+                }
+                log::info!("Wait for presenter...");
+                self.task_manager
+                    .wait_for::<graphics::FramePresenter>()
+                    .present();
+                log::info!("...presented");
+                self.task_manager.run();
+                // Note: can be used for debug
+                // fill::fill_window(window);
+                // handler.on_draw();
+            }
+            winit::event::WindowEvent::Resized(size) => {
+                log::info!("Resized: {size:?}");
+                self.task_manager.provide(ResizeRequest {
+                    width: size.width,
+                    height: size.height,
+                });
+            }
+            _ => (),
+        }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        // TODO: implement FPS control
+        if self.request_redraw && !self.wait_cancelled && !self.close_requested {
+            if let Some(instance) = self.window_instance.as_ref() {
+                instance.winit_window.request_redraw();
+            }
+        }
+
+        // NOTE: to wait
+        // event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait),
+
+        if !self.wait_cancelled {
+            event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
+                time::Instant::now() + self.frame_duration,
+            ));
+        }
+
+        // NOTE: to poll
+        // std::thread::sleep(POLL_SLEEP_TIME);
+        // event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+
+        if self.close_requested {
+            //handler.on_close();
+            event_loop.exit();
+        }
+    }
+
+    /*
     pub fn run(self, mut handler: impl EventHandler) {
         let mut pool = futures::executor::LocalPool::new();
         let _spawner = pool.spawner();
@@ -60,13 +258,13 @@ impl EventLoop {
 
         let mut last_frame = std::time::Instant::now();
 
-        event_loop.run(move |event, _, control_flow| {
+        event_loop.run_app(move |event, window_target| {
             if let Some(dotrix_event) = map::event(&event) {
                 handler.on_input(dotrix_event);
             }
             match event {
                 // window control
-                winit::event::Event::MainEventsCleared => {
+                winit::event::Event::AboutToWait => {
                     if last_frame.elapsed() >= frame_duration {
                         window_handle.window.request_redraw();
                         last_frame = std::time::Instant::now();
@@ -86,69 +284,49 @@ impl EventLoop {
                     ..
                 } => {
                     handler.on_close();
-                    *control_flow = winit::event_loop::ControlFlow::Exit;
+                    window_target.exit();
                 }
                 // draw request
-                winit::event::Event::RedrawRequested(_) => {
+                winit::event::Event::RedrawRequested => {
                     handler.on_draw();
                 }
                 _ => {}
             }
         });
     }
+     */
 }
 
 /// Window Service
 pub struct Window {
-    handle: Handle,
+    instance: Instance,
 }
 
 impl Window {
-    pub fn new(title: &str, resolution: Extent2D, _fullscreen: bool) -> (Window, EventLoop) {
-        let event_loop = winit::event_loop::EventLoop::new();
+    pub fn new(instance: Instance) -> Self {
+        Self { instance }
+    }
 
-        let winit_window = winit::window::WindowBuilder::new()
-            .with_title(title)
-            .with_inner_size(winit::dpi::LogicalSize::new(
-                resolution.width,
-                resolution.height,
-            ))
-            // TODO: fullscreen
-            .build(&event_loop)
-            .expect("Failed to create a window");
+    pub fn window_handle(
+        &self,
+    ) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
+        self.instance.window_handle()
+    }
 
-        let handle = Handle {
-            window: Arc::new(winit_window),
-        };
-
-        let main_loop = EventLoop {
-            event_loop,
-            frame_duration: std::time::Duration::from_secs_f32(0.0),
-            window_handle: handle.clone(),
-        };
-
-        let window = Self { handle };
-
-        (window, main_loop)
+    pub fn display_handle(
+        &self,
+    ) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
+        self.instance.display_handle()
     }
 
     /// Set window title
     pub fn set_title(&self, title: &str) {
-        self.handle.window.set_title(title);
-    }
-
-    /// Returns window's handle
-    pub fn handle(&self) -> &Handle {
-        &self.handle
+        self.instance.winit_window.set_title(title);
     }
 
     /// Returns window's resolution
     pub fn resolution(&self) -> Extent2D {
-        let size = self.handle.window.inner_size();
-        Extent2D {
-            width: size.width,
-            height: size.height,
-        }
+        self.instance.resolution()
     }
 }
 

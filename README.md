@@ -57,6 +57,13 @@ being used for proof-of-concept tests.
 cargo run --release --bin studio
 ```
 
+## Compile GLSL shaders
+
+```
+glslc -fshader-stage=vertex non-rigged.vert.glsl -o non-rigged.vert.spv 
+glslc -fshader-stage=fragment non-rigged.frag.glsl -o non-rigged.frag.spv 
+```
+
 ## Sponsors
 
 * Johan Andersson <[@repi](https://github.com/repi)>

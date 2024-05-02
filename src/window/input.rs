@@ -45,19 +45,22 @@ impl Task for ReadInput {
         let capacity = events.len();
         let mut list = Vec::with_capacity(capacity);
 
-        let mut text = String::with_capacity(8);
+        let mut input_text = String::with_capacity(8);
         let mut mouse_move_delta = ScreenVector::default();
         let mut mouse_scroll_delta_lines = ScreenVector::default();
         let mut mouse_scroll_delta_pixels = ScreenVector::default();
         let mut mouse_position = self.mouse_position.clone();
 
         for event in events.drain() {
-            match event {
+            match &event {
                 Event::ModifiersChange { modifiers } => {
-                    self.modifiers = modifiers;
+                    self.modifiers = modifiers.clone();
                 }
-                Event::ButtonPress { button } => {
-                    self.hold.entry(button).or_insert_with(|| Instant::now());
+                Event::ButtonPress { button, text } => {
+                    if let Some(text) = text.as_ref() {
+                        input_text += text;
+                    }
+                    self.hold.entry(*button).or_insert_with(|| Instant::now());
                 }
                 Event::ButtonRelease { button } => {
                     self.hold.remove(&button);
@@ -89,14 +92,8 @@ impl Task for ReadInput {
                     horizontal,
                     vertical,
                 } => {
-                    mouse_position.horizontal = horizontal;
-                    mouse_position.vertical = vertical;
-                }
-                Event::CharacterInput { character } => {
-                    let chr = character;
-                    if is_printable(chr) {
-                        text.push(chr);
-                    }
+                    mouse_position.horizontal = *horizontal;
+                    mouse_position.vertical = *vertical;
                 }
                 _ => {}
             }
@@ -111,7 +108,7 @@ impl Task for ReadInput {
             mouse_move_delta,
             mouse_scroll_delta_lines,
             mouse_scroll_delta_pixels,
-            text,
+            text: input_text,
         }
     }
 }

@@ -34,7 +34,7 @@ where
     pub fn store(&mut self, index: I, entry: T, entry_size: u64) -> Result<u64, u64> {
         let offset_in_buffer = self.used_size;
         let total_size = self.total_size;
-        let used_size_after = offset_in_buffer + entry_size;
+        let used_size_after = offset_in_buffer + entry_size + entry_size % 8;
         if used_size_after > total_size {
             return Err(used_size_after - total_size);
         }

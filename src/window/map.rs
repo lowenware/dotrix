@@ -6,14 +6,17 @@ pub fn event(event: &winit::event::Event<()>) -> Option<event::Event> {
             event: window_event,
             ..
         } => match window_event {
-            winit::event::WindowEvent::KeyboardInput { input, .. } => keyboard_input(input),
+            winit::event::WindowEvent::KeyboardInput {
+                device_id,
+                event,
+                is_synthetic,
+            } => keyboard_input(*device_id, event, *is_synthetic),
             winit::event::WindowEvent::MouseInput { state, button, .. } => {
                 mouse_input(button, state)
             }
             winit::event::WindowEvent::CursorMoved { position, .. } => cursor_moved(position),
             winit::event::WindowEvent::MouseWheel { delta, .. } => mouse_wheel(delta),
-            winit::event::WindowEvent::ModifiersChanged(state) => modifiers_changed(state),
-            winit::event::WindowEvent::ReceivedCharacter(chr) => received_character(*chr),
+            winit::event::WindowEvent::ModifiersChanged(modifiers) => modifiers_changed(modifiers),
             winit::event::WindowEvent::HoveredFile(path) => hovered_file(path),
             winit::event::WindowEvent::HoveredFileCancelled => hovered_file_canceled(),
             winit::event::WindowEvent::DroppedFile(path) => dropped_file(path),
@@ -31,32 +34,47 @@ pub fn event(event: &winit::event::Event<()>) -> Option<event::Event> {
     Some(input_event)
 }
 
-fn keyboard_input(input: &winit::event::KeyboardInput) -> event::Event {
-    let button = event::Button::Key {
-        key_code: input.virtual_keycode.and_then(|key_code| {
-            if (key_code as u32) < (event::KeyCode::Unknown as u32) {
-                unsafe { Some(std::mem::transmute(key_code as u32)) }
+fn keyboard_input(
+    _device_id: winit::event::DeviceId,
+    event: &winit::event::KeyEvent,
+    _is_synthetic: bool,
+) -> event::Event {
+    let (key_code, scan_code) = match event.physical_key {
+        // TODO: impement 1:1 mapper function
+        winit::keyboard::PhysicalKey::Code(key_code) => {
+            let scan_code = (key_code as u32);
+            if scan_code < (event::KeyCode::Unknown as u32) {
+                (
+                    unsafe { Some(std::mem::transmute(key_code as u32)) },
+                    scan_code,
+                )
             } else {
-                None
+                (None, scan_code)
             }
-        }),
-        scan_code: input.scancode,
+        }
+        _ => (None, event::KeyCode::Unknown as u32),
     };
-    match input.state {
-        winit::event::ElementState::Pressed => event::Event::ButtonPress { button },
+
+    let button = event::Button::Key {
+        key_code,
+        scan_code,
+    };
+    match event.state {
+        winit::event::ElementState::Pressed => event::Event::ButtonPress {
+            button,
+            text: event.text.as_ref().map(|smol_str| smol_str.to_string()),
+        },
         winit::event::ElementState::Released => event::Event::ButtonRelease { button },
     }
 }
 
-fn modifiers_changed(state: &winit::event::ModifiersState) -> event::Event {
+fn modifiers_changed(modifiers: &winit::event::Modifiers) -> event::Event {
     event::Event::ModifiersChange {
-        modifiers: event::Modifiers::from_bits(state.bits() & event::Modifiers::all().bits())
-            .unwrap(),
+        modifiers: event::Modifiers::from_bits(
+            modifiers.state().bits() & event::Modifiers::all().bits(),
+        )
+        .unwrap(),
     }
-}
-
-fn received_character(character: char) -> event::Event {
-    event::Event::CharacterInput { character }
 }
 
 fn cursor_moved(position: &winit::dpi::PhysicalPosition<f64>) -> event::Event {
@@ -89,10 +107,12 @@ fn mouse_input(
         winit::event::MouseButton::Left => event::Button::MouseLeft,
         winit::event::MouseButton::Right => event::Button::MouseRight,
         winit::event::MouseButton::Middle => event::Button::MouseMiddle,
+        winit::event::MouseButton::Forward => event::Button::Forward,
+        winit::event::MouseButton::Back => event::Button::Back,
         winit::event::MouseButton::Other(num) => event::Button::MouseOther(*num),
     };
     match state {
-        winit::event::ElementState::Pressed => event::Event::ButtonPress { button },
+        winit::event::ElementState::Pressed => event::Event::ButtonPress { button, text: None },
         winit::event::ElementState::Released => event::Event::ButtonRelease { button },
     }
 }
@@ -115,358 +135,248 @@ fn dropped_file(path: &std::path::Path) -> event::Event {
     }
 }
 
+fn map_key_event(event: winit::event::KeyEvent) -> event::KeyCode {
+    match event.physical_key {
+        winit::keyboard::PhysicalKey::Code(keycode) => match keycode {
+            winit::keyboard::KeyCode::Digit1 => event::KeyCode::Key1,
+            winit::keyboard::KeyCode::Digit2 => event::KeyCode::Key2,
+            winit::keyboard::KeyCode::Digit3 => event::KeyCode::Key3,
+            winit::keyboard::KeyCode::Digit4 => event::KeyCode::Key4,
+            winit::keyboard::KeyCode::Digit5 => event::KeyCode::Key5,
+            winit::keyboard::KeyCode::Digit6 => event::KeyCode::Key6,
+            winit::keyboard::KeyCode::Digit7 => event::KeyCode::Key7,
+            winit::keyboard::KeyCode::Digit8 => event::KeyCode::Key8,
+            winit::keyboard::KeyCode::Digit9 => event::KeyCode::Key9,
+            winit::keyboard::KeyCode::Digit0 => event::KeyCode::Key0,
+
+            winit::keyboard::KeyCode::KeyA => event::KeyCode::A,
+            winit::keyboard::KeyCode::KeyB => event::KeyCode::B,
+            winit::keyboard::KeyCode::KeyC => event::KeyCode::C,
+            winit::keyboard::KeyCode::KeyD => event::KeyCode::D,
+            winit::keyboard::KeyCode::KeyE => event::KeyCode::E,
+            winit::keyboard::KeyCode::KeyF => event::KeyCode::F,
+            winit::keyboard::KeyCode::KeyG => event::KeyCode::G,
+            winit::keyboard::KeyCode::KeyH => event::KeyCode::H,
+            winit::keyboard::KeyCode::KeyI => event::KeyCode::I,
+            winit::keyboard::KeyCode::KeyJ => event::KeyCode::J,
+            winit::keyboard::KeyCode::KeyK => event::KeyCode::K,
+            winit::keyboard::KeyCode::KeyL => event::KeyCode::L,
+            winit::keyboard::KeyCode::KeyM => event::KeyCode::M,
+            winit::keyboard::KeyCode::KeyN => event::KeyCode::N,
+            winit::keyboard::KeyCode::KeyO => event::KeyCode::O,
+            winit::keyboard::KeyCode::KeyP => event::KeyCode::P,
+            winit::keyboard::KeyCode::KeyQ => event::KeyCode::Q,
+            winit::keyboard::KeyCode::KeyR => event::KeyCode::R,
+            winit::keyboard::KeyCode::KeyS => event::KeyCode::S,
+            winit::keyboard::KeyCode::KeyT => event::KeyCode::T,
+            winit::keyboard::KeyCode::KeyU => event::KeyCode::U,
+            winit::keyboard::KeyCode::KeyV => event::KeyCode::V,
+            winit::keyboard::KeyCode::KeyW => event::KeyCode::W,
+            winit::keyboard::KeyCode::KeyX => event::KeyCode::X,
+            winit::keyboard::KeyCode::KeyY => event::KeyCode::Y,
+            winit::keyboard::KeyCode::KeyZ => event::KeyCode::Z,
+
+            winit::keyboard::KeyCode::Escape => event::KeyCode::Escape,
+
+            winit::keyboard::KeyCode::F1 => event::KeyCode::F1,
+            winit::keyboard::KeyCode::F2 => event::KeyCode::F2,
+            winit::keyboard::KeyCode::F3 => event::KeyCode::F3,
+            winit::keyboard::KeyCode::F4 => event::KeyCode::F4,
+            winit::keyboard::KeyCode::F5 => event::KeyCode::F5,
+            winit::keyboard::KeyCode::F6 => event::KeyCode::F6,
+            winit::keyboard::KeyCode::F7 => event::KeyCode::F7,
+            winit::keyboard::KeyCode::F8 => event::KeyCode::F8,
+            winit::keyboard::KeyCode::F9 => event::KeyCode::F9,
+            winit::keyboard::KeyCode::F10 => event::KeyCode::F10,
+            winit::keyboard::KeyCode::F11 => event::KeyCode::F11,
+            winit::keyboard::KeyCode::F12 => event::KeyCode::F12,
+            winit::keyboard::KeyCode::F13 => event::KeyCode::F13,
+            winit::keyboard::KeyCode::F14 => event::KeyCode::F14,
+            winit::keyboard::KeyCode::F15 => event::KeyCode::F15,
+            winit::keyboard::KeyCode::F16 => event::KeyCode::F16,
+            winit::keyboard::KeyCode::F17 => event::KeyCode::F17,
+            winit::keyboard::KeyCode::F18 => event::KeyCode::F18,
+            winit::keyboard::KeyCode::F19 => event::KeyCode::F19,
+            winit::keyboard::KeyCode::F20 => event::KeyCode::F20,
+            winit::keyboard::KeyCode::F21 => event::KeyCode::F21,
+            winit::keyboard::KeyCode::F22 => event::KeyCode::F22,
+            winit::keyboard::KeyCode::F23 => event::KeyCode::F23,
+            winit::keyboard::KeyCode::F24 => event::KeyCode::F24,
+
+            winit::keyboard::KeyCode::PrintScreen => event::KeyCode::PrintScreen,
+            winit::keyboard::KeyCode::ScrollLock => event::KeyCode::ScrollLock,
+            winit::keyboard::KeyCode::Pause => event::KeyCode::Pause,
+
+            winit::keyboard::KeyCode::Insert => event::KeyCode::Insert,
+            winit::keyboard::KeyCode::Home => event::KeyCode::Home,
+            winit::keyboard::KeyCode::Delete => event::KeyCode::Delete,
+            winit::keyboard::KeyCode::End => event::KeyCode::End,
+
+            winit::keyboard::KeyCode::PageDown => event::KeyCode::PageDown,
+            winit::keyboard::KeyCode::PageUp => event::KeyCode::PageUp,
+
+            winit::keyboard::KeyCode::ArrowLeft => event::KeyCode::Left,
+            winit::keyboard::KeyCode::ArrowUp => event::KeyCode::Up,
+            winit::keyboard::KeyCode::ArrowRight => event::KeyCode::Right,
+            winit::keyboard::KeyCode::ArrowDown => event::KeyCode::Down,
+
+            winit::keyboard::KeyCode::Backspace => event::KeyCode::Backspace,
+            winit::keyboard::KeyCode::Enter => event::KeyCode::Return,
+            winit::keyboard::KeyCode::Space => event::KeyCode::Space,
+
+            // winit::keyboard::KeyCode::Compose => event::KeyCode::Compose,
+            // winit::keyboard::KeyCode::Caret => event::KeyCode::Caret,
+            winit::keyboard::KeyCode::NumLock => event::KeyCode::Numlock,
+
+            winit::keyboard::KeyCode::Numpad0 => event::KeyCode::Numpad0,
+
+            winit::keyboard::KeyCode::Numpad1 => event::KeyCode::Numpad1,
+
+            winit::keyboard::KeyCode::Numpad2 => event::KeyCode::Numpad2,
+
+            winit::keyboard::KeyCode::Numpad3 => event::KeyCode::Numpad3,
+
+            winit::keyboard::KeyCode::Numpad4 => event::KeyCode::Numpad4,
+
+            winit::keyboard::KeyCode::Numpad5 => event::KeyCode::Numpad5,
+
+            winit::keyboard::KeyCode::Numpad6 => event::KeyCode::Numpad6,
+
+            winit::keyboard::KeyCode::Numpad7 => event::KeyCode::Numpad7,
+
+            winit::keyboard::KeyCode::Numpad8 => event::KeyCode::Numpad8,
+
+            winit::keyboard::KeyCode::Numpad9 => event::KeyCode::Numpad9,
+
+            winit::keyboard::KeyCode::NumpadAdd => event::KeyCode::NumpadAdd,
+
+            winit::keyboard::KeyCode::NumpadDivide => event::KeyCode::NumpadDivide,
+
+            winit::keyboard::KeyCode::NumpadDecimal => event::KeyCode::NumpadDecimal,
+
+            winit::keyboard::KeyCode::NumpadComma => event::KeyCode::NumpadComma,
+
+            winit::keyboard::KeyCode::NumpadEnter => event::KeyCode::NumpadEnter,
+
+            winit::keyboard::KeyCode::NumpadEqual => event::KeyCode::NumpadEquals,
+
+            winit::keyboard::KeyCode::NumpadMultiply => event::KeyCode::NumpadMultiply,
+
+            winit::keyboard::KeyCode::NumpadSubtract => event::KeyCode::NumpadSubtract,
+
+            // winit::keyboard::KeyCode::AbntC1 => event::KeyCode::AbntC1,
+            // winit::keyboard::KeyCode::AbntC2 => event::KeyCode::AbntC2,
+
+            // winit::keyboard::KeyCode::Apostrophe => event::KeyCode::Apostrophe,
+            // winit::keyboard::KeyCode::Apps => event::KeyCode::Apps,
+
+            // winit::keyboard::KeyCode::Asterisk => event::KeyCode::Asterisk,
+            // winit::keyboard::KeyCode::At => event::KeyCode::At,
+            // winit::keyboard::KeyCode::Ax => event::KeyCode::Ax,
+            winit::keyboard::KeyCode::Backslash => event::KeyCode::Backslash,
+
+            winit::keyboard::KeyCode::LaunchApp2 => event::KeyCode::Calculator,
+
+            // winit::keyboard::KeyCode::Capital => event::KeyCode::Capital,
+            // winit::keyboard::KeyCode::Colon => event::KeyCode::Colon,
+            winit::keyboard::KeyCode::Comma => event::KeyCode::Comma,
+
+            winit::keyboard::KeyCode::Convert => event::KeyCode::Convert,
+            //winit::keyboard::KeyCode::Equals => event::KeyCode::Equals,
+            //winit::keyboard::KeyCode::Grave => event::KeyCode::Grave,
+            //winit::keyboard::KeyCode::Kana => event::KeyCode::Kana,
+            //winit::keyboard::KeyCode::Kanji => event::KeyCode::Kanji,
+            winit::keyboard::KeyCode::AltLeft => event::KeyCode::LAlt,
+
+            winit::keyboard::KeyCode::BracketLeft => event::KeyCode::LBracket,
+
+            winit::keyboard::KeyCode::ControlLeft => event::KeyCode::LControl,
+            winit::keyboard::KeyCode::ShiftLeft => event::KeyCode::LShift,
+            winit::keyboard::KeyCode::SuperLeft => event::KeyCode::LWin,
+            winit::keyboard::KeyCode::LaunchMail => event::KeyCode::Mail,
+
+            winit::keyboard::KeyCode::MediaSelect => event::KeyCode::MediaSelect,
+
+            winit::keyboard::KeyCode::MediaStop => event::KeyCode::MediaStop,
+            winit::keyboard::KeyCode::Minus => event::KeyCode::Minus,
+            winit::keyboard::KeyCode::AudioVolumeMute => event::KeyCode::Mute,
+
+            winit::keyboard::KeyCode::LaunchApp1 => event::KeyCode::MyComputer,
+
+            winit::keyboard::KeyCode::BrowserForward => event::KeyCode::NavigateForward,
+
+            winit::keyboard::KeyCode::BrowserBack => event::KeyCode::NavigateBackward,
+
+            winit::keyboard::KeyCode::MediaTrackNext => event::KeyCode::NextTrack,
+
+            // winit::keyboard::KeyCode::NoConvert => event::KeyCode::NoConvert,
+            // winit::keyboard::KeyCode::OEM102 => event::KeyCode::OEM102,
+            winit::keyboard::KeyCode::Period => event::KeyCode::Period,
+
+            winit::keyboard::KeyCode::MediaPlayPause => event::KeyCode::PlayPause,
+            // winit::keyboard::KeyCode::Plus => event::KeyCode::Plus,
+            winit::keyboard::KeyCode::Power => event::KeyCode::Power,
+
+            winit::keyboard::KeyCode::MediaTrackPrevious => event::KeyCode::PrevTrack,
+            winit::keyboard::KeyCode::AltRight => event::KeyCode::RAlt,
+
+            winit::keyboard::KeyCode::BracketRight => event::KeyCode::RBracket,
+
+            winit::keyboard::KeyCode::ControlRight => event::KeyCode::RControl,
+            winit::keyboard::KeyCode::ShiftRight => event::KeyCode::RShift,
+            winit::keyboard::KeyCode::SuperRight => event::KeyCode::RWin,
+
+            winit::keyboard::KeyCode::Semicolon => event::KeyCode::Semicolon,
+            winit::keyboard::KeyCode::Slash => event::KeyCode::Slash,
+            winit::keyboard::KeyCode::Sleep => event::KeyCode::Sleep,
+            winit::keyboard::KeyCode::MediaStop => event::KeyCode::Stop,
+            //winit::keyboard::KeyCode::Sysrq => event::KeyCode::Sysrq,
+            winit::keyboard::KeyCode::Tab => event::KeyCode::Tab,
+
+            // winit::keyboard::KeyCode::Underline => event::KeyCode::Underline,
+
+            // winit::keyboard::KeyCode::Unlabeled => event::KeyCode::Unlabeled,
+            winit::keyboard::KeyCode::AudioVolumeDown => event::KeyCode::VolumeDown,
+
+            winit::keyboard::KeyCode::AudioVolumeUp => event::KeyCode::VolumeUp,
+            // winit::keyboard::KeyCode::Wake => event::KeyCode::Wake,
+            winit::keyboard::KeyCode::BrowserBack => event::KeyCode::WebBack,
+
+            winit::keyboard::KeyCode::BrowserFavorites => event::KeyCode::WebFavorites,
+
+            winit::keyboard::KeyCode::BrowserForward => event::KeyCode::WebForward,
+
+            winit::keyboard::KeyCode::BrowserHome => event::KeyCode::WebHome,
+
+            winit::keyboard::KeyCode::BrowserRefresh => event::KeyCode::WebRefresh,
+
+            winit::keyboard::KeyCode::BrowserSearch => event::KeyCode::WebSearch,
+
+            winit::keyboard::KeyCode::BrowserStop => event::KeyCode::WebStop,
+            // winit::keyboard::KeyCode::Yen => event::KeyCode::Yen,
+            winit::keyboard::KeyCode::Copy => event::KeyCode::Copy,
+            winit::keyboard::KeyCode::Paste => event::KeyCode::Paste,
+            winit::keyboard::KeyCode::Cut => event::KeyCode::Cut,
+
+            _ => event::KeyCode::Unknown,
+        },
+        _ => event::KeyCode::Unknown,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::window::event;
-    use winit::event::{ModifiersState, VirtualKeyCode};
+    use winit::keyboard::ModifiersState;
 
     #[test]
     fn dotrix_and_winit_modifiers_matches() {
         assert_eq!(ModifiersState::SHIFT.bits(), event::Modifiers::SHIFT.bits());
-        assert_eq!(ModifiersState::CTRL.bits(), event::Modifiers::CTRL.bits());
+        assert_eq!(
+            ModifiersState::CONTROL.bits(),
+            event::Modifiers::CTRL.bits()
+        );
         assert_eq!(ModifiersState::ALT.bits(), event::Modifiers::ALT.bits());
-        assert_eq!(ModifiersState::LOGO.bits(), event::Modifiers::SUPER.bits());
-    }
-
-    #[test]
-    fn dotrix_and_winit_keycodes_matches() {
-        assert_eq!(
-            std::mem::size_of::<VirtualKeyCode>(),
-            std::mem::size_of::<event::KeyCode>()
-        );
-        assert_eq!(VirtualKeyCode::Key1 as u32, event::KeyCode::Key1 as u32);
-        assert_eq!(VirtualKeyCode::Key2 as u32, event::KeyCode::Key2 as u32);
-        assert_eq!(VirtualKeyCode::Key3 as u32, event::KeyCode::Key3 as u32);
-        assert_eq!(VirtualKeyCode::Key4 as u32, event::KeyCode::Key4 as u32);
-        assert_eq!(VirtualKeyCode::Key5 as u32, event::KeyCode::Key5 as u32);
-        assert_eq!(VirtualKeyCode::Key6 as u32, event::KeyCode::Key6 as u32);
-        assert_eq!(VirtualKeyCode::Key7 as u32, event::KeyCode::Key7 as u32);
-        assert_eq!(VirtualKeyCode::Key8 as u32, event::KeyCode::Key8 as u32);
-        assert_eq!(VirtualKeyCode::Key9 as u32, event::KeyCode::Key9 as u32);
-        assert_eq!(VirtualKeyCode::Key0 as u32, event::KeyCode::Key0 as u32);
-
-        assert_eq!(VirtualKeyCode::A as u32, event::KeyCode::A as u32);
-        assert_eq!(VirtualKeyCode::B as u32, event::KeyCode::B as u32);
-        assert_eq!(VirtualKeyCode::C as u32, event::KeyCode::C as u32);
-        assert_eq!(VirtualKeyCode::D as u32, event::KeyCode::D as u32);
-        assert_eq!(VirtualKeyCode::E as u32, event::KeyCode::E as u32);
-        assert_eq!(VirtualKeyCode::F as u32, event::KeyCode::F as u32);
-        assert_eq!(VirtualKeyCode::G as u32, event::KeyCode::G as u32);
-        assert_eq!(VirtualKeyCode::H as u32, event::KeyCode::H as u32);
-        assert_eq!(VirtualKeyCode::I as u32, event::KeyCode::I as u32);
-        assert_eq!(VirtualKeyCode::J as u32, event::KeyCode::J as u32);
-        assert_eq!(VirtualKeyCode::K as u32, event::KeyCode::K as u32);
-        assert_eq!(VirtualKeyCode::L as u32, event::KeyCode::L as u32);
-        assert_eq!(VirtualKeyCode::M as u32, event::KeyCode::M as u32);
-        assert_eq!(VirtualKeyCode::N as u32, event::KeyCode::N as u32);
-        assert_eq!(VirtualKeyCode::O as u32, event::KeyCode::O as u32);
-        assert_eq!(VirtualKeyCode::P as u32, event::KeyCode::P as u32);
-        assert_eq!(VirtualKeyCode::Q as u32, event::KeyCode::Q as u32);
-        assert_eq!(VirtualKeyCode::R as u32, event::KeyCode::R as u32);
-        assert_eq!(VirtualKeyCode::S as u32, event::KeyCode::S as u32);
-        assert_eq!(VirtualKeyCode::T as u32, event::KeyCode::T as u32);
-        assert_eq!(VirtualKeyCode::U as u32, event::KeyCode::U as u32);
-        assert_eq!(VirtualKeyCode::V as u32, event::KeyCode::V as u32);
-        assert_eq!(VirtualKeyCode::W as u32, event::KeyCode::W as u32);
-        assert_eq!(VirtualKeyCode::X as u32, event::KeyCode::X as u32);
-        assert_eq!(VirtualKeyCode::Y as u32, event::KeyCode::Y as u32);
-        assert_eq!(VirtualKeyCode::Z as u32, event::KeyCode::Z as u32);
-
-        assert_eq!(VirtualKeyCode::Escape as u32, event::KeyCode::Escape as u32);
-
-        assert_eq!(VirtualKeyCode::F1 as u32, event::KeyCode::F1 as u32);
-        assert_eq!(VirtualKeyCode::F2 as u32, event::KeyCode::F2 as u32);
-        assert_eq!(VirtualKeyCode::F3 as u32, event::KeyCode::F3 as u32);
-        assert_eq!(VirtualKeyCode::F4 as u32, event::KeyCode::F4 as u32);
-        assert_eq!(VirtualKeyCode::F5 as u32, event::KeyCode::F5 as u32);
-        assert_eq!(VirtualKeyCode::F6 as u32, event::KeyCode::F6 as u32);
-        assert_eq!(VirtualKeyCode::F7 as u32, event::KeyCode::F7 as u32);
-        assert_eq!(VirtualKeyCode::F8 as u32, event::KeyCode::F8 as u32);
-        assert_eq!(VirtualKeyCode::F9 as u32, event::KeyCode::F9 as u32);
-        assert_eq!(VirtualKeyCode::F10 as u32, event::KeyCode::F10 as u32);
-        assert_eq!(VirtualKeyCode::F11 as u32, event::KeyCode::F11 as u32);
-        assert_eq!(VirtualKeyCode::F12 as u32, event::KeyCode::F12 as u32);
-        assert_eq!(VirtualKeyCode::F13 as u32, event::KeyCode::F13 as u32);
-        assert_eq!(VirtualKeyCode::F14 as u32, event::KeyCode::F14 as u32);
-        assert_eq!(VirtualKeyCode::F15 as u32, event::KeyCode::F15 as u32);
-        assert_eq!(VirtualKeyCode::F16 as u32, event::KeyCode::F16 as u32);
-        assert_eq!(VirtualKeyCode::F17 as u32, event::KeyCode::F17 as u32);
-        assert_eq!(VirtualKeyCode::F18 as u32, event::KeyCode::F18 as u32);
-        assert_eq!(VirtualKeyCode::F19 as u32, event::KeyCode::F19 as u32);
-        assert_eq!(VirtualKeyCode::F20 as u32, event::KeyCode::F20 as u32);
-        assert_eq!(VirtualKeyCode::F21 as u32, event::KeyCode::F21 as u32);
-        assert_eq!(VirtualKeyCode::F22 as u32, event::KeyCode::F22 as u32);
-        assert_eq!(VirtualKeyCode::F23 as u32, event::KeyCode::F23 as u32);
-        assert_eq!(VirtualKeyCode::F24 as u32, event::KeyCode::F24 as u32);
-
-        assert_eq!(
-            VirtualKeyCode::Snapshot as u32,
-            event::KeyCode::Snapshot as u32
-        );
-        assert_eq!(VirtualKeyCode::Scroll as u32, event::KeyCode::Scroll as u32);
-        assert_eq!(VirtualKeyCode::Pause as u32, event::KeyCode::Pause as u32);
-
-        assert_eq!(VirtualKeyCode::Insert as u32, event::KeyCode::Insert as u32);
-        assert_eq!(VirtualKeyCode::Home as u32, event::KeyCode::Home as u32);
-        assert_eq!(VirtualKeyCode::Delete as u32, event::KeyCode::Delete as u32);
-        assert_eq!(VirtualKeyCode::End as u32, event::KeyCode::End as u32);
-        assert_eq!(
-            VirtualKeyCode::PageDown as u32,
-            event::KeyCode::PageDown as u32
-        );
-        assert_eq!(VirtualKeyCode::PageUp as u32, event::KeyCode::PageUp as u32);
-
-        assert_eq!(VirtualKeyCode::Left as u32, event::KeyCode::Left as u32);
-        assert_eq!(VirtualKeyCode::Up as u32, event::KeyCode::Up as u32);
-        assert_eq!(VirtualKeyCode::Right as u32, event::KeyCode::Right as u32);
-        assert_eq!(VirtualKeyCode::Down as u32, event::KeyCode::Down as u32);
-
-        assert_eq!(
-            VirtualKeyCode::Back as u32,
-            event::KeyCode::Backspace as u32
-        );
-        assert_eq!(VirtualKeyCode::Return as u32, event::KeyCode::Return as u32);
-        assert_eq!(VirtualKeyCode::Space as u32, event::KeyCode::Space as u32);
-        assert_eq!(
-            VirtualKeyCode::Compose as u32,
-            event::KeyCode::Compose as u32
-        );
-        assert_eq!(VirtualKeyCode::Caret as u32, event::KeyCode::Caret as u32);
-
-        assert_eq!(
-            VirtualKeyCode::Numlock as u32,
-            event::KeyCode::Numlock as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Numpad0 as u32,
-            event::KeyCode::Numpad0 as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Numpad1 as u32,
-            event::KeyCode::Numpad1 as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Numpad2 as u32,
-            event::KeyCode::Numpad2 as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Numpad3 as u32,
-            event::KeyCode::Numpad3 as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Numpad4 as u32,
-            event::KeyCode::Numpad4 as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Numpad5 as u32,
-            event::KeyCode::Numpad5 as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Numpad6 as u32,
-            event::KeyCode::Numpad6 as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Numpad7 as u32,
-            event::KeyCode::Numpad7 as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Numpad8 as u32,
-            event::KeyCode::Numpad8 as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Numpad9 as u32,
-            event::KeyCode::Numpad9 as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::NumpadAdd as u32,
-            event::KeyCode::NumpadAdd as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::NumpadDivide as u32,
-            event::KeyCode::NumpadDivide as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::NumpadDecimal as u32,
-            event::KeyCode::NumpadDecimal as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::NumpadComma as u32,
-            event::KeyCode::NumpadComma as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::NumpadEnter as u32,
-            event::KeyCode::NumpadEnter as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::NumpadEquals as u32,
-            event::KeyCode::NumpadEquals as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::NumpadMultiply as u32,
-            event::KeyCode::NumpadMultiply as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::NumpadSubtract as u32,
-            event::KeyCode::NumpadSubtract as u32
-        );
-
-        assert_eq!(VirtualKeyCode::AbntC1 as u32, event::KeyCode::AbntC1 as u32);
-        assert_eq!(VirtualKeyCode::AbntC2 as u32, event::KeyCode::AbntC2 as u32);
-        assert_eq!(
-            VirtualKeyCode::Apostrophe as u32,
-            event::KeyCode::Apostrophe as u32
-        );
-        assert_eq!(VirtualKeyCode::Apps as u32, event::KeyCode::Apps as u32);
-        assert_eq!(
-            VirtualKeyCode::Asterisk as u32,
-            event::KeyCode::Asterisk as u32
-        );
-        assert_eq!(VirtualKeyCode::At as u32, event::KeyCode::At as u32);
-        assert_eq!(VirtualKeyCode::Ax as u32, event::KeyCode::Ax as u32);
-        assert_eq!(
-            VirtualKeyCode::Backslash as u32,
-            event::KeyCode::Backslash as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Calculator as u32,
-            event::KeyCode::Calculator as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Capital as u32,
-            event::KeyCode::Capital as u32
-        );
-        assert_eq!(VirtualKeyCode::Colon as u32, event::KeyCode::Colon as u32);
-        assert_eq!(VirtualKeyCode::Comma as u32, event::KeyCode::Comma as u32);
-        assert_eq!(
-            VirtualKeyCode::Convert as u32,
-            event::KeyCode::Convert as u32
-        );
-        assert_eq!(VirtualKeyCode::Equals as u32, event::KeyCode::Equals as u32);
-        assert_eq!(VirtualKeyCode::Grave as u32, event::KeyCode::Grave as u32);
-        assert_eq!(VirtualKeyCode::Kana as u32, event::KeyCode::Kana as u32);
-        assert_eq!(VirtualKeyCode::Kanji as u32, event::KeyCode::Kanji as u32);
-        assert_eq!(VirtualKeyCode::LAlt as u32, event::KeyCode::LAlt as u32);
-        assert_eq!(
-            VirtualKeyCode::LBracket as u32,
-            event::KeyCode::LBracket as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::LControl as u32,
-            event::KeyCode::LControl as u32
-        );
-        assert_eq!(VirtualKeyCode::LShift as u32, event::KeyCode::LShift as u32);
-        assert_eq!(VirtualKeyCode::LWin as u32, event::KeyCode::LWin as u32);
-        assert_eq!(VirtualKeyCode::Mail as u32, event::KeyCode::Mail as u32);
-        assert_eq!(
-            VirtualKeyCode::MediaSelect as u32,
-            event::KeyCode::MediaSelect as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::MediaStop as u32,
-            event::KeyCode::MediaStop as u32
-        );
-        assert_eq!(VirtualKeyCode::Minus as u32, event::KeyCode::Minus as u32);
-        assert_eq!(VirtualKeyCode::Mute as u32, event::KeyCode::Mute as u32);
-        assert_eq!(
-            VirtualKeyCode::MyComputer as u32,
-            event::KeyCode::MyComputer as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::NavigateForward as u32,
-            event::KeyCode::NavigateForward as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::NavigateBackward as u32,
-            event::KeyCode::NavigateBackward as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::NextTrack as u32,
-            event::KeyCode::NextTrack as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::NoConvert as u32,
-            event::KeyCode::NoConvert as u32
-        );
-        assert_eq!(VirtualKeyCode::OEM102 as u32, event::KeyCode::OEM102 as u32);
-        assert_eq!(VirtualKeyCode::Period as u32, event::KeyCode::Period as u32);
-        assert_eq!(
-            VirtualKeyCode::PlayPause as u32,
-            event::KeyCode::PlayPause as u32
-        );
-        assert_eq!(VirtualKeyCode::Plus as u32, event::KeyCode::Plus as u32);
-        assert_eq!(VirtualKeyCode::Power as u32, event::KeyCode::Power as u32);
-        assert_eq!(
-            VirtualKeyCode::PrevTrack as u32,
-            event::KeyCode::PrevTrack as u32
-        );
-        assert_eq!(VirtualKeyCode::RAlt as u32, event::KeyCode::RAlt as u32);
-        assert_eq!(
-            VirtualKeyCode::RBracket as u32,
-            event::KeyCode::RBracket as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::RControl as u32,
-            event::KeyCode::RControl as u32
-        );
-        assert_eq!(VirtualKeyCode::RShift as u32, event::KeyCode::RShift as u32);
-        assert_eq!(VirtualKeyCode::RWin as u32, event::KeyCode::RWin as u32);
-        assert_eq!(
-            VirtualKeyCode::Semicolon as u32,
-            event::KeyCode::Semicolon as u32
-        );
-        assert_eq!(VirtualKeyCode::Slash as u32, event::KeyCode::Slash as u32);
-        assert_eq!(VirtualKeyCode::Sleep as u32, event::KeyCode::Sleep as u32);
-        assert_eq!(VirtualKeyCode::Stop as u32, event::KeyCode::Stop as u32);
-        assert_eq!(VirtualKeyCode::Sysrq as u32, event::KeyCode::Sysrq as u32);
-        assert_eq!(VirtualKeyCode::Tab as u32, event::KeyCode::Tab as u32);
-        assert_eq!(
-            VirtualKeyCode::Underline as u32,
-            event::KeyCode::Underline as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::Unlabeled as u32,
-            event::KeyCode::Unlabeled as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::VolumeDown as u32,
-            event::KeyCode::VolumeDown as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::VolumeUp as u32,
-            event::KeyCode::VolumeUp as u32
-        );
-        assert_eq!(VirtualKeyCode::Wake as u32, event::KeyCode::Wake as u32);
-        assert_eq!(
-            VirtualKeyCode::WebBack as u32,
-            event::KeyCode::WebBack as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::WebFavorites as u32,
-            event::KeyCode::WebFavorites as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::WebForward as u32,
-            event::KeyCode::WebForward as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::WebHome as u32,
-            event::KeyCode::WebHome as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::WebRefresh as u32,
-            event::KeyCode::WebRefresh as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::WebSearch as u32,
-            event::KeyCode::WebSearch as u32
-        );
-        assert_eq!(
-            VirtualKeyCode::WebStop as u32,
-            event::KeyCode::WebStop as u32
-        );
-        assert_eq!(VirtualKeyCode::Yen as u32, event::KeyCode::Yen as u32);
-        assert_eq!(VirtualKeyCode::Copy as u32, event::KeyCode::Copy as u32);
-        assert_eq!(VirtualKeyCode::Paste as u32, event::KeyCode::Paste as u32);
-        assert_eq!(VirtualKeyCode::Cut as u32, event::KeyCode::Cut as u32);
+        assert_eq!(ModifiersState::SUPER.bits(), event::Modifiers::SUPER.bits());
     }
 }

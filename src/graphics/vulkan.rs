@@ -5,11 +5,18 @@ use std::sync::Arc;
 pub use ash::vk;
 
 use crate::log;
-use crate::window::Window;
+use crate::window;
 
 use super::{DeviceType, DisplaySetup, Extent2D};
 
-pub struct Device {
+/*
+ * TODO:
+ * - get rid of constructors, use methods on GPU instead to create most of data types
+ * - reuse Vulkan *CreateInfo data struct provided by ash
+ */
+
+// TODO: consider making this private
+struct Device {
     queue_family_index: u32,
     memory_properties: vk::PhysicalDeviceMemoryProperties,
     vk_queue: vk::Queue,
@@ -17,11 +24,12 @@ pub struct Device {
     vk_instance: ash::Instance,
     _vk_entry: ash::Entry,
 
-    vk_debug: Option<(ash::extensions::ext::DebugUtils, vk::DebugUtilsMessengerEXT)>,
+    vk_debug: Option<(ash::ext::debug_utils::Instance, vk::DebugUtilsMessengerEXT)>,
 }
 
 impl Drop for Device {
     fn drop(&mut self) {
+        log::debug!("Device::drop");
         unsafe {
             self.vk_device.device_wait_idle().unwrap();
 
@@ -36,7 +44,7 @@ impl Drop for Device {
 }
 
 pub struct Surface {
-    loader: ash::extensions::khr::Surface,
+    loader: ash::khr::surface::Instance,
     vk_surface: vk::SurfaceKHR,
     vk_surface_format: vk::SurfaceFormatKHR,
     vk_surface_capabilities: vk::SurfaceCapabilitiesKHR,
@@ -45,14 +53,6 @@ pub struct Surface {
     vk_surface_resolution: vk::Extent2D,
     images_count: u32,
     version: u64,
-}
-
-impl Drop for Surface {
-    fn drop(&mut self) {
-        unsafe {
-            self.loader.destroy_surface(self.vk_surface, None);
-        }
-    }
 }
 
 impl Surface {
@@ -67,11 +67,19 @@ impl Surface {
         }
     }
 
-    unsafe fn new(window: &Window, vk_instance: &ash::Instance, vk_entry: &ash::Entry) -> Self {
-        use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
-
-        let raw_display_handle = window.handle().raw_display_handle();
-        let raw_window_handle = window.handle().raw_window_handle();
+    unsafe fn new(
+        window: &window::Instance,
+        vk_instance: &ash::Instance,
+        vk_entry: &ash::Entry,
+    ) -> Self {
+        let raw_display_handle = window
+            .display_handle()
+            .expect("Can't get display handle")
+            .as_raw();
+        let raw_window_handle = window
+            .window_handle()
+            .expect("Can't get window handle")
+            .as_raw();
         let window_resolution = window.resolution();
         let vk_surface_resolution = vk::Extent2D {
             width: window_resolution.width,
@@ -87,7 +95,7 @@ impl Surface {
         )
         .expect("Failed to create a Vulkan surface");
 
-        let loader = ash::extensions::khr::Surface::new(vk_entry, vk_instance);
+        let loader = ash::khr::surface::Instance::new(vk_entry, vk_instance);
 
         Self {
             loader,
@@ -173,15 +181,18 @@ impl Surface {
 }
 
 struct Swapchain {
-    loader: ash::extensions::khr::Swapchain,
+    loader: ash::khr::swapchain::Device,
     vk_swapchain: vk::SwapchainKHR,
-    vk_present_images: Vec<vk::Image>,
+    _vk_present_images: Vec<vk::Image>,
     vk_present_image_views: Vec<vk::ImageView>,
+    depth_image: vk::Image,
+    depth_image_view: vk::ImageView,
+    depth_image_memory: vk::DeviceMemory,
 }
 
 impl Swapchain {
-    unsafe fn create(device: &Device, surface: &Surface) -> Swapchain {
-        let swapchain_create_info = vk::SwapchainCreateInfoKHR::builder()
+    unsafe fn create(gpu: &Gpu, surface: &Surface) -> Swapchain {
+        let swapchain_create_info = vk::SwapchainCreateInfoKHR::default()
             .surface(surface.vk_surface)
             .min_image_count(surface.images_count)
             .image_color_space(surface.vk_surface_format.color_space)
@@ -193,10 +204,10 @@ impl Swapchain {
             .composite_alpha(vk::CompositeAlphaFlagsKHR::OPAQUE)
             .present_mode(surface.vk_present_mode)
             .clipped(true)
-            .image_array_layers(1)
-            .build();
+            .image_array_layers(1);
 
-        let loader = ash::extensions::khr::Swapchain::new(&device.vk_instance, &device.vk_device);
+        let loader =
+            ash::khr::swapchain::Device::new(&gpu.device.vk_instance, &gpu.device.vk_device);
 
         let vk_swapchain = loader
             .create_swapchain(&swapchain_create_info, None)
@@ -207,7 +218,7 @@ impl Swapchain {
         let vk_present_image_views: Vec<vk::ImageView> = vk_present_images
             .iter()
             .map(|&image| {
-                let create_view_info = vk::ImageViewCreateInfo::builder()
+                let create_view_info = vk::ImageViewCreateInfo::default()
                     .view_type(vk::ImageViewType::TYPE_2D)
                     .format(surface.vk_surface_format.format)
                     .components(vk::ComponentMapping {
@@ -225,31 +236,77 @@ impl Swapchain {
                     })
                     .image(image);
 
-                unsafe {
-                    device
-                        .vk_device
-                        .create_image_view(&create_view_info, None)
-                        .unwrap()
-                }
+                unsafe { gpu.create_image_view(&create_view_info).unwrap() }
             })
             .collect();
+
+        let depth_image_create_info = vk::ImageCreateInfo::default()
+            .image_type(vk::ImageType::TYPE_2D)
+            .format(vk::Format::D16_UNORM)
+            .extent(surface.vk_surface_resolution.into())
+            .mip_levels(1)
+            .array_layers(1)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .tiling(vk::ImageTiling::OPTIMAL)
+            .usage(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+        let depth_image = gpu.create_image(&depth_image_create_info).unwrap();
+        let depth_image_memory_req = gpu.get_image_memory_requirements(depth_image);
+        let depth_image_memory_index = gpu
+            .find_memory_type_index(
+                &depth_image_memory_req,
+                vk::MemoryPropertyFlags::DEVICE_LOCAL,
+            )
+            .expect("Unable to find suitable memory index for depth image.");
+
+        let depth_image_allocate_info = vk::MemoryAllocateInfo::default()
+            .allocation_size(depth_image_memory_req.size)
+            .memory_type_index(depth_image_memory_index);
+
+        let depth_image_memory = gpu.allocate_memory(&depth_image_allocate_info).unwrap();
+
+        gpu.bind_image_memory(depth_image, depth_image_memory, 0)
+            .expect("Unable to bind depth image memory");
+
+        let depth_image_view_info = vk::ImageViewCreateInfo::default()
+            .subresource_range(
+                vk::ImageSubresourceRange::default()
+                    .aspect_mask(vk::ImageAspectFlags::DEPTH)
+                    .level_count(1)
+                    .layer_count(1),
+            )
+            .image(depth_image)
+            .format(depth_image_create_info.format)
+            .view_type(vk::ImageViewType::TYPE_2D);
+
+        let depth_image_view = gpu.create_image_view(&depth_image_view_info).unwrap();
 
         Swapchain {
             loader,
             vk_swapchain,
-            vk_present_images,
+            _vk_present_images: vk_present_images,
             vk_present_image_views,
+            depth_image,
+            depth_image_view,
+            depth_image_memory,
         }
     }
 
-    unsafe fn destroy(&self, device: &Device) {
+    unsafe fn destroy(&self, gpu: &Gpu) {
+        gpu.free_memory(self.depth_image_memory);
+        gpu.destroy_image_view(self.depth_image_view);
+        gpu.destroy_image(self.depth_image);
+
         for &image_view in self.vk_present_image_views.iter() {
-            device.vk_device.destroy_image_view(image_view, None);
+            gpu.destroy_image_view(image_view);
         }
+
         self.loader.destroy_swapchain(self.vk_swapchain, None);
     }
 }
 
+/*
 pub struct Framebuffers {
     vk_framebuffers: Vec<vk::Framebuffer>,
 }
@@ -262,7 +319,7 @@ impl Framebuffers {
     }
 
     pub unsafe fn rebuild(&mut self, display: &Display, render_pass: vk::RenderPass) {
-        self.destroy(display);
+        self.destroy(&display.gpu);
         self.create(display, render_pass);
     }
 
@@ -274,27 +331,24 @@ impl Framebuffers {
             .iter()
             .map(|&present_image_view| {
                 let framebuffer_attachments = [present_image_view /*, base.depth_image_view*/];
-                let frame_buffer_create_info = vk::FramebufferCreateInfo::builder()
+                let frame_buffer_create_info = vk::FramebufferCreateInfo::default()
                     .render_pass(render_pass)
                     .attachments(&framebuffer_attachments)
                     .width(resolution.width)
                     .height(resolution.height)
-                    .layers(1)
-                    .build();
+                    .layers(1);
 
                 display
-                    .device
-                    .vk_device
-                    .create_framebuffer(&frame_buffer_create_info, None)
+                    .gpu
+                    .create_framebuffer(&frame_buffer_create_info)
                     .expect("Could not create a framebuffer")
             })
             .collect::<Vec<_>>()
     }
 
-    pub unsafe fn destroy<'a>(&'a self, into_device: impl Into<&'a Device>) {
-        let device = into_device.into();
+    pub unsafe fn destroy<'a>(&'a self, gpu: &Gpu) {
         for framebuffer in self.vk_framebuffers.iter() {
-            device.vk_device.destroy_framebuffer(*framebuffer, None);
+            gpu.destroy_framebuffer(*framebuffer);
         }
     }
 
@@ -302,6 +356,8 @@ impl Framebuffers {
         self.vk_framebuffers[swapchain_index as usize]
     }
 }
+
+ */
 
 #[derive(Clone)]
 pub struct Semaphore {
@@ -337,44 +393,15 @@ pub struct Gpu {
 }
 
 impl Gpu {
-    pub fn queue_family_index(&self) -> u32 {
-        self.device.queue_family_index
+    pub fn device_memory_properties(&self) -> &vk::PhysicalDeviceMemoryProperties {
+        &self.device.memory_properties
     }
 
-    pub fn create_semaphore(&self) -> Semaphore {
-        let semaphore_create_info = vk::SemaphoreCreateInfo::default();
-        let device = Arc::clone(&self.device);
-        let vk_semaphore = unsafe {
-            device
-                .vk_device
-                .create_semaphore(&semaphore_create_info, None)
-                .unwrap()
-        };
-
-        Semaphore {
-            inner: Arc::new(SemaphoreInner {
-                device,
-                vk_semaphore,
-            }),
-        }
-    }
+    // Vulkan API:
 
     #[inline(always)]
-    pub unsafe fn create_command_pool(
-        &self,
-        pool_create_info: &vk::CommandPoolCreateInfo,
-    ) -> vk::CommandPool {
-        self.device
-            .vk_device
-            .create_command_pool(&pool_create_info, None)
-            .expect("Failed to create a Vulkan command pool")
-    }
-
-    #[inline(always)]
-    pub unsafe fn destroy_command_pool(&self, command_pool: vk::CommandPool) {
-        self.device
-            .vk_device
-            .destroy_command_pool(command_pool, None);
+    pub unsafe fn device_wait_idle(&self) -> Result<(), vk::Result> {
+        self.device.vk_device.device_wait_idle()
     }
 
     #[inline(always)]
@@ -393,14 +420,6 @@ impl Gpu {
     }
 
     #[inline(always)]
-    pub unsafe fn get_buffer_memory_requirements(
-        &self,
-        buffer: vk::Buffer,
-    ) -> vk::MemoryRequirements {
-        self.device.vk_device.get_buffer_memory_requirements(buffer)
-    }
-
-    #[inline(always)]
     pub unsafe fn allocate_memory(
         &self,
         memory_allocate_info: &vk::MemoryAllocateInfo,
@@ -411,27 +430,19 @@ impl Gpu {
     }
 
     #[inline(always)]
-    pub unsafe fn create_buffer(&self, buffer_create_info: &vk::BufferCreateInfo) -> vk::Buffer {
-        self.device
-            .vk_device
-            .create_buffer(buffer_create_info, None)
-            .expect("Failed to create a vk::Buffer")
+    pub unsafe fn free_memory(&self, device_memory: vk::DeviceMemory) {
+        self.device.vk_device.free_memory(device_memory, None)
     }
 
     #[inline(always)]
-    pub unsafe fn create_render_pass(
+    pub unsafe fn begin_command_buffer(
         &self,
-        render_pass_create_info: &vk::RenderPassCreateInfo,
-    ) -> vk::RenderPass {
+        command_buffer: vk::CommandBuffer,
+        command_buffer_begin_info: &vk::CommandBufferBeginInfo,
+    ) -> Result<(), vk::Result> {
         self.device
             .vk_device
-            .create_render_pass(render_pass_create_info, None)
-            .expect("Failed to create render pass")
-    }
-
-    #[inline(always)]
-    pub unsafe fn destroy_render_pass(&self, render_pass: vk::RenderPass) {
-        self.device.vk_device.destroy_render_pass(render_pass, None);
+            .begin_command_buffer(command_buffer, &command_buffer_begin_info)
     }
 
     pub unsafe fn reset_command_buffer(
@@ -445,31 +456,179 @@ impl Gpu {
     }
 
     #[inline(always)]
-    pub unsafe fn begin_command_buffer(
+    pub unsafe fn end_command_buffer(
         &self,
         command_buffer: vk::CommandBuffer,
-        command_buffer_begin_info: &vk::CommandBufferBeginInfo,
-    ) {
-        self.device
-            .vk_device
-            .begin_command_buffer(command_buffer, &command_buffer_begin_info)
-            .expect("Failed to begin Vulkan command buffer");
+    ) -> Result<(), vk::Result> {
+        self.device.vk_device.end_command_buffer(command_buffer)
     }
 
     #[inline(always)]
-    pub unsafe fn end_command_buffer(&self, command_buffer: vk::CommandBuffer) {
-        self.device
-            .vk_device
-            .end_command_buffer(command_buffer)
-            .expect("Failed to end Vulkan command buffer");
+    pub unsafe fn create_image_view(
+        &self,
+        create_info: &vk::ImageViewCreateInfo,
+    ) -> Result<vk::ImageView, vk::Result> {
+        self.device.vk_device.create_image_view(create_info, None)
     }
 
     #[inline(always)]
-    pub unsafe fn submit_queue(&self, submits: &[vk::SubmitInfo], fence: vk::Fence) {
+    pub unsafe fn destroy_image_view(&self, image_view: vk::ImageView) {
+        self.device.vk_device.destroy_image_view(image_view, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn create_image(
+        &self,
+        create_info: &vk::ImageCreateInfo,
+    ) -> Result<vk::Image, vk::Result> {
+        self.device.vk_device.create_image(create_info, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn destroy_image(&self, image: vk::Image) {
+        self.device.vk_device.destroy_image(image, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn get_image_memory_requirements(&self, image: vk::Image) -> vk::MemoryRequirements {
+        self.device.vk_device.get_image_memory_requirements(image)
+    }
+
+    #[inline(always)]
+    pub unsafe fn bind_image_memory(
+        &self,
+        image: vk::Image,
+        image_memory: vk::DeviceMemory,
+        offset: vk::DeviceSize,
+    ) -> Result<(), vk::Result> {
+        self.device
+            .vk_device
+            .bind_image_memory(image, image_memory, offset)
+    }
+
+    #[inline(always)]
+    pub unsafe fn create_framebuffer(
+        &self,
+        create_info: &vk::FramebufferCreateInfo,
+    ) -> Result<vk::Framebuffer, vk::Result> {
+        self.device.vk_device.create_framebuffer(create_info, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn destroy_framebuffer(&self, framebuffer: vk::Framebuffer) {
+        self.device.vk_device.destroy_framebuffer(framebuffer, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn create_semaphore(
+        &self,
+        semaphore_create_info: &vk::SemaphoreCreateInfo,
+    ) -> Result<vk::Semaphore, vk::Result> {
+        self.device
+            .vk_device
+            .create_semaphore(semaphore_create_info, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn destroy_semaphore(&self, semaphore: vk::Semaphore) {
+        self.device.vk_device.destroy_semaphore(semaphore, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn create_command_pool(
+        &self,
+        pool_create_info: &vk::CommandPoolCreateInfo,
+    ) -> Result<vk::CommandPool, vk::Result> {
+        self.device
+            .vk_device
+            .create_command_pool(&pool_create_info, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn get_buffer_memory_requirements(
+        &self,
+        buffer: vk::Buffer,
+    ) -> vk::MemoryRequirements {
+        self.device.vk_device.get_buffer_memory_requirements(buffer)
+    }
+
+    #[inline(always)]
+    pub unsafe fn create_buffer(
+        &self,
+        buffer_create_info: &vk::BufferCreateInfo,
+    ) -> Result<vk::Buffer, vk::Result> {
+        self.device
+            .vk_device
+            .create_buffer(buffer_create_info, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn destroy_buffer(&self, buffer: vk::Buffer) {
+        self.device.vk_device.destroy_buffer(buffer, None);
+    }
+
+    #[inline(always)]
+    pub unsafe fn bind_buffer_memory(
+        &self,
+        buffer: vk::Buffer,
+        device_memory: vk::DeviceMemory,
+        offset: vk::DeviceSize,
+    ) -> Result<(), vk::Result> {
+        self.device
+            .vk_device
+            .bind_buffer_memory(buffer, device_memory, offset)
+    }
+
+    #[inline(always)]
+    pub unsafe fn map_memory(
+        &self,
+        device_memory: vk::DeviceMemory,
+        offset: vk::DeviceSize,
+        size: vk::DeviceSize,
+        memory_map_flags: vk::MemoryMapFlags,
+    ) -> Result<*mut std::ffi::c_void, vk::Result> {
+        self.device
+            .vk_device
+            .map_memory(device_memory, offset, size, memory_map_flags)
+    }
+
+    #[inline(always)]
+    pub unsafe fn unmap_memory(&self, device_memory: vk::DeviceMemory) {
+        self.device.vk_device.unmap_memory(device_memory)
+    }
+
+    #[inline(always)]
+    pub unsafe fn create_render_pass(
+        &self,
+        render_pass_create_info: &vk::RenderPassCreateInfo,
+    ) -> Result<vk::RenderPass, vk::Result> {
+        self.device
+            .vk_device
+            .create_render_pass(render_pass_create_info, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn destroy_command_pool(&self, command_pool: vk::CommandPool) {
+        self.device
+            .vk_device
+            .destroy_command_pool(command_pool, None);
+    }
+
+    #[inline(always)]
+    pub unsafe fn destroy_render_pass(&self, render_pass: vk::RenderPass) {
+        self.device.vk_device.destroy_render_pass(render_pass, None);
+    }
+
+    #[inline(always)]
+    pub unsafe fn submit_queue(
+        &self,
+        submits: &[vk::SubmitInfo],
+        fence: vk::Fence,
+    ) -> Result<(), vk::Result> {
+        // NOTE: this function has mirrored name due to miss match in parameters with vk counterpart
         self.device
             .vk_device
             .queue_submit(self.device.vk_queue, submits, fence)
-            .expect("Failed to submit Vulkan queue.");
     }
 
     #[inline(always)]
@@ -502,6 +661,160 @@ impl Gpu {
         self.device.vk_device.reset_fences(fences)
     }
 
+    #[inline(always)]
+    pub unsafe fn create_pipeline_layout(
+        &self,
+        layout_create_info: &vk::PipelineLayoutCreateInfo,
+    ) -> Result<vk::PipelineLayout, vk::Result> {
+        self.device
+            .vk_device
+            .create_pipeline_layout(layout_create_info, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn create_graphics_pipelines(
+        &self,
+        pipeline_cache: vk::PipelineCache,
+        graphics_pipeline_create_info: &[vk::GraphicsPipelineCreateInfo],
+    ) -> Result<Vec<vk::Pipeline>, (Vec<vk::Pipeline>, vk::Result)> {
+        self.device.vk_device.create_graphics_pipelines(
+            pipeline_cache,
+            graphics_pipeline_create_info,
+            None,
+        )
+    }
+
+    #[inline(always)]
+    pub unsafe fn destroy_pipeline(&self, pipeline: vk::Pipeline) {
+        self.device.vk_device.destroy_pipeline(pipeline, None);
+    }
+
+    #[inline(always)]
+    pub unsafe fn destroy_pipeline_layout(&self, pipeline_layout: vk::PipelineLayout) {
+        self.device
+            .vk_device
+            .destroy_pipeline_layout(pipeline_layout, None);
+    }
+
+    #[inline(always)]
+    pub unsafe fn create_shader_module(
+        &self,
+        shader_module_create_info: &vk::ShaderModuleCreateInfo,
+    ) -> Result<vk::ShaderModule, vk::Result> {
+        self.device
+            .vk_device
+            .create_shader_module(shader_module_create_info, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn destroy_shader_module(&self, shader_module: vk::ShaderModule) {
+        self.device
+            .vk_device
+            .destroy_shader_module(shader_module, None)
+    }
+
+    // Vulkan device commands
+
+    pub unsafe fn cmd_begin_render_pass(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        render_pass_begin_info: &vk::RenderPassBeginInfo,
+        subpass_contents: vk::SubpassContents,
+    ) {
+        self.device.vk_device.cmd_begin_render_pass(
+            command_buffer,
+            render_pass_begin_info,
+            subpass_contents,
+        );
+    }
+
+    pub unsafe fn cmd_end_render_pass(&self, command_buffer: vk::CommandBuffer) {
+        self.device.vk_device.cmd_end_render_pass(command_buffer);
+    }
+
+    pub unsafe fn cmd_set_viewport(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        first_viewport: u32,
+        viewports: &[vk::Viewport],
+    ) {
+        self.device
+            .vk_device
+            .cmd_set_viewport(command_buffer, first_viewport, viewports);
+    }
+
+    pub unsafe fn cmd_set_scissor(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        first_scissor: u32,
+        scissors: &[vk::Rect2D],
+    ) {
+        self.device
+            .vk_device
+            .cmd_set_scissor(command_buffer, first_scissor, scissors);
+    }
+
+    pub unsafe fn cmd_bind_pipeline(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        pipeline_bind_point: vk::PipelineBindPoint,
+        pipeline: vk::Pipeline,
+    ) {
+        self.device
+            .vk_device
+            .cmd_bind_pipeline(command_buffer, pipeline_bind_point, pipeline);
+    }
+
+    pub unsafe fn cmd_bind_vertex_buffers(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        first_binding: u32,
+        buffers: &[vk::Buffer],
+        offsets: &[vk::DeviceSize],
+    ) {
+        self.device.vk_device.cmd_bind_vertex_buffers(
+            command_buffer,
+            first_binding,
+            buffers,
+            offsets,
+        )
+    }
+
+    pub unsafe fn cmd_draw_indirect(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        buffer: vk::Buffer,
+        offset: vk::DeviceSize,
+        draw_count: u32,
+        stride: u32,
+    ) {
+        self.device
+            .vk_device
+            .cmd_draw_indirect(command_buffer, buffer, offset, draw_count, stride);
+    }
+
+    pub unsafe fn cmd_pipeline_barrier(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        src_stage_mask: vk::PipelineStageFlags,
+        dst_stage_mask: vk::PipelineStageFlags,
+        dependency_flags: vk::DependencyFlags,
+        memory_barriers: &[vk::MemoryBarrier],
+        buffer_memory_barriers: &[vk::BufferMemoryBarrier],
+        image_memory_barriers: &[vk::ImageMemoryBarrier],
+    ) {
+        self.device.vk_device.cmd_pipeline_barrier(
+            command_buffer,
+            src_stage_mask,
+            dst_stage_mask,
+            dependency_flags,
+            memory_barriers,
+            buffer_memory_barriers,
+            image_memory_barriers,
+        )
+    }
+
+    // Utils
     pub fn find_memory_type_index(
         &self,
         memory_requirements: &vk::MemoryRequirements,
@@ -516,6 +829,10 @@ impl Gpu {
                     && memory_type.property_flags & flags == flags
             })
             .map(|(index, _memory_type)| index as _)
+    }
+
+    pub fn queue_family_index(&self) -> u32 {
+        self.device.queue_family_index
     }
 }
 
@@ -570,20 +887,28 @@ impl From<CommandBufferIter> for (vk::CommandBuffer, vk::CommandBuffer, vk::Comm
 
 /// Display abstraction layer
 pub struct Display {
-    device: Arc<Device>,
+    gpu: Gpu,
     swapchain: Arc<Swapchain>,
     surface: Surface,
-    window: Window,
-    present_complete_semaphore: Option<Semaphore>,
-    render_complete_semaphore: Option<Semaphore>,
+    window: window::Instance,
+    present_complete_semaphore: vk::Semaphore,
+    render_complete_semaphore: vk::Semaphore,
 }
 
 impl Drop for Display {
     fn drop(&mut self) {
+        log::debug!("Display::drop");
         unsafe {
-            self.device.vk_device.device_wait_idle().unwrap();
+            self.gpu.device_wait_idle().unwrap();
 
-            Swapchain::destroy(&self.swapchain, &self.device);
+            self.gpu.destroy_semaphore(self.present_complete_semaphore);
+            // NOTE: render_complete_semaphore is not owned
+
+            Swapchain::destroy(&self.swapchain, &self.gpu);
+
+            self.surface
+                .loader
+                .destroy_surface(self.surface.vk_surface, None);
         }
     }
 }
@@ -595,7 +920,7 @@ impl Display {
         let vk_instance = unsafe { Self::create_instance(&desc, &vk_entry) };
 
         let vk_debug = if desc.debug {
-            let debug_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
+            let debug_info = vk::DebugUtilsMessengerCreateInfoEXT::default()
                 .message_severity(
                     vk::DebugUtilsMessageSeverityFlagsEXT::ERROR
                         | vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
@@ -606,10 +931,9 @@ impl Display {
                         | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
                         | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
                 )
-                .pfn_user_callback(Some(vulkan_debug_callback))
-                .build();
+                .pfn_user_callback(Some(vulkan_debug_callback));
 
-            let vk_debug_utils = ash::extensions::ext::DebugUtils::new(&vk_entry, &vk_instance);
+            let vk_debug_utils = ash::ext::debug_utils::Instance::new(&vk_entry, &vk_instance);
             let vk_debug_callback = unsafe {
                 vk_debug_utils
                     .create_debug_utils_messenger(&debug_info, None)
@@ -620,7 +944,7 @@ impl Display {
             None
         };
 
-        let window = desc.window;
+        let window = desc.window_instance;
 
         let mut surface = unsafe { Surface::new(&window, &vk_instance, &vk_entry) };
 
@@ -636,23 +960,23 @@ impl Display {
         };
         let priorities = [1.0];
 
-        let queue_info = vk::DeviceQueueCreateInfo::builder()
+        let queue_info = vk::DeviceQueueCreateInfo::default()
             .queue_family_index(queue_family_index)
-            .queue_priorities(&priorities)
-            .build();
+            .queue_priorities(&priorities);
 
         let device_memory_properties =
             unsafe { vk_instance.get_physical_device_memory_properties(physical_device) };
 
-        let device_create_info = vk::DeviceCreateInfo::builder()
+        let extensions_names = [
+            ash::khr::swapchain::NAME.as_ptr(),
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            ash::vk::KhrPortabilitySubsetFn::NAME.as_ptr(),
+        ];
+
+        let device_create_info = vk::DeviceCreateInfo::default()
             .queue_create_infos(std::slice::from_ref(&queue_info))
-            .enabled_extension_names(&[
-                ash::extensions::khr::Swapchain::name().as_ptr(),
-                #[cfg(any(target_os = "macos", target_os = "ios"))]
-                ash::vk::KhrPortabilitySubsetFn::NAME.as_ptr(),
-            ])
-            .enabled_features(&features)
-            .build();
+            .enabled_extension_names(&extensions_names)
+            .enabled_features(&features);
 
         let vk_device = unsafe {
             vk_instance
@@ -661,32 +985,50 @@ impl Display {
         };
         let vk_queue = unsafe { vk_device.get_device_queue(queue_family_index, 0) };
 
-        let device = Arc::new(Device {
-            vk_device,
-            vk_instance,
-            vk_queue,
-            vk_debug,
-            memory_properties: device_memory_properties,
-            queue_family_index,
-            _vk_entry: vk_entry,
-        });
+        let gpu = Gpu {
+            device: Arc::new(Device {
+                vk_device,
+                vk_instance,
+                vk_queue,
+                vk_debug,
+                memory_properties: device_memory_properties,
+                queue_family_index,
+                _vk_entry: vk_entry,
+            }),
+        };
 
-        let swapchain = unsafe { Swapchain::create(&device, &surface) };
+        let swapchain = unsafe { Swapchain::create(&gpu, &surface) };
+
+        let present_complete_sempahore_create_info = vk::SemaphoreCreateInfo::default();
+        let present_complete_semaphore = unsafe {
+            gpu.create_semaphore(&present_complete_sempahore_create_info)
+                .expect("Failed to create completion semaphore")
+        };
 
         Self {
-            device,
+            gpu,
             surface,
             window,
             swapchain: Arc::new(swapchain),
-            present_complete_semaphore: None,
-            render_complete_semaphore: None,
+            present_complete_semaphore,
+            render_complete_semaphore: vk::Semaphore::null(),
         }
     }
 
-    pub(crate) fn gpu(&self) -> Gpu {
-        Gpu {
-            device: Arc::clone(&self.device),
-        }
+    pub unsafe fn swapchain_image_views(&self) -> std::slice::Iter<vk::ImageView> {
+        self.swapchain.vk_present_image_views.iter()
+    }
+
+    pub unsafe fn depth_image_view(&self) -> vk::ImageView {
+        self.swapchain.depth_image_view
+    }
+
+    pub unsafe fn depth_image(&self) -> vk::Image {
+        self.swapchain.depth_image
+    }
+
+    pub fn gpu(&self) -> Gpu {
+        self.gpu.clone()
     }
 
     pub fn next_frame(&self) -> u32 {
@@ -697,10 +1039,7 @@ impl Display {
                 .acquire_next_image(
                     self.swapchain.vk_swapchain,
                     std::u64::MAX,
-                    self.present_complete_semaphore
-                        .as_ref()
-                        .map(|s| *s.vk_semaphore())
-                        .unwrap(),
+                    self.present_complete_semaphore,
                     vk::Fence::null(),
                 )
                 .unwrap()
@@ -763,8 +1102,8 @@ impl Display {
         self.surface.vk_surface_resolution = surface_resolution;
         unsafe {
             // self.destroy_framebuffers();
-            self.swapchain.destroy(&self.device);
-            self.swapchain = Arc::new(Swapchain::create(&self.device, &self.surface));
+            self.swapchain.destroy(&self.gpu);
+            self.swapchain = Arc::new(Swapchain::create(&self.gpu, &self.surface));
             // self.framebuffers = Vulkan::create_framebuffers(
             //    &self.vk_device,
             //    &self.surface,
@@ -778,38 +1117,35 @@ impl Display {
     pub fn presenter(&self, swapchain_index: u32) -> FramePresenter {
         FramePresenter {
             swapchain: Arc::clone(&self.swapchain),
-            device: Arc::clone(&self.device),
-            render_complete_semaphore: self
-                .render_complete_semaphore
-                .as_ref()
-                .cloned()
-                .expect("Render complete semaphore must be set"),
+            device: Arc::clone(&self.gpu.device),
+            render_complete_semaphore: self.render_complete_semaphore,
             swapchain_index,
         }
     }
 
-    pub fn set_render_complete_semaphore(&mut self, semaphore: Semaphore) {
-        self.render_complete_semaphore = Some(semaphore);
+    pub fn set_render_complete_semaphore(&mut self, semaphore: vk::Semaphore) {
+        self.render_complete_semaphore = semaphore;
     }
 
-    pub fn set_present_complete_semaphore(&mut self, semaphore: Semaphore) {
-        self.present_complete_semaphore = Some(semaphore);
+    pub unsafe fn present_complete_semaphore(&self) -> vk::Semaphore {
+        self.present_complete_semaphore
     }
 
     unsafe fn create_instance(desc: &DisplaySetup, vk_entry: &ash::Entry) -> ash::Instance {
-        use raw_window_handle::HasRawDisplayHandle;
-
-        let window = &desc.window;
+        let window = &desc.window_instance;
 
         //let (surface_width, surface_height) = desc.window.size();
-        let raw_display_handle = window.handle().raw_display_handle();
+        let raw_display_handle = window
+            .display_handle()
+            .expect("Could not get display handle")
+            .as_raw();
         //let raw_window_handle = desc.window.handle().raw_window_handle();
         let mut extensions = ash_window::enumerate_required_extensions(raw_display_handle)
             .expect("Failed to obtain extensions requirements")
             .to_vec();
 
         if desc.debug {
-            extensions.push(ash::extensions::ext::DebugUtils::name().as_ptr());
+            extensions.push(ash::ext::debug_utils::NAME.as_ptr());
         }
 
         #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -826,13 +1162,12 @@ impl Display {
             .ok()
             .unwrap_or(0);
 
-        let app_info = vk::ApplicationInfo::builder()
+        let app_info = vk::ApplicationInfo::default()
             .application_name(&app_name)
             .application_version(desc.app_version)
             .engine_name(&engine_name)
             .engine_version(engine_version)
-            .api_version(vk::make_api_version(0, 1, 0, 0))
-            .build();
+            .api_version(vk::make_api_version(0, 1, 0, 0));
 
         let create_flags = if cfg!(any(target_os = "macos", target_os = "ios")) {
             vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR
@@ -845,12 +1180,11 @@ impl Display {
             .map(|raw_name| unsafe { CStr::from_bytes_with_nul_unchecked(*raw_name).as_ptr() })
             .collect();
 
-        let create_info = vk::InstanceCreateInfo::builder()
+        let create_info = vk::InstanceCreateInfo::default()
             .application_info(&app_info)
             .enabled_layer_names(&layers_names_raw)
             .enabled_extension_names(&extensions)
-            .flags(create_flags)
-            .build();
+            .flags(create_flags);
 
         vk_entry
             .create_instance(&create_info, None)
@@ -1074,27 +1408,26 @@ impl Display {
 
 impl<'a> From<&'a Display> for &'a Device {
     fn from(display: &Display) -> &Device {
-        &display.device
+        &display.gpu.device
     }
 }
 
 pub struct FramePresenter {
     swapchain: Arc<Swapchain>,
     device: Arc<Device>,
-    render_complete_semaphore: Semaphore,
+    render_complete_semaphore: vk::Semaphore,
     swapchain_index: u32,
 }
 
 impl FramePresenter {
     pub fn present(self) {
-        let wait_semaphores = [*self.render_complete_semaphore.vk_semaphore()];
+        let wait_semaphores = [self.render_complete_semaphore];
         let swapchains = [self.swapchain.as_ref().vk_swapchain];
         let image_indices = [self.swapchain_index];
-        let present_info = vk::PresentInfoKHR::builder()
+        let present_info = vk::PresentInfoKHR::default()
             .wait_semaphores(&wait_semaphores)
             .swapchains(&swapchains)
-            .image_indices(&image_indices)
-            .build();
+            .image_indices(&image_indices);
 
         log::debug!("Begin present: {}", self.swapchain_index);
 
@@ -1104,10 +1437,12 @@ impl FramePresenter {
                 .loader
                 .queue_present(self.device.vk_queue, &present_info);
             log::debug!("end present: {:?}", r);
+            r.unwrap();
         }
     }
 }
 
+/*
 pub struct CommandRecorder<'a> {
     gpu: &'a Gpu,
     command_buffer: vk::CommandBuffer,
@@ -1132,26 +1467,7 @@ impl<'a> CommandRecorder<'a> {
         }
     }
 
-    pub unsafe fn begin_render_pass(
-        &self,
-        render_pass_begin_info: &vk::RenderPassBeginInfo,
-        subpass_contents: vk::SubpassContents,
-    ) {
-        self.gpu.device.vk_device.cmd_begin_render_pass(
-            self.command_buffer,
-            render_pass_begin_info,
-            subpass_contents,
-        );
-    }
 
-    pub fn end_render_pass(&self) {
-        unsafe {
-            self.gpu
-                .device
-                .vk_device
-                .cmd_end_render_pass(self.command_buffer);
-        }
-    }
 }
 
 #[derive(Default)]
@@ -1188,9 +1504,8 @@ impl CommandRecorderSetup {
             }
 
             if self.one_time_submit {
-                let command_buffer_begin_info = vk::CommandBufferBeginInfo::builder()
-                    .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT)
-                    .build();
+                let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
+                    .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
                 gpu.reset_command_buffer(
                     self.command_buffer,
@@ -1211,6 +1526,7 @@ impl CommandRecorderSetup {
 }
 
 pub struct Buffer {
+    device: Arc<Device>,
     vk_buffer: vk::Buffer,
     device_memory: vk::DeviceMemory,
 }
@@ -1218,6 +1534,36 @@ pub struct Buffer {
 impl Buffer {
     pub fn setup() -> BufferSetup {
         BufferSetup::default()
+    }
+
+    pub fn write<T: Copy>(&self, offset: u64, data: &[T]) {
+        unsafe {
+            let align = std::mem::align_of::<T>() as u64;
+            let size = (data.len() * size_of::<T>()) as u64;
+
+            log::info!("vulkan: map memory ({size}, {align})");
+            let memory_ptr = self
+                .device
+                .vk_device
+                .map_memory(
+                    self.device_memory,
+                    offset,
+                    size,
+                    vk::MemoryMapFlags::empty(),
+                )
+                .expect("Could not map buffer memory");
+            log::info!("vulkan: align");
+
+            let mut index_slice = ash::util::Align::new(memory_ptr, align, size);
+            log::info!("vulkan: copy");
+            index_slice.copy_from_slice(data);
+            log::info!("vulkan: unmap");
+            self.device.vk_device.unmap_memory(self.device_memory);
+        }
+    }
+
+    fn padding(ptr: vk::DeviceSize, align: vk::DeviceSize) -> vk::DeviceSize {
+        (align - ptr % align) % align
     }
 }
 
@@ -1289,15 +1635,14 @@ impl BufferSetup {
         self
     }
 
-    pub unsafe fn create(&self, gpu: &Gpu) -> Buffer {
-        let buffer_create_info = vk::BufferCreateInfo::builder()
+    pub fn create(&self, gpu: &Gpu) -> Buffer {
+        let buffer_create_info = vk::BufferCreateInfo::default()
             .size(self.size as u64)
             .usage(self.usage_flags)
-            .sharing_mode(self.sharing_mode)
-            .build();
+            .sharing_mode(self.sharing_mode);
 
-        let vk_buffer = gpu.create_buffer(&buffer_create_info);
-        let memory_requirements = gpu.get_buffer_memory_requirements(vk_buffer);
+        let vk_buffer = unsafe { gpu.create_buffer(&buffer_create_info) };
+        let memory_requirements = unsafe { gpu.get_buffer_memory_requirements(vk_buffer) };
         let buffer_memory_index = gpu
             .find_memory_type_index(
                 &memory_requirements,
@@ -1309,16 +1654,114 @@ impl BufferSetup {
             memory_type_index: buffer_memory_index,
             ..Default::default()
         };
-        let device_memory = gpu
-            .allocate_memory(&memory_allocate_info)
-            .expect("Could not allocate memory for a Vulkan buffer");
+        let device_memory = unsafe {
+            gpu.allocate_memory(&memory_allocate_info)
+                .expect("Could not allocate memory for a Vulkan buffer")
+        };
+
+        let device = Arc::clone(&gpu.device);
+        unsafe {
+            device
+                .vk_device
+                .bind_buffer_memory(vk_buffer, device_memory, 0)
+                .expect("Failed to bind buffer memory");
+        };
 
         Buffer {
+            device,
             vk_buffer,
             device_memory,
         }
     }
 }
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        unsafe {
+            self.device
+                .vk_device
+                .device_wait_idle()
+                .expect("Device is not idle");
+            self.device.vk_device.free_memory(self.device_memory, None);
+            self.device.vk_device.destroy_buffer(self.vk_buffer, None);
+        }
+    }
+}
+
+pub struct PipelineLayout {
+    vk_pipeline_layout: vk::PipelineLayout,
+    device: Arc<Device>,
+}
+
+#[derive(Default)]
+pub struct PipelineLayoutSetup<'a> {
+    vk_layout_create_info: vk::PipelineLayoutCreateInfo<'a>,
+}
+
+impl PipelineLayout {
+    pub fn setup<'a>() -> PipelineLayoutSetup<'a> {
+        PipelineLayoutSetup::default()
+    }
+}
+
+impl Drop for PipelineLayout {
+    fn drop(&mut self) {
+        unsafe {
+            self.device
+                .vk_device
+                .destroy_pipeline_layout(self.vk_pipeline_layout, None);
+        };
+    }
+}
+
+pub struct GraphicsPipeline {
+    vk_pipeline: vk::Pipeline,
+    device: Arc<Device>,
+}
+
+impl GraphicsPipeline {
+    pub fn setup<'a>() -> GraphicsPipelineSetup<'a> {
+        GraphicsPipelineSetup::default()
+    }
+}
+
+#[derive(Default)]
+pub struct GraphicsPipelineSetup<'a> {
+    vk_graphics_pipline_create_info: vk::GraphicsPipelineCreateInfo<'a>,
+}
+
+impl<'a> GraphicsPipelineSetup<'a> {
+    pub fn create(self, gpu: &Gpu) -> GraphicsPipeline {
+        gpu.create_graphics_pipeline(self.vk_graphics_pipline_create_info)
+    }
+}
+
+impl Drop for GraphicsPipeline {
+    fn drop(&mut self) {
+        unsafe {
+            self.device
+                .vk_device
+                .destroy_pipeline(self.vk_pipeline, None);
+        };
+    }
+}
+
+pub struct ShaderModule {
+    device: Arc<Device>,
+    vk_shader_module: vk::ShaderModule,
+}
+
+impl Drop for ShaderModule {
+    fn drop(&mut self) {
+        unsafe {
+            self.device
+                .vk_device
+                .destroy_shader_module(self.vk_shader_module, None);
+        };
+    }
+}
+
+ */
 
 unsafe extern "system" fn vulkan_debug_callback(
     message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,
