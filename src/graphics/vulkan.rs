@@ -3,6 +3,7 @@ use std::ffi::{c_char, CStr, CString};
 use std::sync::Arc;
 
 pub use ash::vk;
+use ash::vk::DescriptorPool;
 
 use crate::log;
 use crate::window;
@@ -185,9 +186,6 @@ struct Swapchain {
     vk_swapchain: vk::SwapchainKHR,
     _vk_present_images: Vec<vk::Image>,
     vk_present_image_views: Vec<vk::ImageView>,
-    depth_image: vk::Image,
-    depth_image_view: vk::ImageView,
-    depth_image_memory: vk::DeviceMemory,
 }
 
 impl Swapchain {
@@ -240,64 +238,15 @@ impl Swapchain {
             })
             .collect();
 
-        let depth_image_create_info = vk::ImageCreateInfo::default()
-            .image_type(vk::ImageType::TYPE_2D)
-            .format(vk::Format::D16_UNORM)
-            .extent(surface.vk_surface_resolution.into())
-            .mip_levels(1)
-            .array_layers(1)
-            .samples(vk::SampleCountFlags::TYPE_1)
-            .tiling(vk::ImageTiling::OPTIMAL)
-            .usage(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
-            .sharing_mode(vk::SharingMode::EXCLUSIVE);
-
-        let depth_image = gpu.create_image(&depth_image_create_info).unwrap();
-        let depth_image_memory_req = gpu.get_image_memory_requirements(depth_image);
-        let depth_image_memory_index = gpu
-            .find_memory_type_index(
-                &depth_image_memory_req,
-                vk::MemoryPropertyFlags::DEVICE_LOCAL,
-            )
-            .expect("Unable to find suitable memory index for depth image.");
-
-        let depth_image_allocate_info = vk::MemoryAllocateInfo::default()
-            .allocation_size(depth_image_memory_req.size)
-            .memory_type_index(depth_image_memory_index);
-
-        let depth_image_memory = gpu.allocate_memory(&depth_image_allocate_info).unwrap();
-
-        gpu.bind_image_memory(depth_image, depth_image_memory, 0)
-            .expect("Unable to bind depth image memory");
-
-        let depth_image_view_info = vk::ImageViewCreateInfo::default()
-            .subresource_range(
-                vk::ImageSubresourceRange::default()
-                    .aspect_mask(vk::ImageAspectFlags::DEPTH)
-                    .level_count(1)
-                    .layer_count(1),
-            )
-            .image(depth_image)
-            .format(depth_image_create_info.format)
-            .view_type(vk::ImageViewType::TYPE_2D);
-
-        let depth_image_view = gpu.create_image_view(&depth_image_view_info).unwrap();
-
         Swapchain {
             loader,
             vk_swapchain,
             _vk_present_images: vk_present_images,
             vk_present_image_views,
-            depth_image,
-            depth_image_view,
-            depth_image_memory,
         }
     }
 
     unsafe fn destroy(&self, gpu: &Gpu) {
-        gpu.free_memory(self.depth_image_memory);
-        gpu.destroy_image_view(self.depth_image_view);
-        gpu.destroy_image(self.depth_image);
-
         for &image_view in self.vk_present_image_views.iter() {
             gpu.destroy_image_view(image_view);
         }
@@ -662,6 +611,64 @@ impl Gpu {
     }
 
     #[inline(always)]
+    pub unsafe fn create_descriptor_set_layout(
+        &self,
+        descriptor_info: &vk::DescriptorSetLayoutCreateInfo,
+    ) -> Result<vk::DescriptorSetLayout, vk::Result> {
+        self.device
+            .vk_device
+            .create_descriptor_set_layout(descriptor_info, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn destroy_descriptor_set_layout(
+        &self,
+        descriptor_set_layout: vk::DescriptorSetLayout,
+    ) {
+        self.device
+            .vk_device
+            .destroy_descriptor_set_layout(descriptor_set_layout, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn allocate_descriptor_sets(
+        &self,
+        allocate_info: &vk::DescriptorSetAllocateInfo,
+    ) -> Result<Vec<vk::DescriptorSet>, vk::Result> {
+        self.device
+            .vk_device
+            .allocate_descriptor_sets(allocate_info)
+    }
+
+    #[inline(always)]
+    pub unsafe fn update_descriptor_sets(
+        &self,
+        descriptor_writes: &[vk::WriteDescriptorSet],
+        descriptor_copies: &[vk::CopyDescriptorSet],
+    ) {
+        self.device
+            .vk_device
+            .update_descriptor_sets(descriptor_writes, descriptor_copies)
+    }
+
+    #[inline(always)]
+    pub unsafe fn create_descriptor_pool(
+        &self,
+        descriptor_pool_info: &vk::DescriptorPoolCreateInfo,
+    ) -> Result<DescriptorPool, vk::Result> {
+        self.device
+            .vk_device
+            .create_descriptor_pool(descriptor_pool_info, None)
+    }
+
+    #[inline(always)]
+    pub unsafe fn destroy_descriptor_pool(&self, descriptor_pool: vk::DescriptorPool) {
+        self.device
+            .vk_device
+            .destroy_descriptor_pool(descriptor_pool, None)
+    }
+
+    #[inline(always)]
     pub unsafe fn create_pipeline_layout(
         &self,
         layout_create_info: &vk::PipelineLayoutCreateInfo,
@@ -752,6 +759,25 @@ impl Gpu {
         self.device
             .vk_device
             .cmd_set_scissor(command_buffer, first_scissor, scissors);
+    }
+
+    pub unsafe fn cmd_bind_descriptor_sets(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        pipeline_bind_point: vk::PipelineBindPoint,
+        layout: vk::PipelineLayout,
+        first_set: u32,
+        descriptor_sets: &[vk::DescriptorSet],
+        dynamic_offsets: &[u32],
+    ) {
+        self.device.vk_device.cmd_bind_descriptor_sets(
+            command_buffer,
+            pipeline_bind_point,
+            layout,
+            first_set,
+            descriptor_sets,
+            dynamic_offsets,
+        )
     }
 
     pub unsafe fn cmd_bind_pipeline(
@@ -893,6 +919,9 @@ pub struct Display {
     window: window::Instance,
     present_complete_semaphore: vk::Semaphore,
     render_complete_semaphore: vk::Semaphore,
+    depth_image: vk::Image,
+    depth_image_view: vk::ImageView,
+    depth_image_memory: vk::DeviceMemory,
 }
 
 impl Drop for Display {
@@ -901,6 +930,12 @@ impl Drop for Display {
         unsafe {
             self.gpu.device_wait_idle().unwrap();
 
+            Self::destroy_depth_image(
+                &self.gpu,
+                self.depth_image,
+                self.depth_image_view,
+                self.depth_image_memory,
+            );
             self.gpu.destroy_semaphore(self.present_complete_semaphore);
             // NOTE: render_complete_semaphore is not owned
 
@@ -1005,6 +1040,9 @@ impl Display {
                 .expect("Failed to create completion semaphore")
         };
 
+        let (depth_image, depth_image_view, depth_image_memory) =
+            unsafe { Self::create_depth_image(&gpu, surface.vk_surface_resolution) };
+
         Self {
             gpu,
             surface,
@@ -1012,7 +1050,87 @@ impl Display {
             swapchain: Arc::new(swapchain),
             present_complete_semaphore,
             render_complete_semaphore: vk::Semaphore::null(),
+            depth_image,
+            depth_image_view,
+            depth_image_memory,
         }
+    }
+
+    unsafe fn create_depth_image(
+        gpu: &Gpu,
+        resolution: vk::Extent2D,
+    ) -> (vk::Image, vk::ImageView, vk::DeviceMemory) {
+        let depth_image_create_info = vk::ImageCreateInfo::default()
+            .image_type(vk::ImageType::TYPE_2D)
+            .format(vk::Format::D16_UNORM)
+            .extent(resolution.into())
+            .mip_levels(1)
+            .array_layers(1)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .tiling(vk::ImageTiling::OPTIMAL)
+            .usage(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+        let depth_image = unsafe { gpu.create_image(&depth_image_create_info).unwrap() };
+        let depth_image_memory_req = unsafe { gpu.get_image_memory_requirements(depth_image) };
+        let depth_image_memory_index = gpu
+            .find_memory_type_index(
+                &depth_image_memory_req,
+                vk::MemoryPropertyFlags::DEVICE_LOCAL,
+            )
+            .expect("Unable to find suitable memory index for depth image.");
+
+        let depth_image_allocate_info = vk::MemoryAllocateInfo::default()
+            .allocation_size(depth_image_memory_req.size)
+            .memory_type_index(depth_image_memory_index);
+
+        let depth_image_memory =
+            unsafe { gpu.allocate_memory(&depth_image_allocate_info).unwrap() };
+
+        unsafe {
+            gpu.bind_image_memory(depth_image, depth_image_memory, 0)
+                .expect("Unable to bind depth image memory")
+        };
+
+        let depth_image_view_info = vk::ImageViewCreateInfo::default()
+            .subresource_range(
+                vk::ImageSubresourceRange::default()
+                    .aspect_mask(vk::ImageAspectFlags::DEPTH)
+                    .level_count(1)
+                    .layer_count(1),
+            )
+            .image(depth_image)
+            .format(depth_image_create_info.format)
+            .view_type(vk::ImageViewType::TYPE_2D);
+
+        let depth_image_view = unsafe { gpu.create_image_view(&depth_image_view_info).unwrap() };
+
+        (depth_image, depth_image_view, depth_image_memory)
+    }
+
+    unsafe fn destroy_depth_image(
+        gpu: &Gpu,
+        depth_image: vk::Image,
+        depth_image_view: vk::ImageView,
+        depth_image_memory: vk::DeviceMemory,
+    ) {
+        gpu.destroy_image_view(depth_image_view);
+        gpu.destroy_image(depth_image);
+        gpu.free_memory(depth_image_memory);
+    }
+
+    pub unsafe fn recreate_depth_image(&mut self) {
+        Self::destroy_depth_image(
+            &self.gpu,
+            self.depth_image,
+            self.depth_image_view,
+            self.depth_image_memory,
+        );
+        let (depth_image, depth_image_view, depth_image_memory) =
+            Self::create_depth_image(&self.gpu, self.surface.vk_surface_resolution);
+        self.depth_image = depth_image;
+        self.depth_image_view = depth_image_view;
+        self.depth_image_memory = depth_image_memory;
     }
 
     pub unsafe fn swapchain_image_views(&self) -> std::slice::Iter<vk::ImageView> {
@@ -1020,11 +1138,11 @@ impl Display {
     }
 
     pub unsafe fn depth_image_view(&self) -> vk::ImageView {
-        self.swapchain.depth_image_view
+        self.depth_image_view
     }
 
     pub unsafe fn depth_image(&self) -> vk::Image {
-        self.swapchain.depth_image
+        self.depth_image
     }
 
     pub fn gpu(&self) -> Gpu {
@@ -1084,6 +1202,7 @@ impl Display {
     }
 
     pub fn resize_surface(&mut self) {
+        log::debug!("Resize surface");
         let window_resolution = self.window.resolution();
         let surface_resolution = match self.surface.vk_surface_capabilities.current_extent.width {
             u32::MAX => vk::Extent2D {

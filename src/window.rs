@@ -102,7 +102,7 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
         _event_loop: &winit::event_loop::ActiveEventLoop,
         cause: winit::event::StartCause,
     ) {
-        log::info!("new_events: {cause:?}");
+        // log::info!("new_events: {cause:?}");
         self.wait_cancelled = match cause {
             StartCause::WaitCancelled { .. } => true,
             _ => false,
@@ -119,11 +119,14 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
             .take()
             .expect("Application instance was not provided");
 
-        let (width, height) = app.resolution();
+        let resolution = app.resolution();
 
         let window_attributes = winit::window::Window::default_attributes()
             .with_title(app.app_name())
-            .with_inner_size(winit::dpi::LogicalSize::new(width, height))
+            .with_inner_size(winit::dpi::LogicalSize::new(
+                resolution.width,
+                resolution.height,
+            ))
             .with_fullscreen(if app.full_screen() {
                 Some(winit::window::Fullscreen::Borderless(None))
             } else {
@@ -137,6 +140,15 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
                     .expect("Could not create window"),
             ),
         };
+
+        // log::debug!("Current monitor: {:?}", window_instance.winit_window.current_monitor());
+        // log::debug!("Primary monitor: {:?}", window_instance.winit_window.primary_monitor());
+        //
+        // for monitor in window_instance.winit_window.available_monitors() {
+        //    for mode in monitor.video_modes() {
+        //        log::debug!("Monitor: {:?} ({:?}) -> {:?}", monitor.name(), monitor.size(), mode.size());
+        //    }
+        // }
 
         let display_setup = DisplaySetup {
             window_instance: window_instance.clone(),

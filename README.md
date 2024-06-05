@@ -60,8 +60,8 @@ cargo run --release --bin studio
 ## Compile GLSL shaders
 
 ```
-glslc -fshader-stage=vertex non-rigged.vert.glsl -o non-rigged.vert.spv 
-glslc -fshader-stage=fragment non-rigged.frag.glsl -o non-rigged.frag.spv 
+glslc -fshader-stage=vertex src/models/shaders/non-rigged.vert.glsl -o src/models/shaders/non-rigged.vert.spv 
+glslc -fshader-stage=fragment src/models/shaders/non-rigged.frag.glsl -o src/models/shaders/non-rigged.frag.spv 
 ```
 
 ## Sponsors

@@ -78,6 +78,7 @@ impl Task for CreateFrame {
         // resize surface before aquiring of the new frame
         let mut resized = false;
         if display.surface_resize_request() {
+            log::debug!("surface resized");
             display.resize_surface();
             resized = true;
         }
