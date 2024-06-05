@@ -1,16 +1,17 @@
 use std::ffi::CStr;
 use std::io::Cursor;
+use std::mem::size_of;
 
 use ash::vk::DrawIndirectCommand;
-use glam::Vec3;
 
 use crate::graphics::vk;
 use crate::graphics::RenderPass;
 use crate::loaders::Assets;
+use crate::log;
+use crate::math::{Mat4, Vec3};
 use crate::utils::{BufferLayout, Id, LayoutInBuffer, MeshLayout, MeshVerticesLayout};
 use crate::world::{Entity, World};
-use crate::{log, Asset, Extent2D};
-use crate::{Any, Display, Frame, Gpu, Ref, Task};
+use crate::{Any, Asset, Display, Extent2D, Frame, Gpu, Ref, Task};
 
 use super::{Armature, Material, Mesh, Transform, VertexNormal, VertexPosition, VertexTexture};
 
@@ -37,6 +38,12 @@ pub struct RenderModels {
     render_pass: vk::RenderPass,
     /// Version of surface to track changes and update framebuffers and fender pass
     surface_version: u64,
+    /// Globals uniform buffer size
+    buffer_globals_uniform_size: u64,
+    /// Globals uniform buffer
+    buffer_globals_uniform: vk::Buffer,
+    /// Globals uniform buffer memory
+    buffer_globals_uniform_memory: vk::DeviceMemory,
     /// Config indirect buffer size
     buffer_indirect_size: u64,
     /// Indirect Buffer
@@ -55,6 +62,12 @@ pub struct RenderModels {
     mesh_layout_snapshot: Vec<Id<Mesh>>,
     /// Mesh layouts of non-rigged models
     mesh_layout_non_rigged: BufferLayout<Id<Mesh>, MeshLayout>,
+    /// descriptor sets
+    descriptor_sets: Vec<vk::DescriptorSet>,
+    /// descriptor pool
+    descriptor_pool: vk::DescriptorPool,
+    /// descriptor set layouts
+    desc_set_layouts: [vk::DescriptorSetLayout; 1],
     /// Pipeline layout to render non-rigged models
     pipeline_layout_render_non_rigged: vk::PipelineLayout,
     /// Graphics pipeline to render non-rigged models
@@ -90,6 +103,15 @@ impl Drop for RenderModels {
             self.gpu.destroy_buffer(self.buffer_indirect);
             self.gpu.free_memory(self.buffer_vertex_memory);
             self.gpu.destroy_buffer(self.buffer_vertex);
+            self.gpu.free_memory(self.buffer_globals_uniform_memory);
+            self.gpu.destroy_buffer(self.buffer_globals_uniform);
+
+            // descriptors
+            for &descriptor_set_layout in self.desc_set_layouts.iter() {
+                self.gpu
+                    .destroy_descriptor_set_layout(descriptor_set_layout);
+            }
+            self.gpu.destroy_descriptor_pool(self.descriptor_pool);
 
             // framebuffers
             self.destroy_framebuffers();
@@ -127,18 +149,23 @@ impl Task for RenderModels {
 
                 log::debug!("resize: destroy_framebuffers");
                 self.destroy_framebuffers();
+
                 log::debug!("resize: create_framebuffers");
                 self.create_framebuffers(&display, self.render_pass);
 
                 // rebuild pipelines
-                log::debug!("resize: destroy_graphics_pipelines");
-                self.destroy_graphics_pipelines();
-                log::debug!("resize: create_graphics_pipelines");
-                self.pipeline_render_non_rigged =
-                    self.create_graphics_pipelines(display.surface_resolution());
+                if self.pipeline_render_non_rigged == vk::Pipeline::null() {
+                    log::debug!("resize: destroy_graphics_pipelines");
+                    self.destroy_graphics_pipelines();
+                    log::debug!("resize: create_graphics_pipelines");
+                    self.pipeline_render_non_rigged =
+                        self.create_graphics_pipelines(display.surface_resolution());
 
-                log::debug!("resize: setup_depth_image");
-                self.setup_depth_image(&display);
+                    // NOTE: the setup buffer should be probably a part of the Display
+                    log::debug!("resize: setup_depth_image");
+                    self.setup_depth_image(&display);
+                }
+
                 log::debug!("resize: complete -> {}", surface_version);
             };
             self.surface_version = surface_version;
@@ -250,6 +277,9 @@ impl RenderModels {
                 .expect("Failed to create a render pass")
         };
 
+        let (buffer_globals_uniform, buffer_globals_uniform_memory, buffer_globals_uniform_size) =
+            unsafe { Self::create_globals_uniform_buffer(&gpu) };
+
         let (buffer_vertex, buffer_vertex_memory, buffer_vertex_size) =
             unsafe { Self::create_vertex_buffer(&gpu, setup.mesh_buffer_size) };
 
@@ -265,8 +295,87 @@ impl RenderModels {
                 .expect("Failed to load non-rigged fragment shader module")
         };
 
+        // bindings layout
+        let descriptor_sizes = [
+            vk::DescriptorPoolSize {
+                ty: vk::DescriptorType::UNIFORM_BUFFER,
+                descriptor_count: 1,
+            },
+            // vk::DescriptorPoolSize {
+            //    ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+            //    descriptor_count: 1,
+            // },
+        ];
+        let descriptor_pool_info = vk::DescriptorPoolCreateInfo::default()
+            .pool_sizes(&descriptor_sizes)
+            .max_sets(1);
+        let descriptor_pool = unsafe { gpu.create_descriptor_pool(&descriptor_pool_info).unwrap() };
+
+        let desc_layout_bindings = [
+            vk::DescriptorSetLayoutBinding {
+                binding: 0,
+                descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
+                descriptor_count: 1,
+                stage_flags: vk::ShaderStageFlags::VERTEX,
+                ..Default::default()
+            },
+            //vk::DescriptorSetLayoutBinding {
+            //    binding: 1,
+            //    descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+            //    descriptor_count: 1,
+            //    stage_flags: vk::ShaderStageFlags::FRAGMENT,
+            //    ..Default::default()
+            //},
+        ];
+        let descriptor_info =
+            vk::DescriptorSetLayoutCreateInfo::default().bindings(&desc_layout_bindings);
+
+        let desc_set_layouts =
+            unsafe { [gpu.create_descriptor_set_layout(&descriptor_info).unwrap()] };
+
+        let desc_alloc_info = vk::DescriptorSetAllocateInfo::default()
+            .descriptor_pool(descriptor_pool)
+            .set_layouts(&desc_set_layouts);
+        let descriptor_sets = unsafe { gpu.allocate_descriptor_sets(&desc_alloc_info).unwrap() };
+
+        let globals_uniform_buffer_descriptor = vk::DescriptorBufferInfo {
+            buffer: buffer_globals_uniform,
+            offset: 0,
+            range: buffer_globals_uniform_size,
+        };
+
+        // let tex_descriptor = vk::DescriptorImageInfo {
+        //    image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+        //    image_view: tex_image_view,
+        //    sampler,
+        // };
+
+        let write_desc_sets = [
+            vk::WriteDescriptorSet {
+                dst_binding: 0,
+                dst_set: descriptor_sets[0],
+                descriptor_count: 1,
+                descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
+                p_buffer_info: &globals_uniform_buffer_descriptor,
+                ..Default::default()
+            },
+            //vk::WriteDescriptorSet {
+            //    dst_set: descriptor_sets[0],
+            //    dst_binding: 1,
+            //    descriptor_count: 1,
+            //    descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+            //    p_image_info: &tex_descriptor,
+            //    ..Default::default()
+            //},
+        ];
+
+        unsafe {
+            gpu.update_descriptor_sets(&write_desc_sets, &[]);
+        };
+
         // pipeline layout
-        let pipeline_layout_create_info = vk::PipelineLayoutCreateInfo::default();
+        let pipeline_layout_create_info =
+            vk::PipelineLayoutCreateInfo::default().set_layouts(&desc_set_layouts);
         let pipeline_layout_render_non_rigged = unsafe {
             gpu.create_pipeline_layout(&pipeline_layout_create_info)
                 .expect("Failed to create non-rigged pipeline layout")
@@ -284,6 +393,9 @@ impl RenderModels {
             render_pass,
             framebuffers: Vec::new(),
             surface_version: 0,
+            buffer_globals_uniform,
+            buffer_globals_uniform_memory,
+            buffer_globals_uniform_size,
             buffer_indirect_data: Vec::new(),
             buffer_indirect,
             buffer_indirect_memory,
@@ -295,8 +407,20 @@ impl RenderModels {
             mesh_layout_non_rigged: BufferLayout::new(buffer_vertex_size),
             shader_vertex_non_rigged,
             shader_fragment_non_rigged,
+            descriptor_pool,
+            desc_set_layouts,
+            descriptor_sets,
             pipeline_layout_render_non_rigged,
             pipeline_render_non_rigged: vk::Pipeline::null(),
+        }
+    }
+
+    pub fn globals_uniform(&self) -> GlobalsUniform {
+        let proj = Mat4::perspective_rh(std::f32::consts::FRAC_PI_4, 800.0 / 600.0, 1.0, 10.0);
+        let view = Mat4::look_at_rh(Vec3::new(1.5f32, -5.0, 3.0), Vec3::ZERO, Vec3::Z);
+        GlobalsUniform {
+            proj: proj.to_cols_array_2d(),
+            view: view.to_cols_array_2d(),
         }
     }
 
@@ -309,11 +433,23 @@ impl RenderModels {
         // [x] Step 1: Vertex buffer
         // [x] Step 2: Indirect buffer
         // [x] Step 3: Shader, pipeline
-        // [ ] Step 4: Debug
-        // [ ] Step 5: Transform buffer
-        // [ ] Step 6: Material buffer
+        // [x] Step 4: Debug
+        // [x] Step 5: Globals uniform buffer
+        // [ ] Step 6: Transform buffer
+        // [ ] Step 7: Material buffer
 
         self.buffer_indirect_data.clear();
+
+        let globals_uniform = [self.globals_uniform()];
+
+        unsafe {
+            Self::map_and_write_to_device_memory(
+                &self.gpu,
+                self.buffer_globals_uniform_memory,
+                0,
+                &globals_uniform,
+            );
+        }
 
         /*for (entity_id, mesh_id, material_id, armature_id, transform) in world.query::<(
             &Id<Entity>,
@@ -456,6 +592,49 @@ impl RenderModels {
             }
         }
         None
+    }
+
+    /// Returns Buffer, binded memory and allocated size
+    unsafe fn create_globals_uniform_buffer(gpu: &Gpu) -> (vk::Buffer, vk::DeviceMemory, u64) {
+        let globals_uniform_buffer_info = vk::BufferCreateInfo {
+            size: std::mem::size_of::<GlobalsUniform>() as u64,
+            usage: vk::BufferUsageFlags::UNIFORM_BUFFER,
+            sharing_mode: vk::SharingMode::EXCLUSIVE,
+            ..Default::default()
+        };
+
+        let globals_uniform_buffer = gpu
+            .create_buffer(&globals_uniform_buffer_info)
+            .expect("Failed to create a globals uniform buffer");
+
+        let globals_uniform_buffer_memory_req =
+            gpu.get_buffer_memory_requirements(globals_uniform_buffer);
+
+        let globals_uniform_buffer_memory_index = gpu
+            .find_memory_type_index(
+                &globals_uniform_buffer_memory_req,
+                vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+            )
+            .expect("Unable to find suitable memorytype for the globals uniform buffer.");
+
+        let globals_uniform_allocate_info = vk::MemoryAllocateInfo {
+            allocation_size: globals_uniform_buffer_memory_req.size,
+            memory_type_index: globals_uniform_buffer_memory_index,
+            ..Default::default()
+        };
+
+        let globals_uniform_buffer_memory = gpu
+            .allocate_memory(&globals_uniform_allocate_info)
+            .expect("Failed to allocate device memory for globals uniform buffer");
+
+        gpu.bind_buffer_memory(globals_uniform_buffer, globals_uniform_buffer_memory, 0)
+            .expect("Failed to bind memory to globals uniform buffer");
+
+        (
+            globals_uniform_buffer,
+            globals_uniform_buffer_memory,
+            globals_uniform_buffer_memory_req.size,
+        )
     }
 
     /// Returns Buffer, binded memory and allocated size
@@ -809,6 +988,15 @@ impl RenderModels {
             vk::SubpassContents::INLINE,
         );
 
+        self.gpu.cmd_bind_descriptor_sets(
+            self.command_buffer_draw,
+            vk::PipelineBindPoint::GRAPHICS,
+            self.pipeline_layout_render_non_rigged,
+            0,
+            &self.descriptor_sets[..],
+            &[],
+        );
+
         self.gpu.cmd_bind_pipeline(
             self.command_buffer_draw,
             vk::PipelineBindPoint::GRAPHICS,
@@ -997,4 +1185,13 @@ impl RenderModelsSetup {
     pub fn create(self, display: &mut Display) -> RenderModels {
         RenderModels::new(display, self)
     }
+}
+
+#[repr(C)]
+#[derive(Clone, Debug, Copy, Default)]
+pub struct GlobalsUniform {
+    /// Projection matrix
+    pub proj: [[f32; 4]; 4],
+    /// View matrix
+    pub view: [[f32; 4]; 4],
 }

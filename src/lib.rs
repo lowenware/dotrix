@@ -132,9 +132,12 @@ pub trait Application {
         false
     }
 
-    /// Initial resolution
-    fn resolution(&self) -> (f32, f32) {
-        (800.0, 600.0)
+    /// Preferred resolution
+    fn resolution(&self) -> Extent2D {
+        Extent2D {
+            width: 800,
+            height: 600,
+        }
     }
 }
 
