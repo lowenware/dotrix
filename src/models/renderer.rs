@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::ffi::CStr;
+use std::hash::Hash;
 use std::io::Cursor;
 use std::mem::size_of;
 
@@ -13,6 +15,7 @@ use crate::utils::{BufferLayout, Id, LayoutInBuffer, MeshLayout, MeshVerticesLay
 use crate::world::{Entity, World};
 use crate::{Any, Asset, Display, Extent2D, Frame, Gpu, Ref, Task};
 
+use super::materials::MaterialUniform;
 use super::{Armature, Material, Mesh, Transform, VertexNormal, VertexPosition, VertexTexture};
 
 pub struct RenderModels {
@@ -38,16 +41,33 @@ pub struct RenderModels {
     render_pass: vk::RenderPass,
     /// Version of surface to track changes and update framebuffers and fender pass
     surface_version: u64,
+    /// List of instances grouped by mesh for Indirect and Instance buffers content
+    instances: HashMap<Id<Mesh>, Vec<InstanceUniform>>,
     /// Globals uniform buffer size
     buffer_globals_uniform_size: u64,
     /// Globals uniform buffer
     buffer_globals_uniform: vk::Buffer,
     /// Globals uniform buffer memory
     buffer_globals_uniform_memory: vk::DeviceMemory,
+    /// Transforms uniform buffer size
+    buffer_instance_storage_size: u64,
+    /// Transforms storage buffer
+    buffer_instance_storage_data: Vec<InstanceUniform>,
+    /// Transforms storage buffer
+    buffer_instance_storage: vk::Buffer,
+    /// Transforms storage buffer memory
+    buffer_instance_storage_memory: vk::DeviceMemory,
+    /// Transforms storage buffer size
+    buffer_material_storage_size: u64,
+    /// Transforms storage buffer
+    buffer_material_storage: vk::Buffer,
+    buffer_material_storage_data: Vec<MaterialUniform>,
+    /// Transforms storage buffer memory
+    buffer_material_storage_memory: vk::DeviceMemory,
+    /// Mapping of material index in the buffer by its ID
+    buffer_material_storage_index: HashMap<Id<Material>, u32>,
     /// Config indirect buffer size
     buffer_indirect_size: u64,
-    /// Indirect Buffer
-    buffer_indirect_data: Vec<vk::DrawIndirectCommand>,
     /// Indirect buffer
     buffer_indirect: vk::Buffer,
     /// Indirect buffer memory
@@ -105,6 +125,10 @@ impl Drop for RenderModels {
             self.gpu.destroy_buffer(self.buffer_vertex);
             self.gpu.free_memory(self.buffer_globals_uniform_memory);
             self.gpu.destroy_buffer(self.buffer_globals_uniform);
+            self.gpu.free_memory(self.buffer_instance_storage_memory);
+            self.gpu.destroy_buffer(self.buffer_instance_storage);
+            self.gpu.free_memory(self.buffer_material_storage_memory);
+            self.gpu.destroy_buffer(self.buffer_material_storage);
 
             // descriptors
             for &descriptor_set_layout in self.desc_set_layouts.iter() {
@@ -171,10 +195,10 @@ impl Task for RenderModels {
             self.surface_version = surface_version;
         }
 
-        self.update_buffers(&assets, &world);
+        let draw_count = self.update_buffers(&assets, &world);
 
         unsafe {
-            self.execute_render_pass(&frame);
+            self.execute_render_pass(&frame, draw_count);
             self.submit_draw_commands();
         }
 
@@ -277,14 +301,30 @@ impl RenderModels {
                 .expect("Failed to create a render pass")
         };
 
-        let (buffer_globals_uniform, buffer_globals_uniform_memory, buffer_globals_uniform_size) =
-            unsafe { Self::create_globals_uniform_buffer(&gpu) };
+        let (buffer_globals_uniform, buffer_globals_uniform_memory, buffer_globals_uniform_size) = unsafe {
+            Self::create_globals_uniform_buffer(&gpu)
+                .expect("Could not allocate globals uniform buffer")
+        };
 
-        let (buffer_vertex, buffer_vertex_memory, buffer_vertex_size) =
-            unsafe { Self::create_vertex_buffer(&gpu, setup.mesh_buffer_size) };
+        let (buffer_vertex, buffer_vertex_memory, buffer_vertex_size) = unsafe {
+            Self::create_vertex_buffer(&gpu, setup.mesh_buffer_size)
+                .expect("Could not allocate vertex buffer")
+        };
 
-        let (buffer_indirect, buffer_indirect_memory, buffer_indirect_size) =
-            unsafe { Self::create_indirect_buffer(&gpu, setup.buffer_indirect_size) };
+        let (buffer_indirect, buffer_indirect_memory, buffer_indirect_size) = unsafe {
+            Self::create_indirect_buffer(&gpu, setup.buffer_indirect_size)
+                .expect("Could not allocate indirect buffer")
+        };
+
+        let (buffer_instance_storage, buffer_instance_storage_memory, buffer_instance_storage_size) = unsafe {
+            Self::create_storage_buffer(&gpu, setup.buffer_instance_storage_size)
+                .expect("Could not allocate transform storage buffer")
+        };
+
+        let (buffer_material_storage, buffer_material_storage_memory, buffer_material_storage_size) = unsafe {
+            Self::create_storage_buffer(&gpu, setup.buffer_material_storage_size)
+                .expect("Could not allocate material storage buffer")
+        };
 
         let shader_vertex_non_rigged = unsafe {
             Self::load_shader_module(&gpu, include_bytes!("shaders/non-rigged.vert.spv"))
@@ -393,10 +433,19 @@ impl RenderModels {
             render_pass,
             framebuffers: Vec::new(),
             surface_version: 0,
+            instances: HashMap::new(),
+            buffer_instance_storage,
+            buffer_instance_storage_data: Vec::new(),
+            buffer_instance_storage_memory,
+            buffer_instance_storage_size,
+            buffer_material_storage,
+            buffer_material_storage_data: Vec::new(),
+            buffer_material_storage_index: HashMap::new(),
+            buffer_material_storage_memory,
+            buffer_material_storage_size,
             buffer_globals_uniform,
             buffer_globals_uniform_memory,
             buffer_globals_uniform_size,
-            buffer_indirect_data: Vec::new(),
             buffer_indirect,
             buffer_indirect_memory,
             buffer_indirect_size,
@@ -428,7 +477,7 @@ impl RenderModels {
         self.signal_semaphore
     }
 
-    fn update_buffers(&mut self, assets: &Assets, world: &World) {
+    fn update_buffers(&mut self, assets: &Assets, world: &World) -> u32 {
         // [x] Step 0: Model registry
         // [x] Step 1: Vertex buffer
         // [x] Step 2: Indirect buffer
@@ -438,7 +487,8 @@ impl RenderModels {
         // [ ] Step 6: Transform buffer
         // [ ] Step 7: Material buffer
 
-        self.buffer_indirect_data.clear();
+        self.instances.clear();
+        self.buffer_instance_storage_data.clear();
 
         let globals_uniform = [self.globals_uniform()];
 
@@ -451,7 +501,7 @@ impl RenderModels {
             );
         }
 
-        /*for (entity_id, mesh_id, material_id, armature_id, transform) in world.query::<(
+        for (entity_id, mesh_id, material_id, armature_id, transform) in world.query::<(
             &Id<Entity>,
             &Id<Mesh>,
             &Id<Material>,
@@ -465,26 +515,65 @@ impl RenderModels {
                 } else {
                     continue;
                 };
-            /*
-            let material_layout =
-                if let Some(material_layout) = self.register_material(*material_id, assets) {
-                    material_layout
+            let material_index =
+                if let Some(material_index) = self.register_material(*material_id, assets) {
+                    material_index
                 } else {
                     continue;
                 };
-                 */
-            if self.buffer_indirect_data.len() > 1000 {
-                log::error!("Indirect buffer overflow prevented.");
-                break;
-            }
-            self.buffer_indirect_data.push(vk::DrawIndirectCommand {
-                vertex_count: mesh_vertex_layout.vertex_count,
-                instance_count: 1,
-                first_instance: 0,
-                first_vertex: mesh_vertex_layout.base_vertex,
-            });
-        }*/
 
+            self.instances
+                .entry(*mesh_id)
+                .or_insert_with(|| Vec::with_capacity(1))
+                .push(InstanceUniform {
+                    transform: transform.matrix().to_cols_array_2d(),
+                    material_index,
+                });
+        }
+
+        let instances_count = self.instances.values()
+            .map(|i| i.len())
+            .sum();
+        let draw_count = self.instances.len();
+        let mut instances_buffer_data = Vec::with_capacity(instances_count);
+        let indirect_buffer_data = self
+            .instances
+            .drain()
+            .map(|(mesh_id, instances)| {
+                let first_instance = instances_buffer_data.len() as u32;
+                let mesh_instances_count = instances.len() as u32;
+                let mesh_layout = self.mesh_layout_non_rigged.get(mesh_id).unwrap();
+                instances_buffer_data.extend(instances.into_iter());
+
+                vk::DrawIndirectCommand {
+                    vertex_count: mesh_layout.vertices.vertex_count,
+                    instance_count: mesh_instances_count,
+                    first_instance,
+                    first_vertex: mesh_layout.vertices.base_vertex,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        log::debug!("Indirect new: {:?}", indirect_buffer_data);
+
+        unsafe {
+            Self::map_and_write_to_device_memory(
+                &self.gpu,
+                self.buffer_indirect_memory,
+                0,
+                indirect_buffer_data.as_slice(),
+            );
+            Self::map_and_write_to_device_memory(
+                &self.gpu,
+                self.buffer_instance_storage_memory,
+                0,
+                instances_buffer_data.as_slice(),
+            );
+        };
+
+        draw_count as u32
+
+        /*
         let vertices = [
             (
                 VertexPosition {
@@ -515,6 +604,7 @@ impl RenderModels {
             ),
         ];
 
+
         let draw_indirect_command = [DrawIndirectCommand {
             vertex_count: 3,
             instance_count: 1,
@@ -536,6 +626,7 @@ impl RenderModels {
                 &draw_indirect_command,
             );
         };
+         */
     }
 
     fn register_mesh(&mut self, mesh_id: Id<Mesh>, assets: &Assets) -> Option<MeshVerticesLayout> {
@@ -594,132 +685,107 @@ impl RenderModels {
         None
     }
 
+    fn register_material(&mut self, material_id: Id<Material>, assets: &Assets) -> Option<u32> {
+        assets.get(material_id).and_then(|material| {
+            self.buffer_material_storage_index
+                .get(&material_id)
+                .cloned()
+                .or_else(|| {
+                    let index = self.buffer_material_storage_data.len() as u32;
+                    self.buffer_material_storage_data
+                        .push(MaterialUniform::default());
+                    Some(index)
+                })
+                .map(|material_index| {
+                    self.buffer_material_storage_data[material_index as usize] = material.into();
+                    material_index
+                })
+        })
+    }
+
     /// Returns Buffer, binded memory and allocated size
-    unsafe fn create_globals_uniform_buffer(gpu: &Gpu) -> (vk::Buffer, vk::DeviceMemory, u64) {
-        let globals_uniform_buffer_info = vk::BufferCreateInfo {
+    unsafe fn create_globals_uniform_buffer(
+        gpu: &Gpu,
+    ) -> Result<(vk::Buffer, vk::DeviceMemory, u64), vk::Result> {
+        let buffer_create_info = vk::BufferCreateInfo {
             size: std::mem::size_of::<GlobalsUniform>() as u64,
             usage: vk::BufferUsageFlags::UNIFORM_BUFFER,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             ..Default::default()
         };
 
-        let globals_uniform_buffer = gpu
-            .create_buffer(&globals_uniform_buffer_info)
-            .expect("Failed to create a globals uniform buffer");
-
-        let globals_uniform_buffer_memory_req =
-            gpu.get_buffer_memory_requirements(globals_uniform_buffer);
-
-        let globals_uniform_buffer_memory_index = gpu
-            .find_memory_type_index(
-                &globals_uniform_buffer_memory_req,
-                vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
-            )
-            .expect("Unable to find suitable memorytype for the globals uniform buffer.");
-
-        let globals_uniform_allocate_info = vk::MemoryAllocateInfo {
-            allocation_size: globals_uniform_buffer_memory_req.size,
-            memory_type_index: globals_uniform_buffer_memory_index,
-            ..Default::default()
-        };
-
-        let globals_uniform_buffer_memory = gpu
-            .allocate_memory(&globals_uniform_allocate_info)
-            .expect("Failed to allocate device memory for globals uniform buffer");
-
-        gpu.bind_buffer_memory(globals_uniform_buffer, globals_uniform_buffer_memory, 0)
-            .expect("Failed to bind memory to globals uniform buffer");
-
-        (
-            globals_uniform_buffer,
-            globals_uniform_buffer_memory,
-            globals_uniform_buffer_memory_req.size,
-        )
+        Self::create_and_allocate_buffer(gpu, &buffer_create_info)
     }
 
-    /// Returns Buffer, binded memory and allocated size
-    unsafe fn create_vertex_buffer(gpu: &Gpu, size: u64) -> (vk::Buffer, vk::DeviceMemory, u64) {
-        let vertex_buffer_info = vk::BufferCreateInfo {
+    unsafe fn create_vertex_buffer(
+        gpu: &Gpu,
+        size: u64,
+    ) -> Result<(vk::Buffer, vk::DeviceMemory, u64), vk::Result> {
+        let buffer_create_info = vk::BufferCreateInfo {
             size,
             usage: vk::BufferUsageFlags::VERTEX_BUFFER,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             ..Default::default()
         };
 
-        let vertex_buffer = gpu
-            .create_buffer(&vertex_buffer_info)
-            .expect("Failed to create a vertex buffer");
-
-        let vertex_buffer_memory_req = gpu.get_buffer_memory_requirements(vertex_buffer);
-
-        let vertex_buffer_memory_index = gpu
-            .find_memory_type_index(
-                &vertex_buffer_memory_req,
-                vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
-            )
-            .expect("Unable to find suitable memorytype for the vertex buffer.");
-
-        let vertex_buffer_allocate_info = vk::MemoryAllocateInfo {
-            allocation_size: vertex_buffer_memory_req.size,
-            memory_type_index: vertex_buffer_memory_index,
-            ..Default::default()
-        };
-
-        let vertex_buffer_memory = gpu
-            .allocate_memory(&vertex_buffer_allocate_info)
-            .expect("Failed to allocate device memory for vertex buffer");
-
-        // TODO: can it be bind all the time? Even before writing?
-        gpu.bind_buffer_memory(vertex_buffer, vertex_buffer_memory, 0)
-            .expect("Failed to bind memory to vertex buffer");
-
-        (
-            vertex_buffer,
-            vertex_buffer_memory,
-            vertex_buffer_memory_req.size,
-        )
+        Self::create_and_allocate_buffer(gpu, &buffer_create_info)
     }
 
-    unsafe fn create_indirect_buffer(gpu: &Gpu, size: u64) -> (vk::Buffer, vk::DeviceMemory, u64) {
-        let indirect_buffer_info = vk::BufferCreateInfo {
+    unsafe fn create_indirect_buffer(
+        gpu: &Gpu,
+        size: u64,
+    ) -> Result<(vk::Buffer, vk::DeviceMemory, u64), vk::Result> {
+        let buffer_create_info = vk::BufferCreateInfo {
             size,
             usage: vk::BufferUsageFlags::INDIRECT_BUFFER,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             ..Default::default()
         };
 
-        let indirect_buffer = gpu
-            .create_buffer(&indirect_buffer_info)
-            .expect("Failed to create a vertex buffer");
+        Self::create_and_allocate_buffer(gpu, &buffer_create_info)
+    }
 
-        let indirect_buffer_memory_req = gpu.get_buffer_memory_requirements(indirect_buffer);
-
-        let indirect_buffer_memory_index = gpu
-            .find_memory_type_index(
-                &indirect_buffer_memory_req,
-                vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
-            )
-            .expect("Unable to find suitable memorytype for the vertex buffer.");
-
-        let indirect_buffer_allocate_info = vk::MemoryAllocateInfo {
-            allocation_size: indirect_buffer_memory_req.size,
-            memory_type_index: indirect_buffer_memory_index,
+    unsafe fn create_storage_buffer(
+        gpu: &Gpu,
+        size: u64,
+    ) -> Result<(vk::Buffer, vk::DeviceMemory, u64), vk::Result> {
+        let buffer_create_info = vk::BufferCreateInfo {
+            size,
+            usage: vk::BufferUsageFlags::STORAGE_BUFFER,
+            sharing_mode: vk::SharingMode::EXCLUSIVE,
             ..Default::default()
         };
 
-        let indirect_buffer_memory = gpu
-            .allocate_memory(&indirect_buffer_allocate_info)
-            .expect("Failed to allocate device memory for vertex buffer");
+        Self::create_and_allocate_buffer(gpu, &buffer_create_info)
+    }
 
-        // TODO: can it be bind all the time? Even before writing?
-        gpu.bind_buffer_memory(indirect_buffer, indirect_buffer_memory, 0)
-            .expect("Failed to bind memory to vertex buffer");
+    /// Returns Buffer, binded memory and allocated size
+    unsafe fn create_and_allocate_buffer(
+        gpu: &Gpu,
+        buffer_create_info: &vk::BufferCreateInfo,
+    ) -> Result<(vk::Buffer, vk::DeviceMemory, u64), vk::Result> {
+        let buffer = gpu.create_buffer(&buffer_create_info)?;
 
-        (
-            indirect_buffer,
-            indirect_buffer_memory,
-            indirect_buffer_memory_req.size,
-        )
+        let buffer_memory_req = gpu.get_buffer_memory_requirements(buffer);
+
+        let buffer_memory_index = gpu
+            .find_memory_type_index(
+                &buffer_memory_req,
+                vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+            )
+            .expect("Unable to find suitable memorytype for the buffer.");
+
+        let buffer_allocate_info = vk::MemoryAllocateInfo {
+            allocation_size: buffer_memory_req.size,
+            memory_type_index: buffer_memory_index,
+            ..Default::default()
+        };
+
+        let buffer_memory = gpu.allocate_memory(&buffer_allocate_info)?;
+
+        gpu.bind_buffer_memory(buffer, buffer_memory, 0)?;
+
+        Ok((buffer, buffer_memory, buffer_memory_req.size))
     }
 
     unsafe fn map_and_write_to_device_memory<T: Copy>(
@@ -919,7 +985,7 @@ impl RenderModels {
         self.gpu.destroy_pipeline(self.pipeline_render_non_rigged);
     }
 
-    unsafe fn execute_render_pass(&self, frame: &Frame) {
+    unsafe fn execute_render_pass(&self, frame: &Frame, draw_count: u32) {
         self.gpu
             .wait_for_fences(&[self.command_buffer_draw_reuse_fence], true, u64::MAX)
             .expect("Failed to wait for draw buffer fences");
@@ -1017,8 +1083,13 @@ impl RenderModels {
         //);
 
         // TODO: draw indirect
-        self.gpu
-            .cmd_draw_indirect(self.command_buffer_draw, self.buffer_indirect, 0, 1, 0);
+        self.gpu.cmd_draw_indirect(
+            self.command_buffer_draw,
+            self.buffer_indirect,
+            0,
+            draw_count,
+            0,
+        );
 
         self.gpu.cmd_end_render_pass(self.command_buffer_draw);
 
@@ -1158,6 +1229,8 @@ pub struct RenderModelsSetup {
     surface_format: vk::Format,
     mesh_buffer_size: u64,
     buffer_indirect_size: u64,
+    buffer_instance_storage_size: u64,
+    buffer_material_storage_size: u64,
 }
 
 impl Default for RenderModelsSetup {
@@ -1167,6 +1240,8 @@ impl Default for RenderModelsSetup {
             surface_format: vk::Format::default(),
             mesh_buffer_size: 8 * 1024 * 1024,
             buffer_indirect_size: 1000 * std::mem::size_of::<vk::DrawIndirectCommand>() as u64,
+            buffer_instance_storage_size: 1000 * std::mem::size_of::<InstanceUniform>() as u64,
+            buffer_material_storage_size: 1000 * std::mem::size_of::<MaterialUniform>() as u64,
         }
     }
 }
@@ -1194,4 +1269,13 @@ pub struct GlobalsUniform {
     pub proj: [[f32; 4]; 4],
     /// View matrix
     pub view: [[f32; 4]; 4],
+}
+
+#[repr(C)]
+#[derive(Clone, Debug, Copy, Default)]
+pub struct InstanceUniform {
+    /// Model transform matrix
+    pub transform: [[f32; 4]; 4],
+    /// material index in buffer
+    pub material_index: u32,
 }

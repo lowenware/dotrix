@@ -53,8 +53,24 @@ pub struct MaterialUniform {
     /// Indices of PBR maps in the buffer
     /// Order: ambient_occlusion, metallic, normal, roughness
     pub maps_1: [u32; 4],
-    /// Index of Color map in the buffer + 3 reserved values
+    /// Index of Color map in the buffer + 3 reserved value¨
     pub maps_2: [u32; 4],
+}
+
+impl From<&Material> for MaterialUniform {
+    fn from(value: &Material) -> Self {
+        Self {
+            color: (&value.albedo).into(),
+            options: [
+                value.occlusion_factor,
+                value.metallic_factor,
+                value.roughness_factor,
+                0.0,
+            ],
+            maps_1: [0, 0, 0, 0],
+            maps_2: [0, 0, 0, 0],
+        }
+    }
 }
 
 unsafe impl bytemuck::Pod for MaterialUniform {}
