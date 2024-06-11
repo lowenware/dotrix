@@ -1,4 +1,5 @@
 use dotrix::log;
+use dotrix::math::Vec3;
 use dotrix::{Id, Mut};
 
 // NOTE: For one time spawn separate task is not optimal. In that case it would be better
@@ -23,17 +24,33 @@ impl dotrix::Task for SpawnEntities {
     fn run(&mut self, (mut assets, mut world): Self::Context) -> Self::Output {
         if self.spawned.is_null() {
             let cube = assets.set(dotrix::Mesh::cube("Cube"));
-            let material = assets.set(dotrix::Material {
+            let red_material = assets.set(dotrix::Material {
+                name: String::from("Red Material"),
                 albedo: dotrix::Color::red(),
                 ..Default::default()
             });
-            let model = dotrix::Model {
-                mesh: cube,
-                material,
+            let blue_material = assets.set(dotrix::Material {
+                name: String::from("Blue Material"),
+                albedo: dotrix::Color::blue(),
                 ..Default::default()
-            };
-
-            let entities = [model].into_iter().map(dotrix::Entity::from);
+            });
+            let entities = [
+                dotrix::Model {
+                    mesh: cube,
+                    material: red_material,
+                    scale: Vec3::new(0.5, 0.5, 0.5),
+                    ..Default::default()
+                },
+                dotrix::Model {
+                    mesh: cube,
+                    material: blue_material,
+                    scale: Vec3::new(0.3, 0.3, 0.3),
+                    translate: Vec3::new(1.0, 0.0, -0.4),
+                    ..Default::default()
+                },
+            ]
+            .into_iter()
+            .map(dotrix::Entity::from);
 
             self.spawned = world
                 .spawn(entities)

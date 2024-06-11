@@ -337,14 +337,24 @@ impl RenderModels {
 
         // bindings layout
         let descriptor_sizes = [
+            // Globals
             vk::DescriptorPoolSize {
                 ty: vk::DescriptorType::UNIFORM_BUFFER,
                 descriptor_count: 1,
             },
-            // vk::DescriptorPoolSize {
-            //    ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
-            //    descriptor_count: 1,
-            // },
+            // Instances
+            vk::DescriptorPoolSize {
+                ty: vk::DescriptorType::STORAGE_BUFFER,
+                descriptor_count: 1,
+            },
+            // Materials
+            vk::DescriptorPoolSize {
+                ty: vk::DescriptorType::STORAGE_BUFFER,
+                descriptor_count: 1,
+            }, // vk::DescriptorPoolSize {
+               //    ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+               //    descriptor_count: 1,
+               // },
         ];
         let descriptor_pool_info = vk::DescriptorPoolCreateInfo::default()
             .pool_sizes(&descriptor_sizes)
@@ -352,6 +362,7 @@ impl RenderModels {
         let descriptor_pool = unsafe { gpu.create_descriptor_pool(&descriptor_pool_info).unwrap() };
 
         let desc_layout_bindings = [
+            // Globals
             vk::DescriptorSetLayoutBinding {
                 binding: 0,
                 descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
@@ -359,6 +370,22 @@ impl RenderModels {
                 stage_flags: vk::ShaderStageFlags::VERTEX,
                 ..Default::default()
             },
+            // Instances
+            vk::DescriptorSetLayoutBinding {
+                binding: 1,
+                descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+                descriptor_count: 1,
+                stage_flags: vk::ShaderStageFlags::VERTEX,
+                ..Default::default()
+            },
+            vk::DescriptorSetLayoutBinding {
+                binding: 2,
+                descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+                descriptor_count: 1,
+                stage_flags: vk::ShaderStageFlags::VERTEX,
+                ..Default::default()
+            },
+            // Materials
             //vk::DescriptorSetLayoutBinding {
             //    binding: 1,
             //    descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
@@ -384,6 +411,18 @@ impl RenderModels {
             range: buffer_globals_uniform_size,
         };
 
+        let instance_storage_buffer_descriptor = vk::DescriptorBufferInfo {
+            buffer: buffer_instance_storage,
+            offset: 0,
+            range: buffer_instance_storage_size,
+        };
+
+        let material_storage_buffer_descriptor = vk::DescriptorBufferInfo {
+            buffer: buffer_material_storage,
+            offset: 0,
+            range: buffer_material_storage_size,
+        };
+
         // let tex_descriptor = vk::DescriptorImageInfo {
         //    image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
         //    image_view: tex_image_view,
@@ -397,6 +436,22 @@ impl RenderModels {
                 descriptor_count: 1,
                 descriptor_type: vk::DescriptorType::UNIFORM_BUFFER,
                 p_buffer_info: &globals_uniform_buffer_descriptor,
+                ..Default::default()
+            },
+            vk::WriteDescriptorSet {
+                dst_binding: 1,
+                dst_set: descriptor_sets[0],
+                descriptor_count: 1,
+                descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+                p_buffer_info: &instance_storage_buffer_descriptor,
+                ..Default::default()
+            },
+            vk::WriteDescriptorSet {
+                dst_binding: 2,
+                dst_set: descriptor_sets[0],
+                descriptor_count: 1,
+                descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+                p_buffer_info: &material_storage_buffer_descriptor,
                 ..Default::default()
             },
             //vk::WriteDescriptorSet {
@@ -484,11 +539,12 @@ impl RenderModels {
         // [x] Step 3: Shader, pipeline
         // [x] Step 4: Debug
         // [x] Step 5: Globals uniform buffer
-        // [ ] Step 6: Transform buffer
-        // [ ] Step 7: Material buffer
+        // [x] Step 6: Transform buffer
+        // [x] Step 7: Material buffer
 
         self.instances.clear();
         self.buffer_instance_storage_data.clear();
+        self.buffer_material_storage_data.clear();
 
         let globals_uniform = [self.globals_uniform()];
 
@@ -522,18 +578,19 @@ impl RenderModels {
                     continue;
                 };
 
+            log::debug!("material index: {} ({:?})", material_index, material_id);
+
             self.instances
                 .entry(*mesh_id)
                 .or_insert_with(|| Vec::with_capacity(1))
                 .push(InstanceUniform {
                     transform: transform.matrix().to_cols_array_2d(),
                     material_index,
+                    _padding: Default::default(),
                 });
         }
 
-        let instances_count = self.instances.values()
-            .map(|i| i.len())
-            .sum();
+        let instances_count = self.instances.values().map(|i| i.len()).sum();
         let draw_count = self.instances.len();
         let mut instances_buffer_data = Vec::with_capacity(instances_count);
         let indirect_buffer_data = self
@@ -554,7 +611,7 @@ impl RenderModels {
             })
             .collect::<Vec<_>>();
 
-        log::debug!("Indirect new: {:?}", indirect_buffer_data);
+        log::debug!("materials: {:?}", self.buffer_material_storage_data);
 
         unsafe {
             Self::map_and_write_to_device_memory(
@@ -562,6 +619,12 @@ impl RenderModels {
                 self.buffer_indirect_memory,
                 0,
                 indirect_buffer_data.as_slice(),
+            );
+            Self::map_and_write_to_device_memory(
+                &self.gpu,
+                self.buffer_material_storage_memory,
+                0,
+                self.buffer_material_storage_data.as_slice(),
             );
             Self::map_and_write_to_device_memory(
                 &self.gpu,
@@ -588,7 +651,7 @@ impl RenderModels {
                 VertexPosition {
                     value: Vec3::new(1.0, 1.0, 0.0),
                 },
-                VertexNormal {
+                VervýhrávátexNormal {
                     value: Vec3::new(0.0, 0.0, 1.0),
                 },
                 VertexTexture { u: 0.0, v: 0.0 },
@@ -1278,4 +1341,6 @@ pub struct InstanceUniform {
     pub transform: [[f32; 4]; 4],
     /// material index in buffer
     pub material_index: u32,
+    /// padding
+    pub _padding: [u32; 3],
 }

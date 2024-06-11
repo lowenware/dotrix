@@ -1,18 +1,46 @@
-#version 400
+#version 450
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
 layout (location = 0) in vec3 pos;
-layout (location = 1) in vec3 color;
+layout (location = 1) in vec3 normal;
 layout (location = 2) in vec2 texture;
 
-layout (binding = 0) uniform Globals {
+layout (binding = 0) uniform DtxGlobals {
     mat4 proj;
     mat4 view;
-} u_globals;
+} dtx_globals;
+
+struct DtxInstance {
+    mat4 transform;
+    uint material_index;
+    uint _padding[3]; 
+};
+
+layout(std430, binding = 1) buffer DtxInstanceLayout
+{
+    DtxInstance dtx_instance[];
+};
+
+struct DtxMaterial {
+    vec4 color;
+    vec4 options;
+    uvec4 maps_1;
+    uvec4 maps_2;
+};
+
+layout(std430, binding = 2) buffer DtxMaterialLayout
+{
+    DtxMaterial dtx_material[];
+};
 
 layout (location = 0) out vec4 o_color;
 void main() {
-    o_color = vec4(color, 1.0);
-    gl_Position = u_globals.proj * u_globals.view * vec4(pos, 1.0);
+    mat4 model_transform = dtx_instance[gl_InstanceIndex].transform;
+    uint material_index = dtx_instance[gl_InstanceIndex].material_index;
+    vec4 material_color = dtx_material[material_index].color;
+    
+    o_color = vec4(material_color);
+
+    gl_Position = dtx_globals.proj * dtx_globals.view * model_transform * vec4(pos, 1.0);
 }
