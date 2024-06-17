@@ -806,6 +806,18 @@ impl Gpu {
         )
     }
 
+    pub unsafe fn cmd_bind_index_buffer(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        buffer: vk::Buffer,
+        offset: vk::DeviceSize,
+        index_type: vk::IndexType,
+    ) {
+        self.device
+            .vk_device
+            .cmd_bind_index_buffer(command_buffer, buffer, offset, index_type)
+    }
+
     pub unsafe fn cmd_draw_indirect(
         &self,
         command_buffer: vk::CommandBuffer,
@@ -817,6 +829,23 @@ impl Gpu {
         self.device
             .vk_device
             .cmd_draw_indirect(command_buffer, buffer, offset, draw_count, stride);
+    }
+
+    pub unsafe fn cmd_draw_indexed_indirect(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        buffer: vk::Buffer,
+        offset: vk::DeviceSize,
+        draw_count: u32,
+        stride: u32,
+    ) {
+        self.device.vk_device.cmd_draw_indexed_indirect(
+            command_buffer,
+            buffer,
+            offset,
+            draw_count,
+            stride,
+        );
     }
 
     pub unsafe fn cmd_pipeline_barrier(
@@ -1643,169 +1672,78 @@ impl CommandRecorderSetup {
         }
     }
 }
+*/
 
 pub struct Buffer {
-    device: Arc<Device>,
-    vk_buffer: vk::Buffer,
-    device_memory: vk::DeviceMemory,
+    pub handle: vk::Buffer,
+    pub device_memory: vk::DeviceMemory,
+    pub size: u64,
 }
 
 impl Buffer {
-    pub fn setup() -> BufferSetup {
-        BufferSetup::default()
-    }
+    pub unsafe fn create_and_allocate(
+        gpu: &Gpu,
+        buffer_create_info: &vk::BufferCreateInfo,
+    ) -> Result<Buffer, vk::Result> {
+        let buffer = gpu.create_buffer(&buffer_create_info)?;
 
-    pub fn write<T: Copy>(&self, offset: u64, data: &[T]) {
-        unsafe {
-            let align = std::mem::align_of::<T>() as u64;
-            let size = (data.len() * size_of::<T>()) as u64;
+        let buffer_memory_req = gpu.get_buffer_memory_requirements(buffer);
 
-            log::info!("vulkan: map memory ({size}, {align})");
-            let memory_ptr = self
-                .device
-                .vk_device
-                .map_memory(
-                    self.device_memory,
-                    offset,
-                    size,
-                    vk::MemoryMapFlags::empty(),
-                )
-                .expect("Could not map buffer memory");
-            log::info!("vulkan: align");
-
-            let mut index_slice = ash::util::Align::new(memory_ptr, align, size);
-            log::info!("vulkan: copy");
-            index_slice.copy_from_slice(data);
-            log::info!("vulkan: unmap");
-            self.device.vk_device.unmap_memory(self.device_memory);
-        }
-    }
-
-    fn padding(ptr: vk::DeviceSize, align: vk::DeviceSize) -> vk::DeviceSize {
-        (align - ptr % align) % align
-    }
-}
-
-#[derive(Default)]
-pub struct BufferSetup {
-    size: u64,
-    usage_flags: vk::BufferUsageFlags,
-    sharing_mode: vk::SharingMode,
-}
-
-impl BufferSetup {
-    pub fn size(mut self, size: u64) -> Self {
-        self.size = size;
-        self
-    }
-
-    pub fn use_as_source(mut self) -> Self {
-        self.usage_flags |= vk::BufferUsageFlags::TRANSFER_SRC;
-        self
-    }
-
-    pub fn use_as_target(mut self) -> Self {
-        self.usage_flags |= vk::BufferUsageFlags::TRANSFER_DST;
-        self
-    }
-
-    pub fn use_as_uniform_texel(mut self) -> Self {
-        self.usage_flags |= vk::BufferUsageFlags::UNIFORM_TEXEL_BUFFER;
-        self
-    }
-
-    pub fn use_as_storage_texel(mut self) -> Self {
-        self.usage_flags |= vk::BufferUsageFlags::STORAGE_TEXEL_BUFFER;
-        self
-    }
-
-    pub fn use_as_uniform(mut self) -> Self {
-        self.usage_flags |= vk::BufferUsageFlags::UNIFORM_BUFFER;
-        self
-    }
-
-    pub fn use_as_storage(mut self) -> Self {
-        self.usage_flags |= vk::BufferUsageFlags::STORAGE_BUFFER;
-        self
-    }
-
-    pub fn use_as_index(mut self) -> Self {
-        self.usage_flags |= vk::BufferUsageFlags::INDEX_BUFFER;
-        self
-    }
-
-    pub fn use_as_vertex(mut self) -> Self {
-        self.usage_flags |= vk::BufferUsageFlags::VERTEX_BUFFER;
-        self
-    }
-
-    pub fn use_as_indirect(mut self) -> Self {
-        self.usage_flags |= vk::BufferUsageFlags::INDIRECT_BUFFER;
-        self
-    }
-
-    pub fn exculsive_access(mut self) -> Self {
-        self.sharing_mode = vk::SharingMode::EXCLUSIVE;
-        self
-    }
-
-    pub fn concurent_access(mut self) -> Self {
-        self.sharing_mode = vk::SharingMode::CONCURRENT;
-        self
-    }
-
-    pub fn create(&self, gpu: &Gpu) -> Buffer {
-        let buffer_create_info = vk::BufferCreateInfo::default()
-            .size(self.size as u64)
-            .usage(self.usage_flags)
-            .sharing_mode(self.sharing_mode);
-
-        let vk_buffer = unsafe { gpu.create_buffer(&buffer_create_info) };
-        let memory_requirements = unsafe { gpu.get_buffer_memory_requirements(vk_buffer) };
         let buffer_memory_index = gpu
             .find_memory_type_index(
-                &memory_requirements,
+                &buffer_memory_req,
                 vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
             )
-            .expect("Could not find a suitable memory for a Vulkan buffer");
-        let memory_allocate_info = vk::MemoryAllocateInfo {
-            allocation_size: memory_requirements.size,
+            .expect("Unable to find suitable memorytype for the buffer.");
+
+        let buffer_allocate_info = vk::MemoryAllocateInfo {
+            allocation_size: buffer_memory_req.size,
             memory_type_index: buffer_memory_index,
             ..Default::default()
         };
-        let device_memory = unsafe {
-            gpu.allocate_memory(&memory_allocate_info)
-                .expect("Could not allocate memory for a Vulkan buffer")
-        };
 
-        let device = Arc::clone(&gpu.device);
-        unsafe {
-            device
-                .vk_device
-                .bind_buffer_memory(vk_buffer, device_memory, 0)
-                .expect("Failed to bind buffer memory");
-        };
+        let buffer_memory = gpu.allocate_memory(&buffer_allocate_info)?;
 
-        Buffer {
-            device,
-            vk_buffer,
-            device_memory,
-        }
+        gpu.bind_buffer_memory(buffer, buffer_memory, 0)?;
+
+        Ok(Buffer {
+            handle: buffer,
+            device_memory: buffer_memory,
+            size: buffer_memory_req.size,
+        })
+    }
+
+    pub unsafe fn map_and_write_to_device_memory<T: Copy>(
+        &self,
+        gpu: &Gpu,
+        offset: u64,
+        data: &[T],
+    ) {
+        let align = std::mem::align_of::<T>() as u64;
+        let size = (data.len() * std::mem::size_of::<T>()) as u64;
+
+        let memory_ptr = gpu
+            .map_memory(
+                self.device_memory,
+                offset,
+                size,
+                vk::MemoryMapFlags::empty(),
+            )
+            .expect("Could not map buffer memory");
+
+        let mut index_slice = ash::util::Align::new(memory_ptr, align, size);
+        index_slice.copy_from_slice(data);
+        gpu.unmap_memory(self.device_memory);
+    }
+
+    pub unsafe fn free_memory_and_destroy(&self, gpu: &Gpu) {
+        gpu.device_wait_idle().expect("Device is not idle");
+        gpu.free_memory(self.device_memory);
+        gpu.destroy_buffer(self.handle);
     }
 }
 
-impl Drop for Buffer {
-    fn drop(&mut self) {
-        unsafe {
-            self.device
-                .vk_device
-                .device_wait_idle()
-                .expect("Device is not idle");
-            self.device.vk_device.free_memory(self.device_memory, None);
-            self.device.vk_device.destroy_buffer(self.vk_buffer, None);
-        }
-    }
-}
+/*
 
 pub struct PipelineLayout {
     vk_pipeline_layout: vk::PipelineLayout,

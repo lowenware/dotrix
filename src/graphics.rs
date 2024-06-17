@@ -8,7 +8,7 @@ use crate::window;
 
 pub use formats::Extent2D;
 pub use frame::{CreateFrame, Frame, RenderPass, SubmitFrame};
-pub use vulkan::{CommandBufferIter, Display, FramePresenter, Gpu, Semaphore, Surface};
+pub use vulkan::{Buffer, CommandBufferIter, Display, FramePresenter, Gpu, Semaphore, Surface};
 
 /// GPU device type
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
