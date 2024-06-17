@@ -65,13 +65,17 @@ pub struct MeshVerticesLayout {
     /// Offset of the first model vertex in vertex buffer (vertex number, not bytes)
     pub base_vertex: u32,
     /// Number of vertices of the model
-    pub vertex_count: u32,
+    pub vertex_count: u32, // TODO: perhaps can be removed if we go with indexed rendering only
+    /// offset of the first index in the index buffer
+    pub base_index: u32,
+    /// number of indices
+    pub index_count: u32,
 }
 
 /// Layout of a single mesh in buffers
 #[derive(Clone, Copy)]
 pub struct MeshLayout {
     pub in_vertex_buffer: LayoutInBuffer,
-    pub in_index_buffer: Option<LayoutInBuffer>,
+    pub in_index_buffer: LayoutInBuffer,
     pub vertices: MeshVerticesLayout,
 }
