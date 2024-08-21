@@ -1,4 +1,5 @@
 use std::any::{Any, TypeId};
+use std::cell::UnsafeCell;
 use std::collections::{hash_map, HashMap};
 use std::marker::PhantomData;
 
@@ -127,7 +128,7 @@ impl_into_components_map!((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P));
 pub struct Container {
     /// TypeId identifies component
     /// Vec stores components of different entities
-    data: HashMap<TypeId, Vec<Option<Box<dyn Any>>>>,
+    data: HashMap<TypeId, Vec<Option<UnsafeCell<Box<dyn Any>>>>>,
     removed: Vec<usize>,
     len: usize,
 }
@@ -148,7 +149,7 @@ impl Container {
             self.data
                 .get_mut(&component_type_id)
                 .expect("Entity should match container")
-                .insert(index, Some(component));
+                .insert(index, Some(UnsafeCell::new(component)));
         }
 
         index
@@ -158,7 +159,7 @@ impl Container {
         let mut entity = Entity::empty();
         for (type_id, list) in self.data.iter_mut() {
             if let Some(component) = list[index].take() {
-                entity.set_raw(*type_id, component);
+                entity.set_raw(*type_id, component.into_inner());
             }
         }
         self.removed.push(index);
@@ -169,18 +170,14 @@ impl Container {
         self.data
             .get(&TypeId::of::<C>())
             .and_then(|list| list[entity_index].as_ref())
-            .map(|value| value.downcast_ref::<C>().unwrap())
+            .map(|value| unsafe { (&mut *(value.get())).downcast_ref::<C>().unwrap() })
     }
 
     pub unsafe fn get_mut<C: Any>(&self, entity_index: usize) -> Option<&mut C> {
         self.data
             .get(&TypeId::of::<C>())
             .and_then(|list| list[entity_index].as_ref())
-            .map(|value| {
-                (&mut *((value as *const dyn Any) as *mut dyn Any))
-                    .downcast_mut::<C>()
-                    .unwrap()
-            })
+            .map(|value| (&mut (*(value.get()))).downcast_mut::<C>().unwrap())
     }
 
     pub fn iter<'a, C: Any>(&'a self) -> Iter<'a, C> {
@@ -213,7 +210,7 @@ impl Container {
 }
 
 pub struct Iter<'a, C> {
-    inner: std::slice::Iter<'a, Option<Box<dyn Any>>>,
+    inner: std::slice::Iter<'a, Option<UnsafeCell<Box<dyn Any>>>>,
     _phantom_data: PhantomData<C>,
 }
 
@@ -225,7 +222,7 @@ impl<'a, C: Any> Iterator for Iter<'a, C> {
             match self.inner.next() {
                 Some(next) => {
                     if let Some(value) = next.as_ref() {
-                        return Some(value.downcast_ref::<C>().unwrap());
+                        return Some(unsafe { (&mut *(value.get())).downcast_ref::<C>().unwrap() });
                     }
                 }
                 None => return None,
@@ -235,7 +232,7 @@ impl<'a, C: Any> Iterator for Iter<'a, C> {
 }
 
 pub struct IterMut<'a, C> {
-    inner: std::slice::Iter<'a, Option<Box<dyn Any>>>,
+    inner: std::slice::Iter<'a, Option<UnsafeCell<Box<dyn Any>>>>,
     _phantom_data: PhantomData<C>,
 }
 
@@ -248,7 +245,7 @@ impl<'a, C: Any> Iterator for IterMut<'a, C> {
                 Some(next) => {
                     if let Some(value) = next.as_ref() {
                         return Some(
-                            (unsafe { &mut *((value as *const dyn Any) as *mut dyn Any) })
+                            (unsafe { &mut *(value.get()) })
                                 .downcast_mut::<C>()
                                 .unwrap(),
                         );

@@ -405,13 +405,15 @@ mod tests {
 
     fn spawn() -> World {
         let mut world = World::new();
-        world.spawn(Some((Armor(100), Health(100), Damage(300))));
-        world.spawn(Some((Health(80), Speed(10))));
-        world.spawn(Some((Speed(50), Damage(45))));
-        world.spawn(Some((Damage(600), Armor(10))));
+        world
+            .spawn(Some((Armor(100), Health(100), Damage(300))))
+            .count();
+        world.spawn(Some((Health(80), Speed(10)))).count();
+        world.spawn(Some((Speed(50), Damage(45)))).count();
+        world.spawn(Some((Damage(600), Armor(10)))).count();
 
         let bulk = (0..9).map(|_| (Speed(35), Weight(5000)));
-        world.spawn(bulk);
+        world.spawn(bulk).count();
 
         world
     }

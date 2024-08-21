@@ -1,34 +1,69 @@
 use std::collections::HashMap;
 use std::ffi::CStr;
-use std::hash::Hash;
 use std::io::Cursor;
-use std::mem::size_of;
-
-use ash::vk::DrawIndirectCommand;
 
 use crate::graphics::vk;
 use crate::graphics::{Buffer, RenderPass};
 use crate::loaders::Assets;
-use crate::log;
 use crate::math::{Mat4, Vec3};
-use crate::utils::{BufferLayout, Id, LayoutInBuffer, MeshLayout, MeshVerticesLayout};
+use crate::utils::Id;
 use crate::world::{Entity, World};
+use crate::{log, VertexJoints, VertexWeights};
 use crate::{Any, Asset, Display, Extent2D, Frame, Gpu, Ref, Task};
 
 use super::materials::MaterialUniform;
-use super::{Armature, Material, Mesh, Transform, VertexNormal, VertexPosition, VertexTexture};
+use super::{
+    Armature, Material, Mesh, Transform, VertexBufferLayout, VertexNormal, VertexPosition,
+    VertexTexture,
+};
 
 /* TODO:
  * [ ] Lights
  * [ ] Shadows
  * [ ] Textures
  * [ ] Move camera to the engine level
- * [ ] Indexed draw calls (add index buffer, separate indirect buffer)
+ * [x] Indexed draw calls (add index buffer, separate indirect buffer)
  *     - Always use indexed drawing
  *     - If mesh has no indices, generate the index buffer as 0,1,2...VertexCount
  * [ ] Support for rigged meshes (second pipeline? second vertex buffer?)
+ *     - MeshLayout and MeshRegistry must support several buffers and track index buffer size as
+ *       well
  *
  **/
+
+#[derive(Debug, Clone, Copy)]
+pub enum VertexBufferSelector {
+    OnlyMesh = 0,
+    SkinMesh,
+}
+
+#[derive(Clone, Copy)]
+pub struct LayoutInBuffer {
+    /// Offset inside of the buffer in bytes
+    pub offset: u64,
+    /// Size of the buffer used for the mesh data
+    pub size: u64,
+    /// Offset of the first item (vertex or index)
+    pub base: u32,
+    /// Number of items (vertices or indices)
+    pub count: u32,
+}
+
+/// Layout of a single mesh in buffers
+#[derive(Clone, Copy)]
+pub struct MeshLayout {
+    pub vertices: LayoutInBuffer,
+    pub indices: Option<LayoutInBuffer>,
+    pub has_skin: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DrawCount {
+    pub only_mesh: u32,
+    pub only_mesh_indexed: u32,
+    pub skin_mesh: u32,
+    pub skin_mesh_indexed: u32,
+}
 
 pub struct RenderModels {
     /// GPU instance
@@ -53,33 +88,30 @@ pub struct RenderModels {
     render_pass: vk::RenderPass,
     /// Version of surface to track changes and update framebuffers and fender pass
     surface_version: u64,
-    /// Index of instances by mesh (non rigged)
-    instances_non_rigged: HashMap<Id<Mesh>, Vec<InstanceUniform>>,
-    /// Index of instances by mesh (rigged)
-    instances_rigged: HashMap<Id<Mesh>, Vec<InstanceUniform>>,
+    /// Index of instances by mesh (just mesh, indexed)
+    instances_only_mesh_indexed: HashMap<Id<Mesh>, Vec<InstanceUniform>>,
+    /// Index of instances by mesh (with skin, indexed)
+    instances_skin_mesh_indexed: HashMap<Id<Mesh>, Vec<InstanceUniform>>,
+    /// Index of instances by mesh (just mesh, not indexed)
+    instances_only_mesh: HashMap<Id<Mesh>, Vec<InstanceUniform>>,
+    /// Index of instances by mesh (with skin, not indexed)
+    instances_skin_mesh: HashMap<Id<Mesh>, Vec<InstanceUniform>>,
     /// Globals uniform buffer
     globals_buffer: Buffer,
     /// Indices buffer (rigged and non-rigged)
     index_buffer: Buffer,
     /// Used bytes in index buffer,
-    index_buffer_used_size: u64,
+    index_buffer_usage: u64,
     /// Vertex buffer (non-rigged)
-    vertex_buffer_non_rigged: Buffer,
+    vertex_buffer_only_mesh: Buffer,
+    vertex_buffer_only_mesh_usage: u64,
     /// Vertex buffer (rigged)
-    vertex_buffer_rigged: Buffer,
+    vertex_buffer_skin_mesh: Buffer,
+    vertex_buffer_skin_mesh_usage: u64,
+    /// Indstance buffer
+    instance_buffer: Buffer,
     /// Indirect buffer
-    /// Indirect buffer (non-rigged)
-    indirect_buffer_non_rigged: Buffer,
-    /// Indirect buffer (rigged)
-    indirect_buffer_rigged: Buffer,
-    /// Instances buffer (non-rigged)
-    instances_buffer_non_rigged: Buffer,
-    /// Instances buffer data (non-rigged)
-    instances_buffer_non_rigged_data: Vec<InstanceUniform>,
-    /// Instances buffer (rigged)
-    instances_buffer_rigged: Buffer,
-    /// Instances buffer data (rigged)
-    instances_buffer_rigged_data: Vec<InstanceUniform>,
+    indirect_buffer: Buffer,
     /// Materials buffer
     materials_buffer: Buffer,
     /// Mapping of material index in the buffer by its ID
@@ -87,7 +119,7 @@ pub struct RenderModels {
     /// Materials buffer data
     materials_buffer_data: Vec<MaterialUniform>,
     /// Mesh layouts of non-rigged models
-    mesh_layout_non_rigged: BufferLayout<Id<Mesh>, MeshLayout>,
+    mesh_registry: HashMap<Id<Mesh>, MeshLayout>,
     /// descriptor sets
     descriptor_sets: Vec<vk::DescriptorSet>,
     /// descriptor pool
@@ -104,7 +136,14 @@ pub struct RenderModels {
     shader_fragment_non_rigged: vk::ShaderModule,
 }
 
-pub type VertexBufferLayoutNonRigged = (VertexPosition, VertexNormal, VertexTexture);
+pub type VertexBufferOnlyMeshLayout = (VertexPosition, VertexNormal, VertexTexture);
+pub type VertexBufferSkinMeshLayout = (
+    VertexPosition,
+    VertexNormal,
+    VertexTexture,
+    VertexWeights,
+    VertexJoints,
+);
 
 impl Drop for RenderModels {
     fn drop(&mut self) {
@@ -127,17 +166,12 @@ impl Drop for RenderModels {
             // buffers
             self.globals_buffer.free_memory_and_destroy(&self.gpu);
             self.index_buffer.free_memory_and_destroy(&self.gpu);
-            self.vertex_buffer_non_rigged
+            self.vertex_buffer_only_mesh
                 .free_memory_and_destroy(&self.gpu);
-            self.vertex_buffer_rigged.free_memory_and_destroy(&self.gpu);
-            self.indirect_buffer_non_rigged
+            self.vertex_buffer_skin_mesh
                 .free_memory_and_destroy(&self.gpu);
-            self.indirect_buffer_rigged
-                .free_memory_and_destroy(&self.gpu);
-            self.instances_buffer_non_rigged
-                .free_memory_and_destroy(&self.gpu);
-            self.instances_buffer_rigged
-                .free_memory_and_destroy(&self.gpu);
+            self.indirect_buffer.free_memory_and_destroy(&self.gpu);
+            self.instance_buffer.free_memory_and_destroy(&self.gpu);
             self.materials_buffer.free_memory_and_destroy(&self.gpu);
 
             // descriptors
@@ -206,6 +240,8 @@ impl Task for RenderModels {
         }
 
         let draw_count = self.update_buffers(&assets, &world);
+
+        log::debug!("draw count: {:?}", draw_count);
 
         unsafe {
             self.execute_render_pass(&frame, draw_count);
@@ -320,33 +356,25 @@ impl RenderModels {
             Self::create_index_buffer(&gpu, setup.index_buffer_size)
                 .expect("Could not allocate index buffer")
         };
-        let vertex_buffer_non_rigged = unsafe {
-            Self::create_vertex_buffer(&gpu, setup.vertex_buffer_non_rigged_size)
+        let vertex_buffer_only_mesh = unsafe {
+            Self::create_vertex_buffer(&gpu, setup.vertex_buffer_only_mesh_size)
                 .expect("Could not allocate vertex buffer (non-rigged)")
         };
-        let vertex_buffer_rigged = unsafe {
-            Self::create_vertex_buffer(&gpu, setup.vertex_buffer_rigged_size)
+        let vertex_buffer_skin_mesh = unsafe {
+            Self::create_vertex_buffer(&gpu, setup.vertex_buffer_skin_mesh_size)
                 .expect("Could not allocate vertex buffer (rigged)")
         };
-        let indirect_buffer_non_rigged = unsafe {
-            Self::create_indirect_buffer(&gpu, setup.indirect_buffer_non_rigged_size)
-                .expect("Could not allocate indirect buffer (non-rigged)")
-        };
-        let indirect_buffer_rigged = unsafe {
-            Self::create_indirect_buffer(&gpu, setup.indirect_buffer_rigged_size)
-                .expect("Could not allocate indirect buffer (rigged)")
-        };
-        let instances_buffer_non_rigged = unsafe {
-            Self::create_storage_buffer(&gpu, setup.instances_buffer_non_rigged_size)
-                .expect("Could not allocate instances storage buffer (non-rigged)")
-        };
-        let instances_buffer_rigged = unsafe {
-            Self::create_storage_buffer(&gpu, setup.instances_buffer_rigged_size)
-                .expect("Could not allocate instances storage buffer (rigged)")
+        let indirect_buffer = unsafe {
+            Self::create_indirect_buffer(&gpu, setup.indirect_buffer_size)
+                .expect("Could not allocate indirect buffer")
         };
         let materials_buffer = unsafe {
             Self::create_storage_buffer(&gpu, setup.materials_buffer_size)
                 .expect("Could not allocate material storage buffer")
+        };
+        let instance_buffer = unsafe {
+            Self::create_storage_buffer(&gpu, setup.instance_buffer_size)
+                .expect("Could not allocate instances storage buffer")
         };
 
         let shader_vertex_non_rigged = unsafe {
@@ -435,9 +463,9 @@ impl RenderModels {
         };
 
         let instance_storage_buffer_descriptor = vk::DescriptorBufferInfo {
-            buffer: instances_buffer_non_rigged.handle,
+            buffer: instance_buffer.handle,
             offset: 0,
-            range: instances_buffer_non_rigged.size,
+            range: instance_buffer.size,
         };
 
         let material_storage_buffer_descriptor = vk::DescriptorBufferInfo {
@@ -499,8 +527,6 @@ impl RenderModels {
                 .expect("Failed to create non-rigged pipeline layout")
         };
 
-        let vertex_buffer_non_rigged_size = vertex_buffer_non_rigged.size;
-
         Self {
             gpu,
             command_pool,
@@ -514,22 +540,22 @@ impl RenderModels {
             framebuffers: Vec::new(),
             surface_version: 0,
             index_buffer,
-            index_buffer_used_size: 0,
-            indirect_buffer_non_rigged,
-            indirect_buffer_rigged,
-            instances_buffer_non_rigged,
-            instances_buffer_non_rigged_data: Vec::new(),
-            instances_buffer_rigged,
-            instances_buffer_rigged_data: Vec::new(),
-            instances_non_rigged: HashMap::new(),
-            instances_rigged: HashMap::new(),
-            vertex_buffer_non_rigged,
-            vertex_buffer_rigged,
+            index_buffer_usage: 0,
+            indirect_buffer,
+            instance_buffer,
+            instances_only_mesh_indexed: HashMap::new(),
+            instances_skin_mesh_indexed: HashMap::new(),
+            instances_only_mesh: HashMap::new(),
+            instances_skin_mesh: HashMap::new(),
+            vertex_buffer_only_mesh,
+            vertex_buffer_only_mesh_usage: 0,
+            vertex_buffer_skin_mesh_usage: 0,
+            vertex_buffer_skin_mesh,
             globals_buffer,
             materials_buffer,
             materials_buffer_index: HashMap::new(),
             materials_buffer_data: Vec::new(),
-            mesh_layout_non_rigged: BufferLayout::new(vertex_buffer_non_rigged_size),
+            mesh_registry: HashMap::new(),
             shader_vertex_non_rigged,
             shader_fragment_non_rigged,
             descriptor_pool,
@@ -553,12 +579,12 @@ impl RenderModels {
         self.signal_semaphore
     }
 
-    fn update_buffers(&mut self, assets: &Assets, world: &World) -> u32 {
-        self.instances_rigged.clear();
-        self.instances_non_rigged.clear();
-        self.instances_buffer_rigged_data.clear();
-        self.instances_buffer_non_rigged_data.clear();
-        self.materials_buffer_data.clear();
+    fn update_buffers(&mut self, assets: &Assets, world: &World) -> DrawCount {
+        self.instances_skin_mesh_indexed.clear();
+        self.instances_only_mesh_indexed.clear();
+        self.instances_skin_mesh.clear();
+        self.instances_only_mesh.clear();
+        // self.materials_buffer_data.clear();
 
         let globals_uniform = [self.globals_uniform()];
 
@@ -575,196 +601,406 @@ impl RenderModels {
             &Transform,
         )>() {
             log::debug!("Update buffers: {:?}", entity_id);
-            let mesh_vertex_layout =
-                if let Some(mesh_vertex_layout) = self.register_mesh(*mesh_id, assets) {
-                    mesh_vertex_layout
-                } else {
-                    continue;
-                };
-            let material_index =
-                if let Some(material_index) = self.register_material(*material_id, assets) {
-                    material_index
-                } else {
-                    continue;
-                };
-
+            let material_index = self.register_material(*material_id, assets);
+            if material_index.is_none() {
+                continue;
+            }
+            let material_index = material_index.unwrap();
             log::debug!("material index: {} ({:?})", material_index, material_id);
 
-            self.instances_non_rigged
-                .entry(*mesh_id)
-                .or_insert_with(|| Vec::with_capacity(1))
-                .push(InstanceUniform {
-                    transform: transform.matrix().to_cols_array_2d(),
-                    material_index,
-                    _padding: Default::default(),
-                });
+            if let Some(mesh_layout) = self.register_mesh(*mesh_id, assets) {
+                let instances = if mesh_layout.has_skin {
+                    if mesh_layout.indices.is_some() {
+                        &mut self.instances_skin_mesh_indexed
+                    } else {
+                        &mut self.instances_skin_mesh
+                    }
+                } else if mesh_layout.indices.is_some() {
+                    &mut self.instances_only_mesh_indexed
+                } else {
+                    &mut self.instances_only_mesh
+                };
+                instances
+                    .entry(*mesh_id)
+                    .or_insert_with(|| Vec::with_capacity(1))
+                    .push(InstanceUniform {
+                        transform: transform.matrix().to_cols_array_2d(),
+                        material_index,
+                        _padding: Default::default(),
+                    });
+            }
         }
 
-        let instances_count = self.instances_non_rigged.values().map(|i| i.len()).sum();
-        let draw_count = self.instances_non_rigged.len();
-        let mut instances_buffer_data = Vec::with_capacity(instances_count);
-        let indirect_buffer_data = self
-            .instances_non_rigged
-            .drain()
-            .map(|(mesh_id, instances)| {
-                let first_instance = instances_buffer_data.len() as u32;
-                let mesh_instances_count = instances.len() as u32;
-                let mesh_layout = self.mesh_layout_non_rigged.get(mesh_id).unwrap();
-                instances_buffer_data.extend(instances.into_iter());
-
-                vk::DrawIndexedIndirectCommand {
-                    index_count: mesh_layout.vertices.index_count,
-                    instance_count: mesh_instances_count,
-                    first_instance,
-                    first_index: mesh_layout.vertices.base_index,
-                    vertex_offset: mesh_layout.vertices.base_vertex as i32,
-                }
-            })
-            .collect::<Vec<_>>();
-
         unsafe {
-            self.indirect_buffer_non_rigged
-                .map_and_write_to_device_memory(&self.gpu, 0, indirect_buffer_data.as_slice());
             self.materials_buffer.map_and_write_to_device_memory(
                 &self.gpu,
                 0,
                 self.materials_buffer_data.as_slice(),
             );
-            self.instances_buffer_non_rigged
-                .map_and_write_to_device_memory(&self.gpu, 0, instances_buffer_data.as_slice());
         };
 
-        log::debug!("Instances: {:?}", instances_buffer_data);
+        let mut instances_total = 0;
+        let mut instance_buffer_offset: u64 = 0;
+        let mut indirect_buffer_offset: u64 = 0;
 
-        draw_count as u32
+        // No indices, no skin
+        let only_mesh_draws_count = if !self.instances_only_mesh.is_empty() {
+            indirect_buffer_offset +=
+                indirect_buffer_offset % std::mem::size_of::<vk::DrawIndirectCommand>() as u64;
+            let instances_count = self
+                .instances_only_mesh
+                .values()
+                .map(|i| i.len() as u32)
+                .sum::<u32>();
+            let draw_count = self.instances_only_mesh.len();
+            let mut instance_buffer_data = Vec::with_capacity(instances_count as usize);
+            let indirect_buffer_data = self
+                .instances_only_mesh
+                .drain()
+                .map(|(mesh_id, instances)| {
+                    let first_instance = instances_total + instance_buffer_data.len() as u32;
+                    let mesh_instances_count = instances.len() as u32;
+                    let mesh_layout = self.mesh_registry.get(&mesh_id).unwrap();
+                    instance_buffer_data.extend(instances.into_iter());
 
-        /*
-        let vertices = [
-            (
-                VertexPosition {
-                    value: Vec3::new(-1.0, 1.0, 0.0),
-                },
-                VertexNormal {
-                    value: Vec3::new(0.0, 1.0, 0.0),
-                },
-                VertexTexture { u: 0.0, v: 0.0 },
-            ),
-            (
-                VertexPosition {
-                    value: Vec3::new(1.0, 1.0, 0.0),
-                },
-                VervýhrávátexNormal {
-                    value: Vec3::new(0.0, 0.0, 1.0),
-                },
-                VertexTexture { u: 0.0, v: 0.0 },
-            ),
-            (
-                VertexPosition {
-                    value: Vec3::new(0.0, -1.0, 0.0),
-                },
-                VertexNormal {
-                    value: Vec3::new(1.0, 0.0, 0.0),
-                },
-                VertexTexture { u: 0.0, v: 0.0 },
-            ),
-        ];
+                    vk::DrawIndirectCommand {
+                        vertex_count: mesh_layout.vertices.count,
+                        instance_count: mesh_instances_count,
+                        first_instance,
+                        first_vertex: mesh_layout.vertices.base,
+                    }
+                })
+                .collect::<Vec<_>>();
 
-
-        let draw_indirect_command = [DrawIndirectCommand {
-            vertex_count: 3,
-            instance_count: 1,
-            first_vertex: 0,
-            first_instance: 0,
-        }];
-
-        unsafe {
-            Self::map_and_write_to_device_memory(
-                &self.gpu,
-                self.buffer_vertex_memory,
-                0,
-                &vertices,
+            log::debug!(
+                "only mesh: instance buffer data (offest: {}): {:?}",
+                instance_buffer_offset,
+                instance_buffer_data
             );
-            Self::map_and_write_to_device_memory(
-                &self.gpu,
-                self.buffer_indirect_memory,
-                0,
-                &draw_indirect_command,
+            log::debug!(
+                "only mesh: indirect buffer data (offest: {}): {:?}",
+                indirect_buffer_offset,
+                indirect_buffer_data
             );
+
+            instances_total += instances_count;
+
+            unsafe {
+                indirect_buffer_offset += self.indirect_buffer.map_and_write_to_device_memory(
+                    &self.gpu,
+                    indirect_buffer_offset,
+                    indirect_buffer_data.as_slice(),
+                );
+                instance_buffer_offset += self.instance_buffer.map_and_write_to_device_memory(
+                    &self.gpu,
+                    instance_buffer_offset,
+                    instance_buffer_data.as_slice(),
+                );
+            }
+            draw_count
+        } else {
+            0
         };
-         */
+
+        // With indices, no skin
+        let only_mesh_indexed_draws_count = if !self.instances_only_mesh_indexed.is_empty() {
+            indirect_buffer_offset += indirect_buffer_offset
+                % std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u64;
+            let instances_count = self
+                .instances_only_mesh_indexed
+                .values()
+                .map(|i| i.len() as u32)
+                .sum::<u32>();
+            let draw_count = self.instances_only_mesh_indexed.len();
+            let mut instance_buffer_data = Vec::with_capacity(instances_count as usize);
+            let indirect_buffer_data = self
+                .instances_only_mesh_indexed
+                .drain()
+                .map(|(mesh_id, instances)| {
+                    let first_instance = instances_total + instance_buffer_data.len() as u32;
+                    let mesh_instances_count = instances.len() as u32;
+                    let mesh_registry = self.mesh_registry.get(&mesh_id).unwrap();
+                    instance_buffer_data.extend(instances.into_iter());
+
+                    vk::DrawIndexedIndirectCommand {
+                        index_count: mesh_registry.indices.unwrap().count,
+                        instance_count: mesh_instances_count,
+                        first_instance,
+                        first_index: mesh_registry.indices.unwrap().base,
+                        vertex_offset: mesh_registry.vertices.base as i32,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            instances_total += instances_count;
+
+            unsafe {
+                self.indirect_buffer.map_and_write_to_device_memory(
+                    &self.gpu,
+                    indirect_buffer_offset,
+                    indirect_buffer_data.as_slice(),
+                );
+                self.instance_buffer.map_and_write_to_device_memory(
+                    &self.gpu,
+                    instance_buffer_offset,
+                    instance_buffer_data.as_slice(),
+                );
+            }
+            draw_count
+        } else {
+            0
+        };
+
+        // No indices, with skin
+        let skin_mesh_draws_count = if !self.instances_skin_mesh.is_empty() {
+            indirect_buffer_offset +=
+                indirect_buffer_offset % std::mem::size_of::<vk::DrawIndirectCommand>() as u64;
+            let instances_count = self
+                .instances_skin_mesh
+                .values()
+                .map(|i| i.len() as u32)
+                .sum::<u32>();
+            let draw_count = self.instances_skin_mesh.len();
+            let mut instance_buffer_data = Vec::with_capacity(instances_count as usize);
+            let indirect_buffer_data = self
+                .instances_skin_mesh
+                .drain()
+                .map(|(mesh_id, instances)| {
+                    let first_instance = instances_total + instance_buffer_data.len() as u32;
+                    let mesh_instances_count = instances.len() as u32;
+                    let mesh_layout = self.mesh_registry.get(&mesh_id).unwrap();
+                    instance_buffer_data.extend(instances.into_iter());
+
+                    vk::DrawIndirectCommand {
+                        vertex_count: mesh_layout.vertices.count,
+                        instance_count: mesh_instances_count,
+                        first_instance,
+                        first_vertex: mesh_layout.vertices.base,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            instances_total += instances_count;
+
+            unsafe {
+                indirect_buffer_offset += self.indirect_buffer.map_and_write_to_device_memory(
+                    &self.gpu,
+                    indirect_buffer_offset,
+                    indirect_buffer_data.as_slice(),
+                );
+                instance_buffer_offset += self.instance_buffer.map_and_write_to_device_memory(
+                    &self.gpu,
+                    instance_buffer_offset,
+                    instance_buffer_data.as_slice(),
+                );
+            }
+            draw_count
+        } else {
+            0
+        };
+
+        // With indices, with skin
+        let skin_mesh_indexed_draws_count = if !self.instances_skin_mesh_indexed.is_empty() {
+            indirect_buffer_offset += indirect_buffer_offset
+                % std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u64;
+            let instances_count = self
+                .instances_skin_mesh_indexed
+                .values()
+                .map(|i| i.len() as u32)
+                .sum::<u32>();
+            let draw_count = self.instances_skin_mesh_indexed.len();
+            let mut instance_buffer_data = Vec::with_capacity(instances_count as usize);
+            let indirect_buffer_data = self
+                .instances_skin_mesh_indexed
+                .drain()
+                .map(|(mesh_id, instances)| {
+                    let first_instance = instances_total + instance_buffer_data.len() as u32;
+                    let mesh_instances_count = instances.len() as u32;
+                    let mesh_layout = self.mesh_registry.get(&mesh_id).unwrap();
+                    instance_buffer_data.extend(instances.into_iter());
+
+                    vk::DrawIndexedIndirectCommand {
+                        index_count: mesh_layout.indices.unwrap().count,
+                        instance_count: mesh_instances_count,
+                        first_instance,
+                        first_index: mesh_layout.indices.unwrap().base,
+                        vertex_offset: mesh_layout.vertices.base as i32,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            // instances_total += instances_count;
+
+            unsafe {
+                self.indirect_buffer.map_and_write_to_device_memory(
+                    &self.gpu,
+                    indirect_buffer_offset,
+                    indirect_buffer_data.as_slice(),
+                );
+                self.instance_buffer.map_and_write_to_device_memory(
+                    &self.gpu,
+                    instance_buffer_offset,
+                    instance_buffer_data.as_slice(),
+                );
+            }
+            draw_count
+        } else {
+            0
+        };
+
+        DrawCount {
+            only_mesh: only_mesh_draws_count as u32,
+            only_mesh_indexed: only_mesh_indexed_draws_count as u32,
+            skin_mesh: skin_mesh_draws_count as u32,
+            skin_mesh_indexed: skin_mesh_indexed_draws_count as u32,
+        }
     }
 
-    fn register_mesh(&mut self, mesh_id: Id<Mesh>, assets: &Assets) -> Option<MeshVerticesLayout> {
+    /*
+    let vertices = [
+        (
+            VertexPosition {
+                value: Vec3::new(-1.0, 1.0, 0.0),
+            },
+            VertexNormal {
+                value: Vec3::new(0.0, 1.0, 0.0),
+            },
+            VertexTexture { u: 0.0, v: 0.0 },
+        ),
+        (
+            VertexPosition {
+                value: Vec3::new(1.0, 1.0, 0.0),
+            },
+            VervýhrávátexNormal {
+                value: Vec3::new(0.0, 0.0, 1.0),
+            },
+            VertexTexture { u: 0.0, v: 0.0 },
+        ),
+        (
+            VertexPosition {
+                value: Vec3::new(0.0, -1.0, 0.0),
+            },
+            VertexNormal {
+                value: Vec3::new(1.0, 0.0, 0.0),
+            },
+            VertexTexture { u: 0.0, v: 0.0 },
+        ),
+    ];
+
+
+    let draw_indirect_command = [DrawIndirectCommand {
+        vertex_count: 3,
+        instance_count: 1,
+        first_vertex: 0,
+        first_instance: 0,
+    }];
+
+    unsafe {
+        Self::map_and_write_to_device_memory(
+            &self.gpu,
+            self.buffer_vertex_memory,
+            0,
+            &vertices,
+        );
+        Self::map_and_write_to_device_memory(
+            &self.gpu,
+            self.buffer_indirect_memory,
+            0,
+            &draw_indirect_command,
+        );
+    };
+     */
+
+    fn register_mesh(&mut self, mesh_id: Id<Mesh>, assets: &Assets) -> Option<MeshLayout> {
         // check if the mesh is already in buffer
-        if let Some(mesh_layout) = self.mesh_layout_non_rigged.get(mesh_id) {
-            return Some(mesh_layout.vertices.clone());
+        if let Some(mesh_layout) = self.mesh_registry.get(&mesh_id) {
+            return Some(*mesh_layout);
         }
         // try to get mesh to store it in buffer
         if let Some(mesh) = assets.get(mesh_id) {
             if mesh.indices::<u8>().is_some() {
                 panic!("Index buffer is not implemented yet");
             }
-            if let Some(vertex_data) = mesh.buffer::<VertexBufferLayoutNonRigged>() {
-                use crate::models::meshes::VertexBufferLayout;
-                let vertex_size = VertexBufferLayoutNonRigged::vertex_size() as u64;
-                let data_size = vertex_data.len() as u64;
-                let vertex_offset = self.mesh_layout_non_rigged.used_size();
-                let vertex_count = mesh.count_vertices() as u32;
-                let index_offset =
-                    (self.index_buffer_used_size / (std::mem::size_of::<u32>() as u64)) as u32;
 
-                let mut auto_indices = Vec::new();
-                let index_data = mesh.indices::<u32>().unwrap_or_else(|| {
-                    auto_indices = (0..vertex_count).collect::<Vec<u32>>();
-                    auto_indices.as_slice()
+            let vertex_data_and_skin_info = mesh
+                .buffer::<VertexBufferSkinMeshLayout>()
+                .map(|vertex_data| {
+                    (
+                        vertex_data,
+                        VertexBufferSkinMeshLayout::vertex_size() as u64,
+                        true,
+                    )
+                })
+                .or_else(|| {
+                    mesh.buffer::<VertexBufferOnlyMeshLayout>()
+                        .map(|vertex_data| {
+                            (
+                                vertex_data,
+                                VertexBufferOnlyMeshLayout::vertex_size() as u64,
+                                false,
+                            )
+                        })
                 });
-                let index_count = index_data.len() as u32;
-                let index_data_size = (index_data.len() * std::mem::size_of::<u32>()) as u64;
 
-                let vertex_layout = MeshVerticesLayout {
-                    base_vertex: (vertex_offset / vertex_size) as u32,
-                    vertex_count: mesh.count_vertices() as u32,
-                    base_index: index_offset,
-                    index_count,
+            if let Some((vertex_data, vertex_size, has_skin)) = vertex_data_and_skin_info {
+                let data_size = vertex_data.len() as u64;
+                let vertex_offset = if has_skin {
+                    self.vertex_buffer_skin_mesh_usage
+                } else {
+                    self.vertex_buffer_only_mesh_usage
+                };
+                let index_data = mesh.indices::<u32>();
+
+                let mesh_layout = MeshLayout {
+                    vertices: LayoutInBuffer {
+                        offset: vertex_offset,
+                        size: data_size,
+                        base: (vertex_offset / vertex_size) as u32,
+                        count: mesh.count_vertices() as u32,
+                    },
+                    indices: index_data.map(|data| LayoutInBuffer {
+                        offset: self.index_buffer_usage,
+                        size: (data.len() * std::mem::size_of::<u32>()) as u64,
+                        base: (self.index_buffer_usage / (std::mem::size_of::<u32>() as u64))
+                            as u32,
+                        count: data.len() as u32,
+                    }),
+                    has_skin,
                 };
 
-                self.mesh_layout_non_rigged
-                    .store(
-                        mesh_id,
-                        MeshLayout {
-                            in_vertex_buffer: LayoutInBuffer {
-                                offset: vertex_offset,
-                                size: data_size,
-                            },
-                            in_index_buffer: LayoutInBuffer {
-                                offset: self.index_buffer_used_size,
-                                size: index_data_size,
-                            },
-                            vertices: vertex_layout.clone(),
-                        },
-                        data_size,
-                    )
-                    .ok();
+                self.mesh_registry.insert(mesh_id, mesh_layout.clone());
 
                 unsafe {
-                    self.vertex_buffer_non_rigged
-                        .map_and_write_to_device_memory(
-                            &self.gpu,
-                            vertex_offset,
-                            vertex_data.as_slice(),
-                        );
-
-                    log::debug!("Indices @{}: {:?}", self.index_buffer_used_size, index_data);
-                    self.index_buffer.map_and_write_to_device_memory(
-                        &self.gpu,
-                        self.index_buffer_used_size,
-                        index_data,
-                    );
+                    if has_skin {
+                        self.vertex_buffer_skin_mesh_usage +=
+                            self.vertex_buffer_skin_mesh.map_and_write_to_device_memory(
+                                &self.gpu,
+                                vertex_offset,
+                                vertex_data.as_slice(),
+                            );
+                    } else {
+                        self.vertex_buffer_only_mesh_usage +=
+                            self.vertex_buffer_only_mesh.map_and_write_to_device_memory(
+                                &self.gpu,
+                                vertex_offset,
+                                vertex_data.as_slice(),
+                            );
+                    }
                 };
 
-                self.index_buffer_used_size += index_data_size;
+                log::debug!("Indices @{}: {:?}", self.index_buffer_usage, index_data);
+                if let Some(data) = index_data.as_ref() {
+                    unsafe {
+                        self.index_buffer.map_and_write_to_device_memory(
+                            &self.gpu,
+                            self.index_buffer_usage,
+                            data,
+                        );
+                    }
+                    self.index_buffer_usage += mesh_layout.indices.unwrap().size;
+                }
 
-                return Some(vertex_layout);
+                return Some(mesh_layout);
             } else {
                 log::error!("Could not store the mesh named `{}`", mesh.name());
             }
@@ -902,7 +1138,7 @@ impl RenderModels {
         // vertex binding
         let vertex_input_binding_descriptions = [vk::VertexInputBindingDescription {
             binding: 0,
-            stride: std::mem::size_of::<VertexBufferLayoutNonRigged>() as u32,
+            stride: std::mem::size_of::<VertexBufferOnlyMeshLayout>() as u32,
             input_rate: vk::VertexInputRate::VERTEX,
         }];
         let vertex_input_attribute_descriptions = [
@@ -1025,7 +1261,7 @@ impl RenderModels {
         self.gpu.destroy_pipeline(self.pipeline_render_non_rigged);
     }
 
-    unsafe fn execute_render_pass(&self, frame: &Frame, draw_count: u32) {
+    unsafe fn execute_render_pass(&self, frame: &Frame, draw_count: DrawCount) {
         self.gpu
             .wait_for_fences(&[self.command_buffer_draw_reuse_fence], true, u64::MAX)
             .expect("Failed to wait for draw buffer fences");
@@ -1115,25 +1351,48 @@ impl RenderModels {
         self.gpu.cmd_bind_vertex_buffers(
             self.command_buffer_draw,
             0,
-            &[self.vertex_buffer_non_rigged.handle],
+            &[self.vertex_buffer_only_mesh.handle],
             &[0],
         );
 
-        self.gpu.cmd_bind_index_buffer(
-            self.command_buffer_draw,
-            self.index_buffer.handle,
-            0,
-            vk::IndexType::UINT32,
-        );
+        if draw_count.only_mesh != 0 {
+            let offset = 0;
+            let padding = 0;
+            log::debug!(
+                "cmd_draw_indirect(offset: {}, draw_count: {}, stride: {})",
+                offset + padding,
+                draw_count.only_mesh,
+                std::mem::size_of::<vk::DrawIndirectCommand>() as u32
+            );
+            self.gpu.cmd_draw_indirect(
+                self.command_buffer_draw,
+                self.indirect_buffer.handle,
+                offset + padding,
+                draw_count.only_mesh,
+                std::mem::size_of::<vk::DrawIndirectCommand>() as u32,
+            );
+        }
 
-        // TODO: draw indirect
-        self.gpu.cmd_draw_indexed_indirect(
-            self.command_buffer_draw,
-            self.indirect_buffer_non_rigged.handle,
-            0,
-            draw_count,
-            0, //std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u32,
-        );
+        if draw_count.only_mesh_indexed != 0 {
+            let offset =
+                draw_count.only_mesh as u64 * std::mem::size_of::<vk::DrawIndirectCommand>() as u64;
+            let padding = offset % std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u64;
+
+            self.gpu.cmd_bind_index_buffer(
+                self.command_buffer_draw,
+                self.index_buffer.handle,
+                0,
+                vk::IndexType::UINT32,
+            );
+
+            self.gpu.cmd_draw_indexed_indirect(
+                self.command_buffer_draw,
+                self.indirect_buffer.handle,
+                offset + padding,
+                draw_count.only_mesh,
+                std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u32,
+            );
+        }
 
         self.gpu.cmd_end_render_pass(self.command_buffer_draw);
 
@@ -1141,27 +1400,7 @@ impl RenderModels {
             .end_command_buffer(self.command_buffer_draw)
             .expect("End commandbuffer");
 
-        // submit
-        /*
-
-        self.gpu
-            .end_command_buffer(self.command_buffer_draw)
-            .expect("End commandbuffer");
-
-        let command_buffers = [self.command_buffer_draw];
-        let wait_mask = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
-        let signal_semaphores = [self.signal_semaphore];
-
-        let submit_info = vk::SubmitInfo::default()
-            .wait_semaphores(&self.wait_semaphores)
-            .wait_dst_stage_mask(&wait_mask)
-            .command_buffers(&command_buffers)
-            .signal_semaphores(&signal_semaphores);
-
-        self.gpu
-            .submit_queue(&[submit_info], self.command_buffer_draw_reuse_fence)
-            .expect("queue submit failed.");
-        */
+        // TODO: render skin meshes
     }
 
     unsafe fn setup_depth_image(&self, display: &Display) {
@@ -1223,22 +1462,20 @@ impl RenderModels {
             .end_command_buffer(self.command_buffer_setup)
             .expect("End commandbuffer");
 
-        /*
         let command_buffers = [self.command_buffer_setup];
         let wait_mask = [];
         let wait_semaphores = [];
         let signal_semaphores = [];
 
-        let submit_info = vk::SubmitInfo::default()
+        let submits = [vk::SubmitInfo::default()
             .wait_semaphores(&wait_semaphores)
             .wait_dst_stage_mask(&wait_mask)
             .command_buffers(&command_buffers)
-            .signal_semaphores(&signal_semaphores);
+            .signal_semaphores(&signal_semaphores)];
 
         self.gpu
-            .queue_submit(&[submit_info], self.command_buffer_setup_reuse_fence)
+            .submit_queue(&submits, self.command_buffer_setup_reuse_fence)
             .expect("queue submit failed.")
-             */
     }
 
     unsafe fn submit_draw_commands(&self) {
@@ -1272,12 +1509,10 @@ pub struct RenderModelsSetup {
     wait_semaphores: Vec<vk::Semaphore>,
     surface_format: vk::Format,
     index_buffer_size: u64,
-    vertex_buffer_non_rigged_size: u64,
-    vertex_buffer_rigged_size: u64,
-    indirect_buffer_non_rigged_size: u64,
-    indirect_buffer_rigged_size: u64,
-    instances_buffer_non_rigged_size: u64,
-    instances_buffer_rigged_size: u64,
+    vertex_buffer_only_mesh_size: u64,
+    vertex_buffer_skin_mesh_size: u64,
+    indirect_buffer_size: u64,
+    instance_buffer_size: u64,
     materials_buffer_size: u64,
 }
 
@@ -1287,14 +1522,11 @@ impl Default for RenderModelsSetup {
             wait_semaphores: Vec::new(),
             surface_format: vk::Format::default(),
             index_buffer_size: 8 * 1024 * 1024,
-            vertex_buffer_non_rigged_size: 8 * 1024 * 1024,
-            vertex_buffer_rigged_size: 8 * 1024 * 1024,
-            indirect_buffer_non_rigged_size: 1000
+            vertex_buffer_only_mesh_size: 8 * 1024 * 1024,
+            vertex_buffer_skin_mesh_size: 8 * 1024 * 1024,
+            indirect_buffer_size: 1000
                 * std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u64,
-            indirect_buffer_rigged_size: 1000
-                * std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u64,
-            instances_buffer_non_rigged_size: 1000 * std::mem::size_of::<InstanceUniform>() as u64,
-            instances_buffer_rigged_size: 1000 * std::mem::size_of::<InstanceUniform>() as u64,
+            instance_buffer_size: 1000 * std::mem::size_of::<InstanceUniform>() as u64,
             materials_buffer_size: 1000 * std::mem::size_of::<MaterialUniform>() as u64,
         }
     }

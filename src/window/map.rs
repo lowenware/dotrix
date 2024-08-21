@@ -42,7 +42,7 @@ fn keyboard_input(
     let (key_code, scan_code) = match event.physical_key {
         // TODO: impement 1:1 mapper function
         winit::keyboard::PhysicalKey::Code(key_code) => {
-            let scan_code = (key_code as u32);
+            let scan_code = key_code as u32;
             if scan_code < (event::KeyCode::Unknown as u32) {
                 (
                     unsafe { Some(std::mem::transmute(key_code as u32)) },

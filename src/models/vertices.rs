@@ -131,7 +131,7 @@ pub struct VertexJoints {
 impl VertexAttribute for VertexJoints {
     type Raw = [u16; 4];
     fn name() -> &'static str {
-        "Weights"
+        "Joints"
     }
     fn format() -> Format {
         Format::Uint16x4

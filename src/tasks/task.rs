@@ -278,10 +278,14 @@ impl Pool {
     /// Resets all tasks
     pub fn reset_tasks(&mut self, queue: &[Id<Slot>]) {
         for id in queue.iter() {
+            log::debug!("queue(task: {:?})", id);
             self.tasks
                 .get_mut(id)
                 .and_then(|slot| slot.task.as_mut())
-                .map(|task| task.reset());
+                .map(|task| {
+                    log::debug!("reset(task: {:?})", id);
+                    task.reset();
+                });
         }
     }
 
