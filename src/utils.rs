@@ -11,8 +11,6 @@
 // pub mod ecs;
 // pub mod frame;
 /// Buffer layout
-pub mod buffer_layout;
-pub use buffer_layout::{BufferLayout, LayoutInBuffer, MeshLayout, MeshVerticesLayout};
 /// Typed ids
 pub mod id;
 pub use id::Id;

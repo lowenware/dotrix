@@ -1020,6 +1020,7 @@ impl Display {
 
         let features = vk::PhysicalDeviceFeatures {
             shader_clip_distance: 1,
+            vertex_pipeline_stores_and_atomics: 1,
             ..Default::default()
         };
         let priorities = [1.0];
@@ -1034,7 +1035,7 @@ impl Display {
         let extensions_names = [
             ash::khr::swapchain::NAME.as_ptr(),
             #[cfg(any(target_os = "macos", target_os = "ios"))]
-            ash::vk::KhrPortabilitySubsetFn::NAME.as_ptr(),
+            ash::khr::portability_subset::NAME.as_ptr(),
         ];
 
         let device_create_info = vk::DeviceCreateInfo::default()
@@ -1212,8 +1213,11 @@ impl Display {
     }
 
     pub fn surface_resize_request(&self) -> bool {
+        log::debug!("surface_resize_request()");
         let surface_resolution = self.surface_resolution();
+        log::debug!("surface_resolution={:?}", surface_resolution);
         let window_resolution = self.window.resolution();
+        log::debug!("window_resolution={:?}", window_resolution);
         surface_resolution != window_resolution
     }
 
@@ -1298,9 +1302,9 @@ impl Display {
 
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         {
-            extensions.push(vk::KhrPortabilityEnumerationFn::NAME.as_ptr());
+            extensions.push(ash::khr::portability_enumeration::NAME.as_ptr());
             // Enabling this extension is a requirement when using `VK_KHR_portability_subset`
-            extensions.push(vk::KhrGetPhysicalDeviceProperties2Fn::NAME.as_ptr());
+            extensions.push(ash::khr::get_physical_device_properties2::NAME.as_ptr());
         }
 
         let app_name = CString::new(desc.app_name).ok().unwrap();
@@ -1718,7 +1722,7 @@ impl Buffer {
         gpu: &Gpu,
         offset: u64,
         data: &[T],
-    ) {
+    ) -> u64 {
         let align = std::mem::align_of::<T>() as u64;
         let size = (data.len() * std::mem::size_of::<T>()) as u64;
 
@@ -1734,6 +1738,7 @@ impl Buffer {
         let mut index_slice = ash::util::Align::new(memory_ptr, align, size);
         index_slice.copy_from_slice(data);
         gpu.unmap_memory(self.device_memory);
+        size
     }
 
     pub unsafe fn free_memory_and_destroy(&self, gpu: &Gpu) {

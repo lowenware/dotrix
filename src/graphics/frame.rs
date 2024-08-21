@@ -67,6 +67,7 @@ impl Task for CreateFrame {
     type Output = Frame;
 
     fn run(&mut self, (mut display,): Self::Context) -> Self::Output {
+        log::debug!("CreateFrame::run() -> begin");
         let frame_number = self.frame_counter + 1;
         let now = Instant::now();
         let delta = self
@@ -75,16 +76,24 @@ impl Task for CreateFrame {
             .map(|i| i.elapsed())
             .unwrap_or_else(|| Duration::from_secs_f32(1.0 / self.fps_request.unwrap_or(60.0)));
 
+        log::debug!("CreateFrame::run() -> delta: {:?}", delta);
         // resize surface before aquiring of the new frame
         let mut resized = false;
-        if display.surface_resize_request() {
+        log::debug!("CreateFrame::run() -> display.surface_resize_request()");
+        // NOTE: on iOS winit.inner_size() is not possible to use in a thread. We need a different
+        // surface size / resize solution
+        // if display.surface_resize_request() {
+        if self.last_frame.is_none() {
             log::debug!("surface resized");
             display.resize_surface();
             resized = true;
         }
+        log::debug!("CreateFrame::run() -> display.surface_resolution()");
         let surface_resolution = display.surface_resolution();
 
+        log::debug!("CreateFrame::run() -> begin display.next_frame()");
         let swapchain_index = display.next_frame();
+        log::debug!("CreateFrame::run() -> end display.next_frame()");
         // TODO: scale factor comes from a window, so shall it be taken from `Window` instance?
         let scale_factor = 1.0;
 
@@ -119,7 +128,7 @@ impl Task for CreateFrame {
             scale_factor,
             resized,
         };
-        log::debug!("NEW FRAME: {:?}", frame);
+        log::debug!("CreateFrame::run() -> {:?}", frame);
         frame
     }
 }

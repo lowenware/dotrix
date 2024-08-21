@@ -135,6 +135,7 @@ pub fn spawn<T: context::Context>(
                 }
 
                 if restart_queue {
+                    log::debug!("restart queue(queue_executed: {}", queue_executed);
                     if queue_executed {
                         let mut ctx = context_manager.lock().expect("Mutex to be locked");
                         ctx.reset_data(tasks_graph_changed);
@@ -174,13 +175,18 @@ pub fn spawn<T: context::Context>(
                 while index < stop_index {
                     let task_id = queue[index];
                     if let Some(mut task) = pool.take(&task_id) {
+                        log::debug!("task({}): begin control", task.name());
                         if !task.is_scheduled() {
+                            log::debug!("task({}): not scheduled yet", task.name());
                             if let Some(dependencies_state) = context_manager
                                 .lock()
                                 .unwrap()
                                 .match_dependencies(task.dependencies())
                             {
+                                log::debug!("task({}): to be scheduled", task.name());
                                 task.schedule_with(dependencies_state);
+                            } else {
+                                log::debug!("task({}): dependencies are not sattisfied", task.name());
                             }
                         }
 

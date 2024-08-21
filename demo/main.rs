@@ -31,6 +31,10 @@ impl dotrix::Application for Demo {
         &self.application_name
     }
 
+    fn device_type_request(&self) -> Option<dotrix::DeviceType> {
+        Some(dotrix::DeviceType::Integrated)
+    }
+
     fn startup(
         self,
         scheduler: &dotrix::tasks::Scheduler,

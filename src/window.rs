@@ -231,12 +231,12 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
     }
 
     fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        // TODO: implement FPS control
-        if self.request_redraw && !self.wait_cancelled && !self.close_requested {
-            if let Some(instance) = self.window_instance.as_ref() {
-                instance.winit_window.request_redraw();
-            }
-        }
+        log::debug!(
+            "about_to_wait(request_redraw: {}, wait_cancelled: {}, close_requested: {})",
+            self.request_redraw,
+            self.wait_cancelled,
+            self.close_requested,
+        );
 
         // NOTE: to wait
         // event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait),
@@ -245,8 +245,16 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
             event_loop.set_control_flow(winit::event_loop::ControlFlow::WaitUntil(
                 time::Instant::now() + self.frame_duration,
             ));
+            self.request_redraw = true;
         }
 
+        // TODO: implement FPS control
+        if self.request_redraw && !self.wait_cancelled && !self.close_requested {
+            if let Some(instance) = self.window_instance.as_ref() {
+                instance.winit_window.request_redraw();
+            }
+            self.request_redraw = false;
+        }
         // NOTE: to poll
         // std::thread::sleep(POLL_SLEEP_TIME);
         // event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
