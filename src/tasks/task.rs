@@ -153,7 +153,7 @@ where
     }
 
     fn name(&self) -> &str {
-        &self.name
+        self.name
     }
 
     fn type_id(&self) -> TypeId {
@@ -225,6 +225,7 @@ pub struct Slot {
 }
 
 /// Tasks pool
+#[derive(Default)]
 pub struct Pool {
     tasks: HashMap<Id<Slot>, Slot>,
     states: HashMap<TypeId, Vec<Id<Slot>>>,
@@ -251,7 +252,7 @@ impl Pool {
             slot.task = Some(task);
         } else {
             let states = task.states();
-            if states.len() == 0 {
+            if states.is_empty() {
                 self.states
                     .entry(TypeId::of::<()>())
                     .or_default()
@@ -279,13 +280,10 @@ impl Pool {
     pub fn reset_tasks(&mut self, queue: &[Id<Slot>]) {
         for id in queue.iter() {
             log::debug!("queue(task: {:?})", id);
-            self.tasks
-                .get_mut(id)
-                .and_then(|slot| slot.task.as_mut())
-                .map(|task| {
-                    log::debug!("reset(task: {:?})", id);
-                    task.reset();
-                });
+            if let Some(task) = self.tasks.get_mut(id).and_then(|slot| slot.task.as_mut()) {
+                log::debug!("reset(task: {:?})", id);
+                task.reset();
+            }
         }
     }
 

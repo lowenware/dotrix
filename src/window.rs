@@ -1,5 +1,5 @@
 mod input;
-mod map;
+// mod map;
 
 pub mod event;
 
@@ -103,10 +103,7 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
         cause: winit::event::StartCause,
     ) {
         // log::info!("new_events: {cause:?}");
-        self.wait_cancelled = match cause {
-            StartCause::WaitCancelled { .. } => true,
-            _ => false,
-        }
+        self.wait_cancelled = matches!(cause, StartCause::WaitCancelled { .. });
     }
 
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {

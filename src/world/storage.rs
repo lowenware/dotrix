@@ -8,6 +8,8 @@ pub struct Entity {
     map: HashMap<TypeId, Box<dyn Any>>,
 }
 
+pub type ComponentsList = Vec<Option<UnsafeCell<Box<dyn Any>>>>;
+
 impl Entity {
     pub fn new<T: IntoEntity>(tuple: T) -> Self {
         tuple.entity()
@@ -128,7 +130,7 @@ impl_into_components_map!((A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P));
 pub struct Container {
     /// TypeId identifies component
     /// Vec stores components of different entities
-    data: HashMap<TypeId, Vec<Option<UnsafeCell<Box<dyn Any>>>>>,
+    data: HashMap<TypeId, ComponentsList>,
     removed: Vec<usize>,
     len: usize,
 }
@@ -139,7 +141,7 @@ impl Container {
     }
 
     pub fn matches(&self, archetype: &mut Archetype) -> bool {
-        !archetype.any(|component_type_id| !self.data.contains_key(&component_type_id))
+        !archetype.any(|component_type_id| !self.data.contains_key(component_type_id))
     }
 
     pub fn store(&mut self, entity: Entity) -> usize {
@@ -170,24 +172,24 @@ impl Container {
         self.data
             .get(&TypeId::of::<C>())
             .and_then(|list| list[entity_index].as_ref())
-            .map(|value| unsafe { (&mut *(value.get())).downcast_ref::<C>().unwrap() })
+            .map(|value| unsafe { (*(value.get())).downcast_ref::<C>().unwrap() })
     }
 
     pub unsafe fn get_mut<C: Any>(&self, entity_index: usize) -> Option<&mut C> {
         self.data
             .get(&TypeId::of::<C>())
             .and_then(|list| list[entity_index].as_ref())
-            .map(|value| (&mut (*(value.get()))).downcast_mut::<C>().unwrap())
+            .map(|value| (*(value.get())).downcast_mut::<C>().unwrap())
     }
 
-    pub fn iter<'a, C: Any>(&'a self) -> Iter<'a, C> {
+    pub fn iter<C: Any>(&self) -> Iter<C> {
         Iter {
             inner: self.data.get(&TypeId::of::<C>()).unwrap().iter(),
             _phantom_data: PhantomData,
         }
     }
 
-    pub unsafe fn iter_mut<'a, C: Any>(&'a self) -> IterMut<'a, C> {
+    pub unsafe fn iter_mut<C: Any>(&self) -> IterMut<C> {
         IterMut {
             inner: self.data.get(&TypeId::of::<C>()).unwrap().iter(),
             _phantom_data: PhantomData,
@@ -222,7 +224,7 @@ impl<'a, C: Any> Iterator for Iter<'a, C> {
             match self.inner.next() {
                 Some(next) => {
                     if let Some(value) = next.as_ref() {
-                        return Some(unsafe { (&mut *(value.get())).downcast_ref::<C>().unwrap() });
+                        return Some(unsafe { (*(value.get())).downcast_ref::<C>().unwrap() });
                     }
                 }
                 None => return None,

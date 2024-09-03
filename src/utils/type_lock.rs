@@ -20,6 +20,7 @@ pub enum Lock {
 }
 
 /// Type lock
+#[derive(Default)]
 pub struct TypeLock {
     data: HashMap<TypeId, LockMode>,
 }
@@ -27,9 +28,7 @@ pub struct TypeLock {
 impl TypeLock {
     /// Constructs new instance
     pub fn new() -> Self {
-        Self {
-            data: HashMap::new(),
-        }
+        Self::default()
     }
 
     /// Creates a lock for provided types
@@ -41,7 +40,7 @@ impl TypeLock {
                     .get(type_id)
                     .map(|mode| (*mode != LockMode::ReadWrite))
                     .unwrap_or(true),
-                Lock::ReadWrite(type_id) => self.data.get(type_id).is_none(),
+                Lock::ReadWrite(type_id) => !self.data.contains_key(type_id),
             };
             if !can_lock {
                 return false;
@@ -62,7 +61,7 @@ impl TypeLock {
                 }
             }
         }
-        return true;
+        true
     }
 
     /// Releases lock for provided types

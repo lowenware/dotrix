@@ -72,7 +72,7 @@ impl Task for CreateFrame {
         let now = Instant::now();
         let delta = self
             .last_frame
-            .replace(now.clone())
+            .replace(now)
             .map(|i| i.elapsed())
             .unwrap_or_else(|| Duration::from_secs_f32(1.0 / self.fps_request.unwrap_or(60.0)));
 

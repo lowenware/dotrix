@@ -94,11 +94,10 @@ impl Assets {
 
     /// Stores an already boxed asset
     pub fn store(&mut self, asset: Box<dyn Asset>) -> (u64, u64) {
-        let uuid = self
+        let uuid = *self
             .registry
             .entry(String::from(asset.name()))
-            .or_insert_with(|| Uuid::new_v4())
-            .clone();
+            .or_insert_with(Uuid::new_v4);
 
         self.map.insert(uuid, asset);
         uuid.as_u64_pair()

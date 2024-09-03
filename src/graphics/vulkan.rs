@@ -348,11 +348,17 @@ impl Gpu {
 
     // Vulkan API:
 
+    /// # Safety
+    ///
+    /// This function requires a valid device
     #[inline(always)]
     pub unsafe fn device_wait_idle(&self) -> Result<(), vk::Result> {
         self.device.vk_device.device_wait_idle()
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn allocate_command_buffers(
         &self,
@@ -362,12 +368,15 @@ impl Gpu {
             inner: self
                 .device
                 .vk_device
-                .allocate_command_buffers(&command_buffer_allocate_info)
+                .allocate_command_buffers(command_buffer_allocate_info)
                 .expect("Failed to allocate command buffers")
                 .into_iter(),
         }
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn allocate_memory(
         &self,
@@ -378,11 +387,17 @@ impl Gpu {
             .allocate_memory(memory_allocate_info, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn free_memory(&self, device_memory: vk::DeviceMemory) {
         self.device.vk_device.free_memory(device_memory, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn begin_command_buffer(
         &self,
@@ -391,9 +406,12 @@ impl Gpu {
     ) -> Result<(), vk::Result> {
         self.device
             .vk_device
-            .begin_command_buffer(command_buffer, &command_buffer_begin_info)
+            .begin_command_buffer(command_buffer, command_buffer_begin_info)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn reset_command_buffer(
         &self,
         command_buffer: vk::CommandBuffer,
@@ -404,6 +422,9 @@ impl Gpu {
             .reset_command_buffer(command_buffer, flags)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn end_command_buffer(
         &self,
@@ -412,6 +433,9 @@ impl Gpu {
         self.device.vk_device.end_command_buffer(command_buffer)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_image_view(
         &self,
@@ -420,11 +444,17 @@ impl Gpu {
         self.device.vk_device.create_image_view(create_info, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_image_view(&self, image_view: vk::ImageView) {
         self.device.vk_device.destroy_image_view(image_view, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_image(
         &self,
@@ -433,16 +463,25 @@ impl Gpu {
         self.device.vk_device.create_image(create_info, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_image(&self, image: vk::Image) {
         self.device.vk_device.destroy_image(image, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn get_image_memory_requirements(&self, image: vk::Image) -> vk::MemoryRequirements {
         self.device.vk_device.get_image_memory_requirements(image)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn bind_image_memory(
         &self,
@@ -455,6 +494,9 @@ impl Gpu {
             .bind_image_memory(image, image_memory, offset)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_framebuffer(
         &self,
@@ -463,11 +505,17 @@ impl Gpu {
         self.device.vk_device.create_framebuffer(create_info, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_framebuffer(&self, framebuffer: vk::Framebuffer) {
         self.device.vk_device.destroy_framebuffer(framebuffer, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_semaphore(
         &self,
@@ -478,11 +526,17 @@ impl Gpu {
             .create_semaphore(semaphore_create_info, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_semaphore(&self, semaphore: vk::Semaphore) {
         self.device.vk_device.destroy_semaphore(semaphore, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_command_pool(
         &self,
@@ -490,9 +544,12 @@ impl Gpu {
     ) -> Result<vk::CommandPool, vk::Result> {
         self.device
             .vk_device
-            .create_command_pool(&pool_create_info, None)
+            .create_command_pool(pool_create_info, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn get_buffer_memory_requirements(
         &self,
@@ -501,6 +558,9 @@ impl Gpu {
         self.device.vk_device.get_buffer_memory_requirements(buffer)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_buffer(
         &self,
@@ -511,11 +571,17 @@ impl Gpu {
             .create_buffer(buffer_create_info, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_buffer(&self, buffer: vk::Buffer) {
         self.device.vk_device.destroy_buffer(buffer, None);
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn bind_buffer_memory(
         &self,
@@ -528,6 +594,9 @@ impl Gpu {
             .bind_buffer_memory(buffer, device_memory, offset)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn map_memory(
         &self,
@@ -541,11 +610,17 @@ impl Gpu {
             .map_memory(device_memory, offset, size, memory_map_flags)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn unmap_memory(&self, device_memory: vk::DeviceMemory) {
         self.device.vk_device.unmap_memory(device_memory)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_render_pass(
         &self,
@@ -556,6 +631,9 @@ impl Gpu {
             .create_render_pass(render_pass_create_info, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_command_pool(&self, command_pool: vk::CommandPool) {
         self.device
@@ -563,11 +641,17 @@ impl Gpu {
             .destroy_command_pool(command_pool, None);
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_render_pass(&self, render_pass: vk::RenderPass) {
         self.device.vk_device.destroy_render_pass(render_pass, None);
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn submit_queue(
         &self,
@@ -580,6 +664,9 @@ impl Gpu {
             .queue_submit(self.device.vk_queue, submits, fence)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_fence(&self, fence_create_info: &vk::FenceCreateInfo) -> vk::Fence {
         self.device
@@ -588,11 +675,17 @@ impl Gpu {
             .expect("Failed to create Vulkan fence")
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_fence(&self, fence: vk::Fence) {
         self.device.vk_device.destroy_fence(fence, None);
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn wait_for_fences(
         &self,
@@ -605,11 +698,17 @@ impl Gpu {
             .wait_for_fences(fences, wait_all, timeout)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn reset_fences(&self, fences: &[vk::Fence]) -> Result<(), vk::Result> {
         self.device.vk_device.reset_fences(fences)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_descriptor_set_layout(
         &self,
@@ -620,6 +719,9 @@ impl Gpu {
             .create_descriptor_set_layout(descriptor_info, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_descriptor_set_layout(
         &self,
@@ -630,6 +732,9 @@ impl Gpu {
             .destroy_descriptor_set_layout(descriptor_set_layout, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn allocate_descriptor_sets(
         &self,
@@ -640,6 +745,9 @@ impl Gpu {
             .allocate_descriptor_sets(allocate_info)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn update_descriptor_sets(
         &self,
@@ -651,6 +759,9 @@ impl Gpu {
             .update_descriptor_sets(descriptor_writes, descriptor_copies)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_descriptor_pool(
         &self,
@@ -661,6 +772,9 @@ impl Gpu {
             .create_descriptor_pool(descriptor_pool_info, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_descriptor_pool(&self, descriptor_pool: vk::DescriptorPool) {
         self.device
@@ -668,6 +782,9 @@ impl Gpu {
             .destroy_descriptor_pool(descriptor_pool, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_pipeline_layout(
         &self,
@@ -678,6 +795,9 @@ impl Gpu {
             .create_pipeline_layout(layout_create_info, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_graphics_pipelines(
         &self,
@@ -691,11 +811,17 @@ impl Gpu {
         )
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_pipeline(&self, pipeline: vk::Pipeline) {
         self.device.vk_device.destroy_pipeline(pipeline, None);
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_pipeline_layout(&self, pipeline_layout: vk::PipelineLayout) {
         self.device
@@ -703,6 +829,9 @@ impl Gpu {
             .destroy_pipeline_layout(pipeline_layout, None);
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn create_shader_module(
         &self,
@@ -713,6 +842,9 @@ impl Gpu {
             .create_shader_module(shader_module_create_info, None)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[inline(always)]
     pub unsafe fn destroy_shader_module(&self, shader_module: vk::ShaderModule) {
         self.device
@@ -722,6 +854,9 @@ impl Gpu {
 
     // Vulkan device commands
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn cmd_begin_render_pass(
         &self,
         command_buffer: vk::CommandBuffer,
@@ -735,10 +870,16 @@ impl Gpu {
         );
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn cmd_end_render_pass(&self, command_buffer: vk::CommandBuffer) {
         self.device.vk_device.cmd_end_render_pass(command_buffer);
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn cmd_set_viewport(
         &self,
         command_buffer: vk::CommandBuffer,
@@ -750,6 +891,9 @@ impl Gpu {
             .cmd_set_viewport(command_buffer, first_viewport, viewports);
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn cmd_set_scissor(
         &self,
         command_buffer: vk::CommandBuffer,
@@ -761,6 +905,9 @@ impl Gpu {
             .cmd_set_scissor(command_buffer, first_scissor, scissors);
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn cmd_bind_descriptor_sets(
         &self,
         command_buffer: vk::CommandBuffer,
@@ -780,6 +927,9 @@ impl Gpu {
         )
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn cmd_bind_pipeline(
         &self,
         command_buffer: vk::CommandBuffer,
@@ -791,6 +941,9 @@ impl Gpu {
             .cmd_bind_pipeline(command_buffer, pipeline_bind_point, pipeline);
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn cmd_bind_vertex_buffers(
         &self,
         command_buffer: vk::CommandBuffer,
@@ -806,6 +959,9 @@ impl Gpu {
         )
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn cmd_bind_index_buffer(
         &self,
         command_buffer: vk::CommandBuffer,
@@ -818,6 +974,9 @@ impl Gpu {
             .cmd_bind_index_buffer(command_buffer, buffer, offset, index_type)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn cmd_draw_indirect(
         &self,
         command_buffer: vk::CommandBuffer,
@@ -831,6 +990,9 @@ impl Gpu {
             .cmd_draw_indirect(command_buffer, buffer, offset, draw_count, stride);
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn cmd_draw_indexed_indirect(
         &self,
         command_buffer: vk::CommandBuffer,
@@ -848,6 +1010,10 @@ impl Gpu {
         );
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
+    #[allow(clippy::too_many_arguments)]
     pub unsafe fn cmd_pipeline_barrier(
         &self,
         command_buffer: vk::CommandBuffer,
@@ -1138,6 +1304,9 @@ impl Display {
         (depth_image, depth_image_view, depth_image_memory)
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     unsafe fn destroy_depth_image(
         gpu: &Gpu,
         depth_image: vk::Image,
@@ -1149,6 +1318,9 @@ impl Display {
         gpu.free_memory(depth_image_memory);
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn recreate_depth_image(&mut self) {
         Self::destroy_depth_image(
             &self.gpu,
@@ -1163,14 +1335,23 @@ impl Display {
         self.depth_image_memory = depth_image_memory;
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn swapchain_image_views(&self) -> std::slice::Iter<vk::ImageView> {
         self.swapchain.vk_present_image_views.iter()
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn depth_image_view(&self) -> vk::ImageView {
         self.depth_image_view
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn depth_image(&self) -> vk::Image {
         self.depth_image
     }
@@ -1186,7 +1367,7 @@ impl Display {
                 .loader
                 .acquire_next_image(
                     self.swapchain.vk_swapchain,
-                    std::u64::MAX,
+                    u64::MAX,
                     self.present_complete_semaphore,
                     vk::Fence::null(),
                 )
@@ -1279,10 +1460,16 @@ impl Display {
         self.render_complete_semaphore = semaphore;
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn present_complete_semaphore(&self) -> vk::Semaphore {
         self.present_complete_semaphore
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     unsafe fn create_instance(desc: &DisplaySetup, vk_entry: &ash::Entry) -> ash::Instance {
         let window = &desc.window_instance;
 
@@ -1329,7 +1516,7 @@ impl Display {
 
         let layers_names_raw: Vec<*const c_char> = [b"VK_LAYER_KHRONOS_validation\0"]
             .iter()
-            .map(|raw_name| unsafe { CStr::from_bytes_with_nul_unchecked(*raw_name).as_ptr() })
+            .map(|&raw_name| unsafe { CStr::from_bytes_with_nul_unchecked(raw_name).as_ptr() })
             .collect();
 
         let create_info = vk::InstanceCreateInfo::default()
@@ -1343,6 +1530,9 @@ impl Display {
             .expect("Could not create a Vulkan instanceon error")
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     /// Returns device instance that sattisfies requirements
     unsafe fn select_device(
         vk_instance: &ash::Instance,
@@ -1685,11 +1875,14 @@ pub struct Buffer {
 }
 
 impl Buffer {
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn create_and_allocate(
         gpu: &Gpu,
         buffer_create_info: &vk::BufferCreateInfo,
     ) -> Result<Buffer, vk::Result> {
-        let buffer = gpu.create_buffer(&buffer_create_info)?;
+        let buffer = gpu.create_buffer(buffer_create_info)?;
 
         let buffer_memory_req = gpu.get_buffer_memory_requirements(buffer);
 
@@ -1717,6 +1910,9 @@ impl Buffer {
         })
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn map_and_write_to_device_memory<T: Copy>(
         &self,
         gpu: &Gpu,
@@ -1724,7 +1920,7 @@ impl Buffer {
         data: &[T],
     ) -> u64 {
         let align = std::mem::align_of::<T>() as u64;
-        let size = (data.len() * std::mem::size_of::<T>()) as u64;
+        let size = (data.len() * std::mem::size_of_val(data)) as u64;
 
         let memory_ptr = gpu
             .map_memory(
@@ -1741,6 +1937,9 @@ impl Buffer {
         size
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     pub unsafe fn free_memory_and_destroy(&self, gpu: &Gpu) {
         gpu.device_wait_idle().expect("Device is not idle");
         gpu.free_memory(self.device_memory);
@@ -1825,6 +2024,9 @@ impl Drop for ShaderModule {
 
  */
 
+/// # Safety
+///
+/// This function requires valid Vulkan entities
 unsafe extern "system" fn vulkan_debug_callback(
     message_severity: vk::DebugUtilsMessageSeverityFlagsEXT,
     message_type: vk::DebugUtilsMessageTypeFlagsEXT,

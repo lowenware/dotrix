@@ -398,21 +398,29 @@ mod tests {
     #[derive(Debug, Eq, PartialEq, Copy, Clone)]
     struct Armor(u32);
     #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-    struct Health(u32);
-    struct Speed(u32);
-    struct Damage(u32);
-    struct Weight(u32);
+    struct HealthComponent(u32);
+    struct SpeedComponent(u32);
+    struct DamageComponent(u32);
+    struct WeightComponent(u32);
 
     fn spawn() -> World {
         let mut world = World::new();
         world
-            .spawn(Some((Armor(100), Health(100), Damage(300))))
+            .spawn(Some((
+                Armor(100),
+                HealthComponent(100),
+                DamageComponent(300),
+            )))
             .count();
-        world.spawn(Some((Health(80), Speed(10)))).count();
-        world.spawn(Some((Speed(50), Damage(45)))).count();
-        world.spawn(Some((Damage(600), Armor(10)))).count();
+        world
+            .spawn(Some((HealthComponent(80), SpeedComponent(10))))
+            .count();
+        world
+            .spawn(Some((SpeedComponent(50), DamageComponent(45))))
+            .count();
+        world.spawn(Some((DamageComponent(600), Armor(10)))).count();
 
-        let bulk = (0..9).map(|_| (Speed(35), Weight(5000)));
+        let bulk = (0..9).map(|_| (SpeedComponent(35), WeightComponent(5000)));
         world.spawn(bulk).count();
 
         world
@@ -420,15 +428,15 @@ mod tests {
 
     #[test]
     fn can_spawn_and_query() {
-        let mut world = spawn();
-        let mut iter = world.query::<(&Armor, &Damage)>();
+        let world = spawn();
+        let mut iter = world.query::<(&Armor, &DamageComponent)>();
 
         let item = iter.next();
         assert!(item.is_some());
 
         if let Some((armor, damage)) = item {
             assert_eq!(armor.0, 100); // Armor(100)
-            assert_eq!(damage.0, 300); // Damage(300)
+            assert_eq!(damage.0, 300); // DamageComponent(300)
         }
 
         let item = iter.next();
@@ -436,10 +444,21 @@ mod tests {
 
         let item = item.unwrap();
         assert_eq!(item.0 .0, 10); // Armor(10)
-        assert_eq!(item.1 .0, 600); // Damage(600)
+        assert_eq!(item.1 .0, 600); // DamageComponent(600)
 
         let item = iter.next();
         assert!(item.is_none());
+
+        // TODO: test mutability
+        let mut iter = world.query::<(&SpeedComponent, &WeightComponent)>();
+
+        let item = iter.next();
+        assert!(item.is_some());
+
+        if let Some((speed, weight)) = item {
+            assert_eq!(speed.0, 35);
+            assert_eq!(weight.0, 5000);
+        }
     }
 }
 
@@ -452,19 +471,19 @@ mod tests {
     #[derive(Debug, Eq, PartialEq, Copy, Clone)]
     struct Armor(u32);
     #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-    struct Health(u32);
-    struct Speed(u32);
-    struct Damage(u32);
-    struct Weight(u32);
+    struct HealthComponent(u32);
+    struct SpeedComponent(u32);
+    struct DamageComponent(u32);
+    struct WeightComponent(u32);
 
     fn spawn() -> World {
         let mut world = World::new();
-        world.spawn(Some((Armor(100), Health(100), Damage(300))));
-        world.spawn(Some((Health(80), Speed(10))));
-        world.spawn(Some((Speed(50), Damage(45))));
-        world.spawn(Some((Damage(600), Armor(10))));
+        world.spawn(Some((Armor(100), HealthComponent(100), DamageComponent(300))));
+        world.spawn(Some((HealthComponent(80), SpeedComponent(10))));
+        world.spawn(Some((SpeedComponent(50), DamageComponent(45))));
+        world.spawn(Some((DamageComponent(600), Armor(10))));
 
-        let bulk = (0..9).map(|_| (Speed(35), Weight(5000)));
+        let bulk = (0..9).map(|_| (SpeedComponent(35), WeightComponent(5000)));
         world.spawn(bulk);
 
         world
@@ -474,14 +493,14 @@ mod tests {
     fn spawn_and_query() {
         let world = spawn();
 
-        let mut iter = world.query::<(&Armor, &Damage)>();
+        let mut iter = world.query::<(&Armor, &DamageComponent)>();
 
         let item = iter.next();
         assert!(item.is_some());
 
         if let Some((armor, damage)) = item {
             assert_eq!(armor.0, 100); // Armor(100)
-            assert_eq!(damage.0, 300); // Damage(300)
+            assert_eq!(damage.0, 300); // DamageComponent(300)
         }
 
         let item = iter.next();
@@ -489,7 +508,7 @@ mod tests {
 
         let item = item.unwrap();
         assert_eq!(item.0 .0, 10); // Armor(10)
-        assert_eq!(item.1 .0, 600); // Damage(600)
+        assert_eq!(item.1 .0, 600); // DamageComponent(600)
 
         let item = iter.next();
         assert!(item.is_none());
@@ -499,13 +518,13 @@ mod tests {
     fn spawn_and_modify() {
         let world = spawn();
         {
-            let iter = world.query::<(&mut Speed,)>()D;
+            let iter = world.query::<(&mut SpeedComponent,)>()D;
             for (speed,) in iter {
                 speed.0 = 123;
             }
         }
         {
-            let iter = world.query::<(&Speed,)>();
+            let iter = world.query::<(&SpeedComponent,)>();
             for (speed,) in iter {
                 assert_eq!(speed.0, 123);
             }
@@ -544,11 +563,11 @@ mod tests {
     fn spawn_and_get_by_entity() {
         let world = spawn();
         let entity = Entity::from(0);
-        let query = world.get::<(&Armor, &Health)>(entity);
+        let query = world.get::<(&Armor, &HealthComponent)>(entity);
         assert!(query.is_some());
         if let Some((&armor, &health)) = query {
             assert_eq!(armor, Armor(100));
-            assert_eq!(health, Health(100));
+            assert_eq!(health, HealthComponent(100));
         }
     }
 
@@ -563,9 +582,9 @@ mod tests {
 
         let spawned: Vec<Entity> = world
             .spawn([
-                (Armor(2), Health(100)),
-                (Armor(4), Health(80)),
-                (Armor(4), Health(90)),
+                (Armor(2), HealthComponent(100)),
+                (Armor(4), HealthComponent(80)),
+                (Armor(4), HealthComponent(90)),
             ])
             .into();
 

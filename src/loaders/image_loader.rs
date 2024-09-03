@@ -26,7 +26,7 @@ impl ResourceLoader for ImageLoader {
         let mut file = File::open(path).expect("Could not open Image resource file");
         let metadata = std::fs::metadata(path).expect("Could not read Image file metadata");
         let mut data = vec![0; metadata.len() as usize];
-        file.read(&mut data)
+        file.read_exact(&mut data)
             .expect("Could not read Image resource file into buffer");
 
         let mut bundle: HashMap<ResourceTarget, Option<Box<dyn Asset>>> = targets
@@ -39,7 +39,7 @@ impl ResourceLoader for ImageLoader {
             name: name.into(),
         };
 
-        if bundle.len() == 0 || bundle.contains_key(&target) {
+        if bundle.is_empty() || bundle.contains_key(&target) {
             if let Some(img) = ImageLoader::read_image_buffer(name, &data, format) {
                 bundle.insert(target, Some(Box::new(img)));
             }
@@ -58,7 +58,7 @@ impl ImageLoader {
         data: &[u8],
         format: image::ImageFormat,
     ) -> Option<Image> {
-        match image::load_from_memory_with_format(&data, format) {
+        match image::load_from_memory_with_format(data, format) {
             Ok(img) => {
                 let img = img.into_rgba8();
                 let (width, height) = img.dimensions();

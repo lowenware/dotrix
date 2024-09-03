@@ -27,7 +27,7 @@ impl dotrix::Application for Demo {
         self.version
     }
 
-    fn app_name<'a>(&'a self) -> &'a str {
+    fn app_name(&self) -> &str {
         &self.application_name
     }
 

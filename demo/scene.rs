@@ -59,6 +59,6 @@ impl dotrix::Task for SpawnEntities {
 
             log::info!("Spawn scene entities: {:?}", self.spawned);
         }
-        Scene::default()
+        Scene
     }
 }

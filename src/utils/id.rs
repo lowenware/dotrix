@@ -57,7 +57,7 @@ impl<T> Id<T> {
 
     /// Clones the Id under another type cast
     pub fn cast<N>(&self) -> Id<N> {
-        Id::from(self.uuid().clone())
+        Id::from(*self.uuid())
     }
 }
 
@@ -108,10 +108,7 @@ impl<T> Debug for Id<T> {
 
 impl<T> Clone for Id<T> {
     fn clone(&self) -> Self {
-        Id {
-            value: self.value,
-            phantom: PhantomData,
-        }
+        *self
     }
 }
 
