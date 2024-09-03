@@ -14,50 +14,23 @@ keystones of rendering.
 
 ## Important
 
-**Dotrix is under heavy refactoring.** If you are looking for the latest stable
-version, then check out
+**Dotrix is under migration to Vulkan**. If you are looking for old WGPU version, then check out
 [release 0.5.3](https://github.com/lowenware/dotrix/tree/release/v0.5.3).
 
 The **main** branch now holds version 0.6 of the engine that is under active
-development.
+development, but we try to keep it functional.
 
-## Approximate TODO list
+## Demo
 
-- [x] Tasks concept with parallel execution
-- [x] New application API with possibility to configure extensions
-- [x] Flexible Mesh API that allow to construct meshes and their buffers with
-validation and various layouts
-- [x] Shader preprocessor (includes, conditions, variables)
-- [x] UUID format for IDs with namespaces
-- [x] ECS update: locks, soft deletion of entities and reuse of released slots,
-faster lookup for an entity by its ID
-- [x] Tasks based assets loading, flexible API, custom assets
-- [x] Constant FPS (if host machine is powerful enough)
-- [x] GPU Driven PBR Rendering (Prototype)
-- [x] Lights in storage buffers
-- [x] New Camera ~crate~ module
-- [x] Antialiasing & Depth buffer
-- [x] Shadows support
-- [x] New GLTF crate
-- [x] New Input crate
-- [ ] Add Overlay and UI support
-- [ ] Add Material loader from one of toml/json/ron formats
-- [ ] Add support for PBR materials using texture arrays
-- [ ] Add PBR pipeline for entities with armature
-- [ ] Unit tests review
-- [ ] Migrate math crate to `glam`
-- [ ] API documentation
- 
-## Studio
-
-**Dotrix Studio** is a binary that comes within the engine. At this moment it is
-being used for proof-of-concept tests.
+**Dotrix Demo** is a binary that comes within the engine to demonstrate it possibilities.
 
 ```
-cargo run --release --bin studio
+cargo run --release
 ```
 
-## Compile GLSL shaders
+## Shaders
+
+We are using GLSL shaders. There is no auto-compilation to SPV right now, so please use `glslc`:
 
 ```
 glslc -fshader-stage=vertex src/models/shaders/non-rigged.vert.glsl -o src/models/shaders/non-rigged.vert.spv 
