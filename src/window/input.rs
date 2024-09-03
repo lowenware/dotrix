@@ -4,7 +4,15 @@ use std::time::Instant;
 use crate::graphics::Frame;
 use crate::tasks::{All, Any, Take, Task};
 
-pub use super::event::{Button, DragAndDrop, Event, KeyCode, Modifiers, MouseScroll, ScanCode};
+pub use super::event::{
+    Button,
+    // DragAndDrop,
+    Event,
+    // KeyCode,
+    Modifiers,
+    MouseScroll,
+    // ScanCode
+};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ScreenVector {
@@ -49,21 +57,21 @@ impl Task for ReadInput {
         let mut mouse_move_delta = ScreenVector::default();
         let mut mouse_scroll_delta_lines = ScreenVector::default();
         let mut mouse_scroll_delta_pixels = ScreenVector::default();
-        let mut mouse_position = self.mouse_position.clone();
+        let mut mouse_position = self.mouse_position;
 
         for event in events.drain() {
             match &event {
                 Event::ModifiersChange { modifiers } => {
-                    self.modifiers = modifiers.clone();
+                    self.modifiers = *modifiers;
                 }
                 Event::ButtonPress { button, text } => {
                     if let Some(text) = text.as_ref() {
                         input_text += text;
                     }
-                    self.hold.entry(*button).or_insert_with(|| Instant::now());
+                    self.hold.entry(*button).or_insert_with(Instant::now);
                 }
                 Event::ButtonRelease { button } => {
-                    self.hold.remove(&button);
+                    self.hold.remove(button);
                 }
                 Event::MouseMove {
                     horizontal,
@@ -113,6 +121,7 @@ impl Task for ReadInput {
     }
 }
 
+/*
 #[inline]
 fn is_printable(chr: char) -> bool {
     let is_in_private_use_area = ('\u{e000}'..='\u{f8ff}').contains(&chr)
@@ -121,3 +130,4 @@ fn is_printable(chr: char) -> bool {
 
     !is_in_private_use_area && !chr.is_ascii_control()
 }
+*/

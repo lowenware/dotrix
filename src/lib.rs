@@ -108,7 +108,7 @@ pub trait Application {
     }
 
     /// Application name
-    fn app_name<'a>(&'a self) -> &'a str {
+    fn app_name(&self) -> &str {
         "Dotrix Application"
     }
 

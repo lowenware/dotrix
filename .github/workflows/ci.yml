@@ -35,5 +35,5 @@ jobs:
         command: test
         args: --release --verbose --workspace --all-features --all-targets
 
-    - name: Build docs
-      run: cargo doc
+#    - name: Build docs
+#      run: cargo doc

@@ -90,11 +90,11 @@ impl TaskManager {
         }
     }
 
-    fn lock_scheduler_tx<'a>(&'a self) -> MutexGuard<'a, mpsc::Sender<scheduler::Message>> {
+    fn lock_scheduler_tx(&self) -> MutexGuard<mpsc::Sender<scheduler::Message>> {
         self.scheduler_tx.lock().expect("Mutex to be locked")
     }
 
-    pub fn scheduler<'a>(&'a self) -> Scheduler<'a> {
+    pub fn scheduler(&self) -> Scheduler {
         Scheduler {
             guard: self.lock_scheduler_tx(),
         }
@@ -151,7 +151,7 @@ impl TaskManager {
 
     /// Executes tasks cycle
     pub fn run(&self) {
-        self.provide(scheduler::Loop::default());
+        self.provide(scheduler::Loop);
     }
 
     /// Waits until data of specified type provided

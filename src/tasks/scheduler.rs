@@ -73,7 +73,7 @@ pub fn spawn<T: context::Context>(
                     // There is nothing else to do, except for waiting
                     Some(input_rx.recv().expect("Message to be received"))
                 } else {
-                    input_rx.try_recv().map(|c| Some(c)).unwrap_or(None)
+                    input_rx.try_recv().map(Some).unwrap_or(None)
                 };
                 if let Some(command) = command.take() {
                     match command {
@@ -141,7 +141,7 @@ pub fn spawn<T: context::Context>(
                         ctx.reset_data(tasks_graph_changed);
                         ctx.apply_states_changes();
                         queue.clear();
-                        ctx.provide(TypeId::of::<Loop>(), Box::new(Loop::default()));
+                        ctx.provide(TypeId::of::<Loop>(), Box::new(Loop));
 
                         let default_state = TypeId::of::<()>();
                         let current_state = ctx.current_state();
@@ -186,20 +186,21 @@ pub fn spawn<T: context::Context>(
                                 log::debug!("task({}): to be scheduled", task.name());
                                 task.schedule_with(dependencies_state);
                             } else {
-                                log::debug!("task({}): dependencies are not sattisfied", task.name());
+                                log::debug!(
+                                    "task({}): dependencies are not sattisfied",
+                                    task.name()
+                                );
                             }
                         }
 
                         // get dependencies
-                        if task.is_scheduled() {
-                            if lock_manager.lock(task.lock()) {
-                                // move to the end of queue
-                                queue.remove(index);
-                                queue.push(task_id);
-                                worker_tx.send(Message::Schedule(task)).ok();
-                                stop_index -= 1;
-                                continue;
-                            }
+                        if task.is_scheduled() && lock_manager.lock(task.lock()) {
+                            // move to the end of queue
+                            queue.remove(index);
+                            queue.push(task_id);
+                            worker_tx.send(Message::Schedule(task)).ok();
+                            stop_index -= 1;
+                            continue;
                         }
                         // postpone execution
                         pool.store(task);

@@ -48,7 +48,7 @@ impl ResourceLoader for GltfLoader {
         let mut file = File::open(path).expect("Could not open GLTF resource file");
         let metadata = std::fs::metadata(path).expect("Could not read GLTF file metadata");
         let mut data = vec![0; metadata.len() as usize];
-        file.read(&mut data)
+        file.read_exact(&mut data)
             .expect("Could not read GLTF resource file into buffer");
 
         let mut output = Output {
@@ -83,7 +83,7 @@ impl ResourceLoader for GltfLoader {
             .map(|target| (target.clone(), None))
             .collect::<HashMap<_, _>>();
 
-        let no_targets = targets.len() == 0;
+        let no_targets = targets.is_empty();
 
         for asset in output.result.into_iter() {
             let target = ResourceTarget {

@@ -190,7 +190,7 @@ impl<T: Interpolate + Copy + Clone> Channel<T> {
     ) -> Self {
         let keyframes = timestamps
             .into_iter()
-            .zip(transforms.into_iter())
+            .zip(transforms)
             .map(|(timestamp, transformation)| KeyFrame::new(timestamp, transformation))
             .collect::<Vec<_>>();
 

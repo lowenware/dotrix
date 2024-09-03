@@ -46,9 +46,9 @@ pub struct Manager {
 }
 
 impl GlobalSlot {
-    fn new<T: Context>(context: T) -> Self
+    fn new<T>(context: T) -> Self
     where
-        T: std::any::Any + Send + 'static,
+        T: Context + std::any::Any + Send + 'static,
     {
         Self {
             data: UnsafeCell::new(Box::new(context)),
@@ -78,6 +78,12 @@ impl From<&scheduler::Task> for OutputSlot {
 // NOTE: It is safe to use in combination with Locker
 unsafe impl Sync for Manager {}
 
+impl Default for Manager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Manager {
     /// Creates new context manager
     pub fn new() -> Self {
@@ -93,7 +99,7 @@ impl Manager {
     unsafe fn select_mut<T: Context>(&self) -> Option<Mut<T>> {
         self.globals
             .get(&std::any::TypeId::of::<T>())
-            .and_then(|slot| (&mut *slot.data.get()).downcast_mut::<T>())
+            .and_then(|slot| (*slot.data.get()).downcast_mut::<T>())
             .map(|data| Mut {
                 data: data as *mut T,
             })
@@ -103,7 +109,7 @@ impl Manager {
     unsafe fn select_ref<T: Context>(&self) -> Option<Ref<T>> {
         self.globals
             .get(&std::any::TypeId::of::<T>())
-            .and_then(|slot| (&*slot.data.get()).downcast_ref::<T>())
+            .and_then(|slot| (*slot.data.get()).downcast_ref::<T>())
             .map(|data| Ref {
                 data: data as *const T,
             })
@@ -115,7 +121,7 @@ impl Manager {
             .get(&std::any::TypeId::of::<T>())
             .and_then(|slot| {
                 let total = slot.instances.len();
-                (&*slot.instances[index].get())
+                (*slot.instances[index].get())
                     .as_ref()
                     .and_then(|data| data.downcast_ref::<T>())
                     .map(|data| (data, total))
@@ -133,13 +139,9 @@ impl Manager {
             let data = slot
                 .instances
                 .iter()
-                .filter(|data| (&*data.get()).is_some())
+                .filter(|data| (*data.get()).is_some())
                 .map(|data| {
-                    (&*data.get())
-                        .as_ref()
-                        .unwrap()
-                        .downcast_ref::<T>()
-                        .unwrap() as *const T
+                    (*data.get()).as_ref().unwrap().downcast_ref::<T>().unwrap() as *const T
                 })
                 .collect::<Vec<_>>();
 
@@ -153,7 +155,7 @@ impl Manager {
             .get(&std::any::TypeId::of::<T>())
             .and_then(|slot| {
                 let total = slot.instances.len();
-                (&mut *slot.instances[index].get())
+                (*slot.instances[index].get())
                     .take()
                     .and_then(|data| data.downcast::<T>().ok())
                     .map(|data| (data, total))
@@ -173,7 +175,7 @@ impl Manager {
             let data = slot
                 .instances
                 .iter()
-                .map(|data| (&mut *data.get()).take())
+                .map(|data| (*data.get()).take())
                 .filter(|data| data.is_some())
                 .map(|data| Box::<T>::into_raw(data.unwrap().downcast::<T>().unwrap()) as *const T)
                 .collect::<Vec<_>>();
@@ -193,7 +195,7 @@ impl Manager {
         };
 
         state
-            .and_then(|state| (&*state.data.get()).downcast_ref::<T>())
+            .and_then(|state| (*state.data.get()).downcast_ref::<T>())
             .map(|state| State {
                 selection: Ref {
                     data: state as *const T,
@@ -212,7 +214,7 @@ impl Manager {
         };
 
         state
-            .and_then(|state| (&mut *state.data.get()).downcast_mut::<T>())
+            .and_then(|state| (*state.data.get()).downcast_mut::<T>())
             .map(|state| State {
                 selection: Mut {
                     data: state as *mut T,
@@ -270,7 +272,7 @@ impl Manager {
 
     /// Provides an output
     pub fn provide(&mut self, type_id: TypeId, data: Box<dyn std::any::Any + Send + 'static>) {
-        let entry = self.outputs.entry(type_id).or_insert(OutputSlot::default());
+        let entry = self.outputs.entry(type_id).or_default();
         entry.instances.push(UnsafeCell::new(Some(data)));
         log::debug!(
             "Provide {} -> {} of {}",
@@ -307,7 +309,7 @@ impl Manager {
     pub fn match_dependencies(&self, dependencies: &Dependencies) -> Option<Dependencies> {
         let mut result = dependencies.clone();
         for (type_id, dependency) in dependencies.data.iter() {
-            let entry = match self.outputs.get(&type_id) {
+            let entry = match self.outputs.get(type_id) {
                 Some(dependency) => dependency,
                 None => {
                     return None;
@@ -354,7 +356,7 @@ impl Manager {
         for (_type_id, entry) in self.outputs.iter_mut() {
             if entry.protected {
                 unsafe {
-                    entry.instances.retain(|data| (&*data.get()).is_some());
+                    entry.instances.retain(|data| (*data.get()).is_some());
                 }
             } else {
                 entry.instances.clear();
@@ -629,7 +631,7 @@ macro_rules! impl_context_selector {
     }
 }
 
-impl_context_selector!(());
+// impl_context_selector!(());
 impl_context_selector!((A));
 impl_context_selector!((A, B));
 impl_context_selector!((A, B, C));
@@ -745,7 +747,7 @@ where
             .get(&std::any::TypeId::of::<T>())
             .expect("Dependency to be consistant")
         {
-            DependencyType::Any(index) => *index as usize,
+            DependencyType::Any(index) => *index,
             _ => panic!("Dependency and accessor missmatch"),
         };
         manager.select_any(index)
@@ -809,7 +811,7 @@ where
             .get(&std::any::TypeId::of::<T>())
             .expect("Dependency to be consistant")
         {
-            DependencyType::Any(index) => *index as usize,
+            DependencyType::Any(index) => *index,
             _ => panic!("Dependency and accessor missmatch"),
         };
 
@@ -982,7 +984,7 @@ impl<T: Context> Any<T> {
 
 impl<T: Context> All<T> {
     /// Returns iterator across outputs
-    pub fn iter<'a>(&'a self) -> AllIter<'a, T> {
+    pub fn iter(&self) -> AllIter<T> {
         AllIter {
             inner: self.data.iter(),
         }
@@ -991,6 +993,11 @@ impl<T: Context> All<T> {
     /// Returns number of outputs
     pub fn len(&self) -> usize {
         self.data.len()
+    }
+
+    /// Returns true if empty
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
     }
 }
 
@@ -1024,6 +1031,11 @@ impl<T: Context> Take<All<T>> {
         self.selection.data.len()
     }
 
+    /// Returns true if empty
+    pub fn is_empty(&self) -> bool {
+        self.selection.data.is_empty()
+    }
+
     /// Vectorizes and takes ownership over the entities
     pub fn take(mut self) -> Vec<T> {
         unsafe {
@@ -1039,7 +1051,7 @@ impl<T: Context> Take<All<T>> {
     }
 
     /// Returns draining iterator over the selected outputs
-    pub fn drain<'a>(&'a mut self) -> TakeAllIter<'a, T> {
+    pub fn drain(&mut self) -> TakeAllIter<T> {
         let len = self.selection.data.len();
         TakeAllIter {
             inner: self.selection.data.drain(0..len),

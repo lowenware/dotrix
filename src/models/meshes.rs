@@ -10,6 +10,11 @@ use super::{
     VertexAttribute, VertexBitangent, VertexNormal, VertexPosition, VertexTangent, VertexTexture,
 };
 
+pub struct TangentsBitangents {
+    pub tangents: Vec<[f32; 3]>,
+    pub bitangents: Vec<[f32; 3]>,
+}
+
 /// 3D Model Mesh
 pub struct Mesh {
     name: String,
@@ -224,22 +229,18 @@ impl Mesh {
             return None;
         }
         let buffer = (0..self.vertices_count)
-            .map(|i| {
-                layout
-                    .iter()
-                    .map(move |t| {
-                        let values = self.vertices.get(t).unwrap();
-                        let size = values.format.size();
-                        let offset = i * size;
-                        let cut = offset + size;
-                        &values.bytes[offset..cut]
-                    })
-                    .flatten()
+            .flat_map(|i| {
+                layout.iter().flat_map(move |t| {
+                    let values = self.vertices.get(t).unwrap();
+                    let size = values.format.size();
+                    let offset = i * size;
+                    let cut = offset + size;
+                    &values.bytes[offset..cut]
+                })
             })
-            .flatten()
-            .map(|v| *v)
+            .copied()
             .collect::<Vec<u8>>();
-        return Some(buffer);
+        Some(buffer)
     }
 
     /// Returns number of faces (polygons) in the mesh
@@ -257,7 +258,7 @@ impl Mesh {
             let mut normals = vec![[99.9; 3]; self.vertices_count];
             let faces = self.count_faces();
             for face in 0..faces {
-                let mut i0 = (face * 3) as usize;
+                let mut i0 = face * 3;
                 let mut i1 = i0 + 1;
                 let mut i2 = i1 + 1;
                 if let Some(indices) = self.indices.as_ref() {
@@ -298,9 +299,8 @@ impl Mesh {
             self.set_vertices::<VertexNormal>(normals);
         }
     }
-
     /// Calculates tangents for the mesh
-    pub fn calculate_tangents_bitangents(&self) -> Option<(Vec<[f32; 3]>, Vec<[f32; 3]>)> {
+    pub fn calculate_tangents_bitangents(&self) -> Option<TangentsBitangents> {
         self.vertices::<VertexPosition>()
             .zip(self.vertices::<VertexTexture>())
             .map(|(positions, uvs)| {
@@ -308,7 +308,7 @@ impl Mesh {
                 let mut bitangents = vec![[99.9; 3]; self.vertices_count];
                 let faces = self.count_faces();
                 for face in 0..faces {
-                    let mut i0 = (face * 3) as usize;
+                    let mut i0 = face * 3;
                     let mut i1 = i0 + 1;
                     let mut i2 = i1 + 1;
                     if let Some(indices) = self.indices.as_ref() {
@@ -374,7 +374,10 @@ impl Mesh {
                         bitangent.lerp(bitangents[i2].into(), 0.5).into()
                     };
                 }
-                (tangents, bitangents)
+                TangentsBitangents {
+                    tangents,
+                    bitangents,
+                }
             })
     }
 
@@ -385,7 +388,11 @@ impl Mesh {
         if has_tangents && has_bitangents {
             return;
         }
-        if let Some((tangents, bitangents)) = self.calculate_tangents_bitangents() {
+        if let Some(TangentsBitangents {
+            tangents,
+            bitangents,
+        }) = self.calculate_tangents_bitangents()
+        {
             self.set_vertices::<VertexTangent>(tangents);
             self.set_vertices::<VertexBitangent>(bitangents);
         }

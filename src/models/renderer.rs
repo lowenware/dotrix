@@ -17,26 +17,6 @@ use super::{
     VertexTexture,
 };
 
-/* TODO:
- * [ ] Lights
- * [ ] Shadows
- * [ ] Textures
- * [ ] Move camera to the engine level
- * [x] Indexed draw calls (add index buffer, separate indirect buffer)
- *     - Always use indexed drawing
- *     - If mesh has no indices, generate the index buffer as 0,1,2...VertexCount
- * [ ] Support for rigged meshes (second pipeline? second vertex buffer?)
- *     - MeshLayout and MeshRegistry must support several buffers and track index buffer size as
- *       well
- *
- **/
-
-#[derive(Debug, Clone, Copy)]
-pub enum VertexBufferSelector {
-    OnlyMesh = 0,
-    SkinMesh,
-}
-
 #[derive(Clone, Copy)]
 pub struct LayoutInBuffer {
     /// Offset inside of the buffer in bytes
@@ -575,6 +555,9 @@ impl RenderModels {
         }
     }
 
+    /// # Safety
+    ///
+    /// Leaks signal semaphore that should never be destroyed
     pub unsafe fn signal_semaphore(&self) -> vk::Semaphore {
         self.signal_semaphore
     }
@@ -593,7 +576,7 @@ impl RenderModels {
                 .map_and_write_to_device_memory(&self.gpu, 0, &globals_uniform);
         }
 
-        for (entity_id, mesh_id, material_id, armature_id, transform) in world.query::<(
+        for (entity_id, mesh_id, material_id, _armature_id, transform) in world.query::<(
             &Id<Entity>,
             &Id<Mesh>,
             &Id<Material>,
@@ -661,7 +644,7 @@ impl RenderModels {
                     let first_instance = instances_total + instance_buffer_data.len() as u32;
                     let mesh_instances_count = instances.len() as u32;
                     let mesh_layout = self.mesh_registry.get(&mesh_id).unwrap();
-                    instance_buffer_data.extend(instances.into_iter());
+                    instance_buffer_data.extend(instances);
 
                     vk::DrawIndirectCommand {
                         vertex_count: mesh_layout.vertices.count,
@@ -720,7 +703,7 @@ impl RenderModels {
                     let first_instance = instances_total + instance_buffer_data.len() as u32;
                     let mesh_instances_count = instances.len() as u32;
                     let mesh_registry = self.mesh_registry.get(&mesh_id).unwrap();
-                    instance_buffer_data.extend(instances.into_iter());
+                    instance_buffer_data.extend(instances);
 
                     vk::DrawIndexedIndirectCommand {
                         index_count: mesh_registry.indices.unwrap().count,
@@ -769,7 +752,7 @@ impl RenderModels {
                     let first_instance = instances_total + instance_buffer_data.len() as u32;
                     let mesh_instances_count = instances.len() as u32;
                     let mesh_layout = self.mesh_registry.get(&mesh_id).unwrap();
-                    instance_buffer_data.extend(instances.into_iter());
+                    instance_buffer_data.extend(instances);
 
                     vk::DrawIndirectCommand {
                         vertex_count: mesh_layout.vertices.count,
@@ -817,7 +800,7 @@ impl RenderModels {
                     let first_instance = instances_total + instance_buffer_data.len() as u32;
                     let mesh_instances_count = instances.len() as u32;
                     let mesh_layout = self.mesh_registry.get(&mesh_id).unwrap();
-                    instance_buffer_data.extend(instances.into_iter());
+                    instance_buffer_data.extend(instances);
 
                     vk::DrawIndexedIndirectCommand {
                         index_count: mesh_layout.indices.unwrap().count,
@@ -960,15 +943,21 @@ impl RenderModels {
                     },
                     indices: index_data.map(|data| LayoutInBuffer {
                         offset: self.index_buffer_usage,
-                        size: (data.len() * std::mem::size_of::<u32>()) as u64,
-                        base: (self.index_buffer_usage / (std::mem::size_of::<u32>() as u64))
+                        size: (data.len() * std::mem::size_of_val(data)) as u64,
+                        base: (self.index_buffer_usage / (std::mem::size_of_val(data) as u64))
                             as u32,
                         count: data.len() as u32,
                     }),
                     has_skin,
                 };
 
-                self.mesh_registry.insert(mesh_id, mesh_layout.clone());
+                log::debug!(
+                    "VB offset: {}, IB offset: {:?}",
+                    mesh_layout.vertices.offset,
+                    mesh_layout.indices.as_ref().map(|i| i.offset)
+                );
+
+                self.mesh_registry.insert(mesh_id, mesh_layout);
 
                 unsafe {
                     if has_skin {
@@ -1084,7 +1073,7 @@ impl RenderModels {
 
     unsafe fn load_shader_module(gpu: &Gpu, bytes: &[u8]) -> Result<vk::ShaderModule, vk::Result> {
         // let bytes = include_bytes!("shaders/non-rigged.frag.spv");
-        let mut cursor = Cursor::new(&bytes[..]);
+        let mut cursor = Cursor::new(bytes);
         let shader_code = ash::util::read_spv(&mut cursor).expect("Failed to read shader SPV code");
         let shader_module_create_info = vk::ShaderModuleCreateInfo::default().code(&shader_code);
 
@@ -1252,9 +1241,7 @@ impl RenderModels {
             .create_graphics_pipelines(vk::PipelineCache::null(), &[graphic_pipeline_info])
             .expect("Failed to create graphics pipelines");
 
-        let graphic_pipeline = graphics_pipelines[0];
-
-        graphic_pipeline
+        graphics_pipelines[0]
     }
 
     unsafe fn destroy_graphics_pipelines(&self) {
@@ -1393,6 +1380,12 @@ impl RenderModels {
                 std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u32,
             );
         }
+
+        log::warn!("Ignored {} skin mesh draws", draw_count.skin_mesh);
+        log::warn!(
+            "Ignored {} skin mesh indexed draws",
+            draw_count.skin_mesh_indexed
+        );
 
         self.gpu.cmd_end_render_pass(self.command_buffer_draw);
 
