@@ -34,13 +34,18 @@ layout(std430, binding = 2) buffer DtxMaterialLayout
     DtxMaterial dtx_material[];
 };
 
-layout (location = 0) out vec4 o_color;
+layout (location = 0) out vec3 o_world_position;
+layout (location = 1) out vec3 o_world_normal;
+layout (location = 2) out vec4 o_color;
 void main() {
     mat4 model_transform = dtx_instance[gl_InstanceIndex].transform;
     uint material_index = dtx_instance[gl_InstanceIndex].material_index;
     vec4 material_color = dtx_material[material_index].color;
     
+    mat4 proj_view = dtx_globals.proj * dtx_globals.view;
+    o_world_position = vec3(model_transform * vec4(pos, 1.0));
+    o_world_normal = vec3(model_transform * vec4(normal, 1.0));
     o_color = vec4(material_color);
 
-    gl_Position = dtx_globals.proj * dtx_globals.view * model_transform * vec4(pos, 1.0);
+    gl_Position = proj_view * vec4(o_world_position, 1.0);
 }
