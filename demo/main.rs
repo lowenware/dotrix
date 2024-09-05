@@ -40,7 +40,7 @@ impl dotrix::Application for Demo {
         scheduler: &dotrix::tasks::Scheduler,
         display: &mut dotrix::graphics::Display,
     ) {
-        log::info!("Startup");
+        log::info!("Starting Dotrix demo");
         // Setup rendering semaphores
         let surface_format = display.surface_format();
         let renderer = dotrix::RenderModels::setup()
