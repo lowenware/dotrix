@@ -26,10 +26,10 @@ pub struct ResourceFile {
 }
 
 /// Target asset inside of a resource to be loaded
-#[derive(Eq, PartialEq, Hash, Clone)]
+#[derive(Debug, Eq, PartialEq, Hash, Clone)]
 pub struct ResourceTarget {
-    type_id: std::any::TypeId,
-    name: String,
+    pub type_id: std::any::TypeId,
+    pub name: String,
 }
 
 impl ResourceFile {
