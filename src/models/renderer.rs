@@ -901,10 +901,6 @@ impl RenderModels {
         }
         // try to get mesh to store it in buffer
         if let Some(mesh) = assets.get(mesh_id) {
-            if mesh.indices::<u8>().is_some() {
-                panic!("Index buffer is not implemented yet");
-            }
-
             let vertex_data_and_skin_info = mesh
                 .buffer::<VertexBufferSkinMeshLayout>()
                 .map(|vertex_data| {
