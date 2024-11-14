@@ -1,5 +1,7 @@
 use crate::window::event;
 
+/* NOTE: older implementation. Keep it here for reference until final migration
+ *
 pub fn event(event: &winit::event::Event<()>) -> Option<event::Event> {
     let input_event = match event {
         winit::event::Event::WindowEvent {
@@ -33,8 +35,9 @@ pub fn event(event: &winit::event::Event<()>) -> Option<event::Event> {
     };
     Some(input_event)
 }
+*/ 
 
-fn keyboard_input(
+pub fn keyboard_input(
     _device_id: winit::event::DeviceId,
     event: &winit::event::KeyEvent,
     _is_synthetic: bool,
@@ -45,7 +48,7 @@ fn keyboard_input(
             let scan_code = key_code as u32;
             if scan_code < (event::KeyCode::Unknown as u32) {
                 (
-                    unsafe { Some(std::mem::transmute(key_code as u32)) },
+                    unsafe { Some(std::mem::transmute::<u32, winit::keyboard::KeyCode>(key_code)) },
                     scan_code,
                 )
             } else {

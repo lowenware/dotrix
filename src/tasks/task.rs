@@ -224,6 +224,12 @@ pub struct Slot {
     task: Option<Box<dyn Executable>>,
 }
 
+impl Slot {
+    pub fn name(&self) -> Option<&str> {
+        self.task.as_ref().map(|t| t.name())
+    }
+}
+
 /// Tasks pool
 #[derive(Default)]
 pub struct Pool {
@@ -243,6 +249,11 @@ impl Pool {
     /// Returns true if task exists, false otherwise
     pub fn has_task(&self, id: Id<Slot>) -> bool {
         self.tasks.contains_key(&id)
+    }
+
+    /// Returns immutable reference for a task
+    pub fn get(&self, id: Id<Slot>) -> Option<&Slot> {
+        self.tasks.get(&id)
     }
 
     /// Stores task in the `Pool`
