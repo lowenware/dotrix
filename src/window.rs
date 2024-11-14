@@ -1,12 +1,13 @@
 mod input;
-// mod map;
 
 pub mod event;
+mod map;
 
 use std::sync::Arc;
 use std::time;
 
 pub use event::Event;
+pub use input::Input;
 pub use input::ReadInput;
 use winit::event::StartCause;
 
@@ -167,6 +168,8 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
             let submit_frame_task = graphics::SubmitFrame::default();
             scheduler.add_task(submit_frame_task);
 
+            scheduler.add_task(input::ReadInput::default());
+
             app.startup(&scheduler, &mut display);
 
             // add Display context
@@ -190,15 +193,29 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
                 self.close_requested = true;
             }
             winit::event::WindowEvent::KeyboardInput {
-                event:
-                    winit::event::KeyEvent {
-                        logical_key: key,
-                        state: winit::event::ElementState::Pressed,
-                        ..
-                    },
+                device_id,
+                event,
+                is_synthetic,
+            } => {
+                let event = map::keyboard_input(device_id, &event, is_synthetic);
+                // TODO: map to window::Event and provide
+                self.task_manager.provide(event);
+            }
+            winit::event::WindowEvent::MouseWheel {
+                delta,
+                phase,
                 ..
             } => {
-                log::info!("input: {key:?}");
+                panic!("input(MouseWheel): {delta:?} -> {phase:?}");
+                // TODO: map to window::Event and provide
+                // self.task_manager.provide(event);
+            }
+            winit::event::WindowEvent::MouseInput {
+                state,
+                button,
+                ..
+            } => {
+                panic!("input(MouseInput): {button:?} -> {state:?}");
                 // TODO: map to window::Event and provide
                 // self.task_manager.provide(event);
             }

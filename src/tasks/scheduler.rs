@@ -17,6 +17,8 @@ pub enum Message {
     Output(Task, Box<dyn Any + 'static + Send>),
     /// Store a new global context
     Store(TypeId, Box<dyn Any + 'static + Send>),
+    /// Push state for the global context
+    PushState(TypeId, String, Box<dyn Any + 'static + Send>),
     /// Register dependency type (with Name)
     Register(TypeId, String, usize),
     /// Provide dependency data for tasks
@@ -104,6 +106,14 @@ pub fn spawn<T: context::Context>(
                         Message::Store(type_id, ctx) => {
                             context_manager.lock().unwrap().store_boxed(type_id, ctx);
                         }
+                        Message::PushState(id, name, data) => context_manager
+                            .lock()
+                            .unwrap()
+                            .push_state_slot(context::StateSlot {
+                                id,
+                                name,
+                                data: data.into(),
+                            }),
                         Message::Register(type_id, name, providers) => {
                             context_manager
                                 .lock()
@@ -145,12 +155,25 @@ pub fn spawn<T: context::Context>(
 
                         let default_state = TypeId::of::<()>();
                         let current_state = ctx.current_state();
+                        log::debug!("current state: {:?}", current_state);
                         if current_state != default_state {
                             if let Some(tasks) = pool.select_for_state(&default_state) {
+                                for task in tasks.iter() {
+                                    log::debug!(
+                                        "tasks for default state: {:?}",
+                                        pool.get(*task).and_then(|t| t.name())
+                                    );
+                                }
                                 queue.extend_from_slice(tasks);
                             }
                         }
                         if let Some(tasks) = pool.select_for_state(&current_state) {
+                            for task in tasks.iter() {
+                                log::debug!(
+                                    "tasks for current state: {:?}",
+                                    pool.get(*task).and_then(|t| t.name())
+                                );
+                            }
                             queue.extend_from_slice(tasks);
                         }
 

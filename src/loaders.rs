@@ -67,6 +67,22 @@ pub struct ResourceBundle {
     pub bundle: HashMap<ResourceTarget, Option<Box<dyn Asset>>>,
 }
 
+impl ResourceBundle {
+    pub fn extract<T: Asset>(&mut self, name: &str) -> Option<T> {
+        let target = ResourceTarget {
+            type_id: std::any::TypeId::of::<T>(),
+            name: String::from(name),
+        };
+        self.bundle
+            .remove(&target)
+            .and_then(|asset| asset)
+            .map(|asset| unsafe {
+                let raw: *mut dyn Asset = Box::into_raw(asset);
+                *Box::from_raw(raw as *mut T)
+            })
+    }
+}
+
 pub struct ResourceReport {
     pub resource: PathBuf,
     pub report: HashMap<ResourceTarget, Option<(u64, u64)>>,

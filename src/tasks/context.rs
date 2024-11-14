@@ -402,6 +402,11 @@ impl Manager {
         }
     }
 
+    /// Pushes single boxed state into stack
+    pub fn push_state_slot(&mut self, state: StateSlot) {
+        self.states_stack.push(state);
+    }
+
     /// Calculates providers graph
     pub unsafe fn calculate_providers<T: Context>(
         &mut self,

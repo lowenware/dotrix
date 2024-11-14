@@ -52,7 +52,7 @@ pub use world::{Entity, World};
 
 /// Window API and input events
 pub mod window;
-pub use window::{ReadInput, Window};
+pub use window::{Input, ReadInput, Window};
 
 //pub use utils::{ Id };
 

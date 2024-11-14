@@ -54,6 +54,17 @@ impl<'a> Scheduler<'a> {
             ))
             .expect("Message to be sent to Scheduler");
     }
+
+    /// Set state
+    pub fn push_state<T: context::Context + Send>(&self, state: T) {
+        self.guard
+            .send(scheduler::Message::PushState(
+                std::any::TypeId::of::<T>(),
+                std::any::type_name::<T>().into(),
+                Box::new(state),
+            ))
+            .expect("Message to be sent to Scheduler");
+    }
 }
 
 impl TaskManager {

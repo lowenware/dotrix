@@ -72,11 +72,11 @@ pub enum DragAndDrop {
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum Button {
     /// Keyboard button
-    Key {
+    Keyboard {
         /// Button key code
-        key_code: Option<KeyCode>,
+        key: KeyButton,
         /// Button scan code
-        scan_code: ScanCode,
+        code: ScanCode,
     },
     /// Left mouse button
     MouseLeft,
@@ -162,17 +162,17 @@ impl Modifiers {
 #[allow(missing_docs)]
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
-pub enum KeyCode {
-    Key1,
-    Key2,
-    Key3,
-    Key4,
-    Key5,
-    Key6,
-    Key7,
-    Key8,
-    Key9,
-    Key0,
+pub enum KeyButton {
+    Num1,
+    Num2,
+    Num3,
+    Num4,
+    Num5,
+    Num6,
+    Num7,
+    Num8,
+    Num9,
+    Num0,
 
     A,
     B,
