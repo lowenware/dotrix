@@ -201,6 +201,13 @@ pub fn spawn<T: context::Context>(
                         log::debug!("task({}): begin control", task.name());
                         if !task.is_scheduled() {
                             log::debug!("task({}): not scheduled yet", task.name());
+                            if task.name() == "dotrix::window::input::ReadInput" {
+                                log::debug!(
+                                    "task({}): not scheduled yet: {:?}",
+                                    task.name(),
+                                    task.dependencies()
+                                );
+                            }
                             if let Some(dependencies_state) = context_manager
                                 .lock()
                                 .unwrap()

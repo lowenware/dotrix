@@ -1,7 +1,6 @@
 use crate::window::event;
 
-/* NOTE: older implementation. Keep it here for reference until final migration
- *
+/*
 pub fn event(event: &winit::event::Event<()>) -> Option<event::Event> {
     let input_event = match event {
         winit::event::Event::WindowEvent {
@@ -35,7 +34,7 @@ pub fn event(event: &winit::event::Event<()>) -> Option<event::Event> {
     };
     Some(input_event)
 }
-*/ 
+*/
 
 pub fn keyboard_input(
     _device_id: winit::event::DeviceId,
@@ -46,16 +45,16 @@ pub fn keyboard_input(
         // TODO: impement 1:1 mapper function
         winit::keyboard::PhysicalKey::Code(key_code) => {
             let scan_code = key_code as u32;
-            if scan_code < (event::KeyCode::Unknown as u32) {
+            if scan_code < (event::Key::Unknown as u32) {
                 (
-                    unsafe { Some(std::mem::transmute::<u32, winit::keyboard::KeyCode>(key_code)) },
+                    unsafe { Some(std::mem::transmute(key_code as u32)) },
                     scan_code,
                 )
             } else {
                 (None, scan_code)
             }
         }
-        _ => (None, event::KeyCode::Unknown as u32),
+        _ => (None, event::Key::Unknown as u32),
     };
 
     let button = event::Button::Key {
@@ -91,10 +90,10 @@ fn mouse_wheel(delta: &winit::event::MouseScrollDelta) -> event::Event {
     event::Event::MouseScroll {
         delta: match delta {
             winit::event::MouseScrollDelta::LineDelta(x, y) => event::MouseScroll::Lines {
-                horizontal: *x as f64,
-                vertical: *y as f64,
+                horizontal: *x,
+                vertical: *y,
             },
-            winit::event::MouseScrollDelta::PixelDelta(position) => event::MouseScroll::Lines {
+            winit::event::MouseScrollDelta::PixelDelta(position) => event::MouseScroll::Pixels {
                 horizontal: position.x,
                 vertical: position.y,
             },
@@ -138,232 +137,232 @@ fn dropped_file(path: &std::path::Path) -> event::Event {
     }
 }
 
-fn map_key_event(event: winit::event::KeyEvent) -> event::KeyCode {
+fn map_key_event(event: winit::event::KeyEvent) -> event::Key {
     match event.physical_key {
         winit::keyboard::PhysicalKey::Code(keycode) => match keycode {
-            winit::keyboard::KeyCode::Digit1 => event::KeyCode::Key1,
-            winit::keyboard::KeyCode::Digit2 => event::KeyCode::Key2,
-            winit::keyboard::KeyCode::Digit3 => event::KeyCode::Key3,
-            winit::keyboard::KeyCode::Digit4 => event::KeyCode::Key4,
-            winit::keyboard::KeyCode::Digit5 => event::KeyCode::Key5,
-            winit::keyboard::KeyCode::Digit6 => event::KeyCode::Key6,
-            winit::keyboard::KeyCode::Digit7 => event::KeyCode::Key7,
-            winit::keyboard::KeyCode::Digit8 => event::KeyCode::Key8,
-            winit::keyboard::KeyCode::Digit9 => event::KeyCode::Key9,
-            winit::keyboard::KeyCode::Digit0 => event::KeyCode::Key0,
+            winit::keyboard::KeyCode::Digit1 => event::Key::Key1,
+            winit::keyboard::KeyCode::Digit2 => event::Key::Key2,
+            winit::keyboard::KeyCode::Digit3 => event::Key::Key3,
+            winit::keyboard::KeyCode::Digit4 => event::Key::Key4,
+            winit::keyboard::KeyCode::Digit5 => event::Key::Key5,
+            winit::keyboard::KeyCode::Digit6 => event::Key::Key6,
+            winit::keyboard::KeyCode::Digit7 => event::Key::Key7,
+            winit::keyboard::KeyCode::Digit8 => event::Key::Key8,
+            winit::keyboard::KeyCode::Digit9 => event::Key::Key9,
+            winit::keyboard::KeyCode::Digit0 => event::Key::Key0,
 
-            winit::keyboard::KeyCode::KeyA => event::KeyCode::A,
-            winit::keyboard::KeyCode::KeyB => event::KeyCode::B,
-            winit::keyboard::KeyCode::KeyC => event::KeyCode::C,
-            winit::keyboard::KeyCode::KeyD => event::KeyCode::D,
-            winit::keyboard::KeyCode::KeyE => event::KeyCode::E,
-            winit::keyboard::KeyCode::KeyF => event::KeyCode::F,
-            winit::keyboard::KeyCode::KeyG => event::KeyCode::G,
-            winit::keyboard::KeyCode::KeyH => event::KeyCode::H,
-            winit::keyboard::KeyCode::KeyI => event::KeyCode::I,
-            winit::keyboard::KeyCode::KeyJ => event::KeyCode::J,
-            winit::keyboard::KeyCode::KeyK => event::KeyCode::K,
-            winit::keyboard::KeyCode::KeyL => event::KeyCode::L,
-            winit::keyboard::KeyCode::KeyM => event::KeyCode::M,
-            winit::keyboard::KeyCode::KeyN => event::KeyCode::N,
-            winit::keyboard::KeyCode::KeyO => event::KeyCode::O,
-            winit::keyboard::KeyCode::KeyP => event::KeyCode::P,
-            winit::keyboard::KeyCode::KeyQ => event::KeyCode::Q,
-            winit::keyboard::KeyCode::KeyR => event::KeyCode::R,
-            winit::keyboard::KeyCode::KeyS => event::KeyCode::S,
-            winit::keyboard::KeyCode::KeyT => event::KeyCode::T,
-            winit::keyboard::KeyCode::KeyU => event::KeyCode::U,
-            winit::keyboard::KeyCode::KeyV => event::KeyCode::V,
-            winit::keyboard::KeyCode::KeyW => event::KeyCode::W,
-            winit::keyboard::KeyCode::KeyX => event::KeyCode::X,
-            winit::keyboard::KeyCode::KeyY => event::KeyCode::Y,
-            winit::keyboard::KeyCode::KeyZ => event::KeyCode::Z,
+            winit::keyboard::KeyCode::KeyA => event::Key::A,
+            winit::keyboard::KeyCode::KeyB => event::Key::B,
+            winit::keyboard::KeyCode::KeyC => event::Key::C,
+            winit::keyboard::KeyCode::KeyD => event::Key::D,
+            winit::keyboard::KeyCode::KeyE => event::Key::E,
+            winit::keyboard::KeyCode::KeyF => event::Key::F,
+            winit::keyboard::KeyCode::KeyG => event::Key::G,
+            winit::keyboard::KeyCode::KeyH => event::Key::H,
+            winit::keyboard::KeyCode::KeyI => event::Key::I,
+            winit::keyboard::KeyCode::KeyJ => event::Key::J,
+            winit::keyboard::KeyCode::KeyK => event::Key::K,
+            winit::keyboard::KeyCode::KeyL => event::Key::L,
+            winit::keyboard::KeyCode::KeyM => event::Key::M,
+            winit::keyboard::KeyCode::KeyN => event::Key::N,
+            winit::keyboard::KeyCode::KeyO => event::Key::O,
+            winit::keyboard::KeyCode::KeyP => event::Key::P,
+            winit::keyboard::KeyCode::KeyQ => event::Key::Q,
+            winit::keyboard::KeyCode::KeyR => event::Key::R,
+            winit::keyboard::KeyCode::KeyS => event::Key::S,
+            winit::keyboard::KeyCode::KeyT => event::Key::T,
+            winit::keyboard::KeyCode::KeyU => event::Key::U,
+            winit::keyboard::KeyCode::KeyV => event::Key::V,
+            winit::keyboard::KeyCode::KeyW => event::Key::W,
+            winit::keyboard::KeyCode::KeyX => event::Key::X,
+            winit::keyboard::KeyCode::KeyY => event::Key::Y,
+            winit::keyboard::KeyCode::KeyZ => event::Key::Z,
 
-            winit::keyboard::KeyCode::Escape => event::KeyCode::Escape,
+            winit::keyboard::KeyCode::Escape => event::Key::Escape,
 
-            winit::keyboard::KeyCode::F1 => event::KeyCode::F1,
-            winit::keyboard::KeyCode::F2 => event::KeyCode::F2,
-            winit::keyboard::KeyCode::F3 => event::KeyCode::F3,
-            winit::keyboard::KeyCode::F4 => event::KeyCode::F4,
-            winit::keyboard::KeyCode::F5 => event::KeyCode::F5,
-            winit::keyboard::KeyCode::F6 => event::KeyCode::F6,
-            winit::keyboard::KeyCode::F7 => event::KeyCode::F7,
-            winit::keyboard::KeyCode::F8 => event::KeyCode::F8,
-            winit::keyboard::KeyCode::F9 => event::KeyCode::F9,
-            winit::keyboard::KeyCode::F10 => event::KeyCode::F10,
-            winit::keyboard::KeyCode::F11 => event::KeyCode::F11,
-            winit::keyboard::KeyCode::F12 => event::KeyCode::F12,
-            winit::keyboard::KeyCode::F13 => event::KeyCode::F13,
-            winit::keyboard::KeyCode::F14 => event::KeyCode::F14,
-            winit::keyboard::KeyCode::F15 => event::KeyCode::F15,
-            winit::keyboard::KeyCode::F16 => event::KeyCode::F16,
-            winit::keyboard::KeyCode::F17 => event::KeyCode::F17,
-            winit::keyboard::KeyCode::F18 => event::KeyCode::F18,
-            winit::keyboard::KeyCode::F19 => event::KeyCode::F19,
-            winit::keyboard::KeyCode::F20 => event::KeyCode::F20,
-            winit::keyboard::KeyCode::F21 => event::KeyCode::F21,
-            winit::keyboard::KeyCode::F22 => event::KeyCode::F22,
-            winit::keyboard::KeyCode::F23 => event::KeyCode::F23,
-            winit::keyboard::KeyCode::F24 => event::KeyCode::F24,
+            winit::keyboard::KeyCode::F1 => event::Key::F1,
+            winit::keyboard::KeyCode::F2 => event::Key::F2,
+            winit::keyboard::KeyCode::F3 => event::Key::F3,
+            winit::keyboard::KeyCode::F4 => event::Key::F4,
+            winit::keyboard::KeyCode::F5 => event::Key::F5,
+            winit::keyboard::KeyCode::F6 => event::Key::F6,
+            winit::keyboard::KeyCode::F7 => event::Key::F7,
+            winit::keyboard::KeyCode::F8 => event::Key::F8,
+            winit::keyboard::KeyCode::F9 => event::Key::F9,
+            winit::keyboard::KeyCode::F10 => event::Key::F10,
+            winit::keyboard::KeyCode::F11 => event::Key::F11,
+            winit::keyboard::KeyCode::F12 => event::Key::F12,
+            winit::keyboard::KeyCode::F13 => event::Key::F13,
+            winit::keyboard::KeyCode::F14 => event::Key::F14,
+            winit::keyboard::KeyCode::F15 => event::Key::F15,
+            winit::keyboard::KeyCode::F16 => event::Key::F16,
+            winit::keyboard::KeyCode::F17 => event::Key::F17,
+            winit::keyboard::KeyCode::F18 => event::Key::F18,
+            winit::keyboard::KeyCode::F19 => event::Key::F19,
+            winit::keyboard::KeyCode::F20 => event::Key::F20,
+            winit::keyboard::KeyCode::F21 => event::Key::F21,
+            winit::keyboard::KeyCode::F22 => event::Key::F22,
+            winit::keyboard::KeyCode::F23 => event::Key::F23,
+            winit::keyboard::KeyCode::F24 => event::Key::F24,
 
-            winit::keyboard::KeyCode::PrintScreen => event::KeyCode::PrintScreen,
-            winit::keyboard::KeyCode::ScrollLock => event::KeyCode::ScrollLock,
-            winit::keyboard::KeyCode::Pause => event::KeyCode::Pause,
+            winit::keyboard::KeyCode::PrintScreen => event::Key::PrintScreen,
+            winit::keyboard::KeyCode::ScrollLock => event::Key::ScrollLock,
+            winit::keyboard::KeyCode::Pause => event::Key::Pause,
 
-            winit::keyboard::KeyCode::Insert => event::KeyCode::Insert,
-            winit::keyboard::KeyCode::Home => event::KeyCode::Home,
-            winit::keyboard::KeyCode::Delete => event::KeyCode::Delete,
-            winit::keyboard::KeyCode::End => event::KeyCode::End,
+            winit::keyboard::KeyCode::Insert => event::Key::Insert,
+            winit::keyboard::KeyCode::Home => event::Key::Home,
+            winit::keyboard::KeyCode::Delete => event::Key::Delete,
+            winit::keyboard::KeyCode::End => event::Key::End,
 
-            winit::keyboard::KeyCode::PageDown => event::KeyCode::PageDown,
-            winit::keyboard::KeyCode::PageUp => event::KeyCode::PageUp,
+            winit::keyboard::KeyCode::PageDown => event::Key::PageDown,
+            winit::keyboard::KeyCode::PageUp => event::Key::PageUp,
 
-            winit::keyboard::KeyCode::ArrowLeft => event::KeyCode::Left,
-            winit::keyboard::KeyCode::ArrowUp => event::KeyCode::Up,
-            winit::keyboard::KeyCode::ArrowRight => event::KeyCode::Right,
-            winit::keyboard::KeyCode::ArrowDown => event::KeyCode::Down,
+            winit::keyboard::KeyCode::ArrowLeft => event::Key::Left,
+            winit::keyboard::KeyCode::ArrowUp => event::Key::Up,
+            winit::keyboard::KeyCode::ArrowRight => event::Key::Right,
+            winit::keyboard::KeyCode::ArrowDown => event::Key::Down,
 
-            winit::keyboard::KeyCode::Backspace => event::KeyCode::Backspace,
-            winit::keyboard::KeyCode::Enter => event::KeyCode::Return,
-            winit::keyboard::KeyCode::Space => event::KeyCode::Space,
+            winit::keyboard::KeyCode::Backspace => event::Key::Backspace,
+            winit::keyboard::KeyCode::Enter => event::Key::Return,
+            winit::keyboard::KeyCode::Space => event::Key::Space,
 
-            // winit::keyboard::KeyCode::Compose => event::KeyCode::Compose,
-            // winit::keyboard::KeyCode::Caret => event::KeyCode::Caret,
-            winit::keyboard::KeyCode::NumLock => event::KeyCode::Numlock,
+            // winit::keyboard::KeyCode::Compose => event::Key::Compose,
+            // winit::keyboard::KeyCode::Caret => event::Key::Caret,
+            winit::keyboard::KeyCode::NumLock => event::Key::Numlock,
 
-            winit::keyboard::KeyCode::Numpad0 => event::KeyCode::Numpad0,
+            winit::keyboard::KeyCode::Numpad0 => event::Key::Numpad0,
 
-            winit::keyboard::KeyCode::Numpad1 => event::KeyCode::Numpad1,
+            winit::keyboard::KeyCode::Numpad1 => event::Key::Numpad1,
 
-            winit::keyboard::KeyCode::Numpad2 => event::KeyCode::Numpad2,
+            winit::keyboard::KeyCode::Numpad2 => event::Key::Numpad2,
 
-            winit::keyboard::KeyCode::Numpad3 => event::KeyCode::Numpad3,
+            winit::keyboard::KeyCode::Numpad3 => event::Key::Numpad3,
 
-            winit::keyboard::KeyCode::Numpad4 => event::KeyCode::Numpad4,
+            winit::keyboard::KeyCode::Numpad4 => event::Key::Numpad4,
 
-            winit::keyboard::KeyCode::Numpad5 => event::KeyCode::Numpad5,
+            winit::keyboard::KeyCode::Numpad5 => event::Key::Numpad5,
 
-            winit::keyboard::KeyCode::Numpad6 => event::KeyCode::Numpad6,
+            winit::keyboard::KeyCode::Numpad6 => event::Key::Numpad6,
 
-            winit::keyboard::KeyCode::Numpad7 => event::KeyCode::Numpad7,
+            winit::keyboard::KeyCode::Numpad7 => event::Key::Numpad7,
 
-            winit::keyboard::KeyCode::Numpad8 => event::KeyCode::Numpad8,
+            winit::keyboard::KeyCode::Numpad8 => event::Key::Numpad8,
 
-            winit::keyboard::KeyCode::Numpad9 => event::KeyCode::Numpad9,
+            winit::keyboard::KeyCode::Numpad9 => event::Key::Numpad9,
 
-            winit::keyboard::KeyCode::NumpadAdd => event::KeyCode::NumpadAdd,
+            winit::keyboard::KeyCode::NumpadAdd => event::Key::NumpadAdd,
 
-            winit::keyboard::KeyCode::NumpadDivide => event::KeyCode::NumpadDivide,
+            winit::keyboard::KeyCode::NumpadDivide => event::Key::NumpadDivide,
 
-            winit::keyboard::KeyCode::NumpadDecimal => event::KeyCode::NumpadDecimal,
+            winit::keyboard::KeyCode::NumpadDecimal => event::Key::NumpadDecimal,
 
-            winit::keyboard::KeyCode::NumpadComma => event::KeyCode::NumpadComma,
+            winit::keyboard::KeyCode::NumpadComma => event::Key::NumpadComma,
 
-            winit::keyboard::KeyCode::NumpadEnter => event::KeyCode::NumpadEnter,
+            winit::keyboard::KeyCode::NumpadEnter => event::Key::NumpadEnter,
 
-            winit::keyboard::KeyCode::NumpadEqual => event::KeyCode::NumpadEquals,
+            winit::keyboard::KeyCode::NumpadEqual => event::Key::NumpadEquals,
 
-            winit::keyboard::KeyCode::NumpadMultiply => event::KeyCode::NumpadMultiply,
+            winit::keyboard::KeyCode::NumpadMultiply => event::Key::NumpadMultiply,
 
-            winit::keyboard::KeyCode::NumpadSubtract => event::KeyCode::NumpadSubtract,
+            winit::keyboard::KeyCode::NumpadSubtract => event::Key::NumpadSubtract,
 
-            // winit::keyboard::KeyCode::AbntC1 => event::KeyCode::AbntC1,
-            // winit::keyboard::KeyCode::AbntC2 => event::KeyCode::AbntC2,
+            // winit::keyboard::KeyCode::AbntC1 => event::Key::AbntC1,
+            // winit::keyboard::KeyCode::AbntC2 => event::Key::AbntC2,
 
-            // winit::keyboard::KeyCode::Apostrophe => event::KeyCode::Apostrophe,
-            // winit::keyboard::KeyCode::Apps => event::KeyCode::Apps,
+            // winit::keyboard::KeyCode::Apostrophe => event::Key::Apostrophe,
+            // winit::keyboard::KeyCode::Apps => event::Key::Apps,
 
-            // winit::keyboard::KeyCode::Asterisk => event::KeyCode::Asterisk,
-            // winit::keyboard::KeyCode::At => event::KeyCode::At,
-            // winit::keyboard::KeyCode::Ax => event::KeyCode::Ax,
-            winit::keyboard::KeyCode::Backslash => event::KeyCode::Backslash,
+            // winit::keyboard::KeyCode::Asterisk => event::Key::Asterisk,
+            // winit::keyboard::KeyCode::At => event::Key::At,
+            // winit::keyboard::KeyCode::Ax => event::Key::Ax,
+            winit::keyboard::KeyCode::Backslash => event::Key::Backslash,
 
-            winit::keyboard::KeyCode::LaunchApp2 => event::KeyCode::Calculator,
+            winit::keyboard::KeyCode::LaunchApp2 => event::Key::Calculator,
 
-            // winit::keyboard::KeyCode::Capital => event::KeyCode::Capital,
-            // winit::keyboard::KeyCode::Colon => event::KeyCode::Colon,
-            winit::keyboard::KeyCode::Comma => event::KeyCode::Comma,
+            // winit::keyboard::KeyCode::Capital => event::Key::Capital,
+            // winit::keyboard::KeyCode::Colon => event::Key::Colon,
+            winit::keyboard::KeyCode::Comma => event::Key::Comma,
 
-            winit::keyboard::KeyCode::Convert => event::KeyCode::Convert,
-            //winit::keyboard::KeyCode::Equals => event::KeyCode::Equals,
-            //winit::keyboard::KeyCode::Grave => event::KeyCode::Grave,
-            //winit::keyboard::KeyCode::Kana => event::KeyCode::Kana,
-            //winit::keyboard::KeyCode::Kanji => event::KeyCode::Kanji,
-            winit::keyboard::KeyCode::AltLeft => event::KeyCode::LAlt,
+            winit::keyboard::KeyCode::Convert => event::Key::Convert,
+            //winit::keyboard::KeyCode::Equals => event::Key::Equals,
+            //winit::keyboard::KeyCode::Grave => event::Key::Grave,
+            //winit::keyboard::KeyCode::Kana => event::Key::Kana,
+            //winit::keyboard::KeyCode::Kanji => event::Key::Kanji,
+            winit::keyboard::KeyCode::AltLeft => event::Key::LAlt,
 
-            winit::keyboard::KeyCode::BracketLeft => event::KeyCode::LBracket,
+            winit::keyboard::KeyCode::BracketLeft => event::Key::LBracket,
 
-            winit::keyboard::KeyCode::ControlLeft => event::KeyCode::LControl,
-            winit::keyboard::KeyCode::ShiftLeft => event::KeyCode::LShift,
-            winit::keyboard::KeyCode::SuperLeft => event::KeyCode::LWin,
-            winit::keyboard::KeyCode::LaunchMail => event::KeyCode::Mail,
+            winit::keyboard::KeyCode::ControlLeft => event::Key::LControl,
+            winit::keyboard::KeyCode::ShiftLeft => event::Key::LShift,
+            winit::keyboard::KeyCode::SuperLeft => event::Key::LWin,
+            winit::keyboard::KeyCode::LaunchMail => event::Key::Mail,
 
-            winit::keyboard::KeyCode::MediaSelect => event::KeyCode::MediaSelect,
+            winit::keyboard::KeyCode::MediaSelect => event::Key::MediaSelect,
 
-            winit::keyboard::KeyCode::MediaStop => event::KeyCode::MediaStop,
-            winit::keyboard::KeyCode::Minus => event::KeyCode::Minus,
-            winit::keyboard::KeyCode::AudioVolumeMute => event::KeyCode::Mute,
+            winit::keyboard::KeyCode::MediaStop => event::Key::MediaStop,
+            winit::keyboard::KeyCode::Minus => event::Key::Minus,
+            winit::keyboard::KeyCode::AudioVolumeMute => event::Key::Mute,
 
-            winit::keyboard::KeyCode::LaunchApp1 => event::KeyCode::MyComputer,
+            winit::keyboard::KeyCode::LaunchApp1 => event::Key::MyComputer,
 
-            winit::keyboard::KeyCode::BrowserForward => event::KeyCode::NavigateForward,
+            winit::keyboard::KeyCode::BrowserForward => event::Key::NavigateForward,
 
-            winit::keyboard::KeyCode::BrowserBack => event::KeyCode::NavigateBackward,
+            winit::keyboard::KeyCode::BrowserBack => event::Key::NavigateBackward,
 
-            winit::keyboard::KeyCode::MediaTrackNext => event::KeyCode::NextTrack,
+            winit::keyboard::KeyCode::MediaTrackNext => event::Key::NextTrack,
 
-            // winit::keyboard::KeyCode::NoConvert => event::KeyCode::NoConvert,
-            // winit::keyboard::KeyCode::OEM102 => event::KeyCode::OEM102,
-            winit::keyboard::KeyCode::Period => event::KeyCode::Period,
+            // winit::keyboard::KeyCode::NoConvert => event::Key::NoConvert,
+            // winit::keyboard::KeyCode::OEM102 => event::Key::OEM102,
+            winit::keyboard::KeyCode::Period => event::Key::Period,
 
-            winit::keyboard::KeyCode::MediaPlayPause => event::KeyCode::PlayPause,
-            // winit::keyboard::KeyCode::Plus => event::KeyCode::Plus,
-            winit::keyboard::KeyCode::Power => event::KeyCode::Power,
+            winit::keyboard::KeyCode::MediaPlayPause => event::Key::PlayPause,
+            // winit::keyboard::KeyCode::Plus => event::Key::Plus,
+            winit::keyboard::KeyCode::Power => event::Key::Power,
 
-            winit::keyboard::KeyCode::MediaTrackPrevious => event::KeyCode::PrevTrack,
-            winit::keyboard::KeyCode::AltRight => event::KeyCode::RAlt,
+            winit::keyboard::KeyCode::MediaTrackPrevious => event::Key::PrevTrack,
+            winit::keyboard::KeyCode::AltRight => event::Key::RAlt,
 
-            winit::keyboard::KeyCode::BracketRight => event::KeyCode::RBracket,
+            winit::keyboard::KeyCode::BracketRight => event::Key::RBracket,
 
-            winit::keyboard::KeyCode::ControlRight => event::KeyCode::RControl,
-            winit::keyboard::KeyCode::ShiftRight => event::KeyCode::RShift,
-            winit::keyboard::KeyCode::SuperRight => event::KeyCode::RWin,
+            winit::keyboard::KeyCode::ControlRight => event::Key::RControl,
+            winit::keyboard::KeyCode::ShiftRight => event::Key::RShift,
+            winit::keyboard::KeyCode::SuperRight => event::Key::RWin,
 
-            winit::keyboard::KeyCode::Semicolon => event::KeyCode::Semicolon,
-            winit::keyboard::KeyCode::Slash => event::KeyCode::Slash,
-            winit::keyboard::KeyCode::Sleep => event::KeyCode::Sleep,
-            winit::keyboard::KeyCode::MediaStop => event::KeyCode::Stop,
-            //winit::keyboard::KeyCode::Sysrq => event::KeyCode::Sysrq,
-            winit::keyboard::KeyCode::Tab => event::KeyCode::Tab,
+            winit::keyboard::KeyCode::Semicolon => event::Key::Semicolon,
+            winit::keyboard::KeyCode::Slash => event::Key::Slash,
+            winit::keyboard::KeyCode::Sleep => event::Key::Sleep,
+            winit::keyboard::KeyCode::MediaStop => event::Key::Stop,
+            //winit::keyboard::KeyCode::Sysrq => event::Key::Sysrq,
+            winit::keyboard::KeyCode::Tab => event::Key::Tab,
 
-            // winit::keyboard::KeyCode::Underline => event::KeyCode::Underline,
+            // winit::keyboard::KeyCode::Underline => event::Key::Underline,
 
-            // winit::keyboard::KeyCode::Unlabeled => event::KeyCode::Unlabeled,
-            winit::keyboard::KeyCode::AudioVolumeDown => event::KeyCode::VolumeDown,
+            // winit::keyboard::KeyCode::Unlabeled => event::Key::Unlabeled,
+            winit::keyboard::KeyCode::AudioVolumeDown => event::Key::VolumeDown,
 
-            winit::keyboard::KeyCode::AudioVolumeUp => event::KeyCode::VolumeUp,
-            // winit::keyboard::KeyCode::Wake => event::KeyCode::Wake,
-            winit::keyboard::KeyCode::BrowserBack => event::KeyCode::WebBack,
+            winit::keyboard::KeyCode::AudioVolumeUp => event::Key::VolumeUp,
+            // winit::keyboard::KeyCode::Wake => event::Key::Wake,
+            winit::keyboard::KeyCode::BrowserBack => event::Key::WebBack,
 
-            winit::keyboard::KeyCode::BrowserFavorites => event::KeyCode::WebFavorites,
+            winit::keyboard::KeyCode::BrowserFavorites => event::Key::WebFavorites,
 
-            winit::keyboard::KeyCode::BrowserForward => event::KeyCode::WebForward,
+            winit::keyboard::KeyCode::BrowserForward => event::Key::WebForward,
 
-            winit::keyboard::KeyCode::BrowserHome => event::KeyCode::WebHome,
+            winit::keyboard::KeyCode::BrowserHome => event::Key::WebHome,
 
-            winit::keyboard::KeyCode::BrowserRefresh => event::KeyCode::WebRefresh,
+            winit::keyboard::KeyCode::BrowserRefresh => event::Key::WebRefresh,
 
-            winit::keyboard::KeyCode::BrowserSearch => event::KeyCode::WebSearch,
+            winit::keyboard::KeyCode::BrowserSearch => event::Key::WebSearch,
 
-            winit::keyboard::KeyCode::BrowserStop => event::KeyCode::WebStop,
-            // winit::keyboard::KeyCode::Yen => event::KeyCode::Yen,
-            winit::keyboard::KeyCode::Copy => event::KeyCode::Copy,
-            winit::keyboard::KeyCode::Paste => event::KeyCode::Paste,
-            winit::keyboard::KeyCode::Cut => event::KeyCode::Cut,
+            winit::keyboard::KeyCode::BrowserStop => event::Key::WebStop,
+            // winit::keyboard::KeyCode::Yen => event::Key::Yen,
+            winit::keyboard::KeyCode::Copy => event::Key::Copy,
+            winit::keyboard::KeyCode::Paste => event::Key::Paste,
+            winit::keyboard::KeyCode::Cut => event::Key::Cut,
 
-            _ => event::KeyCode::Unknown,
+            _ => event::Key::Unknown,
         },
-        _ => event::KeyCode::Unknown,
+        _ => event::Key::Unknown,
     }
 }
 
