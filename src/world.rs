@@ -1,3 +1,4 @@
+mod camera;
 mod storage;
 
 use std::sync::{Arc, Condvar, Mutex};
@@ -5,6 +6,7 @@ use std::{any::TypeId, collections::HashMap, marker::PhantomData};
 
 use crate::recursive;
 use crate::utils::{Id, Lock, TypeLock};
+pub use camera::{Camera, Lens, View};
 pub use storage::{Entity, IntoEntity};
 
 #[derive(Default, Debug, Eq, PartialEq)]

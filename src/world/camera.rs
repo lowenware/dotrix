@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use dotrix_math::{perspective, Mat3, Mat4, Point3, Quat, Rad, Vec3};
+use crate::math::{Mat3, Mat4, Quat, Vec3};
 
 /// Camera object and constructor
 pub struct Camera {
@@ -24,7 +24,7 @@ impl Camera {
     }
 
     /// Returns projection matrix constructor
-    pub fn lens(fov: impl Into<Rad<f32>>, plane: Range<f32>) -> Lens {
+    pub fn lens(fov: impl Into<f32>, plane: Range<f32>) -> Lens {
         Lens::new(fov, plane)
     }
 }
@@ -32,14 +32,14 @@ impl Camera {
 /// Projection matrix constructor
 pub struct Lens {
     /// Field of View (rad)
-    pub fov: Rad<f32>,
+    pub fov: f32,
     /// Near..Far plane
     pub plane: Range<f32>,
 }
 
 impl Lens {
     /// Returns new instance of projection matrix constructor
-    pub fn new(fov: impl Into<Rad<f32>>, plane: Range<f32>) -> Self {
+    pub fn new(fov: impl Into<f32>, plane: Range<f32>) -> Self {
         Self {
             fov: fov.into(),
             plane,
@@ -49,14 +49,14 @@ impl Lens {
     /// Returns projection matrix for the surface
     pub fn proj(&self, surface_width: u32, surface_height: u32) -> Mat4 {
         let aspect_ratio = surface_width as f32 / surface_height as f32;
-        perspective(self.fov, aspect_ratio, self.plane.start, self.plane.end)
+        Mat4::perspective_rh(self.fov, aspect_ratio, self.plane.start, self.plane.end)
     }
 }
 
 impl Default for Lens {
     fn default() -> Self {
         Self {
-            fov: Rad(1.1),
+            fov: 1.1, // std::f32::consts::FRAC_PI_4
             plane: 0.0625..524288.06,
         }
     }
@@ -80,50 +80,49 @@ impl View {
     ///
     /// self.point is handled as camera position
     pub fn rotate(self, pitch: f32, yaw: f32, roll: f32) -> Mat4 {
-        let rx = Mat3::from_angle_x(Rad(roll));
-        let ry = Mat3::from_angle_y(Rad(pitch));
-        let rz = Mat3::from_angle_z(Rad(yaw));
+        let rx = Mat3::from_rotation_x(roll);
+        let ry = Mat3::from_rotation_y(pitch);
+        let rz = Mat3::from_rotation_z(yaw);
 
-        let mut mx = Mat4::from(rx * ry * rz);
-        mx.w.x = self.point.x;
-        mx.w.y = self.point.y;
-        mx.w.z = self.point.z;
+        let mut mx = Mat4::from_mat3(rx * ry * rz);
+        mx.w_axis.x = self.point.x;
+        mx.w_axis.y = self.point.y;
+        mx.w_axis.z = self.point.z;
 
         mx
     }
 
     /// Return view matrix made from target
     pub fn target(&self, target: Vec3) -> Mat4 {
-        self.target_up(target, Vec3::unit_z())
+        self.target_up(target, Vec3::Z)
     }
 
     /// Return view matrix made from target and up vector
     pub fn target_up(&self, target: Vec3, up: Vec3) -> Mat4 {
+        // let view = Mat4::look_at_rh(Vec3::new(1.5f32, -5.0, 3.0), Vec3::ZERO, Vec3::Z);
         Mat4::look_at_rh(
-            Point3::new(self.point.x, self.point.y, self.point.z),
-            Point3::new(target.x, target.y, target.z),
+            Vec3::new(self.point.x, self.point.y, self.point.z),
+            Vec3::new(target.x, target.y, target.z),
             up,
         )
     }
 
     /// Return view matrix for camera flying around a target (self.point)
     pub fn follow(self, distance: f32, pan: f32, tilt: f32, roll: f32) -> Mat4 {
-        use dotrix_math::{InnerSpace, Rotation3};
-
-        let target = &self.point;
+        let target = self.point;
         let dz = distance * tilt.sin();
         let dxy = distance * tilt.cos();
         let dx = dxy * pan.cos();
         let dy = dxy * pan.sin();
         let position = Vec3::new(target.x + dx, target.y + dy, target.z + dz);
         let direction = (target - position).normalize();
-        let roll = Quat::from_axis_angle(direction, Rad(roll));
-        let camera_right = direction.cross(Vec3::unit_z());
+        let roll = Quat::from_axis_angle(direction, roll);
+        let camera_right = direction.cross(Vec3::Z);
         let camera_up = roll * camera_right.cross(direction);
 
         Mat4::look_at_rh(
-            Point3::new(position.x, position.y, position.z),
-            Point3::new(target.x, target.y, target.z),
+            Vec3::new(position.x, position.y, position.z),
+            Vec3::new(target.x, target.y, target.z),
             camera_up,
         )
     }
