@@ -48,7 +48,7 @@ pub use utils::Id;
 
 /// World
 pub mod world;
-pub use world::{Entity, World};
+pub use world::{Camera, Entity, World};
 
 /// Window API and input events
 pub mod window;
