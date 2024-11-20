@@ -1,7 +1,6 @@
 mod input;
 
 pub mod event;
-mod map;
 
 use std::sync::Arc;
 use std::time;
@@ -75,6 +74,9 @@ impl<T: Application> EventLoop<T> {
                 .map(|fps_request| 1.0 / fps_request)
                 .unwrap_or(0.0),
         );
+        let task_manager = TaskManager::new::<graphics::FramePresenter>(workers);
+        task_manager.register::<Event>(0);
+
         Self {
             application: Some(application),
             frame_duration,
@@ -82,7 +84,7 @@ impl<T: Application> EventLoop<T> {
             wait_cancelled: false,
             close_requested: false,
             window_instance: None,
-            task_manager: TaskManager::new::<graphics::FramePresenter>(workers),
+            task_manager,
         }
     }
 
@@ -187,47 +189,58 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
         _window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
     ) {
-        log::info!("{event:?}");
         match event {
             winit::event::WindowEvent::CloseRequested => {
                 self.close_requested = true;
             }
-            winit::event::WindowEvent::KeyboardInput {
-                device_id,
-                event,
-                is_synthetic,
-            } => {
-                let event = map::keyboard_input(device_id, &event, is_synthetic);
-                // TODO: map to window::Event and provide
-                self.task_manager.provide(event);
+            winit::event::WindowEvent::KeyboardInput { event, .. } => {
+                let button = event::Button::from(&event);
+                let input_event = match event.state {
+                    winit::event::ElementState::Pressed => event::Event::ButtonPress {
+                        button,
+                        text: event.text.as_ref().map(|smol_str| smol_str.to_string()),
+                    },
+                    winit::event::ElementState::Released => event::Event::ButtonRelease { button },
+                };
+                self.task_manager.provide(input_event);
             }
-            winit::event::WindowEvent::MouseWheel {
-                delta,
-                phase,
-                ..
-            } => {
-                panic!("input(MouseWheel): {delta:?} -> {phase:?}");
-                // TODO: map to window::Event and provide
-                // self.task_manager.provide(event);
+            winit::event::WindowEvent::MouseWheel { delta, .. } => {
+                let input_event = match delta {
+                    winit::event::MouseScrollDelta::LineDelta(x, y) => event::MouseScroll::Lines {
+                        horizontal: x,
+                        vertical: y,
+                    },
+                    winit::event::MouseScrollDelta::PixelDelta(position) => {
+                        event::MouseScroll::Pixels {
+                            horizontal: position.x,
+                            vertical: position.y,
+                        }
+                    }
+                };
+                self.task_manager.provide(input_event);
             }
-            winit::event::WindowEvent::MouseInput {
-                state,
-                button,
-                ..
-            } => {
-                panic!("input(MouseInput): {button:?} -> {state:?}");
-                // TODO: map to window::Event and provide
-                // self.task_manager.provide(event);
+            winit::event::WindowEvent::MouseInput { state, button, .. } => {
+                let mouse_button = event::Button::from(&button);
+                let input_event = match state {
+                    winit::event::ElementState::Pressed => event::Event::ButtonPress {
+                        button: mouse_button,
+                        text: None,
+                    },
+                    winit::event::ElementState::Released => event::Event::ButtonRelease {
+                        button: mouse_button,
+                    },
+                };
+                self.task_manager.provide(input_event);
             }
             winit::event::WindowEvent::RedrawRequested => {
                 if let Some(instance) = self.window_instance.as_ref() {
                     instance.winit_window.pre_present_notify();
                 }
-                log::info!("Wait for presenter...");
+                log::debug!("Wait for presenter...");
                 self.task_manager
                     .wait_for::<graphics::FramePresenter>()
                     .present();
-                log::info!("...presented");
+                log::debug!("...presented");
                 self.task_manager.run();
                 // Note: can be used for debug
                 // fill::fill_window(window);
@@ -245,12 +258,13 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
     }
 
     fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        log::debug!(
+        /* log::debug!(
             "about_to_wait(request_redraw: {}, wait_cancelled: {}, close_requested: {})",
             self.request_redraw,
             self.wait_cancelled,
             self.close_requested,
         );
+        */
 
         // NOTE: to wait
         // event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait),

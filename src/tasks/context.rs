@@ -309,13 +309,13 @@ impl Manager {
     pub fn match_dependencies(&self, dependencies: &Dependencies) -> Option<Dependencies> {
         let mut result = dependencies.clone();
         for (type_id, dependency) in dependencies.data.iter() {
-            let entry = match self.outputs.get(type_id) {
+            let dependency_output = match self.outputs.get(type_id) {
                 Some(dependency) => dependency,
                 None => {
                     return None;
                 }
             };
-            let instances_len = entry.instances.len();
+            let instances_len = dependency_output.instances.len();
             match dependency {
                 DependencyType::Any(index) => {
                     if instances_len > 0 && *index < instances_len {
@@ -328,7 +328,13 @@ impl Manager {
                     }
                 }
                 DependencyType::All(count) => {
-                    if *count == 0 && instances_len >= entry.providers {
+                    log::debug!(
+                        "All({:?}) && {} >= {}",
+                        count,
+                        instances_len,
+                        dependency_output.providers
+                    );
+                    if *count == 0 && instances_len >= dependency_output.providers {
                         result
                             .data
                             .insert(*type_id, DependencyType::All(instances_len));

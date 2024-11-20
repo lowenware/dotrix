@@ -85,8 +85,8 @@ impl Task for ReadInput {
                         horizontal,
                         vertical,
                     } => {
-                        mouse_scroll_delta_lines.horizontal += horizontal;
-                        mouse_scroll_delta_lines.vertical += vertical;
+                        mouse_scroll_delta_lines.horizontal += *horizontal as f64;
+                        mouse_scroll_delta_lines.vertical += *vertical as f64;
                     }
                     MouseScroll::Pixels {
                         horizontal,
