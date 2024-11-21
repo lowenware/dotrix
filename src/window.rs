@@ -183,6 +183,25 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
         self.task_manager.run();
     }
 
+    fn device_event(
+        &mut self,
+        _event_loop: &winit::event_loop::ActiveEventLoop,
+        _device_id: winit::event::DeviceId,
+        event: winit::event::DeviceEvent,
+    ) {
+        match event {
+            winit::event::DeviceEvent::MouseMotion { delta } => {
+                let (horizontal, vertical) = delta;
+                let input_event = event::Event::MouseMove {
+                    horizontal,
+                    vertical,
+                };
+                self.task_manager.provide(input_event);
+            }
+            _ => {}
+        }
+    }
+
     fn window_event(
         &mut self,
         _event_loop: &winit::event_loop::ActiveEventLoop,
