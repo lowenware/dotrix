@@ -7,7 +7,7 @@ use crate::graphics::{Buffer, RenderPass};
 use crate::loaders::Assets;
 use crate::math::{Mat4, Vec3};
 use crate::utils::Id;
-use crate::world::{Entity, World};
+use crate::world::{Camera, Entity, World};
 use crate::{log, VertexJoints, VertexWeights};
 use crate::{Any, Asset, Display, Extent2D, Frame, Gpu, Ref, Task};
 
@@ -182,10 +182,16 @@ impl Drop for RenderModels {
 }
 
 impl Task for RenderModels {
-    type Context = (Any<Frame>, Ref<Assets>, Ref<Display>, Ref<World>);
+    type Context = (
+        Any<Frame>,
+        Any<Camera>,
+        Ref<Assets>,
+        Ref<Display>,
+        Ref<World>,
+    );
     type Output = RenderPass;
 
-    fn run(&mut self, (frame, assets, display, world): Self::Context) -> Self::Output {
+    fn run(&mut self, (frame, camera, assets, display, world): Self::Context) -> Self::Output {
         log::debug!("pbr: begin");
 
         if let Some(surface_version) = display.surface_changed(self.surface_version) {
@@ -219,7 +225,7 @@ impl Task for RenderModels {
             self.surface_version = surface_version;
         }
 
-        let draw_count = self.update_buffers(&assets, &world);
+        let draw_count = self.update_buffers(&camera, &assets, &world);
 
         log::debug!("draw count: {:?}", draw_count);
 
@@ -546,12 +552,12 @@ impl RenderModels {
         }
     }
 
-    pub fn globals_uniform(&self) -> GlobalsUniform {
-        let proj = Mat4::perspective_rh(std::f32::consts::FRAC_PI_4, 800.0 / 600.0, 1.0, 10.0);
-        let view = Mat4::look_at_rh(Vec3::new(1.5f32, -5.0, 3.0), Vec3::ZERO, Vec3::Z);
+    pub fn globals_uniform(&self, camera: &Camera) -> GlobalsUniform {
+        // let proj = Mat4::perspective_rh(std::f32::consts::FRAC_PI_4, 800.0 / 600.0, 1.0, 10.0);
+        // let view = Mat4::look_at_rh(Vec3::new(1.5f32, -5.0, 3.0), Vec3::ZERO, Vec3::Z);
         GlobalsUniform {
-            proj: proj.to_cols_array_2d(),
-            view: view.to_cols_array_2d(),
+            proj: camera.proj.to_cols_array_2d(),
+            view: camera.view.to_cols_array_2d(),
         }
     }
 
@@ -562,14 +568,14 @@ impl RenderModels {
         self.signal_semaphore
     }
 
-    fn update_buffers(&mut self, assets: &Assets, world: &World) -> DrawCount {
+    fn update_buffers(&mut self, camera: &Camera, assets: &Assets, world: &World) -> DrawCount {
         self.instances_skin_mesh_indexed.clear();
         self.instances_only_mesh_indexed.clear();
         self.instances_skin_mesh.clear();
         self.instances_only_mesh.clear();
         // self.materials_buffer_data.clear();
 
-        let globals_uniform = [self.globals_uniform()];
+        let globals_uniform = [self.globals_uniform(camera)];
 
         unsafe {
             self.globals_buffer
