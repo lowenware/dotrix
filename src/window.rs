@@ -224,17 +224,21 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
                 self.task_manager.provide(input_event);
             }
             winit::event::WindowEvent::MouseWheel { delta, .. } => {
-                let input_event = match delta {
-                    winit::event::MouseScrollDelta::LineDelta(x, y) => event::MouseScroll::Lines {
-                        horizontal: x,
-                        vertical: y,
-                    },
-                    winit::event::MouseScrollDelta::PixelDelta(position) => {
-                        event::MouseScroll::Pixels {
-                            horizontal: position.x,
-                            vertical: position.y,
+                let input_event = event::Event::MouseScroll {
+                    delta: match delta {
+                        winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                            event::MouseScroll::Lines {
+                                horizontal: x,
+                                vertical: y,
+                            }
                         }
-                    }
+                        winit::event::MouseScrollDelta::PixelDelta(position) => {
+                            event::MouseScroll::Pixels {
+                                horizontal: position.x,
+                                vertical: position.y,
+                            }
+                        }
+                    },
                 };
                 self.task_manager.provide(input_event);
             }
@@ -255,11 +259,11 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
                 if let Some(instance) = self.window_instance.as_ref() {
                     instance.winit_window.pre_present_notify();
                 }
-                log::debug!("Wait for presenter...");
+                // log::debug!("Wait for presenter...");
                 self.task_manager
                     .wait_for::<graphics::FramePresenter>()
                     .present();
-                log::debug!("...presented");
+                // log::debug!("...presented");
                 self.task_manager.run();
                 // Note: can be used for debug
                 // fill::fill_window(window);
