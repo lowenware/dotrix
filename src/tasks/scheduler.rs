@@ -145,7 +145,7 @@ pub fn spawn<T: context::Context>(
                 }
 
                 if restart_queue {
-                    log::debug!("restart queue(queue_executed: {}", queue_executed);
+                    // log::debug!("restart queue(queue_executed: {}", queue_executed);
                     if queue_executed {
                         let mut ctx = context_manager.lock().expect("Mutex to be locked");
                         ctx.reset_data(tasks_graph_changed);
@@ -155,24 +155,24 @@ pub fn spawn<T: context::Context>(
 
                         let default_state = TypeId::of::<()>();
                         let current_state = ctx.current_state();
-                        log::debug!("current state: {:?}", current_state);
+                        // log::debug!("current state: {:?}", current_state);
                         if current_state != default_state {
                             if let Some(tasks) = pool.select_for_state(&default_state) {
                                 for task in tasks.iter() {
-                                    log::debug!(
-                                        "tasks for default state: {:?}",
-                                        pool.get(*task).and_then(|t| t.name())
-                                    );
+                                    // log::debug!(
+                                    //    "tasks for default state: {:?}",
+                                    //    pool.get(*task).and_then(|t| t.name())
+                                    // );
                                 }
                                 queue.extend_from_slice(tasks);
                             }
                         }
                         if let Some(tasks) = pool.select_for_state(&current_state) {
                             for task in tasks.iter() {
-                                log::debug!(
-                                    "tasks for current state: {:?}",
-                                    pool.get(*task).and_then(|t| t.name())
-                                );
+                                // log::debug!(
+                                //    "tasks for current state: {:?}",
+                                //    pool.get(*task).and_then(|t| t.name())
+                                // );
                             }
                             queue.extend_from_slice(tasks);
                         }
@@ -198,28 +198,28 @@ pub fn spawn<T: context::Context>(
                 while index < stop_index {
                     let task_id = queue[index];
                     if let Some(mut task) = pool.take(&task_id) {
-                        log::debug!("task({}): begin control", task.name());
+                        // log::debug!("task({}): begin control", task.name());
                         if !task.is_scheduled() {
-                            log::debug!("task({}): not scheduled yet", task.name());
+                            // log::debug!("task({}): not scheduled yet", task.name());
                             if task.name() == "dotrix::window::input::ReadInput" {
-                                log::debug!(
-                                    "task({}): not scheduled yet: {:?}",
-                                    task.name(),
-                                    task.dependencies()
-                                );
+                                // log::debug!(
+                                //    "task({}): not scheduled yet: {:?}",
+                                //    task.name(),
+                                //    task.dependencies()
+                                // );
                             }
                             if let Some(dependencies_state) = context_manager
                                 .lock()
                                 .unwrap()
                                 .match_dependencies(task.dependencies())
                             {
-                                log::debug!("task({}): to be scheduled", task.name());
+                                // log::debug!("task({}): to be scheduled", task.name());
                                 task.schedule_with(dependencies_state);
                             } else {
-                                log::debug!(
-                                    "task({}): dependencies are not sattisfied",
-                                    task.name()
-                                );
+                                // log::debug!(
+                                //    "task({}): dependencies are not sattisfied",
+                                //    task.name()
+                                // );
                             }
                         }
 

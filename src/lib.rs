@@ -52,7 +52,7 @@ pub use world::{Camera, Entity, World};
 
 /// Window API and input events
 pub mod window;
-pub use window::event::{Button as ButtonEvent, Event};
+pub use window::event::{Button as ButtonEvent, Event, Modifiers, MouseScroll};
 pub use window::{Input, ReadInput, Window};
 
 //pub use utils::{ Id };

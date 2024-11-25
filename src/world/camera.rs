@@ -94,7 +94,7 @@ impl View {
 
     /// Return view matrix made from target
     pub fn target(&self, target: Vec3) -> Mat4 {
-        self.target_up(target, Vec3::Z)
+        self.target_up(target, -Vec3::Y)
     }
 
     /// Return view matrix made from target and up vector
