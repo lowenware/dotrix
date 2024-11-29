@@ -33,8 +33,10 @@ cargo run --release
 We are using GLSL shaders. There is no auto-compilation to SPV right now, so please use `glslc`:
 
 ```
-glslc -fshader-stage=vertex src/models/shaders/non-rigged.vert.glsl -o src/models/shaders/non-rigged.vert.spv 
-glslc -fshader-stage=fragment src/models/shaders/non-rigged.frag.glsl -o src/models/shaders/non-rigged.frag.spv 
+glslc -fshader-stage=vertex src/models/shaders/only_mesh.vert.glsl -o src/models/shaders/only_mesh.vert.spv
+glslc -fshader-stage=fragment src/models/shaders/only_mesh.frag.glsl -o src/models/shaders/only_mesh.frag.spv
+glslc -fshader-stage=vertex src/models/shaders/skin_mesh.vert.glsl -o src/models/shaders/skin_mesh.vert.spv
+glslc -fshader-stage=fragment src/models/shaders/skin_mesh.frag.glsl -o src/models/shaders/skin_mesh.frag.spv
 ```
 
 ## Sponsors

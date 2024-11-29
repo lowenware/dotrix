@@ -34,7 +34,7 @@ winit = {version = "0.30.5", features = ["serde", "rwh_06"]}
 bitflags = "2.4.1"
 ash = "0.38.0"
 ash-window = "0.13.0"
-gltf = "1.4.0"
+gltf = "1.4.1"
 base64 = "0.22.0"
 glam = { version = "0.27.0", features = ["bytemuck"] }
 genmesh = "0.6.2"
@@ -42,4 +42,3 @@ genmesh = "0.6.2"
 [dev-dependencies]
 #noise = { version = "0.8" }
 #bytemuck = { version = "1.4", features = ["derive"] }
-
