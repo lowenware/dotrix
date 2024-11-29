@@ -1920,7 +1920,9 @@ impl Buffer {
         data: &[T],
     ) -> u64 {
         let align = std::mem::align_of::<T>() as u64;
-        let size = (data.len() * std::mem::size_of_val(data)) as u64;
+        let size = (data.len() * std::mem::size_of::<T>()) as u64;
+
+        log::debug!("map buffer: align({:?}), size({})", align, size);
 
         let memory_ptr = gpu
             .map_memory(

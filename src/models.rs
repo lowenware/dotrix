@@ -22,7 +22,7 @@ mod renderer;
 pub use renderer::{RenderModels, RenderModelsSetup};
 
 mod transforms;
-pub use transforms::{Transform, TransformBuilder};
+pub use transforms::{Transform, Transform3D, TransformBuilder};
 
 mod vertices;
 pub use vertices::{
@@ -30,7 +30,7 @@ pub use vertices::{
     VertexTexture, VertexWeights,
 };
 
-use crate::math::{Quat, Vec3};
+use crate::math::{Mat4, Quat, Vec3};
 use crate::utils::Id;
 use crate::world::Entity;
 
@@ -41,6 +41,7 @@ pub struct Model {
     pub translate: Vec3,
     pub scale: Vec3,
     pub rotate: Quat,
+    pub pose: Vec<Mat4>,
 }
 
 impl From<Model> for Entity {
@@ -49,7 +50,10 @@ impl From<Model> for Entity {
             model.mesh,
             model.material,
             model.armature,
-            Transform::new(model.translate, model.rotate, model.scale),
+            Transform::new(
+                Transform3D::new(model.translate, model.rotate, model.scale),
+                model.pose,
+            ),
         ))
     }
 }
@@ -63,6 +67,7 @@ impl Default for Model {
             translate: Vec3::new(0.0, 0.0, 0.0),
             scale: Vec3::new(1.0, 1.0, 1.0),
             rotate: Quat::IDENTITY,
+            pose: Vec::new(),
         }
     }
 }

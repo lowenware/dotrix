@@ -3,6 +3,7 @@ use crate::loaders::Asset;
 use crate::utils::Id;
 
 /// Material component
+#[derive(Debug)]
 pub struct Material {
     /// Label or material name
     pub name: String,
