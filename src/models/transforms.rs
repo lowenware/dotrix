@@ -35,8 +35,8 @@ impl TransformBuilder {
     }
 
     /// Builds the transformation
-    pub fn build(self) -> Transform {
-        let mut transform = Transform::default();
+    pub fn build(self) -> Transform3D {
+        let mut transform = Transform3D::default();
         if let Some(translate) = self.translate {
             transform.translate = translate;
         }
@@ -51,8 +51,26 @@ impl TransformBuilder {
 }
 
 /// Model transformation structure
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Transform {
+    /// Translation vector
+    pub model: Transform3D,
+    /// Joints matrices
+    pub armature: Vec<Mat4>,
+}
+
+impl Transform {
+    pub fn new(model: Transform3D, armature: Vec<Mat4>) -> Self {
+        Self { model, armature }
+    }
+    pub fn builder() -> TransformBuilder {
+        TransformBuilder::default()
+    }
+}
+
+/// Model transformation structure
+#[derive(Debug, Clone)]
+pub struct Transform3D {
     /// Translation vector
     pub translate: Vec3,
     /// Rotation quaternion
@@ -61,7 +79,7 @@ pub struct Transform {
     pub scale: Vec3,
 }
 
-impl Transform {
+impl Transform3D {
     /// Constructs new transformation with values that won't change the model
     pub fn new(translate: Vec3, rotate: Quat, scale: Vec3) -> Self {
         Self {
@@ -134,7 +152,7 @@ impl Transform {
  * }
  */
 
-impl Default for Transform {
+impl Default for Transform3D {
     fn default() -> Self {
         Self {
             translate: Vec3::new(0.0, 0.0, 0.0),

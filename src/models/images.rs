@@ -9,6 +9,7 @@ pub enum ImageFormat {
 }
 
 // Image in RGBA8 format
+#[derive(Debug)]
 pub struct Image {
     /// Image name
     name: String,

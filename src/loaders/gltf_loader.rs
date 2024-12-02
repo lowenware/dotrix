@@ -20,7 +20,7 @@ use crate::log;
 use crate::math::{Mat4, Quat, Vec3};
 use crate::models::{
     Animation, Armature, Color, Image, ImageFormat, Interpolation, Joint, Material, Mesh,
-    Transform, VertexJoints, VertexNormal, VertexPosition, VertexTexture, VertexWeights,
+    Transform3D, VertexJoints, VertexNormal, VertexPosition, VertexTexture, VertexWeights,
 };
 use crate::utils::Id;
 
@@ -236,7 +236,7 @@ impl GltfLoader {
         let id = Id::new();
 
         let (translation, rotation, scale) = node.transform().decomposed();
-        let local_bind_transform = Transform::new(
+        let local_bind_transform = Transform3D::new(
             Vec3::from(translation),
             // Quat::new(rotation[3], rotation[0], rotation[1], rotation[2]),
             Quat::from_xyzw(rotation[0], rotation[1], rotation[2], rotation[3]),
@@ -450,36 +450,39 @@ impl GltfLoader {
             let reader = channel.reader(|buffer| Some(&buffers[buffer.index()]));
             let outputs = reader.read_outputs();
             let timestamps = reader.read_inputs().unwrap().collect::<Vec<f32>>();
-            let joint_id = output
-                .loaded_joints
-                .get(&index)
-                .cloned()
-                .expect("Animation target joint does not exist");
-
-            match outputs.unwrap() {
-                gltf::animation::util::ReadOutputs::Translations(out) => asset
-                    .add_translation_channel(
+            if let Some(joint_id) = output.loaded_joints.get(&index).cloned() {
+                match outputs.unwrap() {
+                    gltf::animation::util::ReadOutputs::Translations(out) => asset
+                        .add_translation_channel(
+                            joint_id,
+                            interpolation,
+                            timestamps,
+                            out.map(Vec3::from).collect(),
+                        ),
+                    gltf::animation::util::ReadOutputs::Rotations(out) => asset
+                        .add_rotation_channel(
+                            joint_id,
+                            interpolation,
+                            timestamps,
+                            out.into_f32()
+                                .map(|q| Quat::from_xyzw(q[0], q[1], q[2], q[3]))
+                                .collect(),
+                        ),
+                    gltf::animation::util::ReadOutputs::Scales(out) => asset.add_scale_channel(
                         joint_id,
                         interpolation,
                         timestamps,
                         out.map(Vec3::from).collect(),
                     ),
-                gltf::animation::util::ReadOutputs::Rotations(out) => asset.add_rotation_channel(
-                    joint_id,
-                    interpolation,
-                    timestamps,
-                    out.into_f32()
-                        .map(|q| Quat::from_xyzw(q[0], q[1], q[2], q[3]))
-                        .collect(),
-                ),
-                gltf::animation::util::ReadOutputs::Scales(out) => asset.add_scale_channel(
-                    joint_id,
-                    interpolation,
-                    timestamps,
-                    out.map(Vec3::from).collect(),
-                ),
-                gltf::animation::util::ReadOutputs::MorphTargetWeights(ref _weights) => (),
-            };
+                    gltf::animation::util::ReadOutputs::MorphTargetWeights(ref _weights) => (),
+                };
+            } else {
+                log::warn!(
+                    "Animation {} refers target joint ({}), that does not exist",
+                    asset.name(),
+                    index
+                );
+            }
         }
 
         output.result.push(Box::new(asset));
