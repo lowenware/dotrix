@@ -26,6 +26,10 @@ impl Animation {
         }
     }
 
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
     /// Returns [`Duration`] of the animation
     pub fn duration(&self) -> Duration {
         self.duration
@@ -88,8 +92,15 @@ impl Animation {
 
     /// Samples the animeation at some keyframe (s) and returns a HashMap of
     /// [`crate::assets::Skin`] joint id to [`TransformBuilder`]
-    pub fn sample(&self, keyframe: f32) -> HashMap<Id<Joint>, TransformBuilder> {
+    pub fn sample(&self, timestamp: f32) -> HashMap<Id<Joint>, TransformBuilder> {
         let mut result = HashMap::new();
+        let duration_secs = self.duration.as_secs_f32();
+
+        let keyframe = if timestamp > duration_secs {
+            timestamp % duration_secs
+        } else {
+            timestamp
+        };
 
         for channel in &self.translation_channels {
             if let Some(transform) = channel.sample(keyframe) {
@@ -218,5 +229,127 @@ impl<T: Interpolate + Copy + Clone> Channel<T> {
             }
         }
         None
+    }
+}
+
+/// Animation player state
+///
+/// [`Duration`] contains current time offset from the beginning of the animation
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum AnimationState {
+    /// Animation is playing
+    Play(Duration),
+    /// Animation is looped
+    Loop(Duration),
+    /// Animation is stopped
+    Stop,
+}
+
+impl AnimationState {
+    pub fn play() -> Self {
+        AnimationState::Play(Duration::from_secs(0))
+    }
+
+    pub fn play_loop() -> Self {
+        AnimationState::Loop(Duration::from_secs(0))
+    }
+
+    pub fn stop() -> Self {
+        AnimationState::Stop
+    }
+}
+
+/// Component to control model animation
+pub struct AnimationPlayer {
+    animation: Id<Animation>,
+    state: AnimationState,
+    /// animation speed
+    speed: f32,
+}
+
+impl AnimationPlayer {
+    /// creates new component instance with specified animation with [`State::Stop`]
+    pub fn new(animation: Id<Animation>) -> Self {
+        Self {
+            animation,
+            state: AnimationState::stop(),
+            speed: 1.0,
+        }
+    }
+
+    /// creates new component instance with specified animation with [`State::Play`]
+    pub fn play(animation: Id<Animation>) -> Self {
+        Self {
+            animation,
+            state: AnimationState::play(),
+            speed: 1.0,
+        }
+    }
+
+    /// creates new component instance with specified animation with [`State::Loop`]
+    pub fn looped(animation: Id<Animation>) -> Self {
+        Self {
+            animation,
+            state: AnimationState::play_loop(),
+            speed: 1.0,
+        }
+    }
+
+    /// Starts current animation
+    pub fn start(&mut self) {
+        self.state = AnimationState::play();
+    }
+
+    /// Starts current animation looped
+    pub fn start_loop(&mut self) {
+        self.state = AnimationState::play_loop();
+    }
+
+    /// Stops current animation
+    pub fn stop(&mut self) {
+        self.state = AnimationState::stop();
+    }
+
+    /// Changes current animation
+    pub fn animate(&mut self, animation: Id<Animation>) {
+        self.animation = animation;
+        self.state = AnimationState::stop();
+    }
+
+    /// Returns current animation [`Id`]
+    pub fn animation(&self) -> Id<Animation> {
+        self.animation
+    }
+
+    /// Returns current [`State`]
+    pub fn state(&self) -> AnimationState {
+        self.state
+    }
+
+    pub fn update(&mut self, delta: Duration, duration: Duration) -> Option<Duration> {
+        let (state, duration) = match self.state {
+            AnimationState::Play(current) => {
+                let new_duration = current + delta.mul_f32(self.speed);
+                let state = if new_duration < duration {
+                    AnimationState::Play(new_duration)
+                } else {
+                    AnimationState::Stop
+                };
+                (state, Some(new_duration))
+            }
+            AnimationState::Loop(current) => {
+                let mut new_duration = current + delta.mul_f32(self.speed);
+                if !(new_duration < duration) {
+                    new_duration = Duration::from_secs_f32(
+                        new_duration.as_secs_f32() % duration.as_secs_f32(),
+                    );
+                }
+                let state = AnimationState::Loop(new_duration);
+                (state, Some(new_duration))
+            }
+            AnimationState::Stop => (AnimationState::Stop, None),
+        };
+        self.state = state;
+        duration
     }
 }

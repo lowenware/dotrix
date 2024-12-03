@@ -1,5 +1,5 @@
 mod animations;
-pub use animations::{Animation, Interpolation};
+pub use animations::{Animation, AnimationPlayer, AnimationState, Interpolation};
 
 mod armatures;
 pub use armatures::{Armature, Joint};
@@ -42,11 +42,13 @@ pub struct Model {
     pub scale: Vec3,
     pub rotate: Quat,
     pub pose: Vec<Mat4>,
+    pub animation: Option<AnimationPlayer>,
 }
 
 impl From<Model> for Entity {
     fn from(model: Model) -> Self {
-        Entity::new((
+        let animation = model.animation;
+        let mut entity = Entity::new((
             model.mesh,
             model.material,
             model.armature,
@@ -54,7 +56,13 @@ impl From<Model> for Entity {
                 Transform3D::new(model.translate, model.rotate, model.scale),
                 model.pose,
             ),
-        ))
+        ));
+
+        if let Some(player) = animation {
+            entity = entity.with(player);
+        }
+
+        entity
     }
 }
 
@@ -68,6 +76,7 @@ impl Default for Model {
             scale: Vec3::new(1.0, 1.0, 1.0),
             rotate: Quat::IDENTITY,
             pose: Vec::new(),
+            animation: None,
         }
     }
 }
