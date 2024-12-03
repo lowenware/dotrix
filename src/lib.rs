@@ -29,9 +29,9 @@ pub mod math;
 /// Models abstractions
 pub mod models;
 pub use models::{
-    Animation, Armature, Color, Image, Joint, Material, Mesh, Model, RenderModels, Transform,
-    VertexAttribute, VertexBitangent, VertexJoints, VertexNormal, VertexPosition, VertexTangent,
-    VertexTexture, VertexWeights,
+    Animation, AnimationPlayer, AnimationState, Armature, Color, Image, Joint, Material, Mesh,
+    Model, RenderModels, Transform, VertexAttribute, VertexBitangent, VertexJoints, VertexNormal,
+    VertexPosition, VertexTangent, VertexTexture, VertexWeights,
 };
 
 /// Rendering tools and routines

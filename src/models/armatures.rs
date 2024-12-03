@@ -34,7 +34,6 @@ impl Armature {
 
     pub fn transform(
         &self,
-        // model_transform: &Mat4,
         joint_local_transforms: Option<HashMap<Id<Joint>, TransformBuilder>>,
     ) -> Vec<Mat4> {
         let mut result = vec![Mat4::IDENTITY; self.joints.len()];
@@ -59,11 +58,6 @@ impl Armature {
                     .matrix();
 
             result[joint_index] = global_joint_transform;
-            // joint
-            //    .inverse_bind_matrix
-            //    .as_ref()
-            //    .map(|&inverse_bind_matrix| global_joint_transform * inverse_bind_matrix)
-            //    .unwrap_or(global_joint_transform);
         }
 
         result
@@ -84,34 +78,6 @@ impl Armature {
             .collect::<Vec<_>>()
     }
 }
-/*
-pub fn transform(
-        &self,
-        skin_transform: &mut Pose,
-        model_transform: &Mat4,
-        local_transforms: Option<HashMap<JointId, TransformBuilder>>,
-    ) {
-        for (i, joint) in self.joints.iter().enumerate() {
-            let parent_transform = joint
-                .parent_id
-                .map(|parent_id| skin_transform.joints[self.index(parent_id)].global_transform)
-                .or(Some(*model_transform))
-                .unwrap();
-
-            let local_transform = local_transforms
-                .as_ref()
-                .map(|l| l.get(&joint.id))
-                .unwrap_or(None);
-
-            if i < skin_transform.joints.len() {
-                skin_transform.joints[i] = joint.transform(&parent_transform, local_transform);
-            } else {
-                panic!("Joints count exceeds limit of {:?}", MAX_JOINTS);
-            }
-        }
-    }
-
-    */
 
 #[derive(Default, Debug, Clone)]
 /// Joint data structure
