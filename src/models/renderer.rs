@@ -5,7 +5,7 @@ use std::io::Cursor;
 use crate::graphics::vk;
 use crate::graphics::{Buffer, RenderPass};
 use crate::loaders::Assets;
-use crate::math::{Mat4, Vec3};
+use crate::models::materials::MAX_MATERIAL_IMAGES;
 use crate::utils::Id;
 use crate::world::{Camera, Entity, World};
 use crate::{log, VertexJoints, VertexWeights};
@@ -21,8 +21,6 @@ use super::{
 pub struct LayoutInBuffer {
     /// Offset inside of the buffer in bytes
     pub offset: u64,
-    /// Size of the buffer used for the mesh data
-    pub size: u64,
     /// Offset of the first item (vertex or index)
     pub base: u32,
     /// Number of items (vertices or indices)
@@ -102,6 +100,20 @@ pub struct RenderModels {
     material_buffer_index: HashMap<Id<Material>, u32>,
     /// Materials buffer data
     material_buffer_data: Vec<MaterialUniform>,
+    /// Material sampler
+    material_sampler: vk::Sampler,
+    /// Material image view
+    material_image_view: vk::ImageView,
+    /// Material image memory
+    material_image_memory: vk::DeviceMemory,
+    /// Material image
+    material_image: vk::Image,
+    /// Buffer to copy material images to material_image
+    material_staging_buffer: Buffer,
+    /// Number of layers in material image buffer
+    material_layer_count: u32,
+    /// Usage of layers in material image buffer
+    material_layer_usage: u32,
     /// Mesh layouts of non-rigged models
     mesh_registry: HashMap<Id<Mesh>, MeshLayout>,
     /// descriptor sets
@@ -166,6 +178,18 @@ impl Drop for RenderModels {
             self.instance_buffer.free_memory_and_destroy(&self.gpu);
             self.material_buffer.free_memory_and_destroy(&self.gpu);
             self.transform_buffer.free_memory_and_destroy(&self.gpu);
+            self.material_staging_buffer
+                .free_memory_and_destroy(&self.gpu);
+
+            // samplers
+            self.gpu.destroy_sampler(self.material_sampler);
+
+            // image views
+            self.gpu.destroy_image_view(self.material_image_view);
+
+            // images and memory
+            self.gpu.free_memory(self.material_image_memory);
+            self.gpu.destroy_image(self.material_image);
 
             // descriptors
             for &descriptor_set_layout in self.desc_set_layouts.iter() {
@@ -398,6 +422,101 @@ impl RenderModels {
             Self::load_shader_module(&gpu, include_bytes!("shaders/skin_mesh.frag.spv"))
                 .expect("Failed to load skin-mesh fragment shader module")
         };
+        let material_sampler_create_info = vk::SamplerCreateInfo {
+            mag_filter: vk::Filter::LINEAR,
+            min_filter: vk::Filter::LINEAR,
+            mipmap_mode: vk::SamplerMipmapMode::LINEAR,
+            address_mode_u: vk::SamplerAddressMode::MIRRORED_REPEAT,
+            address_mode_v: vk::SamplerAddressMode::MIRRORED_REPEAT,
+            address_mode_w: vk::SamplerAddressMode::MIRRORED_REPEAT,
+            max_anisotropy: 1.0,
+            border_color: vk::BorderColor::FLOAT_OPAQUE_WHITE,
+            compare_op: vk::CompareOp::NEVER,
+            ..Default::default()
+        };
+
+        let material_sampler = unsafe {
+            gpu.create_sampler(&material_sampler_create_info)
+                .expect("Failed to create materials sampler")
+        };
+
+        let material_layer_count = setup.material_count * MAX_MATERIAL_IMAGES;
+
+        let material_image_create_info = vk::ImageCreateInfo {
+            image_type: vk::ImageType::TYPE_2D,
+            format: vk::Format::R8G8B8A8_UNORM,
+            extent: vk::Extent3D {
+                width: setup.material_image_size.width,
+                height: setup.material_image_size.height,
+                depth: 1,
+            },
+            mip_levels: 1,
+            array_layers: material_layer_count,
+            samples: vk::SampleCountFlags::TYPE_1,
+            tiling: vk::ImageTiling::OPTIMAL,
+            usage: vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED,
+            sharing_mode: vk::SharingMode::EXCLUSIVE,
+            ..Default::default()
+        };
+        let material_image = unsafe {
+            gpu.create_image(&material_image_create_info)
+                .expect("Failed to create material image")
+        };
+        let material_image_memory_req =
+            unsafe { gpu.get_image_memory_requirements(material_image) };
+        let material_image_memory_index = gpu
+            .find_memory_type_index(
+                &material_image_memory_req,
+                vk::MemoryPropertyFlags::DEVICE_LOCAL,
+            )
+            .expect("Unable to find suitable memory index for depth image.");
+
+        let material_image_allocate_info = vk::MemoryAllocateInfo {
+            allocation_size: material_image_memory_req.size,
+            memory_type_index: material_image_memory_index,
+            ..Default::default()
+        };
+        let material_image_memory = unsafe {
+            gpu.allocate_memory(&material_image_allocate_info)
+                .expect("Failed to allocate material image")
+        };
+        unsafe {
+            gpu.bind_image_memory(material_image, material_image_memory, 0)
+                .expect("Unable to bind depth image memory");
+        };
+
+        let material_image_view_info = vk::ImageViewCreateInfo {
+            view_type: vk::ImageViewType::TYPE_2D,
+            format: material_image_create_info.format,
+            components: vk::ComponentMapping {
+                r: vk::ComponentSwizzle::R,
+                g: vk::ComponentSwizzle::G,
+                b: vk::ComponentSwizzle::B,
+                a: vk::ComponentSwizzle::A,
+            },
+            subresource_range: vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                level_count: 1,
+                layer_count: material_layer_count,
+                ..Default::default()
+            },
+            image: material_image,
+            ..Default::default()
+        };
+        let material_image_view = unsafe {
+            gpu.create_image_view(&material_image_view_info)
+                .expect("Failed to create material image view")
+        };
+
+        let material_staging_buffer_size = MAX_MATERIAL_IMAGES
+            * setup.material_image_size.width
+            * setup.material_image_size.height
+            * std::mem::size_of::<u32>() as u32;
+
+        let material_staging_buffer = unsafe {
+            Self::create_storage_buffer(&gpu, material_staging_buffer_size as u64)
+                .expect("Could not allocate material staging buffer")
+        };
 
         // bindings layout
         let descriptor_sizes = [
@@ -421,10 +540,11 @@ impl RenderModels {
                 ty: vk::DescriptorType::STORAGE_BUFFER,
                 descriptor_count: 1,
             },
-            // vk::DescriptorPoolSize {
-            //    ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
-            //    descriptor_count: 1,
-            // },
+            // Materials textures sampler
+            vk::DescriptorPoolSize {
+                ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+                descriptor_count: 1,
+            },
         ];
         let descriptor_pool_info = vk::DescriptorPoolCreateInfo::default()
             .pool_sizes(&descriptor_sizes)
@@ -464,14 +584,14 @@ impl RenderModels {
                 stage_flags: vk::ShaderStageFlags::VERTEX,
                 ..Default::default()
             },
-            // Materials
-            //vk::DescriptorSetLayoutBinding {
-            //    binding: 1,
-            //    descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
-            //    descriptor_count: 1,
-            //    stage_flags: vk::ShaderStageFlags::FRAGMENT,
-            //    ..Default::default()
-            //},
+            // Materials textures sampler
+            vk::DescriptorSetLayoutBinding {
+                binding: 4,
+                descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+                descriptor_count: 1,
+                stage_flags: vk::ShaderStageFlags::FRAGMENT,
+                ..Default::default()
+            },
         ];
         let descriptor_info =
             vk::DescriptorSetLayoutCreateInfo::default().bindings(&desc_layout_bindings);
@@ -507,11 +627,11 @@ impl RenderModels {
             offset: 0,
             range: transform_buffer.size,
         };
-        // let tex_descriptor = vk::DescriptorImageInfo {
-        //    image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-        //    image_view: tex_image_view,
-        //    sampler,
-        // };
+        let tex_descriptor = vk::DescriptorImageInfo {
+            image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            image_view: material_image_view,
+            sampler: material_sampler,
+        };
 
         let only_mesh_write_desc_sets = [
             vk::WriteDescriptorSet {
@@ -546,14 +666,14 @@ impl RenderModels {
                 p_buffer_info: &transform_storage_buffer_descriptor,
                 ..Default::default()
             },
-            //vk::WriteDescriptorSet {
-            //    dst_set: descriptor_sets[0],
-            //    dst_binding: 1,
-            //    descriptor_count: 1,
-            //    descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
-            //    p_image_info: &tex_descriptor,
-            //    ..Default::default()
-            //},
+            vk::WriteDescriptorSet {
+                dst_binding: 4,
+                dst_set: descriptor_sets[0],
+                descriptor_count: 1,
+                descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+                p_image_info: &tex_descriptor,
+                ..Default::default()
+            },
         ];
 
         unsafe {
@@ -598,6 +718,13 @@ impl RenderModels {
             transform_buffer,
             material_buffer_index: HashMap::new(),
             material_buffer_data: Vec::new(),
+            material_sampler,
+            material_image_view,
+            material_image,
+            material_image_memory,
+            material_staging_buffer,
+            material_layer_count,
+            material_layer_usage: 0,
             mesh_registry: HashMap::new(),
             descriptor_pool,
             desc_set_layouts,
@@ -983,7 +1110,6 @@ impl RenderModels {
                 });
 
             if let Some((vertex_data, vertex_size, has_skin)) = vertex_data_and_skin_info {
-                let data_size = vertex_data.len() as u64;
                 let vertex_offset = if has_skin {
                     self.vertex_buffer_skin_mesh_usage
                 } else {
@@ -994,13 +1120,11 @@ impl RenderModels {
                 let mesh_layout = MeshLayout {
                     vertices: LayoutInBuffer {
                         offset: vertex_offset,
-                        size: data_size,
                         base: (vertex_offset / vertex_size) as u32,
                         count: mesh.count_vertices() as u32,
                     },
                     indices: index_data.map(|data| LayoutInBuffer {
                         offset: self.index_buffer_usage,
-                        size: (data.len() * std::mem::size_of::<u32>()) as u64,
                         base: (self.index_buffer_usage / (std::mem::size_of::<u32>() as u64))
                             as u32,
                         count: data.len() as u32,
@@ -1072,21 +1196,32 @@ impl RenderModels {
     }
 
     fn register_material(&mut self, material_id: Id<Material>, assets: &Assets) -> Option<u32> {
-        assets.get(material_id).and_then(|material| {
-            self.material_buffer_index
-                .get(&material_id)
-                .cloned()
-                .or_else(|| {
-                    let index = self.material_buffer_index.len() as u32;
-                    self.material_buffer_data.push(MaterialUniform::default());
-                    self.material_buffer_index.insert(material_id, index);
-                    Some(index)
-                })
-                .map(|material_index| {
-                    self.material_buffer_data[material_index as usize] = material.into();
-                    material_index
-                })
-        })
+        let material_uniform: MaterialUniform = if let Some(material) = assets.get(material_id) {
+            material.into()
+        } else {
+            return None;
+        };
+        // NOTE: most likely there will be need of having an index for relations
+        // between Id<Image> and material layer index
+        let material_index = self
+            .material_buffer_index
+            .get(&material_id)
+            .cloned()
+            .map(|material_index| {
+                let i = material_index as usize;
+                self.material_buffer_data[i].color = material_uniform.color;
+                self.material_buffer_data[i].options = material_uniform.options;
+                material_index
+            })
+            .unwrap_or_else(|| {
+                let material_index = self.material_buffer_index.len() as u32;
+                self.material_buffer_data.push(material_uniform);
+                self.material_buffer_index
+                    .insert(material_id, material_index);
+                material_index
+            });
+
+        Some(material_index)
     }
 
     /// Returns Buffer, binded memory and allocated size
@@ -1745,6 +1880,8 @@ pub struct RenderModelsSetup {
     instance_buffer_size: u64,
     material_buffer_size: u64,
     transform_buffer_size: u64,
+    material_count: u32,
+    material_image_size: Extent2D,
 }
 
 impl Default for RenderModelsSetup {
@@ -1760,6 +1897,11 @@ impl Default for RenderModelsSetup {
             instance_buffer_size: 1000 * std::mem::size_of::<InstanceUniform>() as u64,
             material_buffer_size: 1000 * std::mem::size_of::<MaterialUniform>() as u64,
             transform_buffer_size: 1000 * std::mem::size_of::<TransformUniform>() as u64,
+            material_count: 2,
+            material_image_size: Extent2D {
+                width: 1024,
+                height: 1024,
+            },
         }
     }
 }
