@@ -5,11 +5,11 @@ use std::io::Cursor;
 use crate::graphics::vk;
 use crate::graphics::{Buffer, RenderPass};
 use crate::loaders::Assets;
-use crate::math::{Mat4, Vec3};
+use crate::models::materials::MAX_MATERIAL_IMAGES;
 use crate::utils::Id;
 use crate::world::{Camera, Entity, World};
 use crate::{log, VertexJoints, VertexWeights};
-use crate::{Any, Asset, Display, Extent2D, Frame, Gpu, Ref, Task};
+use crate::{Any, Asset, Display, Extent2D, Frame, Gpu, Image, Ref, Task};
 
 use super::materials::MaterialUniform;
 use super::{
@@ -21,8 +21,6 @@ use super::{
 pub struct LayoutInBuffer {
     /// Offset inside of the buffer in bytes
     pub offset: u64,
-    /// Size of the buffer used for the mesh data
-    pub size: u64,
     /// Offset of the first item (vertex or index)
     pub base: u32,
     /// Number of items (vertices or indices)
@@ -102,6 +100,23 @@ pub struct RenderModels {
     material_buffer_index: HashMap<Id<Material>, u32>,
     /// Materials buffer data
     material_buffer_data: Vec<MaterialUniform>,
+    /// Material sampler
+    material_sampler: vk::Sampler,
+    /// Material image view
+    material_image_view: vk::ImageView,
+    /// Material image memory
+    material_image_memory: vk::DeviceMemory,
+    /// Material image
+    material_image: vk::Image,
+    /// Buffer to copy material images to material_image
+    material_staging_buffer: Buffer,
+    /// Number of layers in material image buffer
+    material_layer_count: u32,
+    material_layer_size: Extent2D,
+    /// Material layer index in the material_image
+    material_layer_index: HashMap<Id<Image>, usize>,
+    /// Usage of layers in material image buffer
+    material_layer_usage: u32,
     /// Mesh layouts of non-rigged models
     mesh_registry: HashMap<Id<Mesh>, MeshLayout>,
     /// descriptor sets
@@ -166,6 +181,18 @@ impl Drop for RenderModels {
             self.instance_buffer.free_memory_and_destroy(&self.gpu);
             self.material_buffer.free_memory_and_destroy(&self.gpu);
             self.transform_buffer.free_memory_and_destroy(&self.gpu);
+            self.material_staging_buffer
+                .free_memory_and_destroy(&self.gpu);
+
+            // samplers
+            self.gpu.destroy_sampler(self.material_sampler);
+
+            // image views
+            self.gpu.destroy_image_view(self.material_image_view);
+
+            // images and memory
+            self.gpu.free_memory(self.material_image_memory);
+            self.gpu.destroy_image(self.material_image);
 
             // descriptors
             for &descriptor_set_layout in self.desc_set_layouts.iter() {
@@ -398,6 +425,101 @@ impl RenderModels {
             Self::load_shader_module(&gpu, include_bytes!("shaders/skin_mesh.frag.spv"))
                 .expect("Failed to load skin-mesh fragment shader module")
         };
+        let material_sampler_create_info = vk::SamplerCreateInfo {
+            mag_filter: vk::Filter::LINEAR,
+            min_filter: vk::Filter::LINEAR,
+            mipmap_mode: vk::SamplerMipmapMode::LINEAR,
+            address_mode_u: vk::SamplerAddressMode::MIRRORED_REPEAT,
+            address_mode_v: vk::SamplerAddressMode::MIRRORED_REPEAT,
+            address_mode_w: vk::SamplerAddressMode::MIRRORED_REPEAT,
+            max_anisotropy: 1.0,
+            border_color: vk::BorderColor::FLOAT_OPAQUE_WHITE,
+            compare_op: vk::CompareOp::NEVER,
+            ..Default::default()
+        };
+
+        let material_sampler = unsafe {
+            gpu.create_sampler(&material_sampler_create_info)
+                .expect("Failed to create materials sampler")
+        };
+
+        let material_layer_count = setup.material_count * MAX_MATERIAL_IMAGES;
+
+        let material_image_create_info = vk::ImageCreateInfo {
+            image_type: vk::ImageType::TYPE_2D,
+            format: vk::Format::R8G8B8A8_UNORM,
+            extent: vk::Extent3D {
+                width: setup.material_image_size.width,
+                height: setup.material_image_size.height,
+                depth: 1,
+            },
+            mip_levels: 1,
+            array_layers: material_layer_count,
+            samples: vk::SampleCountFlags::TYPE_1,
+            tiling: vk::ImageTiling::OPTIMAL,
+            usage: vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED,
+            sharing_mode: vk::SharingMode::EXCLUSIVE,
+            ..Default::default()
+        };
+        let material_image = unsafe {
+            gpu.create_image(&material_image_create_info)
+                .expect("Failed to create material image")
+        };
+        let material_image_memory_req =
+            unsafe { gpu.get_image_memory_requirements(material_image) };
+        let material_image_memory_index = gpu
+            .find_memory_type_index(
+                &material_image_memory_req,
+                vk::MemoryPropertyFlags::DEVICE_LOCAL,
+            )
+            .expect("Unable to find suitable memory index for depth image.");
+
+        let material_image_allocate_info = vk::MemoryAllocateInfo {
+            allocation_size: material_image_memory_req.size,
+            memory_type_index: material_image_memory_index,
+            ..Default::default()
+        };
+        let material_image_memory = unsafe {
+            gpu.allocate_memory(&material_image_allocate_info)
+                .expect("Failed to allocate material image")
+        };
+        unsafe {
+            gpu.bind_image_memory(material_image, material_image_memory, 0)
+                .expect("Unable to bind depth image memory");
+        };
+
+        let material_image_view_info = vk::ImageViewCreateInfo {
+            view_type: vk::ImageViewType::TYPE_2D_ARRAY,
+            format: material_image_create_info.format,
+            components: vk::ComponentMapping {
+                r: vk::ComponentSwizzle::R,
+                g: vk::ComponentSwizzle::G,
+                b: vk::ComponentSwizzle::B,
+                a: vk::ComponentSwizzle::A,
+            },
+            subresource_range: vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                level_count: 1,
+                layer_count: material_layer_count,
+                ..Default::default()
+            },
+            image: material_image,
+            ..Default::default()
+        };
+        let material_image_view = unsafe {
+            gpu.create_image_view(&material_image_view_info)
+                .expect("Failed to create material image view")
+        };
+
+        let material_staging_buffer_size = MAX_MATERIAL_IMAGES
+            * setup.material_image_size.width
+            * setup.material_image_size.height
+            * std::mem::size_of::<u32>() as u32;
+
+        let material_staging_buffer = unsafe {
+            Self::create_transfer_buffer(&gpu, material_staging_buffer_size as u64)
+                .expect("Could not allocate material staging buffer")
+        };
 
         // bindings layout
         let descriptor_sizes = [
@@ -421,10 +543,11 @@ impl RenderModels {
                 ty: vk::DescriptorType::STORAGE_BUFFER,
                 descriptor_count: 1,
             },
-            // vk::DescriptorPoolSize {
-            //    ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
-            //    descriptor_count: 1,
-            // },
+            // Materials textures sampler
+            vk::DescriptorPoolSize {
+                ty: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+                descriptor_count: 1,
+            },
         ];
         let descriptor_pool_info = vk::DescriptorPoolCreateInfo::default()
             .pool_sizes(&descriptor_sizes)
@@ -445,7 +568,7 @@ impl RenderModels {
                 binding: 1,
                 descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
                 descriptor_count: 1,
-                stage_flags: vk::ShaderStageFlags::VERTEX,
+                stage_flags: vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
                 ..Default::default()
             },
             // Material
@@ -453,7 +576,7 @@ impl RenderModels {
                 binding: 2,
                 descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
                 descriptor_count: 1,
-                stage_flags: vk::ShaderStageFlags::VERTEX,
+                stage_flags: vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
                 ..Default::default()
             },
             // Transform
@@ -464,14 +587,14 @@ impl RenderModels {
                 stage_flags: vk::ShaderStageFlags::VERTEX,
                 ..Default::default()
             },
-            // Materials
-            //vk::DescriptorSetLayoutBinding {
-            //    binding: 1,
-            //    descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
-            //    descriptor_count: 1,
-            //    stage_flags: vk::ShaderStageFlags::FRAGMENT,
-            //    ..Default::default()
-            //},
+            // Materials textures sampler
+            vk::DescriptorSetLayoutBinding {
+                binding: 4,
+                descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+                descriptor_count: 1,
+                stage_flags: vk::ShaderStageFlags::FRAGMENT,
+                ..Default::default()
+            },
         ];
         let descriptor_info =
             vk::DescriptorSetLayoutCreateInfo::default().bindings(&desc_layout_bindings);
@@ -507,11 +630,11 @@ impl RenderModels {
             offset: 0,
             range: transform_buffer.size,
         };
-        // let tex_descriptor = vk::DescriptorImageInfo {
-        //    image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-        //    image_view: tex_image_view,
-        //    sampler,
-        // };
+        let tex_descriptor = vk::DescriptorImageInfo {
+            image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            image_view: material_image_view,
+            sampler: material_sampler,
+        };
 
         let only_mesh_write_desc_sets = [
             vk::WriteDescriptorSet {
@@ -546,14 +669,14 @@ impl RenderModels {
                 p_buffer_info: &transform_storage_buffer_descriptor,
                 ..Default::default()
             },
-            //vk::WriteDescriptorSet {
-            //    dst_set: descriptor_sets[0],
-            //    dst_binding: 1,
-            //    descriptor_count: 1,
-            //    descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
-            //    p_image_info: &tex_descriptor,
-            //    ..Default::default()
-            //},
+            vk::WriteDescriptorSet {
+                dst_binding: 4,
+                dst_set: descriptor_sets[0],
+                descriptor_count: 1,
+                descriptor_type: vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+                p_image_info: &tex_descriptor,
+                ..Default::default()
+            },
         ];
 
         unsafe {
@@ -598,6 +721,15 @@ impl RenderModels {
             transform_buffer,
             material_buffer_index: HashMap::new(),
             material_buffer_data: Vec::new(),
+            material_sampler,
+            material_image_view,
+            material_image,
+            material_image_memory,
+            material_staging_buffer,
+            material_layer_count,
+            material_layer_usage: 0,
+            material_layer_index: HashMap::new(),
+            material_layer_size: setup.material_image_size,
             mesh_registry: HashMap::new(),
             descriptor_pool,
             desc_set_layouts,
@@ -983,7 +1115,6 @@ impl RenderModels {
                 });
 
             if let Some((vertex_data, vertex_size, has_skin)) = vertex_data_and_skin_info {
-                let data_size = vertex_data.len() as u64;
                 let vertex_offset = if has_skin {
                     self.vertex_buffer_skin_mesh_usage
                 } else {
@@ -994,13 +1125,11 @@ impl RenderModels {
                 let mesh_layout = MeshLayout {
                     vertices: LayoutInBuffer {
                         offset: vertex_offset,
-                        size: data_size,
                         base: (vertex_offset / vertex_size) as u32,
                         count: mesh.count_vertices() as u32,
                     },
                     indices: index_data.map(|data| LayoutInBuffer {
                         offset: self.index_buffer_usage,
-                        size: (data.len() * std::mem::size_of::<u32>()) as u64,
                         base: (self.index_buffer_usage / (std::mem::size_of::<u32>() as u64))
                             as u32,
                         count: data.len() as u32,
@@ -1072,21 +1201,212 @@ impl RenderModels {
     }
 
     fn register_material(&mut self, material_id: Id<Material>, assets: &Assets) -> Option<u32> {
-        assets.get(material_id).and_then(|material| {
-            self.material_buffer_index
-                .get(&material_id)
-                .cloned()
-                .or_else(|| {
-                    let index = self.material_buffer_index.len() as u32;
-                    self.material_buffer_data.push(MaterialUniform::default());
-                    self.material_buffer_index.insert(material_id, index);
-                    Some(index)
+        let material_uniform: MaterialUniform = if let Some(material) = assets.get(material_id) {
+            let mut staging_layer_count: u32 = 0;
+            let (albedo_map_index, base_array_layer) = assets
+                .get(material.albedo_map)
+                .map(|image| {
+                    let base_array_layer = self.material_layer_index.len();
+                    if !self.material_layer_index.contains_key(&material.albedo_map) {
+                        // write to buffer
+                        // TODO: verify material extent
+                        unsafe {
+                            self.material_staging_buffer.map_and_write_to_device_memory(
+                                &self.gpu,
+                                (staging_layer_count
+                                    * self.material_layer_size.width
+                                    * self.material_layer_size.height
+                                    * std::mem::size_of::<u32>() as u32)
+                                    as u64,
+                                image.data(),
+                            );
+                        };
+                        self.material_layer_index
+                            .insert(material.albedo_map, base_array_layer);
+                        staging_layer_count += 1;
+                    }
+                    let albedo_map_index = self
+                        .material_layer_index
+                        .get(&material.albedo_map)
+                        .cloned()
+                        .expect("Layer index must be inserted at this stage")
+                        as u32;
+                    (albedo_map_index, base_array_layer)
                 })
-                .map(|material_index| {
-                    self.material_buffer_data[material_index as usize] = material.into();
-                    material_index
-                })
-        })
+                .unwrap_or((0, 0));
+            // flush material staging buffer
+            unsafe {
+                self.flush_material_staging_buffer(staging_layer_count, base_array_layer as u32);
+            };
+            let mut material_uniform: MaterialUniform = material.into();
+            material_uniform.maps_1 = [
+                albedo_map_index,
+                std::u32::MAX,
+                std::u32::MAX,
+                std::u32::MAX,
+            ];
+            material_uniform.maps_2 = [std::u32::MAX; 4];
+            material_uniform
+        } else {
+            return None;
+        };
+        // NOTE: most likely there will be need of having an index for relations
+        // between Id<Image> and material layer index
+        self.material_buffer_index
+            .get(&material_id)
+            .cloned()
+            .map(|material_index| {
+                self.material_buffer_data[material_index as usize] = material_uniform;
+                material_index
+            })
+            .or_else(|| {
+                let material_index = self.material_buffer_index.len() as u32;
+                self.material_buffer_data.push(material_uniform);
+                self.material_buffer_index
+                    .insert(material_id, material_index);
+                Some(material_index)
+            })
+    }
+
+    unsafe fn flush_material_staging_buffer(
+        &self,
+        staging_layer_count: u32,
+        base_array_layer: u32,
+    ) {
+        if staging_layer_count == 0 {
+            return;
+        }
+        log::debug!("copy material to vk:Image ({} layers)", staging_layer_count);
+        // begin
+        self.gpu
+            .wait_for_fences(&[self.command_buffer_setup_reuse_fence], true, u64::MAX)
+            .expect("Wait for fence failed.");
+
+        self.gpu
+            .reset_fences(&[self.command_buffer_setup_reuse_fence])
+            .expect("Reset fences failed.");
+
+        self.gpu
+            .reset_command_buffer(
+                self.command_buffer_setup,
+                vk::CommandBufferResetFlags::RELEASE_RESOURCES,
+            )
+            .expect("Reset command buffer failed.");
+
+        let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+        self.gpu
+            .begin_command_buffer(self.command_buffer_setup, &command_buffer_begin_info)
+            .expect("Begin commandbuffer");
+
+        // Command buffer
+        // let buffer_copy_regions = (0..staging_layer_count)
+        //    .into_iter()
+        //    .map(|_| {
+        //        vk::BufferImageCopy::default()
+        //            .image_subresource(
+        //                vk::ImageSubresourceLayers::default()
+        //                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+        //                    .base_array_layer(base_array_layer)
+        //                    .layer_count(1),
+        //            )
+        //            .image_extent(vk::Extent3D {
+        //                width: self.material_layer_size.width,
+        //                height: self.material_layer_size.height,
+        //                depth: 1,
+        //            })
+        //    })
+        //    .collect::<Vec<_>>();
+        let buffer_copy_regions = [vk::BufferImageCopy::default()
+            .image_subresource(
+                vk::ImageSubresourceLayers::default()
+                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+                    .base_array_layer(base_array_layer)
+                    .layer_count(staging_layer_count),
+            )
+            .image_extent(vk::Extent3D {
+                width: self.material_layer_size.width,
+                height: self.material_layer_size.height,
+                depth: 1,
+            })];
+        let texture_barrier = vk::ImageMemoryBarrier {
+            dst_access_mask: vk::AccessFlags::TRANSFER_WRITE,
+            new_layout: vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            image: self.material_image,
+            subresource_range: vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                level_count: 1,
+                layer_count: self.material_layer_count, // TODO: shouldn't there be total number?
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        self.gpu.cmd_pipeline_barrier(
+            self.command_buffer_setup,
+            vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+            vk::PipelineStageFlags::TRANSFER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            &[texture_barrier],
+        );
+        self.gpu.cmd_copy_buffer_to_image(
+            self.command_buffer_setup,
+            self.material_staging_buffer.handle,
+            self.material_image,
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            buffer_copy_regions.as_slice(),
+        );
+        let texture_barrier_end = vk::ImageMemoryBarrier {
+            src_access_mask: vk::AccessFlags::TRANSFER_WRITE,
+            dst_access_mask: vk::AccessFlags::SHADER_READ,
+            old_layout: vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            new_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL, // TODO: shouldn't there be total number?
+            image: self.material_image,
+            subresource_range: vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                level_count: 1,
+                layer_count: self.material_layer_count,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        self.gpu.cmd_pipeline_barrier(
+            self.command_buffer_setup,
+            vk::PipelineStageFlags::TRANSFER,
+            vk::PipelineStageFlags::FRAGMENT_SHADER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            &[texture_barrier_end],
+        );
+        // end
+        self.gpu
+            .end_command_buffer(self.command_buffer_setup)
+            .expect("End commandbuffer");
+
+        let command_buffers = vec![self.command_buffer_setup];
+        let wait_semaphores = [];
+        let wait_mask = [];
+        let signal_semaphores = [];
+
+        let submit_info = vk::SubmitInfo::default()
+            .wait_semaphores(&wait_semaphores)
+            .wait_dst_stage_mask(&wait_mask)
+            .command_buffers(&command_buffers)
+            .signal_semaphores(&signal_semaphores);
+
+        log::debug!("submit image copy");
+        self.gpu
+            .submit_queue(&[submit_info], self.command_buffer_setup_reuse_fence)
+            .expect("queue submit failed.");
+        // wait
+        let fences = [self.command_buffer_setup_reuse_fence];
+        self.gpu
+            .wait_for_fences(&fences, true, std::u64::MAX)
+            .expect("Failed to wait until end of textures bufering");
+        log::debug!("wait_for_fences: done");
     }
 
     /// Returns Buffer, binded memory and allocated size
@@ -1138,6 +1458,17 @@ impl RenderModels {
         let buffer_create_info = vk::BufferCreateInfo {
             size,
             usage: vk::BufferUsageFlags::STORAGE_BUFFER,
+            sharing_mode: vk::SharingMode::EXCLUSIVE,
+            ..Default::default()
+        };
+
+        Buffer::create_and_allocate(gpu, &buffer_create_info)
+    }
+
+    unsafe fn create_transfer_buffer(gpu: &Gpu, size: u64) -> Result<Buffer, vk::Result> {
+        let buffer_create_info = vk::BufferCreateInfo {
+            size,
+            usage: vk::BufferUsageFlags::TRANSFER_SRC,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             ..Default::default()
         };
@@ -1745,6 +2076,8 @@ pub struct RenderModelsSetup {
     instance_buffer_size: u64,
     material_buffer_size: u64,
     transform_buffer_size: u64,
+    material_count: u32,
+    material_image_size: Extent2D,
 }
 
 impl Default for RenderModelsSetup {
@@ -1760,6 +2093,11 @@ impl Default for RenderModelsSetup {
             instance_buffer_size: 1000 * std::mem::size_of::<InstanceUniform>() as u64,
             material_buffer_size: 1000 * std::mem::size_of::<MaterialUniform>() as u64,
             transform_buffer_size: 1000 * std::mem::size_of::<TransformUniform>() as u64,
+            material_count: 2,
+            material_image_size: Extent2D {
+                width: 1024,
+                height: 1024,
+            },
         }
     }
 }

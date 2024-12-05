@@ -2,6 +2,9 @@ use super::{Color, Image};
 use crate::loaders::Asset;
 use crate::utils::Id;
 
+// NOTE: 1:albedo_map, 2:occlusion_map, 3:metallic_map, 4:normal_map, 5:roughness_map
+pub const MAX_MATERIAL_IMAGES: u32 = 5;
+
 /// Material component
 #[derive(Debug)]
 pub struct Material {
@@ -51,10 +54,10 @@ pub struct MaterialUniform {
     pub color: [f32; 4],
     /// Order: ambient_occlusion, metallic, roughness
     pub options: [f32; 4],
-    /// Indices of PBR maps in the buffer
-    /// Order: ambient_occlusion, metallic, normal, roughness
-    pub maps_1: [u32; 4],
     /// Index of Color map in the buffer + 3 reserved value¨
+    pub maps_1: [u32; 4],
+    /// Indice2 of PBR maps in the buffer
+    /// Order: ambient_occlusion, metallic, normal, roughness
     pub maps_2: [u32; 4],
 }
 
