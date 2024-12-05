@@ -583,6 +583,27 @@ impl Gpu {
     ///
     /// This function requires valid Vulkan entities
     #[inline(always)]
+    pub unsafe fn create_sampler(
+        &self,
+        sampler_create_info: &vk::SamplerCreateInfo,
+    ) -> Result<vk::Sampler, vk::Result> {
+        self.device
+            .vk_device
+            .create_sampler(sampler_create_info, None)
+    }
+
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
+    #[inline(always)]
+    pub unsafe fn destroy_sampler(&self, sampler: vk::Sampler) {
+        self.device.vk_device.destroy_sampler(sampler, None);
+    }
+
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
+    #[inline(always)]
     pub unsafe fn bind_buffer_memory(
         &self,
         buffer: vk::Buffer,
@@ -1033,6 +1054,27 @@ impl Gpu {
             buffer_memory_barriers,
             image_memory_barriers,
         )
+    }
+
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
+    #[allow(clippy::too_many_arguments)]
+    pub unsafe fn cmd_copy_buffer_to_image(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        src_buffer: vk::Buffer,
+        dst_image: vk::Image,
+        dst_image_layout: vk::ImageLayout,
+        regions: &[vk::BufferImageCopy],
+    ) {
+        self.device.vk_device.cmd_copy_buffer_to_image(
+            command_buffer,
+            src_buffer,
+            dst_image,
+            dst_image_layout,
+            regions,
+        );
     }
 
     // Utils
