@@ -2,6 +2,9 @@ use super::{Color, Image};
 use crate::loaders::Asset;
 use crate::utils::Id;
 
+// NOTE: 1:albedo_map, 2:occlusion_map, 3:metallic_map, 4:normal_map, 5:roughness_map
+pub const MAX_MATERIAL_IMAGES: u32 = 5;
+
 /// Material component
 #[derive(Debug)]
 pub struct Material {

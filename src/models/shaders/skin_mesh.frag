@@ -2,16 +2,17 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-layout (location = 0) in vec3 world_position;
-layout (location = 1) in vec3 world_normal;
-layout (location = 2) in vec4 vertex_color;
-layout (location = 0) out vec4 o_frag_color;
+layout(location = 0) in vec3 world_position;
+layout(location = 1) in vec3 world_normal;
+layout(location = 2) in vec4 vertex_color;
+layout(location = 0) out vec4 o_frag_color;
+layout(binding = 4) uniform sampler2DArray dtx_material_sampler;
 
 void main() {
     vec3 ambient_light = vec3(0.5, 0.5, 0.5);
     vec4 color = vec4(0.0, 0.0, 0.0, 0.0);
     vec3 light_color = vec3(1.0, 1.0, 1.0);
-    vec3 light_position = vec3(10.0, 10.0, 10.0); 
+    vec3 light_position = vec3(10.0, 10.0, 10.0);
 
     vec3 normal = normalize(world_normal);
     vec3 light_direction = normalize(light_position - world_position);
