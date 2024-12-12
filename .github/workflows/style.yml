@@ -2,9 +2,9 @@ name: Style
 
 on:
   push:
-    branches: [ main, style_checks ]
+    branches: [ master, main, style_checks ]
   pull_request:
-    branches: [ main, style_checks ]
+    branches: [ master, main, style_checks ]
 
 jobs:
   check_clippy:
