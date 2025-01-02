@@ -158,22 +158,10 @@ pub fn spawn<T: context::Context>(
                         // log::debug!("current state: {:?}", current_state);
                         if current_state != default_state {
                             if let Some(tasks) = pool.select_for_state(&default_state) {
-                                for task in tasks.iter() {
-                                    // log::debug!(
-                                    //    "tasks for default state: {:?}",
-                                    //    pool.get(*task).and_then(|t| t.name())
-                                    // );
-                                }
                                 queue.extend_from_slice(tasks);
                             }
                         }
                         if let Some(tasks) = pool.select_for_state(&current_state) {
-                            for task in tasks.iter() {
-                                // log::debug!(
-                                //    "tasks for current state: {:?}",
-                                //    pool.get(*task).and_then(|t| t.name())
-                                // );
-                            }
                             queue.extend_from_slice(tasks);
                         }
 

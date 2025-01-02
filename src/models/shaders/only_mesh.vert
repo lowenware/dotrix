@@ -2,11 +2,11 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-layout (location = 0) in vec3 pos;
-layout (location = 1) in vec3 normal;
-layout (location = 2) in vec2 texture;
+layout(location = 0) in vec3 pos;
+layout(location = 1) in vec3 normal;
+layout(location = 2) in vec2 texture;
 
-layout (binding = 0) uniform DtxGlobals {
+layout(binding = 0) uniform DtxGlobals {
     mat4 proj;
     mat4 view;
 } dtx_globals;
@@ -40,19 +40,22 @@ layout(std430, binding = 3) buffer DtxTransformsLayout
     mat4 dtx_transform[];
 };
 
-layout (location = 0) out vec3 o_world_position;
-layout (location = 1) out vec3 o_world_normal;
-layout (location = 2) out vec4 o_color;
+layout(location = 0) out vec3 o_world_position;
+layout(location = 1) out vec3 o_world_normal;
+layout(location = 2) out vec4 o_color;
+layout(location = 3) out vec3 o_texture;
 void main() {
     uint transform_index = dtx_instance[gl_InstanceIndex].transform_index;
     uint material_index = dtx_instance[gl_InstanceIndex].material_index;
     mat4 model_transform = dtx_transform[transform_index];
     vec4 material_color = dtx_material[material_index].color;
+    float albedo_layer = float(dtx_material[material_index].maps_1.x);
 
     mat4 proj_view = dtx_globals.proj * dtx_globals.view;
     o_world_position = vec3(model_transform * vec4(pos, 1.0));
     o_world_normal = vec3(model_transform * vec4(normal, 1.0));
     o_color = vec4(material_color);
+    o_texture = vec3(texture, albedo_layer);
 
     gl_Position = proj_view * vec4(o_world_position, 1.0);
 }

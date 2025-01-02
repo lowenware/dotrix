@@ -1,9 +1,8 @@
 use std::collections::HashMap;
-use std::ffi::CStr;
 use std::io::Cursor;
 
-use crate::graphics::vk;
-use crate::graphics::{Buffer, RenderPass};
+use crate::graphics::{vk, CommandRecorder};
+use crate::graphics::{Buffer, RenderSubmit};
 use crate::loaders::Assets;
 use crate::models::materials::MAX_MATERIAL_IMAGES;
 use crate::utils::Id;
@@ -19,8 +18,8 @@ use super::{
 
 #[derive(Clone, Copy)]
 pub struct LayoutInBuffer {
-    /// Offset inside of the buffer in bytes
-    pub offset: u64,
+    // /// offset in bytes
+    // pub offset: u32,
     /// Offset of the first item (vertex or index)
     pub base: u32,
     /// Number of items (vertices or indices)
@@ -46,24 +45,12 @@ pub struct DrawCount {
 pub struct RenderModels {
     /// GPU instance
     gpu: Gpu,
-    /// Wait for these semaphores before executing command buffers
-    wait_semaphores: Vec<vk::Semaphore>,
-    /// Signal these semaphores after rendering is done
-    signal_semaphore: vk::Semaphore,
     /// Command Pool
     command_pool: vk::CommandPool,
     /// Setup command buffer
     command_buffer_setup: vk::CommandBuffer,
     /// Setup command buffer reuse fence
     command_buffer_setup_reuse_fence: vk::Fence,
-    /// Draw command buffer
-    command_buffer_draw: vk::CommandBuffer,
-    /// Draw command buffer reuse fence
-    command_buffer_draw_reuse_fence: vk::Fence,
-    /// Framebuffers
-    framebuffers: Vec<vk::Framebuffer>,
-    /// Render pass
-    render_pass: vk::RenderPass,
     /// Version of surface to track changes and update framebuffers and fender pass
     surface_version: u64,
     /// Index of instances by mesh (just mesh, indexed)
@@ -115,8 +102,6 @@ pub struct RenderModels {
     material_layer_size: Extent2D,
     /// Material layer index in the material_image
     material_layer_index: HashMap<Id<Image>, usize>,
-    /// Usage of layers in material image buffer
-    material_layer_usage: u32,
     /// Mesh layouts of non-rigged models
     mesh_registry: HashMap<Id<Mesh>, MeshLayout>,
     /// descriptor sets
@@ -201,22 +186,12 @@ impl Drop for RenderModels {
             }
             self.gpu.destroy_descriptor_pool(self.descriptor_pool);
 
-            // framebuffers
-            self.destroy_framebuffers();
-
-            // render pass
-            self.gpu.destroy_render_pass(self.render_pass);
-
             // command buffers
             self.gpu.destroy_command_pool(self.command_pool);
 
             // fences
             self.gpu
                 .destroy_fence(self.command_buffer_setup_reuse_fence);
-            self.gpu.destroy_fence(self.command_buffer_draw_reuse_fence);
-
-            // semaphores
-            self.gpu.destroy_semaphore(self.signal_semaphore);
         }
     }
 }
@@ -229,31 +204,24 @@ impl Task for RenderModels {
         Ref<Display>,
         Ref<World>,
     );
-    type Output = RenderPass;
+    type Output = RenderSubmit;
 
     fn run(&mut self, (frame, camera, assets, display, world): Self::Context) -> Self::Output {
-        log::debug!("pbr: begin");
-
         if let Some(surface_version) = display.surface_changed(self.surface_version) {
             unsafe {
                 log::debug!("resize: Surface changed");
                 self.gpu.device_wait_idle().unwrap();
 
-                // rebuild framebuffers
-
-                log::debug!("resize: destroy_framebuffers");
-                self.destroy_framebuffers();
-
-                log::debug!("resize: create_framebuffers");
-                self.create_framebuffers(&display, self.render_pass);
-
                 // rebuild pipelines
                 if self.pipeline_render_only_mesh == vk::Pipeline::null() {
                     log::debug!("resize: destroy_graphics_pipelines");
+                    // NOTE: WHAT ARE WE DESTROYING HERE???
                     self.destroy_graphics_pipelines();
                     log::debug!("resize: create_graphics_pipelines");
-                    let graphic_pipelines =
-                        self.create_graphics_pipelines(display.surface_resolution());
+                    let graphic_pipelines = self.create_graphics_pipelines(
+                        display.render_pass(),
+                        display.surface_resolution(),
+                    );
                     self.pipeline_render_only_mesh = graphic_pipelines[0];
                     self.pipeline_render_skin_mesh = graphic_pipelines[1];
 
@@ -261,8 +229,6 @@ impl Task for RenderModels {
                     log::debug!("resize: setup_depth_image");
                     self.setup_depth_image(&display);
                 }
-
-                log::debug!("resize: complete -> {}", surface_version);
             };
             self.surface_version = surface_version;
         }
@@ -271,13 +237,20 @@ impl Task for RenderModels {
 
         log::debug!("draw count: {:?}", draw_count);
 
-        unsafe {
-            self.execute_render_pass(&frame, draw_count);
-            self.submit_draw_commands();
-        }
+        let command_recorder = Recorder {
+            resolution: frame.resolution,
+            draw_count,
+            pipeline_layout: self.pipeline_layout_render,
+            descriptor_sets: self.descriptor_sets.clone(),
+            pipeline_render_only_mesh: self.pipeline_render_only_mesh,
+            pipeline_render_skin_mesh: self.pipeline_render_skin_mesh,
+            indirect_buffer: self.indirect_buffer.handle,
+            index_buffer: self.index_buffer.handle,
+            vertex_buffer_only_mesh: self.vertex_buffer_only_mesh.handle,
+            vertex_buffer_skin_mesh: self.vertex_buffer_skin_mesh.handle,
+        };
 
-        log::debug!("pbr: submit_command_buffer");
-        RenderPass {}
+        RenderSubmit::new::<Self>(Box::new(command_recorder), &[])
     }
 }
 
@@ -297,11 +270,11 @@ impl RenderModels {
         };
 
         let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::default()
-            .command_buffer_count(2)
+            .command_buffer_count(1)
             .command_pool(command_pool)
             .level(vk::CommandBufferLevel::PRIMARY);
 
-        let (command_buffer_setup, command_buffer_draw) = unsafe {
+        let command_buffer_setup = unsafe {
             gpu.allocate_command_buffers(&command_buffer_allocate_info)
                 .into()
         };
@@ -310,70 +283,6 @@ impl RenderModels {
             vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
 
         let command_buffer_setup_reuse_fence = unsafe { gpu.create_fence(&fence_create_info) };
-        let command_buffer_draw_reuse_fence = unsafe { gpu.create_fence(&fence_create_info) };
-
-        let signal_semaphore_create_info = vk::SemaphoreCreateInfo::default();
-        let signal_semaphore = unsafe {
-            gpu.create_semaphore(&signal_semaphore_create_info)
-                .expect("Failed to create a signal semaphore")
-        };
-        let mut wait_semaphores = setup.wait_semaphores;
-        unsafe {
-            wait_semaphores.push(display.present_complete_semaphore());
-        };
-
-        // TODO: this works only until we have one
-        display.set_render_complete_semaphore(signal_semaphore);
-
-        let renderpass_attachments = [
-            vk::AttachmentDescription {
-                format: setup.surface_format,
-                samples: vk::SampleCountFlags::TYPE_1,
-                load_op: vk::AttachmentLoadOp::CLEAR,
-                store_op: vk::AttachmentStoreOp::STORE,
-                final_layout: vk::ImageLayout::PRESENT_SRC_KHR,
-                ..Default::default()
-            },
-            vk::AttachmentDescription {
-                format: vk::Format::D16_UNORM,
-                samples: vk::SampleCountFlags::TYPE_1,
-                load_op: vk::AttachmentLoadOp::CLEAR,
-                initial_layout: vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                final_layout: vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                ..Default::default()
-            },
-        ];
-        let color_attachment_refs = [vk::AttachmentReference {
-            attachment: 0,
-            layout: vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-        }];
-        let depth_attachment_ref = vk::AttachmentReference {
-            attachment: 1,
-            layout: vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-        };
-        let dependencies = [vk::SubpassDependency {
-            src_subpass: vk::SUBPASS_EXTERNAL,
-            src_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-            dst_access_mask: vk::AccessFlags::COLOR_ATTACHMENT_READ
-                | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
-            dst_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-            ..Default::default()
-        }];
-
-        let subpass = vk::SubpassDescription::default()
-            .color_attachments(&color_attachment_refs)
-            .depth_stencil_attachment(&depth_attachment_ref)
-            .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS);
-
-        let renderpass_create_info = vk::RenderPassCreateInfo::default()
-            .attachments(&renderpass_attachments)
-            .subpasses(std::slice::from_ref(&subpass))
-            .dependencies(&dependencies);
-
-        let render_pass = unsafe {
-            gpu.create_render_pass(&renderpass_create_info)
-                .expect("Failed to create a render pass")
-        };
 
         let globals_buffer = unsafe {
             Self::create_globals_uniform_buffer(&gpu)
@@ -694,14 +603,8 @@ impl RenderModels {
         Self {
             gpu,
             command_pool,
-            wait_semaphores,
-            signal_semaphore,
             command_buffer_setup,
-            command_buffer_draw,
             command_buffer_setup_reuse_fence,
-            command_buffer_draw_reuse_fence,
-            render_pass,
-            framebuffers: Vec::new(),
             surface_version: 0,
             index_buffer,
             index_buffer_usage: 0,
@@ -727,7 +630,6 @@ impl RenderModels {
             material_image_memory,
             material_staging_buffer,
             material_layer_count,
-            material_layer_usage: 0,
             material_layer_index: HashMap::new(),
             material_layer_size: setup.material_image_size,
             mesh_registry: HashMap::new(),
@@ -753,13 +655,6 @@ impl RenderModels {
         }
     }
 
-    /// # Safety
-    ///
-    /// Leaks signal semaphore that should never be destroyed
-    pub unsafe fn signal_semaphore(&self) -> vk::Semaphore {
-        self.signal_semaphore
-    }
-
     fn update_buffers(&mut self, camera: &Camera, assets: &Assets, world: &World) -> DrawCount {
         self.instances_skin_mesh_indexed.clear();
         self.instances_only_mesh_indexed.clear();
@@ -775,14 +670,13 @@ impl RenderModels {
                 .map_and_write_to_device_memory(&self.gpu, 0, &globals_uniform);
         }
 
-        for (entity_id, mesh_id, material_id, _armature_id, transform) in world.query::<(
+        for (_entity_id, mesh_id, material_id, _armature_id, transform) in world.query::<(
             &Id<Entity>,
             &Id<Mesh>,
             &Id<Material>,
             &Id<Armature>,
             &Transform,
         )>() {
-            log::debug!("Update buffers: {:?}", entity_id);
             let material_index = self.register_material(*material_id, assets);
             if material_index.is_none() {
                 continue;
@@ -806,7 +700,7 @@ impl RenderModels {
                     transform: transform.model.matrix().to_cols_array_2d(),
                 });
                 let mut joint_index = 0; // NOTE: real joint can never have a 0 index
-                if mesh_layout.has_skin && transform.armature.len() != 0 {
+                if mesh_layout.has_skin && !transform.armature.is_empty() {
                     joint_index = self.transform_buffer_data.len() as u32;
                     self.transform_buffer_data
                         .extend(transform.armature.iter().map(|i| TransformUniform {
@@ -823,31 +717,23 @@ impl RenderModels {
                         ..Default::default()
                     });
 
-                log::debug!("\n\n    material index: {} ({:?})\n    transform_index: {}\n    joint_index: {}\n\n", material_index, material_id, transform_index, joint_index);
-
                 if mesh_layout.has_skin {}
             }
         }
 
         unsafe {
-            let material_bytes = self.material_buffer.map_and_write_to_device_memory(
+            self.material_buffer.map_and_write_to_device_memory(
                 &self.gpu,
                 0,
                 self.material_buffer_data.as_slice(),
             );
-            log::debug!(
-                "writing materials buffer ({:?}): {:?}",
-                material_bytes,
-                self.material_buffer_data.as_slice()
-            );
         };
         unsafe {
-            let transform_bytes = self.transform_buffer.map_and_write_to_device_memory(
+            self.transform_buffer.map_and_write_to_device_memory(
                 &self.gpu,
                 0,
                 self.transform_buffer_data.as_slice(),
             );
-            log::debug!("writing materials buffer ({:?})", transform_bytes);
         };
 
         let mut instances_total = 0;
@@ -882,17 +768,6 @@ impl RenderModels {
                     }
                 })
                 .collect::<Vec<_>>();
-
-            log::debug!(
-                "only mesh: instance buffer data (offest: {}): {:?}",
-                instance_buffer_offset,
-                instance_buffer_data
-            );
-            log::debug!(
-                "only mesh: indirect buffer data (offest: {}): {:?}",
-                indirect_buffer_offset,
-                indirect_buffer_data
-            );
 
             instances_total += instances_count;
 
@@ -943,17 +818,6 @@ impl RenderModels {
                 })
                 .collect::<Vec<_>>();
 
-            log::debug!(
-                "only mesh(indexed): instance buffer data (offest: {}): {:?}",
-                instance_buffer_offset,
-                instance_buffer_data
-            );
-            log::debug!(
-                "only mesh(indexed): indirect buffer data (offest: {}): {:?}",
-                indirect_buffer_offset,
-                indirect_buffer_data
-            );
-
             instances_total += instances_count;
 
             unsafe {
@@ -977,10 +841,7 @@ impl RenderModels {
         let skin_mesh_draws_count = if !self.instances_skin_mesh.is_empty() {
             indirect_buffer_offset +=
                 indirect_buffer_offset % std::mem::size_of::<vk::DrawIndirectCommand>() as u64;
-            log::debug!(
-                "skin mesh: indirect buffer data (offest: {})",
-                indirect_buffer_offset,
-            );
+
             let instances_count = self
                 .instances_skin_mesh
                 .values()
@@ -1029,10 +890,7 @@ impl RenderModels {
         let skin_mesh_indexed_draws_count = if !self.instances_skin_mesh_indexed.is_empty() {
             indirect_buffer_offset += indirect_buffer_offset
                 % std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u64;
-            log::debug!(
-                "skin mesh(indexed): indirect buffer data (offest: {})",
-                indirect_buffer_offset,
-            );
+
             let instances_count = self
                 .instances_skin_mesh_indexed
                 .values()
@@ -1063,12 +921,12 @@ impl RenderModels {
             // instances_total += instances_count;
 
             unsafe {
-                indirect_buffer_offset += self.indirect_buffer.map_and_write_to_device_memory(
+                self.indirect_buffer.map_and_write_to_device_memory(
                     &self.gpu,
                     indirect_buffer_offset,
                     indirect_buffer_data.as_slice(),
                 );
-                instance_buffer_offset += self.instance_buffer.map_and_write_to_device_memory(
+                self.instance_buffer.map_and_write_to_device_memory(
                     &self.gpu,
                     instance_buffer_offset,
                     instance_buffer_data.as_slice(),
@@ -1124,12 +982,12 @@ impl RenderModels {
 
                 let mesh_layout = MeshLayout {
                     vertices: LayoutInBuffer {
-                        offset: vertex_offset,
+                        // offset: vertex_offset,
                         base: (vertex_offset / vertex_size) as u32,
                         count: mesh.count_vertices() as u32,
                     },
                     indices: index_data.map(|data| LayoutInBuffer {
-                        offset: self.index_buffer_usage,
+                        // offset: self.index_buffer_usage,
                         base: (self.index_buffer_usage / (std::mem::size_of::<u32>() as u64))
                             as u32,
                         count: data.len() as u32,
@@ -1137,22 +995,10 @@ impl RenderModels {
                     has_skin,
                 };
 
-                log::debug!(
-                    "VB offset: {}, IB offset: {:?}, has skin: {:?}",
-                    mesh_layout.vertices.offset,
-                    mesh_layout.indices.as_ref().map(|i| i.offset),
-                    has_skin
-                );
-
                 self.mesh_registry.insert(mesh_id, mesh_layout);
 
                 unsafe {
                     if has_skin {
-                        log::debug!(
-                            "write {:?} bytes to VB(skin) at offset {:?}",
-                            vertex_data.len(),
-                            vertex_offset
-                        );
                         self.vertex_buffer_skin_mesh_usage +=
                             self.vertex_buffer_skin_mesh.map_and_write_to_device_memory(
                                 &self.gpu,
@@ -1160,11 +1006,6 @@ impl RenderModels {
                                 vertex_data.as_slice(),
                             );
                     } else {
-                        log::debug!(
-                            "write {:?} bytes to VB(no skin) at offset {:?}",
-                            vertex_data.len(),
-                            vertex_offset
-                        );
                         self.vertex_buffer_only_mesh_usage +=
                             self.vertex_buffer_only_mesh.map_and_write_to_device_memory(
                                 &self.gpu,
@@ -1174,13 +1015,7 @@ impl RenderModels {
                     }
                 };
 
-                // log::debug!("Indices @{}: {:?}", self.index_buffer_usage, index_data);
                 if let Some(data) = index_data.as_ref() {
-                    log::debug!(
-                        "write {:?} bytes to IB at offset {:?}",
-                        data.len() * std::mem::size_of::<u32>(),
-                        self.index_buffer_usage
-                    );
                     unsafe {
                         self.index_buffer_usage +=
                             self.index_buffer.map_and_write_to_device_memory(
@@ -1189,7 +1024,6 @@ impl RenderModels {
                                 data,
                             );
                     }
-                    log::debug!("self.index_buffer_usage -> {}", self.index_buffer_usage);
                 }
 
                 return Some(mesh_layout);
@@ -1207,7 +1041,9 @@ impl RenderModels {
                 .get(material.albedo_map)
                 .map(|image| {
                     let base_array_layer = self.material_layer_index.len();
-                    if !self.material_layer_index.contains_key(&material.albedo_map) {
+                    if let std::collections::hash_map::Entry::Vacant(e) =
+                        self.material_layer_index.entry(material.albedo_map)
+                    {
                         // write to buffer
                         // TODO: verify material extent
                         unsafe {
@@ -1221,8 +1057,7 @@ impl RenderModels {
                                 image.data(),
                             );
                         };
-                        self.material_layer_index
-                            .insert(material.albedo_map, base_array_layer);
+                        e.insert(base_array_layer);
                         staging_layer_count += 1;
                     }
                     let albedo_map_index = self
@@ -1239,13 +1074,8 @@ impl RenderModels {
                 self.flush_material_staging_buffer(staging_layer_count, base_array_layer as u32);
             };
             let mut material_uniform: MaterialUniform = material.into();
-            material_uniform.maps_1 = [
-                albedo_map_index,
-                std::u32::MAX,
-                std::u32::MAX,
-                std::u32::MAX,
-            ];
-            material_uniform.maps_2 = [std::u32::MAX; 4];
+            material_uniform.maps_1 = [albedo_map_index, u32::MAX, u32::MAX, u32::MAX];
+            material_uniform.maps_2 = [u32::MAX; 4];
             material_uniform
         } else {
             return None;
@@ -1255,9 +1085,8 @@ impl RenderModels {
         self.material_buffer_index
             .get(&material_id)
             .cloned()
-            .map(|material_index| {
+            .inspect(|&material_index| {
                 self.material_buffer_data[material_index as usize] = material_uniform;
-                material_index
             })
             .or_else(|| {
                 let material_index = self.material_buffer_index.len() as u32;
@@ -1276,7 +1105,6 @@ impl RenderModels {
         if staging_layer_count == 0 {
             return;
         }
-        log::debug!("copy material to vk:Image ({} layers)", staging_layer_count);
         // begin
         self.gpu
             .wait_for_fences(&[self.command_buffer_setup_reuse_fence], true, u64::MAX)
@@ -1300,24 +1128,6 @@ impl RenderModels {
             .begin_command_buffer(self.command_buffer_setup, &command_buffer_begin_info)
             .expect("Begin commandbuffer");
 
-        // Command buffer
-        // let buffer_copy_regions = (0..staging_layer_count)
-        //    .into_iter()
-        //    .map(|_| {
-        //        vk::BufferImageCopy::default()
-        //            .image_subresource(
-        //                vk::ImageSubresourceLayers::default()
-        //                    .aspect_mask(vk::ImageAspectFlags::COLOR)
-        //                    .base_array_layer(base_array_layer)
-        //                    .layer_count(1),
-        //            )
-        //            .image_extent(vk::Extent3D {
-        //                width: self.material_layer_size.width,
-        //                height: self.material_layer_size.height,
-        //                depth: 1,
-        //            })
-        //    })
-        //    .collect::<Vec<_>>();
         let buffer_copy_regions = [vk::BufferImageCopy::default()
             .image_subresource(
                 vk::ImageSubresourceLayers::default()
@@ -1397,16 +1207,14 @@ impl RenderModels {
             .command_buffers(&command_buffers)
             .signal_semaphores(&signal_semaphores);
 
-        log::debug!("submit image copy");
         self.gpu
             .submit_queue(&[submit_info], self.command_buffer_setup_reuse_fence)
             .expect("queue submit failed.");
         // wait
         let fences = [self.command_buffer_setup_reuse_fence];
         self.gpu
-            .wait_for_fences(&fences, true, std::u64::MAX)
+            .wait_for_fences(&fences, true, u64::MAX)
             .expect("Failed to wait until end of textures bufering");
-        log::debug!("wait_for_fences: done");
     }
 
     /// Returns Buffer, binded memory and allocated size
@@ -1485,34 +1293,12 @@ impl RenderModels {
         gpu.create_shader_module(&shader_module_create_info)
     }
 
-    unsafe fn create_framebuffers(&mut self, display: &Display, render_pass: vk::RenderPass) {
-        let resolution = display.surface_resolution();
-        self.framebuffers = display
-            .swapchain_image_views()
-            .map(|&present_image_view| {
-                let framebuffer_attachments = [present_image_view, display.depth_image_view()];
-                let frame_buffer_create_info = vk::FramebufferCreateInfo::default()
-                    .render_pass(render_pass)
-                    .attachments(&framebuffer_attachments)
-                    .width(resolution.width)
-                    .height(resolution.height)
-                    .layers(1);
-
-                self.gpu
-                    .create_framebuffer(&frame_buffer_create_info)
-                    .expect("Could not create a framebuffer")
-            })
-            .collect::<Vec<_>>()
-    }
-
-    unsafe fn destroy_framebuffers(&mut self) {
-        for framebuffer in self.framebuffers.drain(..) {
-            self.gpu.destroy_framebuffer(framebuffer);
-        }
-    }
-
-    unsafe fn create_graphics_pipelines(&self, surface_resolution: Extent2D) -> Vec<vk::Pipeline> {
-        let shader_entry_point = unsafe { CStr::from_bytes_with_nul_unchecked(b"main\0") };
+    unsafe fn create_graphics_pipelines(
+        &self,
+        render_pass: vk::RenderPass,
+        surface_resolution: Extent2D,
+    ) -> Vec<vk::Pipeline> {
+        let shader_entry_point = c"main";
         // ONLY MESH
         let only_mesh_shader_stages = [
             vk::PipelineShaderStageCreateInfo {
@@ -1662,12 +1448,23 @@ impl RenderModels {
 
         let rasterization_info = vk::PipelineRasterizationStateCreateInfo {
             front_face: vk::FrontFace::COUNTER_CLOCKWISE,
+            depth_clamp_enable: vk::FALSE,
+            rasterizer_discard_enable: vk::FALSE,
+            depth_bias_enable: vk::FALSE,
+            depth_bias_constant_factor: 0.0,
+            depth_bias_clamp: 0.0,
+            depth_bias_slope_factor: 0.0,
             line_width: 1.0,
             polygon_mode: vk::PolygonMode::FILL,
             ..Default::default()
         };
         let multisample_state_info = vk::PipelineMultisampleStateCreateInfo {
             rasterization_samples: vk::SampleCountFlags::TYPE_1,
+            sample_shading_enable: vk::FALSE,
+            //multisampling defaulted to no multisampling (1 sample per pixel)
+            min_sample_shading: 1.0,
+            alpha_to_coverage_enable: vk::FALSE,
+            alpha_to_one_enable: vk::FALSE,
             ..Default::default()
         };
         let noop_stencil_state = vk::StencilOpState {
@@ -1715,7 +1512,7 @@ impl RenderModels {
             .color_blend_state(&color_blend_state)
             .dynamic_state(&dynamic_state_info)
             .layout(self.pipeline_layout_render)
-            .render_pass(self.render_pass);
+            .render_pass(render_pass);
 
         let skin_mesh_graphic_pipeline_info = vk::GraphicsPipelineCreateInfo::default()
             .stages(&skin_mesh_shader_stages)
@@ -1728,7 +1525,7 @@ impl RenderModels {
             .color_blend_state(&color_blend_state)
             .dynamic_state(&dynamic_state_info)
             .layout(self.pipeline_layout_render)
-            .render_pass(self.render_pass);
+            .render_pass(render_pass);
 
         self.gpu
             .create_graphics_pipelines(
@@ -1744,223 +1541,6 @@ impl RenderModels {
     unsafe fn destroy_graphics_pipelines(&self) {
         self.gpu.destroy_pipeline(self.pipeline_render_only_mesh);
         self.gpu.destroy_pipeline(self.pipeline_render_skin_mesh);
-    }
-
-    unsafe fn execute_render_pass(&self, frame: &Frame, draw_count: DrawCount) {
-        self.gpu
-            .wait_for_fences(&[self.command_buffer_draw_reuse_fence], true, u64::MAX)
-            .expect("Failed to wait for draw buffer fences");
-
-        self.gpu
-            .reset_fences(&[self.command_buffer_draw_reuse_fence])
-            .expect("Failed to reset Vulkan fences");
-
-        let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
-            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-
-        self.gpu
-            .reset_command_buffer(
-                self.command_buffer_draw,
-                vk::CommandBufferResetFlags::RELEASE_RESOURCES,
-            )
-            .expect("Failed to reset Vulkan command buffer");
-
-        self.gpu
-            .begin_command_buffer(self.command_buffer_draw, &command_buffer_begin_info)
-            .expect("Failed to begin draw command buffer");
-
-        let clear_values = [
-            vk::ClearValue {
-                color: vk::ClearColorValue {
-                    float32: [0.0, 0.0, 0.1, 0.0],
-                },
-            },
-            vk::ClearValue {
-                depth_stencil: vk::ClearDepthStencilValue {
-                    depth: 1.0,
-                    stencil: 0,
-                },
-            },
-        ];
-
-        let viewports = [vk::Viewport {
-            x: 0.0,
-            y: 0.0,
-            width: frame.resolution.width as f32,
-            height: frame.resolution.height as f32,
-            min_depth: 0.0,
-            max_depth: 1.0,
-        }];
-        let scissors = [(vk::Extent2D {
-            width: frame.resolution.width,
-            height: frame.resolution.height,
-        })
-        .into()];
-
-        let render_pass_begin_info = vk::RenderPassBeginInfo::default()
-            .render_pass(self.render_pass)
-            .framebuffer(self.framebuffers[frame.swapchain_index as usize])
-            .render_area(vk::Rect2D {
-                offset: vk::Offset2D { x: 0, y: 0 },
-                extent: vk::Extent2D {
-                    width: frame.resolution.width,
-                    height: frame.resolution.height,
-                },
-            })
-            .clear_values(&clear_values);
-
-        self.gpu.cmd_begin_render_pass(
-            self.command_buffer_draw,
-            &render_pass_begin_info,
-            vk::SubpassContents::INLINE,
-        );
-
-        self.gpu.cmd_bind_descriptor_sets(
-            self.command_buffer_draw,
-            vk::PipelineBindPoint::GRAPHICS,
-            self.pipeline_layout_render,
-            0,
-            &self.descriptor_sets[..],
-            &[],
-        );
-
-        let mut offset: u64 = 0;
-
-        // ONLY MESH
-        if draw_count.only_mesh != 0 || draw_count.only_mesh_indexed != 0 {
-            self.gpu.cmd_bind_pipeline(
-                self.command_buffer_draw,
-                vk::PipelineBindPoint::GRAPHICS,
-                self.pipeline_render_only_mesh,
-            );
-            self.gpu
-                .cmd_set_viewport(self.command_buffer_draw, 0, &viewports);
-            self.gpu
-                .cmd_set_scissor(self.command_buffer_draw, 0, &scissors);
-            self.gpu.cmd_bind_vertex_buffers(
-                self.command_buffer_draw,
-                0,
-                &[self.vertex_buffer_only_mesh.handle],
-                &[0],
-            );
-
-            if draw_count.only_mesh != 0 {
-                log::debug!(
-                    "cmd_draw_indirect(offset: {}, draw_count: {}, stride: {})",
-                    offset,
-                    draw_count.only_mesh,
-                    std::mem::size_of::<vk::DrawIndirectCommand>() as u32
-                );
-                self.gpu.cmd_draw_indirect(
-                    self.command_buffer_draw,
-                    self.indirect_buffer.handle,
-                    offset,
-                    draw_count.only_mesh,
-                    std::mem::size_of::<vk::DrawIndirectCommand>() as u32,
-                );
-                offset += draw_count.only_mesh as u64
-                    * std::mem::size_of::<vk::DrawIndirectCommand>() as u64;
-            }
-
-            if draw_count.only_mesh_indexed != 0 {
-                // padding
-                offset += offset % std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u64;
-                log::debug!(
-                    "cmd_draw_indexed_indirect(offset: {}, draw_count: {}, stride: {})",
-                    offset,
-                    draw_count.only_mesh_indexed,
-                    std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u32
-                );
-                self.gpu.cmd_bind_index_buffer(
-                    self.command_buffer_draw,
-                    self.index_buffer.handle,
-                    0,
-                    vk::IndexType::UINT32,
-                );
-
-                self.gpu.cmd_draw_indexed_indirect(
-                    self.command_buffer_draw,
-                    self.indirect_buffer.handle,
-                    offset,
-                    draw_count.only_mesh_indexed,
-                    std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u32,
-                );
-
-                offset += draw_count.only_mesh_indexed as u64
-                    * std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u64;
-            }
-        }
-
-        // MESH WITH SKIN
-        if draw_count.skin_mesh != 0 || draw_count.skin_mesh_indexed != 0 {
-            self.gpu.cmd_bind_pipeline(
-                self.command_buffer_draw,
-                vk::PipelineBindPoint::GRAPHICS,
-                self.pipeline_render_skin_mesh,
-            );
-            self.gpu
-                .cmd_set_viewport(self.command_buffer_draw, 0, &viewports);
-            self.gpu
-                .cmd_set_scissor(self.command_buffer_draw, 0, &scissors);
-            self.gpu.cmd_bind_vertex_buffers(
-                self.command_buffer_draw,
-                0,
-                &[self.vertex_buffer_skin_mesh.handle],
-                &[0],
-            );
-
-            if draw_count.skin_mesh != 0 {
-                // padding
-                offset += offset % std::mem::size_of::<vk::DrawIndirectCommand>() as u64;
-                log::debug!(
-                    "skin - cmd_draw_indirect(offset: {}, draw_count: {}, stride: {})",
-                    offset,
-                    draw_count.skin_mesh,
-                    std::mem::size_of::<vk::DrawIndirectCommand>() as u32
-                );
-                self.gpu.cmd_draw_indirect(
-                    self.command_buffer_draw,
-                    self.indirect_buffer.handle,
-                    offset,
-                    draw_count.skin_mesh,
-                    std::mem::size_of::<vk::DrawIndirectCommand>() as u32,
-                );
-                offset += draw_count.skin_mesh as u64
-                    * std::mem::size_of::<vk::DrawIndirectCommand>() as u64;
-            }
-
-            if draw_count.skin_mesh_indexed != 0 {
-                offset += offset % std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u64;
-                log::debug!(
-                    "skin - cmd_draw_indexed_indirect(offset: {}, draw_count: {}, stride: {})",
-                    offset,
-                    draw_count.skin_mesh_indexed,
-                    std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u32
-                );
-                self.gpu.cmd_bind_index_buffer(
-                    self.command_buffer_draw,
-                    self.index_buffer.handle,
-                    0,
-                    vk::IndexType::UINT32,
-                );
-
-                self.gpu.cmd_draw_indexed_indirect(
-                    self.command_buffer_draw,
-                    self.indirect_buffer.handle,
-                    offset,
-                    draw_count.skin_mesh_indexed,
-                    std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u32,
-                );
-            }
-        }
-
-        self.gpu.cmd_end_render_pass(self.command_buffer_draw);
-
-        self.gpu
-            .end_command_buffer(self.command_buffer_draw)
-            .expect("End commandbuffer");
-
-        // panic!("--------------------------- BREAKPOINT ---------------------------");
     }
 
     unsafe fn setup_depth_image(&self, display: &Display) {
@@ -2036,33 +1616,6 @@ impl RenderModels {
         self.gpu
             .submit_queue(&submits, self.command_buffer_setup_reuse_fence)
             .expect("queue submit failed.")
-    }
-
-    unsafe fn submit_draw_commands(&self) {
-        // panic!("----------------------- BREAKPOINT -----------------------");
-        let (wait_semaphores, wait_dst_stage_mask): (Vec<_>, Vec<_>) = self
-            .wait_semaphores
-            .iter()
-            .map(|s| (s, vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT))
-            .unzip();
-        let signal_semaphores = [self.signal_semaphore];
-        let command_buffers = [self.command_buffer_draw];
-        let submits = [vk::SubmitInfo::default()
-            .wait_semaphores(wait_semaphores.as_slice())
-            .wait_dst_stage_mask(wait_dst_stage_mask.as_slice())
-            .command_buffers(&command_buffers)
-            .signal_semaphores(&signal_semaphores)];
-
-        log::debug!(
-            "buffers: {}, wait: {}, signal: {}, deps: {}",
-            command_buffers.len(),
-            wait_semaphores.len(),
-            signal_semaphores.len(),
-            wait_dst_stage_mask.len(),
-        );
-        self.gpu
-            .submit_queue(&submits, self.command_buffer_draw_reuse_fence)
-            .expect("Failed to submit draw buffer to queue");
     }
 }
 
@@ -2145,4 +1698,136 @@ pub struct InstanceUniform {
 pub struct TransformUniform {
     /// Model/Joint transform matrix
     pub transform: [[f32; 4]; 4],
+}
+
+pub struct Recorder {
+    resolution: Extent2D,
+    draw_count: DrawCount,
+    pipeline_layout: vk::PipelineLayout,
+    descriptor_sets: Vec<vk::DescriptorSet>,
+    pipeline_render_only_mesh: vk::Pipeline,
+    pipeline_render_skin_mesh: vk::Pipeline,
+    indirect_buffer: vk::Buffer,
+    index_buffer: vk::Buffer,
+    vertex_buffer_only_mesh: vk::Buffer,
+    vertex_buffer_skin_mesh: vk::Buffer,
+}
+
+impl CommandRecorder for Recorder {
+    unsafe fn record(&self, gpu: &Gpu, command_buffer: vk::CommandBuffer) {
+        let viewports = [vk::Viewport {
+            x: 0.0,
+            y: 0.0,
+            width: self.resolution.width as f32,
+            height: self.resolution.height as f32,
+            min_depth: 0.0,
+            max_depth: 1.0,
+        }];
+        let scissors = [(vk::Extent2D {
+            width: self.resolution.width,
+            height: self.resolution.height,
+        })
+        .into()];
+
+        gpu.cmd_bind_descriptor_sets(
+            command_buffer,
+            vk::PipelineBindPoint::GRAPHICS,
+            self.pipeline_layout,
+            0,
+            &self.descriptor_sets[..],
+            &[],
+        );
+
+        let mut offset: u64 = 0;
+
+        gpu.cmd_set_viewport(command_buffer, 0, &viewports);
+        gpu.cmd_set_scissor(command_buffer, 0, &scissors);
+        // ONLY MESH
+        if self.draw_count.only_mesh != 0 || self.draw_count.only_mesh_indexed != 0 {
+            gpu.cmd_bind_pipeline(
+                command_buffer,
+                vk::PipelineBindPoint::GRAPHICS,
+                self.pipeline_render_only_mesh,
+            );
+            gpu.cmd_bind_vertex_buffers(command_buffer, 0, &[self.vertex_buffer_only_mesh], &[0]);
+
+            if self.draw_count.only_mesh != 0 {
+                gpu.cmd_draw_indirect(
+                    command_buffer,
+                    self.indirect_buffer,
+                    offset,
+                    self.draw_count.only_mesh,
+                    std::mem::size_of::<vk::DrawIndirectCommand>() as u32,
+                );
+                offset += self.draw_count.only_mesh as u64
+                    * std::mem::size_of::<vk::DrawIndirectCommand>() as u64;
+            }
+
+            if self.draw_count.only_mesh_indexed != 0 {
+                // padding
+                offset += offset % std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u64;
+                gpu.cmd_bind_index_buffer(
+                    command_buffer,
+                    self.index_buffer,
+                    0,
+                    vk::IndexType::UINT32,
+                );
+
+                gpu.cmd_draw_indexed_indirect(
+                    command_buffer,
+                    self.indirect_buffer,
+                    offset,
+                    self.draw_count.only_mesh_indexed,
+                    std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u32,
+                );
+
+                offset += self.draw_count.only_mesh_indexed as u64
+                    * std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u64;
+            }
+        }
+
+        // MESH WITH SKIN
+        if self.draw_count.skin_mesh != 0 || self.draw_count.skin_mesh_indexed != 0 {
+            gpu.cmd_bind_pipeline(
+                command_buffer,
+                vk::PipelineBindPoint::GRAPHICS,
+                self.pipeline_render_skin_mesh,
+            );
+            gpu.cmd_bind_vertex_buffers(command_buffer, 0, &[self.vertex_buffer_skin_mesh], &[0]);
+
+            if self.draw_count.skin_mesh != 0 {
+                // padding
+                offset += offset % std::mem::size_of::<vk::DrawIndirectCommand>() as u64;
+                gpu.cmd_draw_indirect(
+                    command_buffer,
+                    self.indirect_buffer,
+                    offset,
+                    self.draw_count.skin_mesh,
+                    std::mem::size_of::<vk::DrawIndirectCommand>() as u32,
+                );
+                offset += self.draw_count.skin_mesh as u64
+                    * std::mem::size_of::<vk::DrawIndirectCommand>() as u64;
+            }
+
+            if self.draw_count.skin_mesh_indexed != 0 {
+                offset += offset % std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u64;
+                gpu.cmd_bind_index_buffer(
+                    command_buffer,
+                    self.index_buffer,
+                    0,
+                    vk::IndexType::UINT32,
+                );
+
+                gpu.cmd_draw_indexed_indirect(
+                    command_buffer,
+                    self.indirect_buffer,
+                    offset,
+                    self.draw_count.skin_mesh_indexed,
+                    std::mem::size_of::<vk::DrawIndexedIndirectCommand>() as u32,
+                );
+            }
+        }
+
+        // panic!("--------------------------- BREAKPOINT ---------------------------");
+    }
 }

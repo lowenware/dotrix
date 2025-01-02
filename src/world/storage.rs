@@ -30,6 +30,12 @@ impl Entity {
         self.map.insert(component_type_id, component);
     }
 
+    pub fn get<T: Any>(&self) -> Option<&T> {
+        self.map
+            .get(&TypeId::of::<T>())
+            .and_then(|v| v.downcast_ref())
+    }
+
     pub fn archetype(&self) -> Archetype {
         Archetype {
             inner: self.map.keys(),
@@ -175,6 +181,7 @@ impl Container {
             .map(|value| unsafe { (*(value.get())).downcast_ref::<C>().unwrap() })
     }
 
+    #[allow(clippy::mut_from_ref)]
     pub unsafe fn get_mut<C: Any>(&self, entity_index: usize) -> Option<&mut C> {
         self.data
             .get(&TypeId::of::<C>())

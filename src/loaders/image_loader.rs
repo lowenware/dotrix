@@ -23,7 +23,10 @@ impl ResourceLoader for ImageLoader {
             .and_then(|n| n.to_str())
             .expect("Could not get file name from its path");
 
-        let mut file = File::open(path).expect("Could not open Image resource file");
+        let mut file = match File::open(path) {
+            Ok(file) => file,
+            Err(err) => panic!("Could not open image resource file ({path:?}): {err:?}"),
+        };
         let metadata = std::fs::metadata(path).expect("Could not read Image file metadata");
         let mut data = vec![0; metadata.len() as usize];
         file.read_exact(&mut data)
@@ -60,10 +63,11 @@ impl ImageLoader {
     ) -> Option<Image> {
         match image::load_from_memory_with_format(data, format) {
             Ok(img) => {
-                let img = img.into_rgba8();
-                let (width, height) = img.dimensions();
-                let resolution = Extent2D { width, height };
-                Some(Image::new(name.into(), resolution, img.into_vec()))
+                let resolution = Extent2D {
+                    width: img.width(),
+                    height: img.height(),
+                };
+                Some(Image::new(name.into(), resolution, img.into_bytes()))
             }
             Err(e) => {
                 log::error!("Could not read image from buffer: {:?}", e);

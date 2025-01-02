@@ -339,7 +339,7 @@ impl AnimationPlayer {
             }
             AnimationState::Loop(current) => {
                 let mut new_duration = current + delta.mul_f32(self.speed);
-                if !(new_duration < duration) {
+                if new_duration >= duration {
                     new_duration = Duration::from_secs_f32(
                         new_duration.as_secs_f32() % duration.as_secs_f32(),
                     );

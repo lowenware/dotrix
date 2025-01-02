@@ -28,7 +28,7 @@ pub fn spawn(
                         break;
                     }
                     // TODO: implement Debug trait for message
-                    _ => println!("{}: message ignored", name),
+                    _ => println!("{name}: message ignored"),
                 };
             }
         })

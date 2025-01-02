@@ -1,0 +1,14 @@
+name = "terrain"
+size = 1024
+
+[noise]
+octaves = 4
+persistence = 0.5   # 0..1
+lacunarity = 2.0    # > 1
+scale = 250.0
+offset = [0.0, 0.0]
+seed = 0
+
+[falloff]
+power = 2.6
+factor = 2.4

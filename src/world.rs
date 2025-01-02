@@ -40,6 +40,15 @@ impl World {
         }
     }
 
+    fn gen_entity_id(&self) -> Id<Entity> {
+        loop {
+            let id = Id::new();
+            if !self.index.contains_key(&id) {
+                return id;
+            }
+        }
+    }
+
     /// Spawn single or multiple entities in the world
     ///
     /// Returns number of spawned entities
@@ -78,7 +87,7 @@ impl World {
     /// Returns iterator over entities defined by Query pattern
     pub fn query<'w, Q>(
         &'w self,
-    ) -> impl Iterator<Item = <<Q as Query>::Iter as Iterator>::Item> + 'w
+    ) -> impl Iterator<Item = <<Q as Query<'w>>::Iter as Iterator>::Item> + 'w
     where
         Q: Query<'w>,
     {
@@ -123,7 +132,7 @@ impl World {
     /// Exiles an entity from the world
     pub fn exile(&mut self, id: &Id<Entity>) -> Option<Entity> {
         self.index
-            .get(id)
+            .remove(id)
             .map(|index| self.content[index.container].remove(index.address))
     }
 
@@ -346,7 +355,7 @@ where
     type Item = Id<Entity>;
     fn next(&mut self) -> Option<Self::Item> {
         self.entries.next().map(|entry| {
-            let id = Id::<Entity>::new();
+            let id = self.world.gen_entity_id();
             let volatile = T::volatile();
             let entity = entry.entity().with(id);
             self.container_index = self
@@ -395,18 +404,30 @@ unsafe impl Sync for World {}
 
 #[cfg(test)]
 mod tests {
+    use crate::{Entity, Id};
+
     use super::World;
 
     #[derive(Debug, Eq, PartialEq, Copy, Clone)]
     struct Armor(u32);
     #[derive(Debug, Eq, PartialEq, Copy, Clone)]
     struct HealthComponent(u32);
+    #[derive(Debug, Eq, PartialEq, Copy, Clone)]
     struct SpeedComponent(u32);
+    #[derive(Debug, Eq, PartialEq, Copy, Clone)]
     struct DamageComponent(u32);
+    #[derive(Debug, Eq, PartialEq, Copy, Clone)]
     struct WeightComponent(u32);
 
     fn spawn() -> World {
         let mut world = World::new();
+
+        world
+            .spawn(Some((HealthComponent(80), SpeedComponent(10))))
+            .count();
+        world
+            .spawn(Some((SpeedComponent(50), DamageComponent(45))))
+            .count();
         world
             .spawn(Some((
                 Armor(100),
@@ -414,18 +435,51 @@ mod tests {
                 DamageComponent(300),
             )))
             .count();
-        world
-            .spawn(Some((HealthComponent(80), SpeedComponent(10))))
-            .count();
-        world
-            .spawn(Some((SpeedComponent(50), DamageComponent(45))))
-            .count();
         world.spawn(Some((DamageComponent(600), Armor(10)))).count();
 
         let bulk = (0..9).map(|_| (SpeedComponent(35), WeightComponent(5000)));
         world.spawn(bulk).count();
 
         world
+    }
+
+    #[test]
+    fn can_spawn_and_exile() {
+        let mut world = spawn();
+        let id_to_exile = {
+            let mut iter =
+                world.query::<(&Id<Entity>, &Armor, &HealthComponent, &DamageComponent)>();
+
+            let item = iter.next();
+            assert!(item.is_some());
+
+            let mut id_to_exile: Id<Entity> = Id::null();
+
+            if let Some((id, _armor, _health, _damage)) = item {
+                id_to_exile = *id;
+            }
+            id_to_exile
+        };
+        assert_ne!(id_to_exile, Id::null());
+
+        let exiled_entity = world.exile(&id_to_exile);
+
+        assert!(exiled_entity.is_some());
+
+        let exiled_entity = exiled_entity.unwrap();
+        let id = exiled_entity.get::<Id<Entity>>();
+        let armor = exiled_entity.get::<Armor>();
+        let health = exiled_entity.get::<HealthComponent>();
+        let damage = exiled_entity.get::<DamageComponent>();
+        assert_eq!(id.cloned(), Some(id_to_exile));
+        assert_eq!(armor.cloned(), Some(Armor(100)));
+        assert_eq!(health.cloned(), Some(HealthComponent(100)));
+        assert_eq!(damage.cloned(), Some(DamageComponent(300)));
+
+        let mut iter = world.query::<(&Id<Entity>, &Armor, &HealthComponent, &DamageComponent)>();
+
+        let item = iter.next();
+        assert!(item.is_none());
     }
 
     #[test]

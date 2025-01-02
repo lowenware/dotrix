@@ -3,7 +3,6 @@ use std::ffi::{c_char, CStr, CString};
 use std::sync::Arc;
 
 pub use ash::vk;
-use ash::vk::DescriptorPool;
 
 use crate::log;
 use crate::window;
@@ -787,7 +786,7 @@ impl Gpu {
     pub unsafe fn create_descriptor_pool(
         &self,
         descriptor_pool_info: &vk::DescriptorPoolCreateInfo,
-    ) -> Result<DescriptorPool, vk::Result> {
+    ) -> Result<vk::DescriptorPool, vk::Result> {
         self.device
             .vk_device
             .create_descriptor_pool(descriptor_pool_info, None)
@@ -1151,6 +1150,7 @@ impl From<CommandBufferIter> for (vk::CommandBuffer, vk::CommandBuffer, vk::Comm
 /// Display abstraction layer
 pub struct Display {
     gpu: Gpu,
+    draw_fence: vk::Fence,
     swapchain: Arc<Swapchain>,
     surface: Surface,
     window: window::Instance,
@@ -1159,6 +1159,7 @@ pub struct Display {
     depth_image: vk::Image,
     depth_image_view: vk::ImageView,
     depth_image_memory: vk::DeviceMemory,
+    render_pass: vk::RenderPass,
 }
 
 impl Drop for Display {
@@ -1174,9 +1175,15 @@ impl Drop for Display {
                 self.depth_image_memory,
             );
             self.gpu.destroy_semaphore(self.present_complete_semaphore);
+            self.gpu.destroy_semaphore(self.render_complete_semaphore);
             // NOTE: render_complete_semaphore is not owned
 
+            self.gpu.destroy_fence(self.draw_fence);
+
             Swapchain::destroy(&self.swapchain, &self.gpu);
+
+            // render pass
+            self.gpu.destroy_render_pass(self.render_pass);
 
             self.surface
                 .loader
@@ -1229,6 +1236,7 @@ impl Display {
         let features = vk::PhysicalDeviceFeatures {
             shader_clip_distance: 1,
             vertex_pipeline_stores_and_atomics: 1,
+            multi_draw_indirect: 1,
             ..Default::default()
         };
         let priorities = [1.0];
@@ -1278,8 +1286,68 @@ impl Display {
                 .expect("Failed to create completion semaphore")
         };
 
+        let render_complete_sempahore_create_info = vk::SemaphoreCreateInfo::default();
+        let render_complete_semaphore = unsafe {
+            gpu.create_semaphore(&render_complete_sempahore_create_info)
+                .expect("Failed to create completion semaphore")
+        };
+
         let (depth_image, depth_image_view, depth_image_memory) =
             unsafe { Self::create_depth_image(&gpu, surface.vk_surface_resolution) };
+
+        let fence_create_info =
+            vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
+        let draw_fence = unsafe { gpu.create_fence(&fence_create_info) };
+
+        let renderpass_attachments = [
+            vk::AttachmentDescription {
+                format: surface.vk_surface_format.format,
+                samples: vk::SampleCountFlags::TYPE_1,
+                load_op: vk::AttachmentLoadOp::CLEAR,
+                store_op: vk::AttachmentStoreOp::STORE,
+                final_layout: vk::ImageLayout::PRESENT_SRC_KHR,
+                ..Default::default()
+            },
+            vk::AttachmentDescription {
+                format: vk::Format::D16_UNORM,
+                samples: vk::SampleCountFlags::TYPE_1,
+                load_op: vk::AttachmentLoadOp::CLEAR,
+                initial_layout: vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                final_layout: vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                ..Default::default()
+            },
+        ];
+        let color_attachment_refs = [vk::AttachmentReference {
+            attachment: 0,
+            layout: vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+        }];
+        let depth_attachment_ref = vk::AttachmentReference {
+            attachment: 1,
+            layout: vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+        };
+        let dependencies = [vk::SubpassDependency {
+            src_subpass: vk::SUBPASS_EXTERNAL,
+            src_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            dst_access_mask: vk::AccessFlags::COLOR_ATTACHMENT_READ
+                | vk::AccessFlags::COLOR_ATTACHMENT_WRITE,
+            dst_stage_mask: vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            ..Default::default()
+        }];
+
+        let subpass = vk::SubpassDescription::default()
+            .color_attachments(&color_attachment_refs)
+            .depth_stencil_attachment(&depth_attachment_ref)
+            .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS);
+
+        let renderpass_create_info = vk::RenderPassCreateInfo::default()
+            .attachments(&renderpass_attachments)
+            .subpasses(std::slice::from_ref(&subpass))
+            .dependencies(&dependencies);
+
+        let render_pass = unsafe {
+            gpu.create_render_pass(&renderpass_create_info)
+                .expect("Failed to create a render pass")
+        };
 
         Self {
             gpu,
@@ -1287,10 +1355,12 @@ impl Display {
             window,
             swapchain: Arc::new(swapchain),
             present_complete_semaphore,
-            render_complete_semaphore: vk::Semaphore::null(),
+            render_complete_semaphore,
+            draw_fence,
             depth_image,
             depth_image_view,
             depth_image_memory,
+            render_pass,
         }
     }
 
@@ -1398,11 +1468,32 @@ impl Display {
         self.depth_image
     }
 
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
+    pub unsafe fn render_pass(&self) -> vk::RenderPass {
+        self.render_pass
+    }
+
     pub fn gpu(&self) -> Gpu {
         self.gpu.clone()
     }
 
+    pub fn draw_fence(&self) -> vk::Fence {
+        self.draw_fence
+    }
+
     pub fn next_frame(&self) -> u32 {
+        unsafe {
+            self.gpu
+                .wait_for_fences(&[self.draw_fence], true, u64::MAX)
+                .expect("Failed to wait for the draw fence");
+
+            self.gpu
+                .reset_fences(&[self.draw_fence])
+                .expect("Failed to reset draw fences");
+        };
+
         let (present_index, is_suboptimal) = unsafe {
             log::debug!("Begin acquire image");
             self.swapchain
@@ -1493,13 +1584,9 @@ impl Display {
         FramePresenter {
             swapchain: Arc::clone(&self.swapchain),
             device: Arc::clone(&self.gpu.device),
-            render_complete_semaphore: self.render_complete_semaphore,
             swapchain_index,
+            wait_semaphore: self.render_complete_semaphore,
         }
-    }
-
-    pub fn set_render_complete_semaphore(&mut self, semaphore: vk::Semaphore) {
-        self.render_complete_semaphore = semaphore;
     }
 
     /// # Safety
@@ -1507,6 +1594,13 @@ impl Display {
     /// This function requires valid Vulkan entities
     pub unsafe fn present_complete_semaphore(&self) -> vk::Semaphore {
         self.present_complete_semaphore
+    }
+
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
+    pub unsafe fn render_complete_semaphore(&self) -> vk::Semaphore {
+        self.render_complete_semaphore
     }
 
     /// # Safety
@@ -1633,161 +1727,6 @@ impl Display {
             })
             .expect("Could not find a device that fulfill requirements")
     }
-
-    /*
-    pub fn present(&self) {
-        let present_index = self.next_frame();
-        log::info!("present_index {}", present_index);
-        let clear_values = vec![
-            vk::ClearValue {
-                color: vk::ClearColorValue {
-                    float32: [0.1, 1.0, 1.0, 0.0],
-                },
-            },
-            //vk::ClearValue {
-            //    depth_stencil: vk::ClearDepthStencilValue {
-            //        depth: 1.0,
-            //       stencil: 0,
-            //    },
-            //},
-        ];
-
-        // these array must live long enough or vulkan will sigsegv
-        let wait_semaphores = [self.vk_present_complete_semaphore];
-        let signal_semaphores = [self.vk_render_complete_semaphore];
-        let command_buffers = [self.vk_draw_command_buffer];
-
-        log::info!("render_pass_begin_info");
-        let render_pass_begin_info = vk::RenderPassBeginInfo::builder()
-            .render_pass(self.renderpass)
-            .framebuffer(self.framebuffers[present_index as usize])
-            .render_area(self.surface.vk_resolution.into())
-            .clear_values(&clear_values)
-            .build();
-
-        log::info!("begin submit");
-        // begin submit
-        unsafe {
-            self.vk_device
-                .wait_for_fences(&[self.vk_draw_commands_reuse_fence], true, u64::MAX)
-                .expect("Wait for fence failed.");
-
-            log::info!("wait_for_fences");
-            self.vk_device
-                .reset_fences(&[self.vk_draw_commands_reuse_fence])
-                .expect("Reset fences failed.");
-
-            log::info!("reset_fences");
-            self.vk_device
-                .reset_command_buffer(
-                    self.vk_draw_command_buffer,
-                    vk::CommandBufferResetFlags::RELEASE_RESOURCES,
-                )
-                .expect("Reset command buffer failed.");
-
-            log::info!("reset_command_buffer");
-            let command_buffer_begin_info = vk::CommandBufferBeginInfo::builder()
-                .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT)
-                .build();
-
-            log::info!("command_buffer_begin_info");
-            self.vk_device
-                .begin_command_buffer(self.vk_draw_command_buffer, &command_buffer_begin_info)
-                .expect("Begin commandbuffer");
-            log::info!("begin_command_buffer");
-        }
-        // ------------
-        unsafe {
-            self.vk_device.cmd_begin_render_pass(
-                self.vk_draw_command_buffer,
-                &render_pass_begin_info,
-                vk::SubpassContents::INLINE,
-            );
-            log::info!("cmd_begin_render_pass");
-            self.vk_device
-                .cmd_end_render_pass(self.vk_draw_command_buffer);
-        }
-        log::info!("cmd_end_render_pass");
-        // ------------
-        unsafe {
-            self.vk_device
-                .end_command_buffer(self.vk_draw_command_buffer)
-                .expect("End commandbuffer");
-            log::info!("end_command_buffer");
-
-            let submit_info = vk::SubmitInfo::builder()
-                .wait_semaphores(&wait_semaphores)
-                .wait_dst_stage_mask(&[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
-                .command_buffers(&command_buffers)
-                .signal_semaphores(&signal_semaphores)
-                .build();
-            log::info!("submit_info {:?}", self.vk_queue);
-
-            self.vk_device
-                .queue_submit(
-                    self.vk_queue,
-                    &[submit_info],
-                    self.vk_draw_commands_reuse_fence,
-                )
-                .expect("queue submit failed.");
-            log::info!("queue_submit");
-        }
-        // end submit
-
-        let wait_semaphores = [self.vk_render_complete_semaphore];
-        let swapchains = [self.swapchain.vk_swapchain];
-        let image_indices = [present_index];
-        let present_info = vk::PresentInfoKHR::builder()
-            .wait_semaphores(&[self.vk_render_complete_semaphore])
-            .swapchains(&swapchains)
-            .image_indices(&image_indices)
-            .build();
-        log::info!("present_info");
-
-        unsafe {
-            self.swapchain
-                .loader
-                .queue_present(self.vk_queue, &present_info)
-                .unwrap();
-        }
-        log::info!("queue_present");
-    }
-    */
-
-    /*
-    unsafe fn create_framebuffers(
-        device: &ash::Device,
-        surface: &Surface,
-        swapchain: &Swapchain,
-        renderpass: &vk::RenderPass,
-    ) -> Vec<vk::Framebuffer> {
-        swapchain
-            .vk_present_image_views
-            .iter()
-            .map(|&present_image_view| {
-                let framebuffer_attachments = [present_image_view /*, base.depth_image_view*/];
-                let frame_buffer_create_info = vk::FramebufferCreateInfo::builder()
-                    .render_pass(*renderpass)
-                    .attachments(&framebuffer_attachments)
-                    .width(surface.vk_resolution.width)
-                    .height(surface.vk_resolution.height)
-                    .layers(1)
-                    .build();
-
-                device
-                    .create_framebuffer(&frame_buffer_create_info, None)
-                    .expect("Could not create a framebuffer")
-            })
-            .collect::<Vec<_>>()
-    }
-
-    unsafe fn destroy_framebuffers(&mut self) {
-        for framebuffer in self.framebuffers.iter() {
-            self.vk_device.destroy_framebuffer(*framebuffer, None);
-        }
-        self.framebuffers.clear();
-    }
-    */
 }
 
 impl<'a> From<&'a Display> for &'a Device {
@@ -1796,24 +1735,72 @@ impl<'a> From<&'a Display> for &'a Device {
     }
 }
 
+pub trait CommandRecorder: Send + Sync {
+    /// # Safety
+    ///
+    /// Requires valid Vulkan entities
+    unsafe fn record(&self, gpu: &Gpu, command_buffer: vk::CommandBuffer);
+}
+
+pub struct RenderSubmit {
+    /// Id of submitting task
+    id: std::any::TypeId,
+    /// dependencied of other tasks
+    dependencies: Vec<std::any::TypeId>,
+    /// command recorder
+    command_recorder: Box<dyn CommandRecorder>,
+}
+
+impl RenderSubmit {
+    pub fn new<T: 'static>(
+        command_recorder: Box<dyn CommandRecorder>,
+        dependencies: &[std::any::TypeId],
+    ) -> Self {
+        Self {
+            id: std::any::TypeId::of::<T>(),
+            dependencies: dependencies.into(),
+            command_recorder,
+        }
+    }
+
+    pub fn id(&self) -> std::any::TypeId {
+        self.id
+    }
+
+    pub fn wait_for(&self) -> &[std::any::TypeId] {
+        self.dependencies.as_slice()
+    }
+
+    /// # Safety
+    ///
+    /// Requires valid Vulkan entities
+    pub unsafe fn record_command_buffer(&self, gpu: &Gpu, command_buffer: vk::CommandBuffer) {
+        self.command_recorder.record(gpu, command_buffer);
+    }
+}
+
 pub struct FramePresenter {
     swapchain: Arc<Swapchain>,
     device: Arc<Device>,
-    render_complete_semaphore: vk::Semaphore,
+    wait_semaphore: vk::Semaphore,
     swapchain_index: u32,
 }
 
 impl FramePresenter {
     pub fn present(self) {
-        let wait_semaphores = [self.render_complete_semaphore];
         let swapchains = [self.swapchain.as_ref().vk_swapchain];
         let image_indices = [self.swapchain_index];
+        let wait_semaphores = [self.wait_semaphore];
         let present_info = vk::PresentInfoKHR::default()
             .wait_semaphores(&wait_semaphores)
             .swapchains(&swapchains)
             .image_indices(&image_indices);
 
-        log::debug!("Begin present: {}", self.swapchain_index);
+        log::debug!(
+            "Begin present: {} ({} wait semaphores)",
+            self.swapchain_index,
+            wait_semaphores.len()
+        );
 
         unsafe {
             let r = self
@@ -1825,90 +1812,6 @@ impl FramePresenter {
         }
     }
 }
-
-/*
-pub struct CommandRecorder<'a> {
-    gpu: &'a Gpu,
-    command_buffer: vk::CommandBuffer,
-    one_time_submit: bool,
-}
-
-impl<'a> Drop for CommandRecorder<'a> {
-    fn drop(&mut self) {
-        if self.one_time_submit {
-            unsafe {
-                self.gpu.end_command_buffer(self.command_buffer);
-            }
-        }
-    }
-}
-
-impl<'a> CommandRecorder<'a> {
-    pub fn setup() -> CommandRecorderSetup {
-        CommandRecorderSetup {
-            one_time_submit: true,
-            ..Default::default()
-        }
-    }
-
-
-}
-
-#[derive(Default)]
-pub struct CommandRecorderSetup {
-    pub command_buffer: vk::CommandBuffer,
-    pub reuse_fence: Option<vk::Fence>,
-    pub one_time_submit: bool,
-}
-
-impl CommandRecorderSetup {
-    #[inline(always)]
-    pub fn command_buffer(mut self, command_buffer: vk::CommandBuffer) -> Self {
-        self.command_buffer = command_buffer;
-        self
-    }
-    #[inline(always)]
-    pub fn reuse_fence(mut self, reuse_fence: Option<vk::Fence>) -> Self {
-        self.reuse_fence = reuse_fence;
-        self
-    }
-    #[inline(always)]
-    pub fn one_time_submit(mut self, one_time_submit: bool) -> Self {
-        self.one_time_submit = one_time_submit;
-        self
-    }
-
-    pub fn create<'a>(self, gpu: &'a Gpu) -> CommandRecorder<'a> {
-        unsafe {
-            if let Some(reuse_fence) = self.reuse_fence {
-                gpu.wait_for_fences(&[reuse_fence], true, u64::MAX)
-                    .expect("Failed to wait for Vulkan fences");
-                gpu.reset_fences(&[reuse_fence])
-                    .expect("Failed to reset Vulkan fences");
-            }
-
-            if self.one_time_submit {
-                let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
-                    .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-
-                gpu.reset_command_buffer(
-                    self.command_buffer,
-                    vk::CommandBufferResetFlags::RELEASE_RESOURCES,
-                )
-                .expect("Failed to reset Vulkan command buffer");
-
-                gpu.begin_command_buffer(self.command_buffer, &command_buffer_begin_info);
-            }
-        }
-
-        CommandRecorder {
-            gpu,
-            command_buffer: self.command_buffer,
-            one_time_submit: self.one_time_submit,
-        }
-    }
-}
-*/
 
 pub struct Buffer {
     pub handle: vk::Buffer,
@@ -1962,7 +1865,7 @@ impl Buffer {
         data: &[T],
     ) -> u64 {
         let align = std::mem::align_of::<T>() as u64;
-        let size = (data.len() * std::mem::size_of::<T>()) as u64;
+        let size = std::mem::size_of_val(data) as u64;
 
         log::debug!("map buffer: align({:?}), size({})", align, size);
 
@@ -1990,83 +1893,6 @@ impl Buffer {
         gpu.destroy_buffer(self.handle);
     }
 }
-
-/*
-
-pub struct PipelineLayout {
-    vk_pipeline_layout: vk::PipelineLayout,
-    device: Arc<Device>,
-}
-
-#[derive(Default)]
-pub struct PipelineLayoutSetup<'a> {
-    vk_layout_create_info: vk::PipelineLayoutCreateInfo<'a>,
-}
-
-impl PipelineLayout {
-    pub fn setup<'a>() -> PipelineLayoutSetup<'a> {
-        PipelineLayoutSetup::default()
-    }
-}
-
-impl Drop for PipelineLayout {
-    fn drop(&mut self) {
-        unsafe {
-            self.device
-                .vk_device
-                .destroy_pipeline_layout(self.vk_pipeline_layout, None);
-        };
-    }
-}
-
-pub struct GraphicsPipeline {
-    vk_pipeline: vk::Pipeline,
-    device: Arc<Device>,
-}
-
-impl GraphicsPipeline {
-    pub fn setup<'a>() -> GraphicsPipelineSetup<'a> {
-        GraphicsPipelineSetup::default()
-    }
-}
-
-#[derive(Default)]
-pub struct GraphicsPipelineSetup<'a> {
-    vk_graphics_pipline_create_info: vk::GraphicsPipelineCreateInfo<'a>,
-}
-
-impl<'a> GraphicsPipelineSetup<'a> {
-    pub fn create(self, gpu: &Gpu) -> GraphicsPipeline {
-        gpu.create_graphics_pipeline(self.vk_graphics_pipline_create_info)
-    }
-}
-
-impl Drop for GraphicsPipeline {
-    fn drop(&mut self) {
-        unsafe {
-            self.device
-                .vk_device
-                .destroy_pipeline(self.vk_pipeline, None);
-        };
-    }
-}
-
-pub struct ShaderModule {
-    device: Arc<Device>,
-    vk_shader_module: vk::ShaderModule,
-}
-
-impl Drop for ShaderModule {
-    fn drop(&mut self) {
-        unsafe {
-            self.device
-                .vk_device
-                .destroy_shader_module(self.vk_shader_module, None);
-        };
-    }
-}
-
- */
 
 /// # Safety
 ///
