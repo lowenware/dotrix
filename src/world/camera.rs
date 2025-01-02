@@ -10,12 +10,14 @@ pub struct Camera {
     pub proj: Mat4,
     /// View matrix
     pub view: Mat4,
+    /// Target point
+    pub target: Vec3,
 }
 
 impl Camera {
     /// Constructs new instance of Camera
-    pub fn new(proj: Mat4, view: Mat4) -> Self {
-        Self { proj, view }
+    pub fn new(proj: Mat4, view: Mat4, target: Vec3) -> Self {
+        Self { proj, view, target }
     }
 
     /// Returns view matrix constructor
@@ -56,8 +58,8 @@ impl Lens {
 impl Default for Lens {
     fn default() -> Self {
         Self {
-            fov: 1.1, // std::f32::consts::FRAC_PI_4
-            plane: 0.0625..524288.06,
+            fov: 2.1, // std::f32::consts::FRAC_PI_4
+            plane: 0.0625..5248.06,
         }
     }
 }

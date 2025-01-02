@@ -37,6 +37,8 @@ glslc -fshader-stage=vertex src/models/shaders/only_mesh.vert -o src/models/shad
 glslc -fshader-stage=fragment src/models/shaders/only_mesh.frag -o src/models/shaders/only_mesh.frag.spv
 glslc -fshader-stage=vertex src/models/shaders/skin_mesh.vert -o src/models/shaders/skin_mesh.vert.spv
 glslc -fshader-stage=fragment src/models/shaders/skin_mesh.frag -o src/models/shaders/skin_mesh.frag.spv
+glslc -fshader-stage=vertex src/features/terrain/shaders/terrain.vert -o src/features/terrain/shaders/terrain.vert.spv
+glslc -fshader-stage=fragment src/features/terrain/shaders/terrain.frag -o src/features/terrain/shaders/terrain.frag.spv
 ```
 
 ## Sponsors

@@ -1,6 +1,8 @@
-use super::{Display, Extent2D, FramePresenter};
+use ash::vk;
+
+use super::{Display, Extent2D, FramePresenter, Gpu, RenderSubmit};
 use crate::log;
-use crate::tasks::{All, Any, Mut, OutputChannel, Ref, Task};
+use crate::tasks::{All, Any, Mut, OutputChannel, Ref, Take, Task};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
@@ -134,22 +136,309 @@ impl Task for CreateFrame {
 }
 
 /// Task, responsible for frame submition to be presented
-#[derive(Default)]
-pub struct SubmitFrame {}
+pub struct SubmitFrame {
+    gpu: Gpu,
+    surface_version: u64,
+    command_pool: vk::CommandPool,
+    command_buffer_render: vk::CommandBuffer,
+    command_buffer_setup: vk::CommandBuffer,
+    setup_fence: vk::Fence,
+    framebuffers: Vec<vk::Framebuffer>,
+}
+
+impl SubmitFrame {
+    pub fn new(display: &Display) -> Self {
+        let gpu = display.gpu();
+        let pool_create_info = vk::CommandPoolCreateInfo::default()
+            .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
+            .queue_family_index(gpu.queue_family_index());
+        let command_pool = unsafe {
+            gpu.create_command_pool(&pool_create_info)
+                .expect("Failed to create a command pool")
+        };
+
+        let fence_create_info =
+            vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
+
+        let setup_fence = unsafe { gpu.create_fence(&fence_create_info) };
+
+        let command_buffer_allocate_info = vk::CommandBufferAllocateInfo::default()
+            .command_buffer_count(2)
+            .command_pool(command_pool)
+            .level(vk::CommandBufferLevel::PRIMARY);
+
+        let (command_buffer_render, command_buffer_setup) = unsafe {
+            gpu.allocate_command_buffers(&command_buffer_allocate_info)
+                .into()
+        };
+
+        Self {
+            gpu,
+            command_pool,
+            command_buffer_render,
+            command_buffer_setup,
+            setup_fence,
+            framebuffers: vec![],
+            surface_version: 0,
+        }
+    }
+
+    unsafe fn create_framebuffers(&mut self, display: &Display) {
+        let resolution = display.surface_resolution();
+        self.framebuffers = display
+            .swapchain_image_views()
+            .map(|&present_image_view| {
+                let framebuffer_attachments = [present_image_view, display.depth_image_view()];
+                let frame_buffer_create_info = vk::FramebufferCreateInfo::default()
+                    .render_pass(display.render_pass())
+                    .attachments(&framebuffer_attachments)
+                    .width(resolution.width)
+                    .height(resolution.height)
+                    .layers(1);
+
+                self.gpu
+                    .create_framebuffer(&frame_buffer_create_info)
+                    .expect("Could not create a framebuffer")
+            })
+            .collect::<Vec<_>>()
+    }
+
+    unsafe fn destroy_framebuffers(&mut self) {
+        for framebuffer in self.framebuffers.drain(..) {
+            self.gpu.destroy_framebuffer(framebuffer);
+        }
+    }
+
+    unsafe fn setup_depth_image(&self, display: &Display) {
+        let depth_image = display.depth_image();
+
+        // begin: prepare
+
+        self.gpu
+            .wait_for_fences(&[self.setup_fence], true, u64::MAX)
+            .expect("Wait for fence failed.");
+
+        self.gpu
+            .reset_fences(&[self.setup_fence])
+            .expect("Reset fences failed.");
+
+        self.gpu
+            .reset_command_buffer(
+                self.command_buffer_setup,
+                vk::CommandBufferResetFlags::RELEASE_RESOURCES,
+            )
+            .expect("Reset command buffer failed.");
+
+        let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+        self.gpu
+            .begin_command_buffer(self.command_buffer_setup, &command_buffer_begin_info)
+            .expect("Begin commandbuffer");
+
+        // end: prepare
+
+        let layout_transition_barriers = vk::ImageMemoryBarrier::default()
+            .image(depth_image)
+            .dst_access_mask(
+                vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ
+                    | vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
+            )
+            .new_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            .old_layout(vk::ImageLayout::UNDEFINED)
+            .subresource_range(
+                vk::ImageSubresourceRange::default()
+                    .aspect_mask(vk::ImageAspectFlags::DEPTH)
+                    .layer_count(1)
+                    .level_count(1),
+            );
+
+        self.gpu.cmd_pipeline_barrier(
+            self.command_buffer_setup,
+            vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+            vk::PipelineStageFlags::LATE_FRAGMENT_TESTS,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            &[layout_transition_barriers],
+        );
+
+        // submit
+        self.gpu
+            .end_command_buffer(self.command_buffer_setup)
+            .expect("End commandbuffer");
+
+        let command_buffers = [self.command_buffer_setup];
+        let wait_mask = [];
+        let wait_semaphores = [];
+        let signal_semaphores = [];
+
+        let submits = [vk::SubmitInfo::default()
+            .wait_semaphores(&wait_semaphores)
+            .wait_dst_stage_mask(&wait_mask)
+            .command_buffers(&command_buffers)
+            .signal_semaphores(&signal_semaphores)];
+
+        self.gpu
+            .submit_queue(&submits, self.setup_fence)
+            .expect("queue submit failed.")
+    }
+}
+
+impl Drop for SubmitFrame {
+    fn drop(&mut self) {
+        unsafe {
+            self.gpu.device_wait_idle().unwrap();
+            // framebuffers
+            self.destroy_framebuffers();
+            // command buffers
+            self.gpu.destroy_command_pool(self.command_pool);
+            // destory fence
+            self.gpu.destroy_fence(self.setup_fence)
+        };
+    }
+}
 
 impl Task for SubmitFrame {
-    type Context = (Ref<Display>, Any<Frame>, All<RenderPass>);
+    type Context = (Ref<Display>, Any<Frame>, Take<All<RenderSubmit>>);
     type Output = FramePresenter;
 
     fn output_channel(&self) -> OutputChannel {
         OutputChannel::Scheduler
     }
 
-    fn run(&mut self, (display, frame, _): Self::Context) -> Self::Output {
+    fn run(&mut self, (display, frame, submits): Self::Context) -> Self::Output {
         log::info!("get presenter");
+
+        if let Some(surface_version) = display.surface_changed(self.surface_version) {
+            unsafe {
+                log::debug!("resize: Surface changed");
+                // self.gpu.device_wait_idle().unwrap();
+
+                // rebuild framebuffers
+                log::debug!("resize: destroy_framebuffers");
+                self.destroy_framebuffers();
+
+                log::debug!("resize: create_framebuffers");
+                self.create_framebuffers(&display);
+
+                log::debug!("resize: setup_depth_image");
+                self.setup_depth_image(&display);
+            }
+            self.surface_version = surface_version;
+        }
+
+        let mut submits = submits.take();
+
+        submits.sort_by(|a, b| {
+            let a_deps = a.wait_for();
+            let b_deps = b.wait_for();
+            let a_depends_on_b = a_deps.iter().any(|i| *i == b.id());
+            let b_depends_on_a = b_deps.iter().any(|i| *i == a.id());
+
+            if a_depends_on_b && b_depends_on_a {
+                panic!("Circular rendering dependencies");
+            }
+
+            if a_depends_on_b && !b_depends_on_a {
+                return std::cmp::Ordering::Greater;
+            }
+
+            if !a_depends_on_b && b_depends_on_a {
+                return std::cmp::Ordering::Less;
+            }
+
+            a_deps.len().cmp(&b_deps.len())
+        });
+        /*
+        .iter()
+        .map(|i| {
+            vk::SubmitInfo::default()
+                .wait_semaphores(i.wait_semaphores.as_slice())
+                .wait_dst_stage_mask(i.wait_dst_stage_mask.as_slice())
+                .command_buffers(i.command_buffers.as_slice())
+                .signal_semaphores(i.signal_semaphores.as_slice())
+        })
+        .collect::<Vec<_>>();
+        */
+
+        let draw_fence = display.draw_fence();
+
+        let command_buffer_begin_info = vk::CommandBufferBeginInfo::default()
+            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+
+        let clear_values = [
+            vk::ClearValue {
+                color: vk::ClearColorValue {
+                    float32: [0.0, 0.0, 0.1, 0.0],
+                },
+            },
+            vk::ClearValue {
+                depth_stencil: vk::ClearDepthStencilValue {
+                    depth: 1.0,
+                    stencil: 0,
+                },
+            },
+        ];
+
+        let render_pass = unsafe { display.render_pass() };
+        let render_pass_begin_info = vk::RenderPassBeginInfo::default()
+            .render_pass(render_pass)
+            .framebuffer(self.framebuffers[frame.swapchain_index as usize])
+            .render_area(vk::Rect2D {
+                offset: vk::Offset2D { x: 0, y: 0 },
+                extent: vk::Extent2D {
+                    width: frame.resolution.width,
+                    height: frame.resolution.height,
+                },
+            })
+            .clear_values(&clear_values);
+
+        unsafe {
+            self.gpu
+                .reset_command_buffer(
+                    self.command_buffer_render,
+                    vk::CommandBufferResetFlags::RELEASE_RESOURCES,
+                )
+                .expect("Failed to reset Vulkan command buffer");
+
+            self.gpu
+                .begin_command_buffer(self.command_buffer_render, &command_buffer_begin_info)
+                .expect("Failed to begin draw command buffer");
+
+            self.gpu.cmd_begin_render_pass(
+                self.command_buffer_render,
+                &render_pass_begin_info,
+                vk::SubpassContents::INLINE,
+            );
+
+            for submit in submits.into_iter() {
+                submit.record_command_buffer(&self.gpu, self.command_buffer_render);
+            }
+
+            self.gpu.cmd_end_render_pass(self.command_buffer_render);
+
+            self.gpu
+                .end_command_buffer(self.command_buffer_render)
+                .expect("End commandbuffer");
+
+            let present_complete_semaphore = display.present_complete_semaphore();
+            let render_complete_semaphore = display.render_complete_semaphore();
+            let wait_semaphores = [present_complete_semaphore];
+            let wait_mask = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
+            let command_buffers = [self.command_buffer_render];
+            let signal_semaphores = [render_complete_semaphore];
+
+            let submit_info = [vk::SubmitInfo::default()
+                .wait_semaphores(&wait_semaphores)
+                .wait_dst_stage_mask(&wait_mask)
+                .command_buffers(&command_buffers)
+                .signal_semaphores(&signal_semaphores)];
+
+            self.gpu
+                .submit_queue(&submit_info, draw_fence)
+                .expect("Failed to submit draw buffer to queue");
+        }
         display.presenter(frame.swapchain_index)
     }
 }
-
-/// Render Pass Output
-pub struct RenderPass {}

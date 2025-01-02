@@ -141,6 +141,17 @@ impl From<&Color<f32>> for [f32; 3] {
     }
 }
 
+impl From<&Color<u8>> for Color<f32> {
+    fn from(color: &Color<u8>) -> Self {
+        Color {
+            r: (color.r as f32) / 255.0,
+            g: (color.g as f32) / 255.0,
+            b: (color.b as f32) / 255.0,
+            a: (color.a as f32) / 255.0,
+        }
+    }
+}
+
 impl VertexAttribute for Color<u8> {
     type Raw = u32;
     fn name() -> &'static str {
@@ -167,6 +178,17 @@ impl From<u32> for Color<u8> {
             g: (color >> 16 & 0x0FF) as u8,
             b: (color >> 8 & 0x0FF) as u8,
             a: (color & 0x0FF) as u8,
+        }
+    }
+}
+
+impl From<[u8; 3]> for Color<u8> {
+    fn from(color: [u8; 3]) -> Self {
+        Self {
+            r: color[0],
+            g: color[1],
+            b: color[2],
+            a: 0xFF,
         }
     }
 }

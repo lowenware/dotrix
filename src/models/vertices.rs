@@ -13,6 +13,14 @@ pub struct VertexPosition {
     pub value: Vec3,
 }
 
+impl VertexPosition {
+    pub fn new(x: f32, y: f32, z: f32) -> Self {
+        Self {
+            value: Vec3::new(x, y, z),
+        }
+    }
+}
+
 impl VertexAttribute for VertexPosition {
     type Raw = [f32; 3];
     fn name() -> &'static str {

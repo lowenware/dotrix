@@ -26,6 +26,9 @@ pub use crate::log::Log;
 /// Math module
 pub mod math;
 
+mod features;
+pub use features::*;
+
 /// Models abstractions
 pub mod models;
 pub use models::{
@@ -82,9 +85,6 @@ pub use window::{Input, ReadInput, Window};
 
 // #[cfg(feature = "pbr")]
 // pub use dotrix_pbr as pbr;
-
-// #[cfg(feature = "ui")]
-// pub use dotrix_ui as ui;
 
 /// Dotrix Settings
 pub trait Application {

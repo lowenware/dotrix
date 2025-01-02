@@ -167,7 +167,7 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
                 .fps_request(app.fps_request());
             scheduler.add_task(create_frame_task);
 
-            let submit_frame_task = graphics::SubmitFrame::default();
+            let submit_frame_task = graphics::SubmitFrame::new(&display);
             scheduler.add_task(submit_frame_task);
 
             scheduler.add_task(input::ReadInput::default());
@@ -189,16 +189,13 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
         _device_id: winit::event::DeviceId,
         event: winit::event::DeviceEvent,
     ) {
-        match event {
-            winit::event::DeviceEvent::MouseMotion { delta } => {
-                let (horizontal, vertical) = delta;
-                let input_event = event::Event::MouseMove {
-                    horizontal,
-                    vertical,
-                };
-                self.task_manager.provide(input_event);
-            }
-            _ => {}
+        if let winit::event::DeviceEvent::MouseMotion { delta } = event {
+            let (horizontal, vertical) = delta;
+            let input_event = event::Event::MouseMove {
+                horizontal,
+                vertical,
+            };
+            self.task_manager.provide(input_event);
         }
     }
 

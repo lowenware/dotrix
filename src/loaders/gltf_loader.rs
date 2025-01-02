@@ -45,7 +45,10 @@ pub struct GltfLoader;
 
 impl ResourceLoader for GltfLoader {
     fn read(&self, path: &Path, targets: &HashSet<ResourceTarget>) -> ResourceBundle {
-        let mut file = File::open(path).expect("Could not open GLTF resource file");
+        let mut file = match File::open(path) {
+            Ok(file) => file,
+            Err(err) => panic!("Could not open GLTF resource file ({path:?}): {err:?}",),
+        };
         let metadata = std::fs::metadata(path).expect("Could not read GLTF file metadata");
         let mut data = vec![0; metadata.len() as usize];
         file.read_exact(&mut data)
@@ -75,7 +78,7 @@ impl ResourceLoader for GltfLoader {
                     }
                 }
             }
-            Err(e) => log::error!("Could not read GLTF file `{:?}`: {:?}", path, e),
+            Err(err) => log::error!("Could not read GLTF file `{path:?}`: {err:?}"),
         };
 
         let mut bundle = targets
@@ -121,16 +124,16 @@ impl GltfLoader {
                     if let Some(stripped) = uri.strip_prefix(URI_BASE64) {
                         match base64_decode(stripped) {
                             Ok(buffer) => buffers.push(buffer),
-                            Err(e) => {
-                                log::error!("Could not decode Base64 buffer: {:?}", e);
+                            Err(err) => {
+                                log::error!("Could not decode Base64 buffer: {err:?}");
                                 return None;
                             }
                         };
                     } else {
                         match std::fs::read(path.parent().unwrap().join(uri)) {
                             Ok(buffer) => buffers.push(buffer),
-                            Err(e) => {
-                                log::error!("Could not read GLTF buffer from file: {:?}", e);
+                            Err(err) => {
+                                log::error!("Could not read GLTF buffer from file: {err:?}");
                                 return None;
                             }
                         };
@@ -271,7 +274,7 @@ impl GltfLoader {
         let mode = primitive.mode();
 
         if mode != gltf::mesh::Mode::Triangles {
-            log::error!("Unsupported topology: {:?}", mode);
+            log::error!("Unsupported topology: {mode:?}");
             return;
         };
 
@@ -391,8 +394,8 @@ impl GltfLoader {
 
                     match base64_decode(&uri[URI_IMAGE_PNG.len()..]) {
                         Ok(data) => (data, ImageFormat::Png),
-                        Err(e) => {
-                            log::error!("Could not decode texture data: {:?}", e);
+                        Err(err) => {
+                            log::error!("Could not decode texture data: {err:?}");
                             return Id::default();
                         }
                     }
@@ -400,7 +403,7 @@ impl GltfLoader {
 
                 gltf::image::Source::View { view, mime_type } => {
                     if mime_type != "image/png" {
-                        log::warn!("Unsupported mime: {}", mime_type);
+                        log::warn!("Unsupported mime: {mime_type}");
                         return Id::default();
                     }
 
@@ -433,9 +436,9 @@ impl GltfLoader {
         let asset_name = animation
             .name()
             .map(|animation_name| [name, animation_name].join("::"))
-            .unwrap_or_else(|| format!("{}::animation[{}]", name, animation.index()));
+            .unwrap_or_else(|| format!("{name}::animation[{}]", animation.index()));
 
-        log::info!("importing animation as `{}`", asset_name);
+        log::info!("importing animation as `{asset_name}`");
 
         let mut asset = Animation::new(asset_name);
 
@@ -478,9 +481,8 @@ impl GltfLoader {
                 };
             } else {
                 log::warn!(
-                    "Animation {} refers target joint ({}), that does not exist",
-                    asset.name(),
-                    index
+                    "Animation {} refers target joint ({index}), that does not exist",
+                    asset.name()
                 );
             }
         }
