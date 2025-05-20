@@ -148,16 +148,27 @@ impl Container {
 
     pub fn matches(&self, archetype: &mut Archetype) -> bool {
         !archetype.any(|component_type_id| !self.data.contains_key(component_type_id))
+            && archetype.len() == self.data.len()
     }
 
     pub fn store(&mut self, entity: Entity) -> usize {
         let index = self.removed.pop().unwrap_or_else(|| self.next_index());
 
         for (component_type_id, component) in entity.into_iter() {
-            self.data
+            let components_list = self
+                .data
                 .get_mut(&component_type_id)
-                .expect("Entity should match container")
-                .insert(index, Some(UnsafeCell::new(component)));
+                .expect("Entity should match container");
+            let components_list_len = components_list.len();
+            let component_cell = Some(UnsafeCell::new(component));
+
+            if index < components_list_len {
+                components_list[index] = component_cell;
+            } else if index == components_list_len {
+                components_list.push(component_cell);
+            } else {
+                panic!("Component index `{index}`is out of storage len `{components_list_len}`");
+            }
         }
 
         index
@@ -278,26 +289,3 @@ impl From<&Entity> for Container {
         }
     }
 }
-
-/*
-#[cfg(test)]
-mod tests {
-    struct Item1(u32);
-    struct Item2(u32);
-    use crate::world::container::Container;
-    #[test]
-    fn mutability() {
-        let mut c = Container::new::<(Item1, Item2)>();
-        c.push::<Item1>(Item1(123));
-        c.push::<Item2>(Item2(666));
-
-        for i in c.get_mut::<Item1>().unwrap() {
-            i.0 += 198;
-        }
-
-        for i in c.get::<Item1>().unwrap() {
-            assert_eq!(i.0, 321);
-        }
-    }
-}
-*/

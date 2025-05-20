@@ -516,139 +516,64 @@ mod tests {
             assert_eq!(weight.0, 5000);
         }
     }
-}
 
-/*
-#[cfg(test)]
-mod tests {
-    use super::World;
-    use crate::{World, Entity;
-
-    #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-    struct Armor(u32);
-    #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-    struct HealthComponent(u32);
-    struct SpeedComponent(u32);
-    struct DamageComponent(u32);
-    struct WeightComponent(u32);
-
-    fn spawn() -> World {
+    #[test]
+    fn exiled_entities_must_not_be_in_world() {
         let mut world = World::new();
-        world.spawn(Some((Armor(100), HealthComponent(100), DamageComponent(300))));
-        world.spawn(Some((HealthComponent(80), SpeedComponent(10))));
-        world.spawn(Some((SpeedComponent(50), DamageComponent(45))));
-        world.spawn(Some((DamageComponent(600), Armor(10))));
 
-        let bulk = (0..9).map(|_| (SpeedComponent(35), WeightComponent(5000)));
-        world.spawn(bulk);
+        let cycles = 16;
+        let entities_per_cycle = 8;
 
-        world
-    }
+        let mut entities = std::collections::HashMap::new();
+        let mut zombie_entities = vec![];
 
-    #[test]
-    fn spawn_and_query() {
-        let world = spawn();
-
-        let mut iter = world.query::<(&Armor, &DamageComponent)>();
-
-        let item = iter.next();
-        assert!(item.is_some());
-
-        if let Some((armor, damage)) = item {
-            assert_eq!(armor.0, 100); // Armor(100)
-            assert_eq!(damage.0, 300); // DamageComponent(300)
-        }
-
-        let item = iter.next();
-        assert!(item.is_some());
-
-        let item = item.unwrap();
-        assert_eq!(item.0 .0, 10); // Armor(10)
-        assert_eq!(item.1 .0, 600); // DamageComponent(600)
-
-        let item = iter.next();
-        assert!(item.is_none());
-    }
-
-    #[test]
-    fn spawn_and_modify() {
-        let world = spawn();
-        {
-            let iter = world.query::<(&mut SpeedComponent,)>()D;
-            for (speed,) in iter {
-                speed.0 = 123;
+        for cycle in 0..cycles {
+            for entity_value in 0..entities_per_cycle {
+                let entity_id = world
+                    .spawn(Some((HealthComponent(cycle), SpeedComponent(entity_value))))
+                    .next()
+                    .expect("entity must be spawned");
+                println!("Spawn {entity_id:?} | cycle={cycle}, entity_value={entity_value}");
+                entities.insert(entity_id, true);
             }
-        }
-        {
-            let iter = world.query::<(&SpeedComponent,)>();
-            for (speed,) in iter {
-                assert_eq!(speed.0, 123);
-            }
-        }
-    }
 
-    #[test]
-    fn spawn_and_exile() {
-        let mut world = spawn();
-        {
-            let iter = world.query::<(&Entity, &mut Armor)>();
-            let mut entity_to_delete = None;
-            let mut entities_before = 0;
-            for (entity, armor) in iter {
-                if armor.0 == 100 {
-                    entity_to_delete = Some(*entity);
+            for (entity_id, health, speed) in
+                world.query::<(&Id<Entity>, &mut HealthComponent, &SpeedComponent)>()
+            {
+                println!(
+                    "Query {entity_id:?} | cycle={}, entity_value={}",
+                    health.0, speed.0
+                );
+                let entity_memo = entities.get(entity_id);
+                assert!(entity_memo.is_some());
+                let must_be_in_world = entity_memo.cloned().unwrap();
+                println!("must_be_in_world (expect true): {must_be_in_world}");
+                if !must_be_in_world {
+                    zombie_entities.push(*entity_id);
                 }
-                entities_before += 1;
-            }
-            assert!(entity_to_delete.is_some());
-
-            world.exile(entity_to_delete.unwrap());
-
-            let iter = world.query::<(&Entity, &mut Armor)>();
-            let mut entities_after = 0;
-            for (entity, _armor) in iter {
-                assert_ne!(*entity, entity_to_delete.unwrap());
-                entities_after += 1;
             }
 
-            assert_eq!(entities_before - 1, entities_after);
+            let to_exile = entities
+                .iter()
+                .filter(|(_key, &value)| value)
+                .map(|(key, _value)| *key)
+                .enumerate()
+                .filter(|(i, _)| i % 2 == 0)
+                .map(|(_, id)| id)
+                .collect::<Vec<_>>();
+
+            for entity_id in to_exile.into_iter() {
+                println!("Exile {entity_id:?}");
+                let must_be_in_world = entities.get(&entity_id).cloned().unwrap_or(false);
+                println!("must_be_in_world (expect true): {must_be_in_world}");
+                assert!(must_be_in_world);
+                let entity = world.exile(&entity_id);
+                assert!(entity.is_some());
+                println!("entity exiled (expect true): {}", entity.is_some());
+                entities.insert(entity_id, false);
+            }
         }
-    }
-
-    #[test]
-    fn spawn_and_get_by_entity() {
-        let world = spawn();
-        let entity = Entity::from(0);
-        let query = world.get::<(&Armor, &HealthComponent)>(entity);
-        assert!(query.is_some());
-        if let Some((&armor, &health)) = query {
-            assert_eq!(armor, Armor(100));
-            assert_eq!(health, HealthComponent(100));
-        }
-    }
-
-    #[test]
-    fn spawn_and_check_entities() {
-        let mut world = World::default();
-        let mut spawned = world.spawn(Some((Armor(1),)));
-
-        assert_eq!(spawned.next(), Some(Entity::from(0)));
-        assert_eq!(spawned.first(), Entity::from(0));
-        assert_eq!(spawned.last(), Some(Entity::from(0)));
-
-        let spawned: Vec<Entity> = world
-            .spawn([
-                (Armor(2), HealthComponent(100)),
-                (Armor(4), HealthComponent(80)),
-                (Armor(4), HealthComponent(90)),
-            ])
-            .into();
-
-        assert_eq!(spawned.len(), 3);
-
-        for (i, ent) in spawned.iter().enumerate() {
-            assert_eq!(ent, &Entity::from(i as u64 + 1));
-        }
+        println!("Zombie entities: {zombie_entities:?}");
+        assert_eq!(zombie_entities.len(), 0);
     }
 }
-*/
