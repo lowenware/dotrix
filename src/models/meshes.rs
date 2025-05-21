@@ -62,6 +62,55 @@ impl Mesh {
         Mesh::generate(name, genmesh::generators::SphereUv::new(u, v))
     }
 
+    /// Constructs a hemisphere (a dome)
+    ///
+    /// `u` is the number of points across the equator of the sphere
+    ///
+    /// `v` is the number of points from equator to pole
+    pub fn hemisphere(name: impl ToString, u: usize, v: usize) -> Self {
+        use genmesh::generators::{IndexedPolygon, SharedVertex};
+        use genmesh::Triangulate;
+
+        let sphere_generator = genmesh::generators::SphereUv::new(u, 2 * v);
+
+        let vertices = sphere_generator.shared_vertex_iter().collect::<Vec<_>>();
+        let vertices_count = vertices.len();
+
+        let mut positions = Vec::with_capacity(vertices_count);
+        let mut normals = Vec::with_capacity(vertices_count);
+        let mut tex_uvs = Vec::with_capacity(vertices_count);
+
+        for vertex in vertices.into_iter() {
+            positions.push([vertex.pos.x, vertex.pos.y, vertex.pos.z]);
+            normals.push([vertex.normal.x, vertex.normal.y, vertex.normal.z]);
+            tex_uvs.push([(vertex.pos.x + 1.0) / 2.0, (vertex.pos.z + 1.0) / 2.0]);
+        }
+
+        let indices = sphere_generator
+            .indexed_polygon_iter()
+            .triangulate()
+            .filter_map(|triangle| {
+                let triangle_indices = [triangle.x as u32, triangle.y as u32, triangle.z as u32];
+                let is_above_equator = triangle_indices
+                    .iter()
+                    .any(|i| positions[*i as usize][2] >= -0.0);
+                if is_above_equator {
+                    Some(triangle_indices)
+                } else {
+                    None
+                }
+            })
+            .flatten()
+            .collect::<Vec<_>>();
+
+        let mut mesh = Self::new(name);
+        mesh.set_vertices::<VertexPosition>(positions);
+        mesh.set_vertices::<VertexNormal>(normals);
+        mesh.set_vertices::<VertexTexture>(tex_uvs);
+        mesh.set_indices(indices);
+        mesh
+    }
+
     /// Constructs a cone mesh
     ///
     /// `u` is the number of subdivisions around the radius and it must be greater then 1
