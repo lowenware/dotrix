@@ -182,7 +182,7 @@ impl Task for RenderTerrain {
 
         for (id, terrain) in world.query::<(&Id<Entity>, &Terrain)>() {
             if !spawn_terrain_output.scene.contains(id) {
-                log::error!("Garbage terrain from ECS: {:?}", id);
+                log::error!("ECS_TERRAIN: garbage entity: {:?}", id);
                 continue;
             }
             let lod_info = match self.lods_index.get(&terrain.lod) {
