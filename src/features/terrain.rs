@@ -245,7 +245,10 @@ impl Task for SpawnTerrain {
                         .next()
                         .expect("Terrain entity id was not returned after spawning");
                     index.insert(tile, entity_id);
-                    // log::debug!("spawn -> ({};{} -> {})", xi, zi, lod.value());
+                    log::debug!(
+                        "ECS_TERRAIN: spawn {entity_id:?} ({xi};{zi} -> {})",
+                        lod.value()
+                    );
                     tiles_to_spawn.push(entity_id);
                 }
             }
@@ -258,17 +261,18 @@ impl Task for SpawnTerrain {
         let mut tiles_to_exile = Vec::with_capacity(self.index.len());
         // Clear terrain out of view range
         for entity_id in self.index.values() {
-            /* TODO: exile is broken on ECS level
             if let Some(entity) = world.exile(entity_id) {
                 if let Some(terrain) = entity.get::<Terrain>() {
-                    log::debug!("exile -> ({})", terrain.lod.value());
+                    log::debug!(
+                        "ECS_TERRAIN: exile {entity_id:?}, lod={}",
+                        terrain.lod.value()
+                    );
                 } else {
-                    log::error!("exile -> entity is not a terrain: {:?}", entity_id);
+                    log::error!("ECS_TERRAIN: exile {entity_id:?} ! not a terrain");
                 }
             } else {
-                log::error!("exile -> failed {:?}", entity_id);
+                log::error!("ECS_TERRAIN: exile {entity_id:?} -> failed");
             }
-            */
             tiles_to_exile.push(*entity_id);
         }
         let scene = index.values().copied().collect::<Vec<_>>();
