@@ -24,7 +24,8 @@ path = "utils/terrain/main.rs"
 required-features = ["terrain"]
 
 [features]
-default = ["terrain"]
+default = ["terrain", "skydome"]
+skydome = []
 terrain = [
     "dep:noise",
     "dep:rand",
