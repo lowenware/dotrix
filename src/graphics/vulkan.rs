@@ -1033,6 +1033,48 @@ impl Gpu {
     /// # Safety
     ///
     /// This function requires valid Vulkan entities
+    pub unsafe fn cmd_draw(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        vertex_count: u32,
+        instance_count: u32,
+        first_vertex: u32,
+        first_instance: u32,
+    ) {
+        self.device.vk_device.cmd_draw(
+            command_buffer,
+            vertex_count,
+            instance_count,
+            first_vertex,
+            first_instance,
+        );
+    }
+
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
+    pub unsafe fn cmd_draw_indexed(
+        &self,
+        command_buffer: vk::CommandBuffer,
+        index_count: u32,
+        instance_count: u32,
+        first_index: u32,
+        vertex_offset: i32,
+        first_instance: u32,
+    ) {
+        self.device.vk_device.cmd_draw_indexed(
+            command_buffer,
+            index_count,
+            instance_count,
+            first_index,
+            vertex_offset,
+            first_instance,
+        );
+    }
+
+    /// # Safety
+    ///
+    /// This function requires valid Vulkan entities
     #[allow(clippy::too_many_arguments)]
     pub unsafe fn cmd_pipeline_barrier(
         &self,
@@ -1742,6 +1784,12 @@ pub trait CommandRecorder: Send + Sync {
     unsafe fn record(&self, gpu: &Gpu, command_buffer: vk::CommandBuffer);
 }
 
+pub struct DummyRecorder {}
+
+impl CommandRecorder for DummyRecorder {
+    unsafe fn record(&self, _gpu: &Gpu, _command_buffer: vk::CommandBuffer) {}
+}
+
 pub struct RenderSubmit {
     /// Id of submitting task
     id: std::any::TypeId,
@@ -1752,6 +1800,10 @@ pub struct RenderSubmit {
 }
 
 impl RenderSubmit {
+    pub fn skip<T: 'static>(dependencies: &[std::any::TypeId]) -> Self {
+        Self::new::<T>(Box::new(DummyRecorder {}), dependencies)
+    }
+
     pub fn new<T: 'static>(
         command_recorder: Box<dyn CommandRecorder>,
         dependencies: &[std::any::TypeId],

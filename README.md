@@ -39,6 +39,10 @@ glslc -fshader-stage=vertex src/models/shaders/skin_mesh.vert -o src/models/shad
 glslc -fshader-stage=fragment src/models/shaders/skin_mesh.frag -o src/models/shaders/skin_mesh.frag.spv
 glslc -fshader-stage=vertex src/features/terrain/shaders/terrain.vert -o src/features/terrain/shaders/terrain.vert.spv
 glslc -fshader-stage=fragment src/features/terrain/shaders/terrain.frag -o src/features/terrain/shaders/terrain.frag.spv
+glslc -fshader-stage=vertex src/features/skydome/shaders/skydome.vert -o src/features/skydome/shaders/skydome.vert.spv
+glslc -fshader-stage=fragment src/features/skydome/shaders/skydome.frag -o src/features/skydome/shaders/skydome.frag.spv
+```
+
 ```
 
 ## Sponsors

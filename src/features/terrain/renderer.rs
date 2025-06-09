@@ -278,23 +278,6 @@ impl Task for RenderTerrain {
         };
 
         RenderSubmit::new::<Self>(Box::new(command_recorder), &self.wait_for)
-
-        /*
-        unsafe {
-            self.record_draw_commands(&frame, self.indirect_buffer_data.len() as u32);
-        }
-
-        CommandBufferSubmitInfo {
-            wait_semaphores: self.wait_semaphores.clone(),
-            wait_dst_stage_mask: self
-                .wait_semaphores
-                .iter()
-                .map(|_| vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
-                .collect::<Vec<_>>(),
-            command_buffers: vec![self.command_buffer_draw],
-            signal_semaphores: vec![self.signal_semaphore],
-        }
-        */
     }
 }
 
@@ -755,8 +738,6 @@ impl RenderTerrain {
 }
 
 pub struct RenderTerrainSetup {
-    wait_semaphores: Vec<vk::Semaphore>,
-    surface_format: vk::Format,
     tile_size: u32,
     tiles_in_view_range: u32,
     lods: Vec<LodSetup>,
@@ -765,8 +746,6 @@ pub struct RenderTerrainSetup {
 impl Default for RenderTerrainSetup {
     fn default() -> Self {
         Self {
-            wait_semaphores: Vec::new(),
-            surface_format: vk::Format::default(),
             tile_size: DEFAULT_TILE_SIZE,
             tiles_in_view_range: DEFAULT_TILES_IN_VIEW_RANGE,
             lods: vec![],
@@ -782,16 +761,6 @@ impl RenderTerrainSetup {
 
     pub fn tiles_in_view_range(mut self, value: u32) -> Self {
         self.tiles_in_view_range = value;
-        self
-    }
-
-    pub fn wait_semaphores(mut self, semaphores: impl IntoIterator<Item = vk::Semaphore>) -> Self {
-        self.wait_semaphores.extend(semaphores);
-        self
-    }
-
-    pub fn surface_format(mut self, surface_format: vk::Format) -> Self {
-        self.surface_format = surface_format;
         self
     }
 
