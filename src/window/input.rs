@@ -108,6 +108,8 @@ impl Task for ReadInput {
             list.push(event);
         }
 
+        self.mouse_position = mouse_position;
+
         Input {
             events: list,
             modifiers: self.modifiers,

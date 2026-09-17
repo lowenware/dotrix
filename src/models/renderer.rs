@@ -4,7 +4,7 @@ use std::io::Cursor;
 use crate::graphics::{vk, CommandRecorder};
 use crate::graphics::{Buffer, RenderSubmit};
 use crate::loaders::Assets;
-use crate::models::materials::MAX_MATERIAL_IMAGES;
+use crate::models::materials::{MAX_MATERIAL_IMAGES, NO_TEXTURE_LAYER};
 use crate::utils::Id;
 use crate::world::{Camera, Entity, World};
 use crate::{log, VertexJoints, VertexWeights};
@@ -1037,39 +1037,51 @@ impl RenderModels {
     fn register_material(&mut self, material_id: Id<Material>, assets: &Assets) -> Option<u32> {
         let material_uniform: MaterialUniform = if let Some(material) = assets.get(material_id) {
             let mut staging_layer_count: u32 = 0;
-            let (albedo_map_index, base_array_layer) = assets
-                .get(material.albedo_map)
-                .map(|image| {
-                    let base_array_layer = self.material_layer_index.len();
-                    if let std::collections::hash_map::Entry::Vacant(e) =
-                        self.material_layer_index.entry(material.albedo_map)
-                    {
-                        // write to buffer
-                        // TODO: verify material extent
-                        unsafe {
-                            self.material_staging_buffer.map_and_write_to_device_memory(
-                                &self.gpu,
-                                (staging_layer_count
-                                    * self.material_layer_size.width
-                                    * self.material_layer_size.height
-                                    * std::mem::size_of::<u32>() as u32)
-                                    as u64,
-                                image.data(),
-                            );
-                        };
-                        e.insert(base_array_layer);
-                        staging_layer_count += 1;
+            let (albedo_map_index, base_array_layer) = if material.albedo_map.is_null() {
+                (NO_TEXTURE_LAYER, 0)
+            } else if let Some(image) = assets.get(material.albedo_map) {
+                let base_array_layer = self.material_layer_index.len();
+                if let std::collections::hash_map::Entry::Vacant(e) =
+                    self.material_layer_index.entry(material.albedo_map)
+                {
+                    let texture_data =
+                        Self::prepare_material_texture(image, self.material_layer_size);
+                    let expected_len = (self.material_layer_size.width
+                        * self.material_layer_size.height
+                        * std::mem::size_of::<u32>() as u32)
+                        as usize;
+                    if texture_data.len() != expected_len {
+                        log::error!(
+                            "Material texture `{}` has unexpected size ({} bytes, expected {})",
+                            image.name(),
+                            texture_data.len(),
+                            expected_len
+                        );
                     }
-                    let albedo_map_index = self
-                        .material_layer_index
-                        .get(&material.albedo_map)
-                        .cloned()
-                        .expect("Layer index must be inserted at this stage")
-                        as u32;
-                    (albedo_map_index, base_array_layer)
-                })
-                .unwrap_or((0, 0));
-            // flush material staging buffer
+                    unsafe {
+                        self.material_staging_buffer.map_and_write_to_device_memory(
+                            &self.gpu,
+                            (staging_layer_count
+                                * self.material_layer_size.width
+                                * self.material_layer_size.height
+                                * std::mem::size_of::<u32>() as u32)
+                                as u64,
+                            texture_data.as_slice(),
+                        );
+                    };
+                    e.insert(base_array_layer);
+                    staging_layer_count += 1;
+                }
+                let albedo_map_index = self
+                    .material_layer_index
+                    .get(&material.albedo_map)
+                    .cloned()
+                    .expect("Layer index must be inserted at this stage")
+                    as u32;
+                (albedo_map_index, base_array_layer)
+            } else {
+                (NO_TEXTURE_LAYER, 0)
+            };
             unsafe {
                 self.flush_material_staging_buffer(staging_layer_count, base_array_layer as u32);
             };
@@ -1271,6 +1283,50 @@ impl RenderModels {
         };
 
         Buffer::create_and_allocate(gpu, &buffer_create_info)
+    }
+
+    fn prepare_material_texture(image: &Image, target_size: Extent2D) -> Vec<u8> {
+        use image::{imageops::FilterType, ImageBuffer, RgbaImage};
+
+        let width = image.resolution().width;
+        let height = image.resolution().height;
+        let data = image.data();
+        let rgba_len = (width * height * 4) as usize;
+
+        let rgba: RgbaImage = if data.len() == rgba_len {
+            ImageBuffer::from_raw(width, height, data.to_vec())
+                .expect("RGBA image buffer must match resolution")
+        } else if data.len() == (width * height * 3) as usize {
+            let mut raw = vec![0u8; rgba_len];
+            for (i, chunk) in data.chunks_exact(3).enumerate() {
+                let offset = i * 4;
+                raw[offset] = chunk[0];
+                raw[offset + 1] = chunk[1];
+                raw[offset + 2] = chunk[2];
+                raw[offset + 3] = 255;
+            }
+            ImageBuffer::from_raw(width, height, raw)
+                .expect("RGB image buffer must match resolution")
+        } else {
+            log::error!(
+                "Unsupported material texture `{}` byte length {}",
+                image.name(),
+                data.len()
+            );
+            return vec![0; rgba_len];
+        };
+
+        if width != target_size.width || height != target_size.height {
+            image::imageops::resize(
+                &rgba,
+                target_size.width,
+                target_size.height,
+                FilterType::Triangle,
+            )
+            .into_raw()
+        } else {
+            rgba.into_raw()
+        }
     }
 
     unsafe fn create_transfer_buffer(gpu: &Gpu, size: u64) -> Result<Buffer, vk::Result> {

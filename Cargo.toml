@@ -23,8 +23,13 @@ name = "dotrix-terrain"
 path = "utils/terrain/main.rs"
 required-features = ["terrain"]
 
+[[bin]]
+name = "ui-demo"
+path = "demo/ui/main.rs"
+required-features = ["fontdue"]
+
 [features]
-default = ["terrain", "skydome"]
+default = ["terrain", "skydome", "ui"]
 skydome = []
 terrain = [
     "dep:noise",
@@ -34,6 +39,8 @@ terrain = [
     "dep:toml",
     "dep:serde",
 ]
+ui = []
+fontdue = ["ui", "dep:fontdue"]
 
 [dependencies]
 bytemuck = { version = "1.4", features = ["derive"] }
@@ -61,3 +68,4 @@ rand = { version = "0.8.4", features = ["small_rng"], optional = true }
 structopt = { version = "0.3", optional = true }
 toml = { version = "0.8", optional = true }
 serde = { version = "1.0", optional = true }
+fontdue = { version = "0.9", optional = true }

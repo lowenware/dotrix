@@ -121,6 +121,9 @@ impl Manager {
             .get(&std::any::TypeId::of::<T>())
             .and_then(|slot| {
                 let total = slot.instances.len();
+                if index >= total {
+                    return None;
+                }
                 (*slot.instances[index].get())
                     .as_ref()
                     .and_then(|data| data.downcast_ref::<T>())
@@ -155,6 +158,9 @@ impl Manager {
             .get(&std::any::TypeId::of::<T>())
             .and_then(|slot| {
                 let total = slot.instances.len();
+                if index >= total {
+                    return None;
+                }
                 (*slot.instances[index].get())
                     .take()
                     .and_then(|data| data.downcast::<T>().ok())
@@ -273,6 +279,12 @@ impl Manager {
     /// Provides an output
     pub fn provide(&mut self, type_id: TypeId, data: Box<dyn std::any::Any + Send + 'static>) {
         let entry = self.outputs.entry(type_id).or_default();
+        // The scheduler cycle marker must be a single instance; otherwise tasks
+        // that depend on Any<Loop> can run once per accumulated instance and
+        // acquire multiple swapchain images before SubmitFrame presents.
+        if type_id == TypeId::of::<scheduler::Loop>() {
+            entry.instances.clear();
+        }
         entry.instances.push(UnsafeCell::new(Some(data)));
         log::debug!(
             "Provide {} -> {} of {}",
@@ -347,6 +359,54 @@ impl Manager {
         }
 
         Some(result)
+    }
+
+    /// Describes why task dependencies are not satisfied yet.
+    pub fn describe_unsatisfied_dependencies(&self, dependencies: &Dependencies) -> Vec<String> {
+        let mut reasons = Vec::new();
+
+        for (type_id, dependency) in dependencies.data.iter() {
+            let output = match self.outputs.get(type_id) {
+                Some(output) => output,
+                None => {
+                    reasons.push(format!(
+                        "missing output slot for {}",
+                        self.output_name(type_id).unwrap_or("UNKNOWN")
+                    ));
+                    continue;
+                }
+            };
+            let instances_len = output.instances.len();
+            let output_name = output.name.clone();
+
+            match dependency {
+                DependencyType::Any(index) => {
+                    if instances_len == 0 || *index >= instances_len {
+                        if output.providers == 0 {
+                            reasons.push(format!(
+                                "{output_name} has no providers in the current queue/state"
+                            ));
+                        } else {
+                            reasons.push(format!(
+                                "{output_name} waiting for instance {} of {} (have {instances_len})",
+                                *index + 1,
+                                output.providers
+                            ));
+                        }
+                    }
+                }
+                DependencyType::All(count) => {
+                    if *count != 0 || instances_len < output.providers {
+                        reasons.push(format!(
+                            "{output_name} waiting for {instances_len} of {} instances (All)",
+                            output.providers
+                        ));
+                    }
+                }
+            }
+        }
+
+        reasons
     }
 
     /// Fetches dependencies

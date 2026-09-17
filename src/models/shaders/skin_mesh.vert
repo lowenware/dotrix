@@ -52,7 +52,8 @@ void main() {
     uint material_index = dtx_instance[gl_InstanceIndex].material_index;
     mat4 model_transform = dtx_transform[transform_index];
     vec4 material_color = dtx_material[material_index].color;
-    float albedo_layer = float(dtx_material[material_index].maps_1.x);
+    uint albedo_layer = dtx_material[material_index].maps_1.x;
+    float layer = (albedo_layer == 0xFFFFFFFFu) ? -1.0 : float(albedo_layer);
 
     mat4 skin_transform = mat4(1.0);
 
@@ -68,7 +69,7 @@ void main() {
     o_world_position = vec3(model_transform * skin_transform * vec4(pos, 1.0));
     o_world_normal = vec3(model_transform * vec4(normal, 1.0));
     o_color = vec4(material_color);
-    o_texture = vec3(texture, albedo_layer);
+    o_texture = vec3(texture, layer);
 
     gl_Position = proj_view * vec4(o_world_position, 1.0);
 }
