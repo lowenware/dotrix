@@ -10,6 +10,8 @@ pub use image_loader::ImageLoader;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+use crate::models::Material;
+
 pub use crate::tasks::{Any, Mut, Take, Task};
 pub use assets::{Asset, Assets};
 
@@ -114,10 +116,26 @@ impl Task for StoreAssets {
     fn run(&mut self, (bundle, mut assets): Self::Context) -> Self::Output {
         let ResourceBundle { resource, bundle } = bundle.take();
 
-        let report = bundle
-            .into_iter()
-            .map(|(target, asset)| (target, asset.map(|asset| assets.store(asset))))
-            .collect::<HashMap<_, _>>();
+        let mut materials = Vec::new();
+        let mut report = HashMap::new();
+
+        for (target, asset) in bundle.into_iter() {
+            if target.type_id == std::any::TypeId::of::<Material>() {
+                materials.push((target, asset));
+                continue;
+            }
+            let stored = asset.map(|asset| assets.store(asset));
+            report.insert(target, stored);
+        }
+
+        for (target, asset) in materials.into_iter() {
+            let stored = asset.map(|asset| {
+                let mut material = *unsafe { Box::from_raw(Box::into_raw(asset) as *mut Material) };
+                material.resolve_maps(&assets);
+                assets.store(Box::new(material))
+            });
+            report.insert(target, stored);
+        }
 
         ResourceReport { resource, report }
     }

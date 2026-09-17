@@ -20,7 +20,9 @@ void main() {
     vec3 light_direction = normalize(light_position - world_position);
 
     vec3 diffuse = max(dot(normal, light_direction), 0.0) * light_color;
-    vec4 texture_color = texture(dtx_material_sampler, vertex_texture);
+    vec4 texture_color = vertex_texture.z < 0.0
+        ? vec4(1.0)
+        : texture(dtx_material_sampler, vertex_texture);
 
     o_frag_color = vec4((ambient_light + diffuse), 1.0) * vertex_color * texture_color;
 }

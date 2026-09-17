@@ -76,6 +76,33 @@ impl ImageLoader {
         }
     }
 
+    /// Decodes image data into RGBA8 bytes (for material texture upload).
+    pub fn read_material_buffer(
+        name: impl Into<String>,
+        data: &[u8],
+        format: ImageFormat,
+    ) -> Option<Image> {
+        let format = match format {
+            ImageFormat::Png => image::ImageFormat::Png,
+            ImageFormat::Jpeg => image::ImageFormat::Jpeg,
+            ImageFormat::Bmp => image::ImageFormat::Bmp,
+        };
+        match image::load_from_memory_with_format(data, format) {
+            Ok(img) => {
+                let rgba = img.to_rgba8();
+                let resolution = Extent2D {
+                    width: rgba.width(),
+                    height: rgba.height(),
+                };
+                Some(Image::new(name.into(), resolution, rgba.into_raw()))
+            }
+            Err(e) => {
+                log::error!("Could not read material image from buffer: {:?}", e);
+                None
+            }
+        }
+    }
+
     pub fn read_buffer(name: impl Into<String>, data: &[u8], format: ImageFormat) -> Option<Image> {
         let format = match format {
             ImageFormat::Png => image::ImageFormat::Png,

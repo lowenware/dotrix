@@ -37,6 +37,9 @@ pub use models::{
     VertexPosition, VertexTangent, VertexTexture, VertexWeights,
 };
 
+#[cfg(feature = "ui")]
+pub use features::ui::Font;
+
 /// Rendering tools and routines
 pub mod graphics;
 pub use graphics::{DeviceType, Display, Extent2D, Format, Frame, Gpu, Semaphore};

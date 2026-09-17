@@ -1,9 +1,12 @@
 use super::{Color, Image};
-use crate::loaders::Asset;
+use crate::loaders::{Asset, Assets};
 use crate::utils::Id;
 
 // NOTE: 1:albedo_map, 2:occlusion_map, 3:metallic_map, 4:normal_map, 5:roughness_map
 pub const MAX_MATERIAL_IMAGES: u32 = 5;
+
+/// Texture array layer index indicating no albedo map is bound.
+pub const NO_TEXTURE_LAYER: u32 = u32::MAX;
 
 /// Material component
 #[derive(Debug)]
@@ -14,6 +17,8 @@ pub struct Material {
     pub albedo: Color<f32>,
     /// Id of a texture asset
     pub albedo_map: Id<Image>,
+    /// Asset name of the albedo map (resolved via [`Material::resolve_maps`])
+    pub albedo_map_name: Option<String>,
     // Ambient occulsion
     pub occlusion_factor: f32,
     /// Id of a ao texture asset
@@ -36,6 +41,7 @@ impl Default for Material {
             name: String::from("dotrix::material"),
             albedo: Color::white(),
             albedo_map: Id::default(),
+            albedo_map_name: None,
             occlusion_factor: 1.0,
             occlusion_map: Id::default(),
             metallic_factor: 1.0,
@@ -79,6 +85,17 @@ impl From<&Material> for MaterialUniform {
 
 unsafe impl bytemuck::Pod for MaterialUniform {}
 unsafe impl bytemuck::Zeroable for MaterialUniform {}
+
+impl Material {
+    /// Resolves texture map references by asset name after images are stored.
+    pub fn resolve_maps(&mut self, assets: &Assets) {
+        if self.albedo_map.is_null() {
+            if let Some(name) = self.albedo_map_name.as_deref() {
+                self.albedo_map = assets.find(name).unwrap_or_default();
+            }
+        }
+    }
+}
 
 impl Asset for Material {
     fn name(&self) -> &str {

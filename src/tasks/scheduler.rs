@@ -70,6 +70,7 @@ pub fn spawn<T: context::Context>(
             let mut lock_for_input = false;
             let mut restart_queue = false;
             let mut queue_executed = true;
+            let mut tasks_in_flight = 0usize;
             loop {
                 let mut command = if lock_for_input {
                     // There is nothing else to do, except for waiting
@@ -85,6 +86,7 @@ pub fn spawn<T: context::Context>(
                             tasks_graph_changed = true;
                         }
                         Message::Output(task, data) => {
+                            tasks_in_flight = tasks_in_flight.saturating_sub(1);
                             let type_id = task.output_type_id();
                             let output_channel = task.output_channel();
                             lock_manager.unlock(task.lock());
@@ -146,7 +148,7 @@ pub fn spawn<T: context::Context>(
 
                 if restart_queue {
                     // log::debug!("restart queue(queue_executed: {}", queue_executed);
-                    if queue_executed {
+                    if queue_executed && tasks_in_flight == 0 {
                         let mut ctx = context_manager.lock().expect("Mutex to be locked");
                         ctx.reset_data(tasks_graph_changed);
                         ctx.apply_states_changes();
@@ -216,6 +218,7 @@ pub fn spawn<T: context::Context>(
                             // move to the end of queue
                             queue.remove(index);
                             queue.push(task_id);
+                            tasks_in_flight += 1;
                             worker_tx.send(Message::Schedule(task)).ok();
                             stop_index -= 1;
                             continue;
@@ -225,6 +228,42 @@ pub fn spawn<T: context::Context>(
                     }
                     index += 1;
                 }
+
+                if !queue_executed && tasks_in_flight == 0 {
+                    let ctx = context_manager.lock().expect("Mutex to be locked");
+                    let mut blocked_tasks = Vec::new();
+
+                    for task_id in &queue {
+                        if let Some(task) = pool
+                            .get(*task_id)
+                            .and_then(|slot| slot.executable())
+                            .filter(|task| !task.is_scheduled())
+                        {
+                            let reasons = ctx.describe_unsatisfied_dependencies(task.dependencies());
+                            if !reasons.is_empty() {
+                                blocked_tasks.push((task.name(), reasons));
+                            }
+                        }
+                    }
+
+                    if !blocked_tasks.is_empty() {
+                        log::error!(
+                            "Scheduler stalled waiting for {:?}; {} task(s) cannot progress:",
+                            std::any::type_name::<T>(),
+                            blocked_tasks.len()
+                        );
+                        for (task_name, reasons) in blocked_tasks {
+                            for reason in reasons {
+                                log::error!("  - {task_name}: {reason}");
+                            }
+                        }
+                        panic!(
+                            "Task scheduler deadlock while waiting for {}; see log above for blocked tasks",
+                            std::any::type_name::<T>()
+                        );
+                    }
+                }
+
                 lock_for_input = true;
             }
         })

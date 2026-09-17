@@ -19,8 +19,8 @@ use gltf::Gltf;
 use crate::log;
 use crate::math::{Mat4, Quat, Vec3};
 use crate::models::{
-    Animation, Armature, Color, Image, ImageFormat, Interpolation, Joint, Material, Mesh,
-    Transform3D, VertexJoints, VertexNormal, VertexPosition, VertexTexture, VertexWeights,
+    Animation, Armature, Color, ImageFormat, Interpolation, Joint, Material, Mesh, Transform3D,
+    VertexJoints, VertexNormal, VertexPosition, VertexTexture, VertexWeights,
 };
 use crate::utils::Id;
 
@@ -32,7 +32,7 @@ type ResultIndex = usize;
 #[derive(Default)]
 struct Output {
     result: Vec<Box<dyn Asset>>,
-    loaded_images: HashMap<JsonIndex, ResultIndex>,
+    loaded_images: HashMap<JsonIndex, String>,
     loaded_meshes: HashMap<JsonIndex, ResultIndex>,
     loaded_materials: HashMap<JsonIndex, ResultIndex>,
     loaded_armature: HashMap<JsonIndex, ResultIndex>,
@@ -337,28 +337,23 @@ impl GltfLoader {
         let metallic_factor = pbr.metallic_factor();
         let roughness_factor = pbr.roughness_factor();
 
-        let albedo_map = pbr
+        let albedo_map_name = pbr
             .base_color_texture()
-            .map(|info| Self::read_image(output, &info.texture(), buffers, name))
-            .unwrap_or_default();
+            .and_then(|info| Self::read_image(output, &info.texture(), buffers, name));
 
-        let normal_map = material
-            .normal_texture()
-            .map(|normals| Self::read_image(output, &normals.texture(), buffers, name))
-            .unwrap_or_default();
+        if let Some(normals) = material.normal_texture() {
+            Self::read_image(output, &normals.texture(), buffers, name);
+        }
 
-        let occlusion_map = material
-            .normal_texture()
-            .map(|occlusion| Self::read_image(output, &occlusion.texture(), buffers, name))
-            .unwrap_or_default();
+        if let Some(occlusion) = material.occlusion_texture() {
+            Self::read_image(output, &occlusion.texture(), buffers, name);
+        }
 
         let asset_name = [name, material.name().unwrap_or("material")].join("::");
         let material_asset = Material {
             name: asset_name,
             albedo,
-            albedo_map,
-            normal_map,
-            occlusion_map,
+            albedo_map_name,
             metallic_factor,
             roughness_factor,
 
@@ -376,55 +371,57 @@ impl GltfLoader {
         texture: &gltf::Texture,
         buffers: &[Vec<u8>],
         name: &str,
-    ) -> Id<Image> {
+    ) -> Option<String> {
         let asset_name = [name, texture.name().unwrap_or("material")].join("::");
-        let image_index = texture.index();
-        let mut result_index = output.loaded_images.get(&image_index).cloned();
+        let texture_index = texture.index();
 
-        if result_index.is_none() {
-            let source = texture.source().source();
-            let (data, format) = match source {
-                gltf::image::Source::Uri { uri, .. } => {
-                    const URI_IMAGE_PNG: &str = "data:image/png;base64,";
-
-                    if !uri.starts_with(URI_IMAGE_PNG) {
-                        log::warn!("Unsupported texture uri");
-                        return Id::default();
-                    }
-
-                    match base64_decode(&uri[URI_IMAGE_PNG.len()..]) {
-                        Ok(data) => (data, ImageFormat::Png),
-                        Err(err) => {
-                            log::error!("Could not decode texture data: {err:?}");
-                            return Id::default();
-                        }
-                    }
-                }
-
-                gltf::image::Source::View { view, mime_type } => {
-                    if mime_type != "image/png" {
-                        log::warn!("Unsupported mime: {mime_type}");
-                        return Id::default();
-                    }
-
-                    let index = view.buffer().index();
-                    let offset = view.offset();
-                    let tail = offset + view.length();
-                    let data = &buffers[index][offset..tail];
-
-                    (data.to_vec(), ImageFormat::Png)
-                }
-            };
-
-            if let Some(image) = ImageLoader::read_buffer(asset_name, &data, format) {
-                let index = output.result.len();
-                result_index.replace(index);
-                output.loaded_images.insert(image_index, index);
-                output.result.push(Box::new(image));
-            }
+        if let Some(cached_name) = output.loaded_images.get(&texture_index) {
+            return Some(cached_name.clone());
         }
 
-        Id::new()
+        let source = texture.source().source();
+        let (data, format) = match source {
+            gltf::image::Source::Uri { uri, .. } => {
+                const URI_IMAGE_PNG: &str = "data:image/png;base64,";
+
+                if !uri.starts_with(URI_IMAGE_PNG) {
+                    log::warn!("Unsupported texture uri");
+                    return None;
+                }
+
+                match base64_decode(&uri[URI_IMAGE_PNG.len()..]) {
+                    Ok(data) => (data, ImageFormat::Png),
+                    Err(err) => {
+                        log::error!("Could not decode texture data: {err:?}");
+                        return None;
+                    }
+                }
+            }
+
+            gltf::image::Source::View { view, mime_type } => {
+                if mime_type != "image/png" {
+                    log::warn!("Unsupported mime: {mime_type}");
+                    return None;
+                }
+
+                let index = view.buffer().index();
+                let offset = view.offset();
+                let tail = offset + view.length();
+                let data = &buffers[index][offset..tail];
+
+                (data.to_vec(), ImageFormat::Png)
+            }
+        };
+
+        if let Some(image) = ImageLoader::read_material_buffer(asset_name.clone(), &data, format) {
+            output
+                .loaded_images
+                .insert(texture_index, asset_name.clone());
+            output.result.push(Box::new(image));
+            Some(asset_name)
+        } else {
+            None
+        }
     }
 
     fn read_animation(

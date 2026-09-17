@@ -195,6 +195,7 @@ where
 
     fn reset(&mut self) {
         self.dependencies.reset();
+        self.dependencies_state = None;
     }
 }
 
@@ -227,6 +228,10 @@ pub struct Slot {
 impl Slot {
     pub fn name(&self) -> Option<&str> {
         self.task.as_ref().map(|t| t.name())
+    }
+
+    pub fn executable(&self) -> Option<&dyn Executable> {
+        self.task.as_deref()
     }
 }
 
@@ -305,6 +310,14 @@ impl Pool {
         output_type_id: std::any::TypeId,
         context: &mut context::Manager,
     ) -> usize {
+        // Loop is injected by the scheduler at the start of each cycle, not by a
+        // queued task. Without this, dependency analysis reports 0 providers and
+        // SubmitFrame runs before any RenderSubmit tasks produce output.
+        if output_type_id == TypeId::of::<super::scheduler::Loop>() {
+            context.set_output_providers(output_type_id, 1);
+            return 1;
+        }
+
         let tasks = queue.iter().filter_map(|id| {
             self.tasks
                 .get(id)
@@ -323,6 +336,7 @@ impl Pool {
         for task in tasks {
             let mut p = 1;
             let mut will_run_multiple_times = false;
+            let mut satisfiable = true;
             for (dep_type_id, dep_type) in task.dependencies().data.iter() {
                 match dep_type {
                     context::DependencyType::Any(_) => {
@@ -334,6 +348,7 @@ impl Pool {
                                 task.name(),
                                 context.output_name(dep_type_id).unwrap_or("UNKNOWN")
                             );
+                            satisfiable = false;
                         } else if any_providers > 1 {
                             if will_run_multiple_times {
                                 panic!(
@@ -350,7 +365,9 @@ impl Pool {
                     }
                 };
             }
-            providers += p;
+            if satisfiable {
+                providers += p;
+            }
         }
         log::debug!(
             "{} has {} providers",

@@ -239,6 +239,12 @@ impl<T: Application> winit::application::ApplicationHandler for EventLoop<T> {
                 };
                 self.task_manager.provide(input_event);
             }
+            winit::event::WindowEvent::CursorMoved { position, .. } => {
+                self.task_manager.provide(event::Event::CursorPosition {
+                    horizontal: position.x,
+                    vertical: position.y,
+                });
+            }
             winit::event::WindowEvent::MouseInput { state, button, .. } => {
                 let mouse_button = event::Button::from(&button);
                 let input_event = match state {
